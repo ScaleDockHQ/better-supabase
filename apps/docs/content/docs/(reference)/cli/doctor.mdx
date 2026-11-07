@@ -2385,6 +2385,10 @@ These checks read the app's source text, matched by `doctor.sources`, for code t
 
 **Info: a support caller is built as an `AuthState` by hand.** Pass `{ token, claims }`, a `SupportCaller`, to the support API.
 
+### BS620
+
+**Info: settings are merged into one JSON blob by hand.** The `settings` block validates each key against a Standard Schema and writes one key at a time.
+
 ## Local stacks
 
 These checks read the machine's System V shared memory with `ipcs`, so they

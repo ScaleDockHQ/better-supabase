@@ -103,6 +103,16 @@ export const SHIMS: readonly Shim[] = [
     pattern: /\bsource\s*:\s*["']cookie["']/,
     also: /\bsupport\b/i,
   },
+  {
+    code: "BS620",
+    title: "Settings are merged into one JSON blob by hand",
+    found:
+      "an `update({ settings: { ...old, ... } })` merge on a settings column",
+    replacement:
+      "the `settings` block, which validates each key against a Standard Schema and writes one key at a time",
+    since: "0.54",
+    pattern: /\.update\(\s*\{\s*settings\s*:\s*\{\s*\.\.\./,
+  },
 ];
 
 function lineOfMatch(file: TextFile, pattern: RegExp): number {

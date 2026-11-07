@@ -81,4 +81,30 @@ describe("db.$decode", () => {
 
     expect(!rows.ok && rows.error.kind).toBe("invalid_value");
   });
+
+  it("decodes embedded relations at every depth", () => {
+    const row = coded
+      .$decode("customerTags")
+      .row({
+        customer_id: "c1",
+        tag: { id: "t1", created_at: "2026-01-01T00:00:00Z" },
+      });
+
+    expect(row.ok && row.data).toMatchObject({
+      customerId: "c1",
+      tag: { id: "t1" },
+    });
+    expect(
+      row.ok &&
+        typeof (row.data as { tag: { createdAt: unknown } }).tag.createdAt,
+    ).toBe("object");
+  });
+
+  it("reports an embedded row that fails to decode", () => {
+    const row = coded
+      .$decode("customerTags")
+      .row({ customer_id: "c1", tag: { id: "t1", created_at: "infinity" } });
+
+    expect(!row.ok && row.error.kind).toBe("invalid_value");
+  });
 });

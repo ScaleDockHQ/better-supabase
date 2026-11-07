@@ -172,4 +172,31 @@ describe("createFakeClient", () => {
 
     expect(reply.data).toEqual({ id: 1 });
   });
+
+  it("counts the rows in the PGRST116 details", async () => {
+    const many = createFakeClient(() => ({ data: [{ id: 1 }, { id: 2 }] }));
+    const none = createFakeClient(() => ({ data: [] }));
+
+    expect((await many.from("t").select().single()).error?.details).toBe(
+      "The result contains 2 rows",
+    );
+    expect((await none.from("t").select().single()).error?.details).toBe(
+      "The result contains 0 rows",
+    );
+    expect((await many.from("t").select().maybeSingle()).error?.code).toBe(
+      "PGRST116",
+    );
+  });
+
+  it("refuses single() when the handler answers with no data", async () => {
+    const client = createFakeClient(() => ({ data: null }));
+
+    expect((await client.from("t").select().single()).error?.code).toBe(
+      "PGRST116",
+    );
+    expect(await client.from("t").select().maybeSingle()).toMatchObject({
+      data: null,
+      error: null,
+    });
+  });
 });
