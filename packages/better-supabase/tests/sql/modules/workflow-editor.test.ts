@@ -16,6 +16,28 @@ const schemaOf = (names: readonly string[]) =>
     .join("\n");
 
 describe("workflow-editor module", () => {
+  it("leaves out opt-outs when the app maps the table to null", () => {
+    const kept = schemaOf(["workflow-editor"]);
+    expect(kept).toContain(
+      'create table "better_supabase"."workflow_opt_outs"',
+    );
+    expect(kept).toContain('"set_workflow_opt_out"');
+    expect(kept).toContain("This organization opted out of this workflow");
+
+    const left = renderBlocks(["workflow-editor"], {
+      modules: { "workflow-editor": { tables: { optOuts: null } } },
+    })
+      .filter((file) => file.kind === "schema")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(left).not.toContain(
+      'create table "better_supabase"."workflow_opt_outs"',
+    );
+    expect(left).not.toContain("set_workflow_opt_out");
+    expect(left).not.toContain("This organization opted out of this workflow");
+  });
+
   it("installs after workflows and emits alerts only with the outbox", () => {
     const names = renderBlocks(["workflow-editor"], {}).map(
       (file) => file.module,

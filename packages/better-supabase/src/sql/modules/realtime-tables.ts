@@ -1,8 +1,8 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
 
-import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
+import { realtimeTriggers } from "../row-realtime.ts";
 import { triggerGrant } from "../shared.ts";
 
 /**
@@ -316,13 +316,15 @@ function realtimeRegistrations(
     const owner = owners.get(target);
 
     if (owner !== undefined) {
-      return `select better_supabase.track_realtime(${sqlString(target)}, tenant_column => null, user_column => ${sqlString(owner)});`;
+      return realtimeTriggers(target, { column: owner, kind: "user" });
     }
 
-    const tenant =
-      tenantColumn && !unscoped.has(target) ? sqlString(tenantColumn) : "null";
-
-    return `select better_supabase.track_realtime(${sqlString(target)}, tenant_column => ${tenant});`;
+    return realtimeTriggers(
+      target,
+      tenantColumn && !unscoped.has(target)
+        ? { column: tenantColumn, kind: "tenant" }
+        : undefined,
+    );
   });
 
   return `\n-- config.realtime.tables\n${lines.join("\n")}\n`;

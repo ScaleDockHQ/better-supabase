@@ -236,7 +236,18 @@ function moduleFiles(
     ? ""
     : rowAuditData(ctx, layout, installed, true);
 
-  const extra = `${scoped(module.extras?.(ctx, layout) ?? "")}${searchTriggers === "" ? "" : `\n${searchTriggers}\n`}${rowAuditSchema === "" ? "" : `\n${rowAuditSchema}\n`}`;
+  // The same holds for the realtime triggers, which need `broadcast_changes`.
+  const realtimeAt = installed.indexOf("realtime-tables");
+
+  const rowRealtimeBeforeSchema =
+    realtimeAt === -1 ||
+    (layout.rerunnable === true && installed.indexOf(module.name) < realtimeAt);
+
+  const rowRealtimeSchema = rowRealtimeBeforeSchema
+    ? ""
+    : rowRealtimeData(ctx, installed, true);
+
+  const extra = `${scoped(module.extras?.(ctx, layout) ?? "")}${searchTriggers === "" ? "" : `\n${searchTriggers}\n`}${rowAuditSchema === "" ? "" : `\n${rowAuditSchema}\n`}${rowRealtimeSchema === "" ? "" : `\n${rowRealtimeSchema}\n`}`;
   const wrappers = renameIdentifiers(deprecationWrappers(module, ctx), renames);
   const body = scoped(moduleSql(module, ctx, layout).trim());
   module.contract?.(ctx);
@@ -292,7 +303,7 @@ function moduleFiles(
       .join("\n"),
     scoped(module.data?.(ctx, layout).trim() ?? ""),
     rowAuditBeforeSchema ? rowAuditData(ctx, layout, installed) : "",
-    rowRealtimeData(ctx, installed),
+    rowRealtimeBeforeSchema ? rowRealtimeData(ctx, installed) : "",
     moduleRow(module, ctx.mode, ctx.instance),
   ]
     .filter((part) => part !== "")

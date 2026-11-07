@@ -440,13 +440,13 @@ describe("sameBlockFile", () => {
     });
 
     expect(file!.contents).toContain(
-      "select better_supabase.track_realtime('public.customers', tenant_column => 'organization_id');",
+      "create trigger bsb_realtime_insert after insert on public.customers referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes('organization_id', 'tenant');",
     );
     expect(file!.contents).toContain(
-      "select better_supabase.track_realtime('billing.invoices', tenant_column => 'organization_id');",
+      "create trigger bsb_realtime_delete after delete on billing.invoices referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes('organization_id', 'tenant');",
     );
     expect(file!.contents).toContain(
-      "select better_supabase.track_realtime('public.plans', tenant_column => null);",
+      "create trigger bsb_realtime after insert or update or delete on public.plans for each statement execute function better_supabase.broadcast_changes();",
     );
     expect(file!.contents).toContain("raise exception '% has no column %'");
     expect(renderBlocks(["realtime-tables"])[0]!.contents).not.toContain(
@@ -462,10 +462,10 @@ describe("sameBlockFile", () => {
     });
 
     expect(file!.contents).toContain(
-      "select better_supabase.track_realtime('public.notifications', tenant_column => null, user_column => 'user_id');",
+      "create trigger bsb_realtime_update after update on public.notifications referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes('user_id', 'user');",
     );
     expect(file!.contents).toContain(
-      "select better_supabase.track_realtime('public.customers', tenant_column => 'organization_id');",
+      "create trigger bsb_realtime_update after update on public.customers referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes('organization_id', 'tenant');",
     );
     expect(file!.contents).toContain(
       "split_part((select realtime.topic()), ':', 5) = (select auth.uid())::text",

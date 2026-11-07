@@ -47,14 +47,14 @@ commit that adds it. "Open" has a reason.
 
 ## Platform and runtime
 
-| Item                                                              | State                                                           |
-| ----------------------------------------------------------------- | --------------------------------------------------------------- |
-| Comments avatar                                                   | Exists: `list_comments` returns the avatar with profiles        |
-| Notifications `resolveAddress`                                    | Open                                                            |
-| Realtime triggers as static app SQL                               | Open                                                            |
-| Drive grants mode                                                 | Exists as role hooks (`DriveRoleHook`); a separate mode is open |
-| Imports without events                                            | Exists: `events: "skip"`                                        |
-| Outbox subject                                                    | Exists for app tables (`subjectType`, `subjectId`)              |
-| Optional workflow tables                                          | Open                                                            |
-| `approvalWaiter`, `resumeStreamResponse`, `problem429`            | Exists                                                          |
-| `$decode` nested jsonb, fake client `PGRST116`, shim doctor rules | Exists (runtime-bugs, completed)                                |
+| Item                                                              | State                                                                       |
+| ----------------------------------------------------------------- | --------------------------------------------------------------------------- |
+| Comments avatar                                                   | Exists: `list_comments` returns the avatar with profiles                    |
+| Notifications `resolveAddress`                                    | Done (ADR 0270): `options.resolveAddress`                                   |
+| Realtime triggers as static app SQL                               | Done (ADR 0270): static `create trigger` statements                         |
+| Drive grants mode                                                 | Role hooks exist (`DriveRoleHook`); a separate mode is not built (ADR 0270) |
+| Imports without events                                            | Exists: `events: "skip"`                                                    |
+| Outbox subject                                                    | Exists for app tables (`subjectType`, `subjectId`)                          |
+| Optional workflow tables                                          | Done (ADR 0270): `workflow_opt_outs` is optional                            |
+| `approvalWaiter`, `resumeStreamResponse`, `problem429`            | Exists                                                                      |
+| `$decode` nested jsonb, fake client `PGRST116`, shim doctor rules | Exists (runtime-bugs, completed)                                            |

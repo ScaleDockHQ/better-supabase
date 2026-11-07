@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:d39976e73789364e5950e596fc1d9ef6b22735b9c38e3b9097e29bd4745d56ce
+-- @bsb-hash sha256:59f2e0fadfe3f365ad9b6fb71cac1c798c75e5d3d220c956cdbddbfaeef28eb4
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1003,7 +1003,7 @@ begin
     'channel', l."channel",
     'attempts', l."attempts",
     'user_id', rc."user_id",
-    'email', u.email,
+    'email', coalesce("better_supabase"."member_address"(rc."user_id", l."channel"), u.email),
     'locale', pr."locale"::text,
     'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution"),
     'suppressed', s."reason"
@@ -1013,7 +1013,7 @@ begin
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
   left join auth.users u on u.id = rc."user_id"
   left join "better_supabase"."profiles" pr on pr."id" = rc."user_id"
-  left join "better_supabase"."notification_suppressions" s on s."channel" = l."channel" and s."address" = lower(u.email);
+  left join "better_supabase"."notification_suppressions" s on s."channel" = l."channel" and s."address" = lower(coalesce("better_supabase"."member_address"(rc."user_id", l."channel"), u.email));
   return claimed;
 end;
 $$;
@@ -1198,7 +1198,7 @@ begin
   select coalesce(jsonb_agg(jsonb_build_object(
     'digest_id', l."id",
     'user_id', l."user_id",
-    'email', u.email,
+    'email', coalesce("better_supabase"."member_address"(l."user_id", l."channel"), u.email),
     'channel', l."channel",
     'cadence', l."cadence",
     'tenant', l."organization_id",
@@ -1376,7 +1376,7 @@ begin
     where d."id" = v_delivery
       and coalesce(array_position(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[], d."provider_status"), 0) <= array_position(array['delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained']::text[], v_kind);
     if v_kind in ('bounced', 'complained') and coalesce(record_delivery_event.suppress, true) then
-      select u.email into v_email from auth.users u where u.id = v_user;
+      select coalesce("better_supabase"."member_address"(v_user, v_channel), u.email) into v_email from auth.users u where u.id = v_user;
       if v_email is not null and btrim(v_email) <> '' then
         perform "better_supabase"."suppress_notification_address"(
           v_email,

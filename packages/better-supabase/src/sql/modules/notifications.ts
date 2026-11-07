@@ -108,6 +108,7 @@ const NAMES: BlockSqlNames = {
     "partitioned",
     "priorities",
     "realtime",
+    "resolveAddress",
     "topic",
     "updatedEvent",
   ],

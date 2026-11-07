@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:4e0e210087c5e4d69ad95637a97c6d9532275c26db551181719c0a4c11245b37
+-- @bsb-hash sha256:22ec0eb8c5cac6315291b724756482471417ba37696f373cb8515285d84d4e84
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1169,6 +1169,11 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_projects deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"project","event_prefix":"project"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.iterations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"iteration","event_prefix":"iteration"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_item_checklist_items deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"checklist_item","event_prefix":"checklist_item"}');
+
+-- Realtime for the module's entities (subject.realtime)
+create trigger bsb_realtime_insert after insert on "better_supabase"."work_items" referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes('tenant_id', 'tenant');
+create trigger bsb_realtime_update after update on "better_supabase"."work_items" referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes('tenant_id', 'tenant');
+create trigger bsb_realtime_delete after delete on "better_supabase"."work_items" referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes('tenant_id', 'tenant');
 
 -- blocks.tasks.api: entry points for the Data API.
 create schema if not exists "api";

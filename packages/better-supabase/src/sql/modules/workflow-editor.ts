@@ -99,6 +99,7 @@ const NAMES: BlockSqlNames = {
     },
     optOuts: {
       name: "workflow_opt_outs",
+      optionalTable: true,
       app: {},
       lifecycle: { user: "createdBy", tenant: "tenant" },
       columns: {
@@ -344,7 +345,9 @@ ${definitionColumnsSql(ctx, s)}
 ${lockModuleTable(ctx, "definitions", { read: true })}
 ${renderPolicy(makePolicy({ table: d, name: ctx.naming.rename("workflow_definitions_read"), command: "select", roles: ["authenticated"], using: scoped ? `${readable(cd("tenant"))} or (${cd("scope")} = 'system' and exists (select ${ctx.scope.ids(s.permission("read"))}))` : readable(cd("tenant")) }), { target: d })}
 
--- The tenants that opted out of a definition, usually a system one: its
+${
+  ctx.hasTable("optOuts")
+    ? `-- The tenants that opted out of a definition, usually a system one: its
 -- triggers and starts skip them (WORKFLOW_OPTED_OUT).
 create table if not exists ${o} (
   ${co("tenant")} ${id} not null,
@@ -357,7 +360,9 @@ create index if not exists workflow_opt_outs_definition_idx on ${o} (${co("defin
 create index if not exists workflow_opt_outs_created_by_idx on ${o} (${co("createdBy")});
 ${lockModuleTable(ctx, "optOuts", { read: true })}
 ${renderPolicy(makePolicy({ table: o, name: "workflow_opt_outs_read", command: "select", roles: ["authenticated"], using: readable(co("tenant")) }), { target: o })}
-
+`
+    : ""
+}
 -- Who may run or edit a restricted definition: a user, a team or an
 -- organization role. An edit grant also runs it.
 create table if not exists ${g} (
@@ -899,11 +904,15 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["uuid", "{id}", "text"],
       returns: "jsonb",
     },
-    {
-      name: "set_workflow_opt_out",
-      args: ["{id}", "uuid", "boolean"],
-      returns: "boolean",
-    },
+    ...(ctx.hasTable("optOuts")
+      ? [
+          {
+            name: "set_workflow_opt_out",
+            args: ["{id}", "uuid", "boolean"],
+            returns: "boolean",
+          },
+        ]
+      : []),
     {
       name: "set_workflow_definition_grant",
       args: ["uuid", "text", "text", "text", "boolean"],

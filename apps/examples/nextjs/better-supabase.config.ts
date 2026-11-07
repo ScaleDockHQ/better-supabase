@@ -227,7 +227,11 @@ export default defineConfig({
     metrics: { options: { metrics } },
     // In-app notifications behind the unread badge and /notifications,
     // on the recipient's private topic `notifications:<user id>`.
-    notifications: {},
+    // Email goes to the work address `better_supabase.member_address` returns, and to
+    // the sign-in email when it returns null.
+    notifications: {
+      options: { resolveAddress: "better_supabase.member_address" },
+    },
     // Durable workflow runs behind /workflows, run by the Workflow SDK on
     // the Supabase World (`WORKFLOW_TARGET_WORLD`), which polls in dev.
     workflows: {},

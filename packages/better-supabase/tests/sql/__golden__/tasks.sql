@@ -999,7 +999,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:10632fbcd29542de5ae236ed8f12c0eb648e0bcae0ea8a9e9ee56e27101b8b57
+-- @bsb-hash sha256:df793512eb41420d5eb3ea1706e80528fb38f1f160702ab7a603abdec7e493f6
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2166,10 +2166,15 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.iterations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"iteration","event_prefix":"iteration"}');
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.task_checklist_items deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"checklist_item","event_prefix":"checklist_item"}');
 
+-- Realtime for the module's entities (subject.realtime)
+create trigger bsb_realtime_insert after insert on "better_supabase"."tasks" referencing new table as new_rows for each statement execute function better_supabase.broadcast_changes('tenant_id', 'tenant');
+create trigger bsb_realtime_update after update on "better_supabase"."tasks" referencing old table as old_rows new table as new_rows for each statement execute function better_supabase.broadcast_changes('tenant_id', 'tenant');
+create trigger bsb_realtime_delete after delete on "better_supabase"."tasks" referencing old table as old_rows for each statement execute function better_supabase.broadcast_changes('tenant_id', 'tenant');
+
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block-data tasks
--- @bsb-hash sha256:b590dfd19b4f6eff758af54485314e235bb7dd3df268de32853f9f6cc35dfa3a
+-- @bsb-hash sha256:fbb104b1998a7e4c4a4cc9a6f7708666d4b23de9515e1be4ff09de665e2c2b74
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -2179,9 +2184,6 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 select "better_supabase"."accounting_sync_dimension_value"(x."tenant_id", 'project', 'Project', x."id"::text, x."key" || ' ' || x."name", x."archived_at" is not null)
 from "better_supabase"."projects" x
 where exists (select 1 from "better_supabase"."accounting_settings" s where s."tenant_id" = x."tenant_id");
-
--- Realtime for the module's entities (subject.realtime)
-select better_supabase.track_realtime('better_supabase.tasks', tenant_column => 'tenant_id');
 
 insert into better_supabase.blocks (name, version, mode)
 values ('tasks', 5, 'managed')

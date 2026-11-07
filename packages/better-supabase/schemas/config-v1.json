@@ -6324,8 +6324,7 @@
                 "default": ["in_app"]
               },
               "createdEvent": {
-                "type": "string",
-                "default": "notification_created"
+                "type": "string"
               },
               "maxRecipients": {
                 "type": "number",
@@ -6343,16 +6342,17 @@
                 "default": ["low", "normal", "high", "urgent"]
               },
               "realtime": {
-                "type": "string",
-                "default": "broadcast"
+                "type": "string"
+              },
+              "resolveAddress": {
+                "type": "string"
               },
               "topic": {
                 "type": "string",
                 "default": "notifications:{userId}"
               },
               "updatedEvent": {
-                "type": "string",
-                "default": "notification_updated"
+                "type": "string"
               }
             }
           }

@@ -121,10 +121,14 @@ ${
   if not (${allowed("v_tenant", "run")} and ${granted("definition", "v_tenant", "run")}) then
     ${forbidden("You may not run this workflow")}
   end if;
-  if v_tenant is not null and ${optedOut("definition", "v_tenant")} then
+${
+  ctx.hasTable("optOuts")
+    ? `  if v_tenant is not null and ${optedOut("definition", "v_tenant")} then
     ${fail("WORKFLOW_OPTED_OUT", "This organization opted out of this workflow", "P0001")}
   end if;
-  select * into v_row from ${v} x where x.${cv("definition")} = definition and x.${cv("status")} = 'published';
+`
+    : ""
+}  select * into v_row from ${v} x where x.${cv("definition")} = definition and x.${cv("status")} = 'published';
   if not found then
     ${fail("WORKFLOW_NOT_PUBLISHED", "This workflow has no published version", "P0002")}
   end if;
@@ -277,7 +281,9 @@ end;
 $$;
 ${callable(`${fn("fork_workflow_definition")}(uuid, ${id}, text)`)}
 
--- Opts tenant out of definition (a system definition, or one in tenant), or
+${
+  ctx.hasTable("optOuts")
+    ? `-- Opts tenant out of definition (a system definition, or one in tenant), or
 -- back in with opted_out false: workflow.admin in tenant. Returns whether
 -- the tenant is opted out.
 create or replace function ${fn("set_workflow_opt_out")}(tenant ${id}, definition uuid, opted_out boolean default true)
@@ -311,7 +317,9 @@ begin
 end;
 $$;
 ${callable(`${fn("set_workflow_opt_out")}(${id}, uuid, boolean)`)}
-
+`
+    : ""
+}
 -- Grants (or with granted false, revokes) action (run or edit) on a
 -- definition to a user, a team or an organization role: workflow.admin in
 -- its tenant. Grants only matter while the definition is restricted.

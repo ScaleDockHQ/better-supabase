@@ -501,6 +501,8 @@ block keeps requests, their approvals and each member's balance.
 
 ## Email, push and other channels
 
+`options.resolveAddress` names an app function, `better_supabase.member_address(user uuid, channel text) returns text`, that says where a member is reached on a channel, such as a work email in your own profile table. Claimed deliveries, claimed digests and the suppression of a bounced address use it, and a `null` answer falls back to the member's sign-in email. The function runs inside the block's definer functions, so it needs no grant for signed-in users.
+
 Every channel except `in_app` gets a `pending` delivery row per recipient.
 Pass `email` for mail and a `NotificationChannel` for any other channel,
 then call `deliver()` from a cron route or a job, with a service connection:

@@ -4,6 +4,7 @@ import type { NotifyNames } from "./notifications-sql.ts";
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { fail, pageSize, revokeTable, serviceGrant } from "../shared.ts";
+import { addressSql } from "./notifications-address.ts";
 
 /**
  * Whether the module writes and honours suppressions. A module over the app's
@@ -65,7 +66,7 @@ export function claimSuppression(
 
   return {
     join: `
-  left join ${n.table("suppressions")} s on s.${c("channel")} = l.${n.col("deliveries", "channel")} and s.${c("address")} = lower(u.email)`,
+  left join ${n.table("suppressions")} s on s.${c("channel")} = l.${n.col("deliveries", "channel")} and s.${c("address")} = lower(${addressSql(ctx, `rc.${n.col("recipients", "user")}`, `l.${n.col("deliveries", "channel")}`, "u.email")})`,
     field: `,
     'suppressed', s.${c("reason")}`,
   };

@@ -337,6 +337,8 @@ real steps.
 
 ## System workflows, forks and opt-outs
 
+`workflow_opt_outs` is an optional table: map it to `null` in `blocks.workflow-editor.tables` and the block leaves out the table, `set_workflow_opt_out` and the `WORKFLOW_OPTED_OUT` check, so no organization opts out of a system workflow.
+
 A definition with `scope: "system"` belongs to the app, not to one
 organization. Only the service role creates one, with no tenant, and the
 scope can't change afterwards. Every organization whose members hold
