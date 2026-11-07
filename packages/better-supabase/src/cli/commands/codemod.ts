@@ -108,7 +108,9 @@ async function sourceFiles(path: string): Promise<string[]> {
  * blocks wrote (`@bsb-block` modules, data and tests) stay out: `upgrade`
  * rewrites them, so a codemod neither reads their names nor edits them.
  */
-async function projectSql(root: string): Promise<string> {
+async function projectSqlFiles(
+  root: string,
+): Promise<{ path: string; text: string }[]> {
   const base = resolve(root, "supabase");
 
   const entries = await readdir(base, {
@@ -126,16 +128,18 @@ async function projectSql(root: string): Promise<string> {
       }),
   );
 
-  return sources
-    .filter((source) => !writtenByBlocks(source))
-    .map((source) => source.text)
-    .join("\n");
+  return sources.filter((source) => !writtenByBlocks(source));
+}
+
+async function projectSql(root: string): Promise<string> {
+  return (await projectSqlFiles(root)).map((source) => source.text).join("\n");
 }
 
 export async function runCodemod(
   config: ResolvedConfig,
   args: CodemodOptions,
   paint: Paint = plain,
+  configFile?: string,
 ): Promise<CommandResult> {
   const [name, ...paths] = args._ ?? [];
 
@@ -179,6 +183,34 @@ export async function runCodemod(
     if (result.text !== source) {
       edits.push({ path: file, contents: result.text, policy: "edit" });
     }
+  }
+
+  if (codemod.project !== undefined) {
+    const project = await codemod.project({
+      config,
+      sql: await projectSqlFiles(config.root),
+      ...(configFile === undefined
+        ? {}
+        : { configFile, configText: await readFile(configFile, "utf-8") }),
+    });
+
+    for (const file of project.files) {
+      const at = edits.findIndex((edit) => edit.path === file.path);
+
+      if (at === -1) {
+        edits.push(file);
+      } else {
+        edits[at] = file;
+      }
+    }
+
+    review.push(
+      ...project.review.map((hint) => ({
+        file: configFile === undefined ? "" : relative(config.root, configFile),
+        line: 1,
+        ...hint,
+      })),
+    );
   }
 
   const sql = codemod.migration?.(await projectSql(config.root));
@@ -258,7 +290,7 @@ export function codemodCommand(name: string): AnyCommand {
     meta: commandMeta(`codemod ${name}`),
     args: CODEMOD_ARGS,
     runsWithInvalidConfig: true,
-    run: (args, { config, paint }) =>
-      runCodemod(config, { ...args, _: [name, ...args._] }, paint),
+    run: (args, { config, configFile, paint }) =>
+      runCodemod(config, { ...args, _: [name, ...args._] }, paint, configFile),
   });
 }

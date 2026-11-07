@@ -102,6 +102,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
       import("./commands/codemod.ts").then((m) => m.codemodCommand("naming")),
   ],
   [
+    "codemod extra-columns",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("extra-columns"),
+      ),
+  ],
+  [
     "codemod read-many",
     () =>
       import("./commands/codemod.ts").then((m) =>

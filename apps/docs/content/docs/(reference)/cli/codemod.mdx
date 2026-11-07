@@ -26,15 +26,17 @@ directory that holds the discovered config file, or `--cwd` when there is none.
 This release upgrades from 0.53 only. An app on an older version upgrades to
 0.53 first with that release ([ADR 0245](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0245-upgrades-start-at-0-53.md)).
 
-| Codemod     | What it changes                                                                                                                                                                                                                                                                                                                                                           |
-| ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `naming`    | Applies the rename table of `api/naming.json`: renamed exports and types in imports and where they are used, renamed `better-supabase/<subpath>` specifiers, renamed environment variables in source, `.env*` files and `turbo.json`, and one hand migration for renamed SQL objects of installed blocks (`alter ... rename`, `-- destructive: reviewed`, no data moves). |
-| `read-many` | Rewrites nothing. Lists each `Promise.all` of repository reads on one `db` that `db.$many` or a read set can load in one round trip, and each one that mixes in other calls.                                                                                                                                                                                              |
+| Codemod         | What it changes                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                    |
+| --------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `naming`        | Applies the rename table of `api/naming.json`: renamed exports and types in imports and where they are used, renamed `better-supabase/<subpath>` specifiers, renamed environment variables in source, `.env*` files and `turbo.json`, and one hand migration for renamed SQL objects of installed blocks (`alter ... rename`, `-- destructive: reviewed`, no data moves).                                                                                                                                                          |
+| `extra-columns` | Moves each `blocks.<name>.options.extraColumns` (and `*ExtraColumns`) column into your schema files and drops the option from the config. A column goes beside the `alter table` statements of an app file that already alters the block's table, or into `<table>.ext.sql` next to your schema files when none does. The block then reads the column as a field because your file adds it. Files a block wrote (`@bsb-block`) are never edited. A column no block table adds stays in the config and is listed after the summary. |
+| `read-many`     | Rewrites nothing. Lists each `Promise.all` of repository reads on one `db` that `db.$many` or a read set can load in one round trip, and each one that mixes in other calls.                                                                                                                                                                                                                                                                                                                                                       |
 
-| Command             | Side effects  |
-| ------------------- | ------------- |
-| `codemod naming`    | Writes files. |
-| `codemod read-many` | Writes files. |
+| Command                 | Side effects  |
+| ----------------------- | ------------- |
+| `codemod naming`        | Writes files. |
+| `codemod extra-columns` | Writes files. |
+| `codemod read-many`     | Writes files. |
 
 ## What it rewrites
 

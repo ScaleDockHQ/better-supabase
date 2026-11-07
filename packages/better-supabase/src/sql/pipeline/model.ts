@@ -31,6 +31,11 @@ export interface DeclaredObject {
 export interface AlteredTable {
   readonly table: string;
   readonly columns: readonly string[];
+  /** The columns with the type text after the name, in `columns` order. */
+  readonly definitions: readonly {
+    readonly name: string;
+    readonly type: string;
+  }[];
   readonly line: number;
 }
 
@@ -63,7 +68,7 @@ export interface ParsedFile {
  * Changes whenever `parseDeclared` learns a new statement, so a cache drops old
  * entries.
  */
-const PARSER_VERSION = 2;
+const PARSER_VERSION = 3;
 
 const IDENT = String.raw`${NAME}(?:\s*\.\s*${NAME})?`;
 
@@ -133,9 +138,40 @@ const ALTER = rule(
 );
 
 const ADD_COLUMN = new RegExp(
-  String.raw`\badd\s+column\s+(?:if\s+not\s+exists\s+)?(${NAME})`,
-  "gi",
+  String.raw`^add\s+column\s+(?:if\s+not\s+exists\s+)?(${NAME})\s*([\s\S]*)$`,
+  "i",
 );
+
+/** `body` split at the commas outside parentheses and quotes. */
+function topLevelParts(body: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let quote: string | undefined;
+  let start = 0;
+
+  for (let at = 0; at < body.length; at += 1) {
+    const char = body[at]!;
+
+    if (quote !== undefined) {
+      if (char === quote) {
+        quote = undefined;
+      }
+    } else if (char === "'" || char === '"') {
+      quote = char;
+    } else if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+    } else if (char === "," && depth === 0) {
+      parts.push(body.slice(start, at).trim());
+      start = at + 1;
+    }
+  }
+
+  parts.push(body.slice(start).trim());
+
+  return parts;
+}
 
 const COMMENT_TABLE = rule(
   String.raw`comment\s+on\s+table\s+(${IDENT})\s+is\s+'((?:[^']|'')*)'`,
@@ -284,12 +320,21 @@ export function parseDeclared(text: string): ParsedFile {
     const alter = ALTER.exec(flat);
 
     if (alter) {
-      const columns = [...alter[2]!.matchAll(ADD_COLUMN)].map((match) =>
-        unquote(match[1]!),
-      );
+      const definitions = topLevelParts(alter[2]!).flatMap((part) => {
+        const column = ADD_COLUMN.exec(part);
 
-      if (columns.length > 0) {
-        alters.push({ table: nameOf(alter[1]!), columns, line });
+        return column === null
+          ? []
+          : [{ name: unquote(column[1]!), type: column[2]!.trim() }];
+      });
+
+      if (definitions.length > 0) {
+        alters.push({
+          table: nameOf(alter[1]!),
+          columns: definitions.map((definition) => definition.name),
+          definitions,
+          line,
+        });
       }
 
       continue;
@@ -385,6 +430,38 @@ export interface SchemaModel {
     string,
     readonly { readonly owner: Owner; readonly columns: readonly string[] }[]
   >;
+}
+
+/**
+ * The columns the app's own files add to a table (`alter table ... add
+ * column`), by `schema.table`, with each column's type text.
+ */
+export function appColumnsOf(
+  files: readonly { readonly path: string; readonly text: string }[],
+  cache: ParseCache = createParseCache(),
+): Readonly<
+  Record<string, readonly { readonly name: string; readonly type: string }[]>
+> {
+  const columns: Record<string, { name: string; type: string }[]> = {};
+
+  for (const file of files) {
+    if (ownerOf(file.path, file.text).kind !== "app") {
+      continue;
+    }
+
+    for (const alter of cache.get(file.text).alters) {
+      const list = columns[alter.table] ?? [];
+      columns[alter.table] = list;
+
+      for (const definition of alter.definitions) {
+        if (!list.some((held) => held.name === definition.name)) {
+          list.push(definition);
+        }
+      }
+    }
+  }
+
+  return columns;
 }
 
 /** The key of an object in the model. */

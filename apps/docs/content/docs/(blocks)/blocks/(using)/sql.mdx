@@ -148,6 +148,20 @@ differ from the newest `*_better_supabase_modules.sql`.
 - `gen` writes the read-sets module into `<stamp>_better_supabase_read_sets.sql`.
 - The pgTAP files still go to `database.sql.testsDir`.
 
+### Columns your files add to a block table
+
+A column you add to a block's table with `alter table ... add column` in one of
+your own schema files is a field of that block: its functions read it and write
+it through `fields`, and the block never adds or drops it. Put the statement in
+the file that already alters the table, beside its checks and comments, or in
+`<table>.ext.sql` next to your schema files when none does. `upgrade` never
+rewrites a file without a `@bsb-block` line, and the CLI reads the type text
+after the column name, so `text not null default 'en'` gives the field its
+default. The `extraColumns` options do the same from the config and are
+replaced by this: `better-supabase codemod extra-columns` moves them
+([doctor BS378](/docs/cli/doctor#bs378)). A table you create yourself and map a
+block over keeps the columns it has.
+
 ### Migration names
 
 Every migration the CLI writes is named `<stamp>_better_supabase_<name>_<hash>.sql`.

@@ -10,10 +10,12 @@ export { isBlockSqlIdType, moduleIdType, MODULE_ID_TYPES } from "./context.ts";
 export { moduleDeprecations, upgradePlan } from "./upgrade.ts";
 
 export {
+  appColumnsOf,
   buildModel,
   conflicts,
   duplicatePolicies,
   ownerOf,
+  parseDeclared,
   type Declaration,
   type SchemaModel,
 } from "./pipeline/model.ts";

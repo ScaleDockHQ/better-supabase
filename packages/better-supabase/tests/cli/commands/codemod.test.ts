@@ -175,3 +175,65 @@ describe("runCodemod", () => {
     expect(await readdir(root)).not.toContain("supabase");
   });
 });
+
+describe("codemod extra-columns", () => {
+  let root: string;
+
+  beforeEach(async () => {
+    root = await mkdtemp(join(tmpdir(), "bsb-extra-columns-"));
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+  });
+
+  afterEach(async () => {
+    await rm(root, { recursive: true, force: true });
+  });
+
+  it("moves the columns into <table>.ext.sql and out of the config", async () => {
+    const configPath = join(root, "better-supabase.config.ts");
+
+    await writeFile(
+      configPath,
+      `export default {\n  blocks: {\n    tags: {\n      options: {\n        extraColumns: { region: "text not null default 'eu'" },\n      },\n    },\n  },\n};\n`,
+    );
+
+    const config = resolveConfig(
+      {
+        blocks: {
+          memberships: {},
+          tags: {
+            options: { extraColumns: { region: "text not null default 'eu'" } },
+          },
+        },
+      },
+      root,
+    );
+
+    const done = await runCodemod(
+      config,
+      // SAFETY: every codemod subcommand declares the same args.
+      parseCommandArgs(codemodCommand("extra-columns"), ["extra-columns"]),
+      undefined,
+      configPath,
+    );
+
+    expect(done.code).toBe(0);
+
+    const ext = await readFile(
+      join(root, "supabase/schemas/tags.ext.sql"),
+      "utf-8",
+    );
+
+    expect(ext).toContain("add column \"region\" text not null default 'eu'");
+    expect(await readFile(configPath, "utf-8")).not.toContain("extraColumns");
+  });
+
+  it("changes nothing for a config without the options", async () => {
+    const done = await runCodemod(
+      resolveConfig({ blocks: ["memberships", "tags"] }, root),
+      // SAFETY: every codemod subcommand declares the same args.
+      parseCommandArgs(codemodCommand("extra-columns"), ["extra-columns"]),
+    );
+
+    expect(done.output).toContain("Nothing to change");
+  });
+});

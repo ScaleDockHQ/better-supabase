@@ -657,6 +657,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [FILES],
       },
       {
+        name: "extra-columns",
+        description:
+          "Move blocks.<name>.options.extraColumns into the app's schema files and drop the options",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
         name: "read-many",
         description:
           "List Promise.all groups of repository reads that db.$many or a read set can load in one round trip",

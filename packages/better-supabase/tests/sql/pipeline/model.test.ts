@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  appColumnsOf,
   buildModel,
   conflicts,
   createParseCache,
@@ -81,6 +82,10 @@ describe("parseDeclared", () => {
       {
         table: "public.tasks",
         columns: ["note", "Due"],
+        definitions: [
+          { name: "note", type: expect.any(String) },
+          { name: "Due", type: expect.any(String) },
+        ],
         line: expect.any(Number),
       },
     ]);
@@ -164,5 +169,31 @@ describe("model", () => {
     ]);
 
     expect(conflicts(model)).toStrictEqual([]);
+  });
+});
+
+describe("appColumnsOf", () => {
+  const module =
+    "-- @bsb-block tags@1 managed\nalter table public.tags add column region text;";
+
+  it("reads the columns app files add, with their types, and skips module files", () => {
+    expect(
+      appColumnsOf([
+        {
+          path: "supabase/schemas/tags.sql",
+          text: `alter table public.tags
+  add column "locale" text not null default 'en',
+  add column if not exists score numeric(5, 2) check (score >= 0),
+  add constraint tags_locale_check check (locale <> '');
+alter table public.tags add column locale text;`,
+        },
+        { path: "supabase/schemas/_better_supabase/tags.sql", text: module },
+      ]),
+    ).toEqual({
+      "public.tags": [
+        { name: "locale", type: "text not null default 'en'" },
+        { name: "score", type: "numeric(5, 2) check (score >= 0)" },
+      ],
+    });
   });
 });

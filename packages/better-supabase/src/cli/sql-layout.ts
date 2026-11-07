@@ -17,6 +17,7 @@ import type { CatalogPolicy } from "./introspect/types.ts";
 import {
   adoptedColumnProblems,
   auditRegistrations,
+  appColumnsOf,
   declaredIndexes,
   declaredTableColumns,
   declaredTables,
@@ -260,6 +261,7 @@ async function ownLayout(
     | "ownUpdatedAtTriggers"
     | "ownPolicies"
     | "ownIndexes"
+    | "appColumns"
   >
 > {
   const database = await databaseTables(config);
@@ -278,6 +280,7 @@ async function ownLayout(
   const views = ownDeclaredViews(own, config.schemas);
 
   return {
+    appColumns: appColumnsOf(own),
     ownTables: {
       ...database.tables,
       ...ownDeclaredTables(own, config.schemas),

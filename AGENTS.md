@@ -366,6 +366,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0253: Name migrations by stamp and content hash.
 - 0254: Keep unscoped statements in one file and grant sequences by name.
 - 0255: Check coverage in both directions and duplicate policies.
+- 0256: Read app columns as fields and move extraColumns into app files.
 
 ## Pre-release pins
 

@@ -5,10 +5,24 @@
  * release adds the transforms its codemod needs, with a test for each.
  */
 
+import type { ResolvedConfig } from "../config/index.ts";
+import type { PlannedFile } from "./core/files.ts";
+
 import { codeRanges } from "./code-ranges.ts";
+import { extraColumnsCodemod } from "./codemod-extra-columns.ts";
 import { namingCodemod } from "./codemod-naming.ts";
 import { reportReadMany } from "./codemod-read-many.ts";
 import { renameSubpaths } from "./codemod-subpaths.ts";
+
+/** What a project-level codemod reads. */
+export interface CodemodProject {
+  readonly config: ResolvedConfig;
+  /** The project's own `.sql` files under `supabase/`, as absolute paths. */
+  readonly sql: readonly { readonly path: string; readonly text: string }[];
+  /** The config file, when one was found, and its text. */
+  readonly configFile?: string;
+  readonly configText?: string;
+}
 
 export interface Codemod {
   readonly name: string;
@@ -32,6 +46,17 @@ export interface Codemod {
    * nothing.
    */
   readonly migration?: (sql: string) => string | undefined;
+  /**
+   * Files to write that no per-file rewrite can express, such as SQL moved out
+   * of the config. A path the rewrites above also touch is written once, with
+   * this text.
+   */
+  readonly project?: (
+    project: CodemodProject,
+  ) => Promise<{
+    readonly files: readonly PlannedFile[];
+    readonly review: readonly { readonly message: string }[];
+  }>;
 }
 
 export interface ReviewLine {
@@ -41,6 +66,7 @@ export interface ReviewLine {
 
 export const CODEMODS: Readonly<Record<string, Codemod>> = {
   naming: namingCodemod(),
+  "extra-columns": extraColumnsCodemod(),
   "read-many": {
     name: "read-many",
     description: "List Promise.all groups of reads that db.$many can load",

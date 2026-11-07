@@ -9,6 +9,7 @@ import {
   PRELUDE_FUNCTIONS,
   splitStatements,
 } from "../../sql/index.ts";
+import { LEGACY_OPTION } from "../legacy-options.ts";
 import { workflowOf } from "./shared.ts";
 
 /** Schema files, not migrations or data files. */
@@ -424,5 +425,21 @@ export const OWNERSHIP_RULES: readonly Rule[] = [
             location: { file: object.file, line: object.line },
           }))
         : [],
+  },
+  {
+    code: "BS378",
+    severity: "warning",
+    title: "A block option the declarative layer replaced",
+    description:
+      "`blocks.<name>.options.extraColumns` and the `*ExtraColumns` options add a column to a block's table from the config. The app's own schema file owns that column now: write `alter table ... add column` in the file that already alters the table (or in `<table>.ext.sql`), and the block reads it as a field. Run `better-supabase codemod extra-columns` to move the columns and drop the options.",
+    check: (context) =>
+      Object.entries(context.config.blocks).flatMap(([name, block]) =>
+        Object.keys(block?.options ?? {})
+          .filter((key) => LEGACY_OPTION.test(key))
+          .map((key): FindingInput => ({
+            message: `blocks.${name}.options.${key}: move the columns into an app schema file with \`better-supabase codemod extra-columns\`.`,
+            target: `blocks.${name}.options.${key}`,
+          })),
+      ),
   },
 ];

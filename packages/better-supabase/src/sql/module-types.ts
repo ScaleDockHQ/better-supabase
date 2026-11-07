@@ -356,6 +356,14 @@ export interface BlockSqlLayout {
    * the columns it needs, and an app table refuses their names.
    */
   readonly ownTables?: Readonly<Record<string, string>>;
+  /**
+   * The columns the app's own schema files add to a table (`alter table ... add
+   * column`), by `schema.table`, with each column's type text. A block reads
+   * and writes them as fields, and adds none of them itself.
+   */
+  readonly appColumns?: Readonly<
+    Record<string, readonly { readonly name: string; readonly type: string }[]>
+  >;
   /** The columns of the tables in `ownTables`, where they are known. */
   readonly ownColumns?: Readonly<Record<string, readonly string[]>>;
   /**

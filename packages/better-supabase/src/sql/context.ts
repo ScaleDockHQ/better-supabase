@@ -28,7 +28,7 @@ import { sqlIdent, sqlString } from "../core/template.ts";
 import { tableOwnership } from "./app-owned.ts";
 import { liveStatement } from "./audit-actions.ts";
 import { defaultRuleRow, shipsEnabled } from "./default-rule-row.ts";
-import { checkedExtraColumns } from "./extra-columns.ts";
+import { resolveExtraColumns } from "./extra-columns.ts";
 import {
   checkInstanceEntities,
   instanceArea,
@@ -551,7 +551,10 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   staff(permission: string): string;
 }
 
-/** A column from `options.extraColumns`. */
+/**
+ * A column the block reads and writes as a field: one from
+ * `options.extraColumns`, or one an app file adds to the table (`app`).
+ */
 export interface ExtraColumn {
   /** The column name, as reads return it. */
   readonly name: string;
@@ -559,6 +562,8 @@ export interface ExtraColumn {
   readonly ident: string;
   /** Its SQL type, such as `text not null default 'en'`. */
   readonly type: string;
+  /** The app's schema file adds the column, so the block doesn't. */
+  readonly app?: true;
 }
 
 export interface BlockSqlContextSource {
@@ -608,6 +613,10 @@ export interface BlockSqlContextSource {
   readonly ownTables?: Readonly<Record<string, string>>;
   /** `layout.ownViews`: the entries of `ownTables` that are views. */
   readonly ownViews?: Readonly<Record<string, OwnView>>;
+  /** `layout.appColumns`: the columns the app's files add to tables. */
+  readonly appColumns?: Readonly<
+    Record<string, readonly { readonly name: string; readonly type: string }[]>
+  >;
 }
 
 /** An installed instance that adds to a generic block. */
@@ -1319,32 +1328,17 @@ export function createModuleContext(
       return value;
     },
     extraColumns(table, reserved = [], key = "extraColumns") {
-      const value = option(key);
-
-      if (value === undefined) {
-        return [];
-      }
-
-      const at = `${where}.options.${key}`;
-
-      if (typeof value !== "object" || value === null || Array.isArray(value)) {
-        throw new TypeError(`${at} must be an object`);
-      }
-
-      const known = names.tables[table];
-
-      if (!known) {
-        throw new TypeError(`Module "${module}" has no table "${table}"`);
-      }
-
-      const taken = new Set([
-        ...reserved,
-        ...Object.keys(known.columns)
-          .filter((logical) => !known.yieldsToExtra?.includes(logical))
-          .flatMap((logical) => column(table, logical) ?? []),
-      ]);
-
-      return checkedExtraColumns(at, value, taken);
+      return resolveExtraColumns({
+        module,
+        at: `${where}.options.${key}`,
+        value: option(key),
+        known: names.tables[table],
+        table,
+        reserved,
+        column,
+        tableName,
+        source,
+      });
     },
     hook(name, args) {
       const target = hookTarget(name);
