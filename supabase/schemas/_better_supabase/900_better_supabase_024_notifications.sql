@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:d2e9ecbe0fa829b7bbd8f47dd06b05261631ee91b81af7f56ae88f381dddbbfa
+-- @bsb-hash sha256:943115ad0df37b1c88b56ecbe75ea29ec15f28acc166768b6bb06cf13fc09736
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1540,6 +1540,18 @@ create trigger "bsb_notifications_product_cascade"
 create trigger "bsb_notifications_product_variant_cascade"
   after delete on "better_supabase"."product_variants"
   for each row execute function "better_supabase"."notifications_subject_deleted"('product_variant', 'id', 'tenant_id');
+create trigger "bsb_notifications_customer_cascade"
+  after delete on "public"."customers"
+  for each row execute function "better_supabase"."notifications_subject_deleted"('customer', 'id', 'organization_id');
+create trigger "bsb_notifications_change_request_cascade"
+  after delete on "public"."change_requests"
+  for each row execute function "better_supabase"."notifications_subject_deleted"('change_request', 'id', 'organization_id');
+create trigger "bsb_notifications_project_cascade"
+  after delete on "public"."projects"
+  for each row execute function "better_supabase"."notifications_subject_deleted"('project', 'id', 'organization_id');
+create trigger "bsb_notifications_task_cascade"
+  after delete on "public"."tasks"
+  for each row execute function "better_supabase"."notifications_subject_deleted"('task', 'id', 'organization_id');
 
 
 create or replace view "api"."notification_recipients" with (security_invoker = true) as

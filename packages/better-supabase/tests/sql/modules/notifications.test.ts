@@ -429,6 +429,30 @@ describe("notification subjects", () => {
     expect(body()).not.toContain("notifications_subject_deleted");
   });
 
+  it("cascades every registered subject when on is unset, and an explicit on decides itself", () => {
+    const subjects = { task: { table: "public.tasks" } };
+
+    const inferred = moduleBody("notifications", { subjects })!;
+
+    expect(inferred).toContain("bsb_notifications_task_cascade");
+
+    const explicit = moduleBody("notifications", {
+      subjects,
+      modules: { notifications: { on: { task: { table: "tasks" } } } },
+    })!;
+
+    expect(explicit).not.toContain("notifications_subject_deleted");
+
+    expect(
+      moduleBody("notifications", {
+        subjects: { message: { table: "better_supabase.messages" } },
+      }),
+    ).not.toContain("notifications_subject_deleted");
+    expect(moduleBody("notifications")).not.toContain(
+      "notifications_subject_deleted",
+    );
+  });
+
   it("leaves subscriptions alone without the table and needs the subject columns", () => {
     const subjects = { task: { table: "tasks", cascade: true } };
 
