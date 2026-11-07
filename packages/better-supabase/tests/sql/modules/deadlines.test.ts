@@ -73,6 +73,61 @@ describe("deadlines module", () => {
     );
   });
 
+  it("lets every subject through without subjects", () => {
+    const sql = sqlOf();
+
+    expect(sql).toContain(
+      `using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))`,
+    );
+    expect(sql).toMatch(
+      /"deadline_subject_readable"\(subject_type text, subject_id text, tenant uuid\)[\s\S]*?security invoker[\s\S]*?return true;/u,
+    );
+  });
+
+  it("checks the subject on every read and on compute, recompute and satisfy", () => {
+    const sql = sqlOf(BASE, {
+      modules: {
+        deadlines: {
+          on: {
+            job: {
+              table: "public.jobs",
+              idType: "uuid",
+              permission: "jobs.read",
+            },
+          },
+        },
+      },
+    });
+
+    expect(sql).toContain(
+      `when 'job' then exists (select 1 from "public"."jobs" s where s."id" = (deadline_subject_readable.subject_id)::uuid and s."organization_id" = deadline_subject_readable.tenant) and coalesce(better_supabase.can('tenant', deadline_subject_readable.tenant, 'jobs.read'), false)`,
+    );
+    expect(sql).toContain("else false");
+    expect(sql).toMatch(
+      /"list_deadlines"\(tenant uuid, filters jsonb default '\{\}'\)\nreturns jsonb\nlanguage plpgsql\nstable\nsecurity invoker/u,
+    );
+
+    for (const call of [
+      `"deadline_subject_readable"(compute_deadlines.subject_type, compute_deadlines.subject_id, compute_deadlines.tenant)`,
+      `"deadline_subject_readable"(recompute_deadlines.subject_type, recompute_deadlines.subject_id, recompute_deadlines.tenant)`,
+      `"deadline_subject_readable"(v_row."subject_type", v_row."subject_id", v_row."tenant_id")`,
+    ]) {
+      expect(sql).toContain(call);
+    }
+  });
+
+  it("clears the pending rows of groups a new version dropped on compute", () => {
+    const sql = sqlOf();
+
+    expect(sql).toContain(
+      `and x."subject_id" = compute_deadlines.subject_id and x."jurisdiction" = compute_deadlines.jurisdiction
+          and x."kind" = compute_deadlines.kind)`,
+    );
+    expect(sql).toMatch(
+      /delete from "better_supabase"\."deadlines" x[\s\S]*?x\."state" = 'pending'[\s\S]*?x\."group_key" = any \(p_group_keys\)/u,
+    );
+  });
+
   it("renders nothing in custom mode and lists the functions to implement", () => {
     const custom: Layout = { modules: { deadlines: { mode: "custom" } } };
     expect(sqlOf(BASE, custom).trim()).toBe("");
