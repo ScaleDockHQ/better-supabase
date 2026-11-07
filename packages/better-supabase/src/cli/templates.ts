@@ -184,6 +184,11 @@ export interface ConventionKeys {
   readonly migrationSince?: string;
   /** Turns on `gen.contentMapper`. */
   readonly contentMapper?: boolean;
+  /**
+   * `gen.hooks`, for a framework no adapter selects (`vue`, a registered
+   * binding).
+   */
+  readonly hooks?: string;
 }
 
 const quote = (text: string): string =>
@@ -236,7 +241,7 @@ export default defineConfig({${
         ? ""
         : `\n  // Expands into blocks and conventions; \`better-supabase config --preset\` shows what it holds.\n  preset: ${literal(preset)},`
     }
-  gen: { casing: '${casing}', output: '${context.generated}'${keys.contentMapper === true ? ", contentMapper: true" : ""} },${
+  gen: { casing: '${casing}', output: '${context.generated}'${keys.hooks === undefined ? "" : `, hooks: ${quote(keys.hooks)}`}${keys.contentMapper === true ? ", contentMapper: true" : ""} },${
     grouped["database"] === undefined
       ? ""
       : `\n  database: ${literal(grouped["database"])},`

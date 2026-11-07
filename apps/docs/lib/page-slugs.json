@@ -301,6 +301,7 @@
   "extending/credentials",
   "extending/document-formats",
   "extending/events",
+  "extending/frameworks",
   "extending/generators",
   "extending/interfaces",
   "extending/maintenance",

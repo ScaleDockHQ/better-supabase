@@ -1,3 +1,4 @@
+import type { FrameworkRegistry } from "../plugins/frameworks.ts";
 import type { ExpandedConfig } from "../preset/config.ts";
 import type { AuthorizationProvider } from "./authorization.ts";
 import type { AnyBlocksConfig, BlockConfig } from "./blocks.ts";
@@ -6,6 +7,7 @@ import type { Generator } from "./types/codegen.ts";
 import type {
   BetterSupabaseConfig,
   FlatConfig,
+  HooksFramework,
   ResolvedConfig,
   ResolvedExtensions,
 } from "./types/config.ts";
@@ -21,6 +23,7 @@ import type { AppTablesInput } from "./types/groups.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { tenantNames } from "../core/entity-naming.ts";
+import { frameworkRegistry } from "../plugins/frameworks.ts";
 import { expandFlatPreset, expandPreset } from "../preset/config.ts";
 import { appTablesOf, withAppTableSubjects } from "./app-tables.ts";
 import { providerApiProblem } from "./authorization.ts";
@@ -281,6 +284,30 @@ export function generatorProblem(generator: Generator): string | undefined {
   return undefined;
 }
 
+/**
+ * The `gen.hooks` framework: the name the config gives, or the binding the
+ * `integrations` select, or `false`. A name nothing registers is an error.
+ */
+function hooksOf(
+  config: FlatConfig,
+  frameworks: FrameworkRegistry,
+): HooksFramework | false {
+  const named =
+    typeof config.hooks === "object" ? config.hooks.framework : config.hooks;
+
+  if (named === undefined) {
+    return frameworks.forIntegrations(config.integrations ?? [])?.name ?? false;
+  }
+
+  if (named !== false && frameworks.get(named) === undefined) {
+    throw new TypeError(
+      `gen.hooks names framework "${named}", which nothing registers; the registered frameworks are ${frameworks.names.join(", ")}. Register one with \`frameworks: [defineFramework({ ... })]\`.`,
+    );
+  }
+
+  return named;
+}
+
 function generatorsOf(
   generators: readonly Generator[] | undefined,
 ): readonly Generator[] {
@@ -322,6 +349,7 @@ export function resolveConfig(
   root: string,
 ): ResolvedConfig {
   const config = expandFlatPreset(flattenConfig(input));
+  const frameworks = frameworkRegistry(config.frameworks);
   const output = config.output ?? CONFIG_DEFAULTS.output;
   const tenantName = tenantNameOf(config.blocks);
   const appTables = appTablesOf(config.appTables, tenantName);
@@ -343,15 +371,8 @@ export function resolveConfig(
     postgrestVersion:
       config.postgrestVersion ?? CONFIG_DEFAULTS.postgrestVersion,
     recordTypes: config.recordTypes ?? true,
-    hooks:
-      (typeof config.hooks === "object"
-        ? config.hooks.framework
-        : config.hooks) ??
-      ((config.integrations ?? []).some((name) =>
-        ["next", "react", "expo"].includes(name),
-      )
-        ? "react"
-        : false),
+    hooks: hooksOf(config, frameworks),
+    frameworks: frameworks.bindings,
     ...(typeof config.hooks === "object" && config.hooks.select !== undefined
       ? { hooksSelect: config.hooks.select }
       : {}),

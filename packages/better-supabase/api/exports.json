@@ -366,6 +366,7 @@
       "GeneratorTable",
       "GenGroupConfig",
       "GenTask",
+      "HooksFramework",
       "IntegrationInfo",
       "IntegrationName",
       "JsonSchemaSource",
@@ -3403,6 +3404,24 @@
       "variantTitle"
     ],
     "types": []
+  },
+  "./plugins": {
+    "values": [
+      "BUILT_IN_FRAMEWORKS",
+      "defineFramework",
+      "FRAMEWORK_API_VERSION",
+      "frameworkProblem",
+      "frameworkRegistry",
+      "hooksSubpathOf"
+    ],
+    "types": [
+      "FrameworkBinding",
+      "FrameworkDefinition",
+      "FrameworkRegistry",
+      "FrameworkTemplateContext",
+      "FrameworkTemplateFile",
+      "FrameworkTier"
+    ]
   },
   "./events": {
     "values": [

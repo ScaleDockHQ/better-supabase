@@ -37,6 +37,7 @@ export const CONFIG_GROUPS: Readonly<Record<string, readonly string[]>> = {
     "storagePaths",
     "functions",
     "generators",
+    "frameworks",
     "readSets",
   ],
   api: ["specs"],

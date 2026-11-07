@@ -146,6 +146,7 @@ export type {
   DataHooksConfig,
   DataHooksFramework,
   DataHooksSelect,
+  HooksFramework,
   EnvironmentConfig,
   FlatConfig,
   GenGroupConfig,
