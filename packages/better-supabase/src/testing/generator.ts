@@ -60,9 +60,11 @@ function modelFromMeta(meta: SchemaMeta): GeneratorModel {
         tsType: column.enum
           ? column.enum.map((value) => JSON.stringify(value)).join(" | ")
           : "unknown",
-        nullable: column.nullable,
+        nullable: column.nullable === true,
         optional:
-          column.nullable || column.hasDefault || column.generated === true,
+          column.nullable === true ||
+          column.hasDefault === true ||
+          column.generated === true,
         readonly: column.generated === true,
         values: column.enum,
         json: column.json === true,

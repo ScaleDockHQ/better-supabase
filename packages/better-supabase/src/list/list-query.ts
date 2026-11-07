@@ -470,7 +470,7 @@ export function defineListQuery<
     return {
       key,
       column,
-      nullable: columnMeta.nullable,
+      nullable: columnMeta.nullable === true,
       ...(columnMeta.enum ? { values: columnMeta.enum } : {}),
     };
   });

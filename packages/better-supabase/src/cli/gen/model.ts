@@ -681,12 +681,15 @@ function toTableModels(
       for (const column of columns) {
         const meta: {
           -readonly [K in keyof ColumnMeta]: ColumnMeta[K];
-        } = {
-          db: column.db,
-          type: column.snapshot.udt,
-          nullable: column.nullable,
-          hasDefault: column.filled,
-        };
+        } = { db: column.db, type: column.snapshot.udt };
+
+        if (column.nullable) {
+          meta.nullable = true;
+        }
+
+        if (column.filled) {
+          meta.hasDefault = true;
+        }
 
         if (column.readonly) {
           meta.generated = true;

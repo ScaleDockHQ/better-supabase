@@ -562,9 +562,9 @@ describe("CHECK not null", () => {
       nullable: true,
       optional: true,
     });
-    expect(model.meta.tables["customers"]?.columns["kvk"]?.nullable).toBe(
-      false,
-    );
+    expect(
+      model.meta.tables["customers"]?.columns["kvk"]?.nullable,
+    ).toBeUndefined();
   });
 
   const customersWith = async (
@@ -626,10 +626,8 @@ describe("CHECK not null", () => {
       nullable: false,
       optional: true,
     });
-    expect(filled("kvk").meta).toMatchObject({
-      nullable: false,
-      hasDefault: true,
-    });
+    expect(filled("kvk").meta).toMatchObject({ hasDefault: true });
+    expect(filled("kvk").meta).not.toHaveProperty("nullable");
 
     for (const triggers of [
       [trigger("after", ["insert"])],

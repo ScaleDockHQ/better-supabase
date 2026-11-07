@@ -9,12 +9,14 @@ export interface ColumnMeta {
   readonly db: string;
   /** Postgres type name (`uuid`, `text`, `timestamptz`, `note_kind`). */
   readonly type: string;
-  readonly nullable: boolean;
+  /** `gen` leaves it out when it is `false`. */
+  readonly nullable?: boolean;
   /**
    * An insert may leave the column out: it has a default, a `before insert`
-   * trigger can fill it, or `tables.<t>.insertOptional` lists it.
+   * trigger can fill it, or `tables.<t>.insertOptional` lists it. `gen` leaves
+   * it out when it is `false`, which keeps it out of the bundle of a page.
    */
-  readonly hasDefault: boolean;
+  readonly hasDefault?: boolean;
   readonly generated?: boolean;
   /** Identity column; `'always'` columns can't be written. */
   readonly identity?: "always" | "by default";

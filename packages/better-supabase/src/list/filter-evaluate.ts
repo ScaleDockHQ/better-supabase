@@ -28,7 +28,7 @@ export interface FilterRecordField {
      * compare.
      */
     readonly type: string;
-    readonly nullable: boolean;
+    readonly nullable?: boolean;
   };
 }
 

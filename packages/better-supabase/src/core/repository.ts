@@ -754,11 +754,12 @@ export function createRepository(
       }
 
       const { byDb } = lookupOf(table);
-      after = keysetCondition(
-        orderBy,
-        values,
-        (name) => byDb.get(name)?.[1].nullable ?? true,
-      );
+      after = keysetCondition(orderBy, values, (name) => {
+        const column = byDb.get(name)?.[1];
+
+        // `gen` leaves `nullable` out for a column that can't be null.
+        return column === undefined || column.nullable === true;
+      });
     }
 
     const op = selectOp(args, {

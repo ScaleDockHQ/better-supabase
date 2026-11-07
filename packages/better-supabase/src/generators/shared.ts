@@ -143,10 +143,11 @@ export function fieldsFor(
       name,
       column,
       scalar: scalarKind(column),
-      nullable: column.nullable,
+      nullable: column.nullable === true,
       optional:
         variant === "Update" ||
-        (variant === "Insert" && (column.nullable || column.hasDefault)),
+        (variant === "Insert" &&
+          (column.nullable === true || column.hasDefault === true)),
       customJson: Boolean(
         column.json &&
         (input.config.json[`${table.schema}.${table.name}.${column.db}`] ??
