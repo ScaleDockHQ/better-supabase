@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:ad2b08703ed521ed5382e832b0bf7ec6f85bacf3ad7100662363fadca6b8fe08
+-- @bsb-hash sha256:adbb9b4108af7ce67a1035b579fc6d2dae196cf093620286e3c0c7b319bf5f0c
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1365,6 +1365,7 @@ begin
   update "better_supabase"."stock_allocations" x set "document_type" = transfer_allocation.document_type, "document_id" = transfer_allocation.document_id,
     "line_id" = transfer_allocation.line_id, "updated_at" = now()
   where x."id" = v_row.id;
+  null;
   return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
     'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
     'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,

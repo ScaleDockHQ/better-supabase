@@ -2079,6 +2079,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "allocation.created",
         "allocation.filled",
         "allocation.released",
+        "allocation.transferred",
         "inventory_receipt.created",
         "purchase_order.cancelled",
         "purchase_order.placed",

@@ -3,7 +3,7 @@
 -- order, and releases it; a second allocation waits on backorder and takes the
 -- freed stock. Globex (…00b1) moves and releases nothing of it.
 begin;
-select plan(13);
+select plan(14);
 
 select set_config(
   'request.jwt.claims',
@@ -32,6 +32,13 @@ select is(
   '["order", "o1", "l7", 10]'::jsonb,
   'transfer_allocation moves the allocation to the order and keeps what it holds'
 );
+reset role;
+select is(
+  (select count(*)::int from better_supabase.outbox_events where type = 'allocation.transferred' and payload ->> 'toDocumentId' = 'o1' and payload ->> 'documentId' = 'q1'),
+  1,
+  'the move records allocation.transferred with the old and the new document'
+);
+set local role authenticated;
 select is(
   jsonb_array_length(better_supabase.list_allocations('00000000-0000-4000-8000-000000000001', 'quote', 'q1')),
   0,

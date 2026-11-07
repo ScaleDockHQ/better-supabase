@@ -601,6 +601,9 @@ export interface CommerceEventData {
    */
   readonly documentType?: string;
   readonly documentId?: string;
+  /** For `allocation.transferred`: the document the allocation moved to. */
+  readonly toDocumentType?: string;
+  readonly toDocumentId?: string;
   /** For allocation events: the quantity the event allocated. */
   readonly allocated?: string;
   readonly supplierType?: string | null;

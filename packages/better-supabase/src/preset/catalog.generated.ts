@@ -29646,6 +29646,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "allocation.created",
           "allocation.filled",
           "allocation.released",
+          "allocation.transferred",
           "transfer.shipped",
           "transfer.received",
           "transfer.cancelled",

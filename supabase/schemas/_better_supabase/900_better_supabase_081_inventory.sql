@@ -1,6 +1,6 @@
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:abb5a564bf517d05f405cdfd0203893be7fdb4ee0d316037e3889bded316de06
+-- @bsb-hash sha256:36bf23b4ddb10da5f5d549b766d6ac6ab297418d034bc92e9c84e8a0e1222027
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1373,6 +1373,8 @@ begin
   update "better_supabase"."stock_allocations" x set "document_type" = transfer_allocation.document_type, "document_id" = transfer_allocation.document_id,
     "line_id" = transfer_allocation.line_id, "updated_at" = now()
   where x."id" = v_row.id;
+  perform "better_supabase".emit_event('allocation.transferred', jsonb_build_object('organizationId', v_row.tenant, 'id', v_row.id, 'variantId', v_row.variant, 'locationId', v_row.location,
+        'documentType', v_row.document_type, 'documentId', v_row.document_id, 'quantity', v_row.quantity::text, 'toDocumentType', transfer_allocation.document_type, 'toDocumentId', transfer_allocation.document_id), 'stock-allocations/' || v_row.id::text, (v_row.tenant)::text, null, 'better-supabase/inventory');
   return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
     'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
     'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,

@@ -317,13 +317,16 @@ await inventory
   .orThrow();
 ```
 
-The SQL functions `release_allocation(allocation)` and
-`transfer_allocation(allocation, document_type, document_id, line_id)` release
-one open allocation, or move it to another document (such as a quote that became
-an order) and keep what it holds. Both fail with `INVENTORY_ALLOCATION_CLOSED`
-for an allocation that is no longer open and with
-`INVENTORY_ALLOCATION_NOT_FOUND` for an unknown one; a release frees the stock
-for waiting backorders, and a move records no event. They
+`releaseAllocation({ allocationId })` releases one open allocation, and
+`transferAllocation({ allocationId, documentType, documentId, lineId })` moves
+it to another document (such as a quote that became an order) and keeps what it
+holds. They call the SQL functions `release_allocation(allocation)` and
+`transfer_allocation(allocation, document_type, document_id, line_id)`. Both
+fail with `INVENTORY_ALLOCATION_CLOSED` for an allocation that is no longer open
+and with `INVENTORY_ALLOCATION_NOT_FOUND` for an unknown one. A release frees the
+stock for waiting backorders and records `allocation.released`; a move records
+`allocation.transferred`, with the old document in `documentType` and
+`documentId` and the new one in `toDocumentType` and `toDocumentId`. They
 replace app SQL that updated `stock_allocations` rows.
 
 Pass `backorder: false` to refuse what isn't available

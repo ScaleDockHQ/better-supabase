@@ -206,6 +206,21 @@ export interface InventoryTracking {
     quantity: number;
     detail?: StockDetail | undefined;
   }): AsyncResult<Allocation>;
+  /**
+   * Releases one open allocation: what it holds goes back to available and its
+   * backorder closes.
+   */
+  releaseAllocation(input: { allocationId: string }): AsyncResult<Allocation>;
+  /**
+   * Moves an open allocation to another document (a quote that became an
+   * order), keeping what it holds, and records `allocation.transferred`.
+   */
+  transferAllocation(input: {
+    allocationId: string;
+    documentType: string;
+    documentId: string;
+    lineId?: string | undefined;
+  }): AsyncResult<Allocation>;
   /** Releases a document's open allocations. Resolves to the number released. */
   releaseAllocations(input: {
     organizationId: string;
@@ -414,6 +429,19 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
       call(
         "restore_allocation",
         { allocation: allocationId, quantity, detail: detailArg(detail) },
+        allocationOf,
+      ),
+    releaseAllocation: ({ allocationId }) =>
+      call("release_allocation", { allocation: allocationId }, allocationOf),
+    transferAllocation: ({ allocationId, documentType, documentId, lineId }) =>
+      call(
+        "transfer_allocation",
+        {
+          allocation: allocationId,
+          document_type: documentType,
+          document_id: documentId,
+          line_id: lineId ?? null,
+        },
         allocationOf,
       ),
     releaseAllocations: ({ organizationId, documentType, documentId }) =>

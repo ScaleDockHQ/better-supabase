@@ -417,6 +417,7 @@ begin
   update ${allocations} x set ${a("documentType")} = transfer_allocation.document_type, ${a("documentId")} = transfer_allocation.document_id,
     ${a("line")} = transfer_allocation.line_id, ${a("updatedAt")} = now()
   where x.${a("id")} = v_row.id;
+  ${event("allocation.transferred", "v_row", ", 'toDocumentType', transfer_allocation.document_type, 'toDocumentId', transfer_allocation.document_id")}
   return (select ${allocationJson(ctx, "x")} from ${allocations} x where x.${a("id")} = v_row.id);
 end;
 $$;
