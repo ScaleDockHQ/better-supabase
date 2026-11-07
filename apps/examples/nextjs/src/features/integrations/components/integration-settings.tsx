@@ -57,12 +57,12 @@ import type {
   IntegrationRow,
   IntegrationsRead,
   IntegrationStatus,
-} from "../integration-queries";
+} from "../integrations-queries";
 
 import {
   connectIntegration,
   disconnectIntegration,
-} from "../integration-actions";
+} from "../integrations-actions";
 
 const DOCS_URL = "https://vercel.com/docs/connect";
 

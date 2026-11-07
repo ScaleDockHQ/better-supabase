@@ -20,8 +20,8 @@ import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { MemberOption, TaskRow } from "../project-types";
 
-import { moveTask } from "../project-actions";
 import { TASK_STATUSES } from "../project-types";
+import { moveTask } from "../projects-actions";
 import { statusBadgeVariant, useStatusLabel } from "../use-task-labels";
 
 // #region recipe:record-board

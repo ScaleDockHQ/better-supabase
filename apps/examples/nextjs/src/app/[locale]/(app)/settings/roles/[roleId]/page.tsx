@@ -31,7 +31,9 @@ export default function RolePage({
       </Link>
       <Suspense fallback={<RoleDetailSkeleton />}>
         <PermissionGate permission="members.read">
-          <RoleDetail params={params} />
+          {params.then(({ roleId }) => (
+            <RoleDetail roleId={roleId} />
+          ))}
         </PermissionGate>
       </Suspense>
     </div>

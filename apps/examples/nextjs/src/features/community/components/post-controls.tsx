@@ -27,7 +27,11 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { createFeedbackBoard, createPost, voteOnPost } from "../posts-actions";
+import {
+  createFeedbackBoard,
+  createPost,
+  voteOnPost,
+} from "../community-actions";
 
 /** Opens the organization's feedback board. */
 export function CreateBoardButton() {

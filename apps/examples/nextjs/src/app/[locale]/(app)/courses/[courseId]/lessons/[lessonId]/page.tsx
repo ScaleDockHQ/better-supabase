@@ -12,7 +12,9 @@ export default function LessonPage({
   return (
     <Suspense fallback={<LessonPlayerSkeleton />}>
       <PermissionGate permission="courses.read">
-        <LessonPlayer params={params} />
+        {params.then(({ courseId, lessonId }) => (
+          <LessonPlayer courseId={courseId} lessonId={lessonId} />
+        ))}
       </PermissionGate>
     </Suspense>
   );

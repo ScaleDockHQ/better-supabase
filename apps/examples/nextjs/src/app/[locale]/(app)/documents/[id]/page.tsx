@@ -31,7 +31,9 @@ export default function DocumentPage({
       </Link>
       <Suspense fallback={<DocumentEditorSkeleton />}>
         <PermissionGate permission="documents.read">
-          <DocumentEditorView params={params} />
+          {params.then(({ id }) => (
+            <DocumentEditorView id={id} />
+          ))}
         </PermissionGate>
       </Suspense>
     </>

@@ -7,6 +7,7 @@ import type { Entitlement } from "@/lib/claims";
 
 import { getSession } from "@/features/user/user-queries";
 
+// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /**
  * The plan's features from the token's `features` claim. UX only:
  * `better_supabase.has_entitlement()` enforces them in RLS.

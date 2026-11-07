@@ -20,14 +20,9 @@ async function retry() {
   refresh();
 }
 
+// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /** Render inside `<Suspense>`: the customer's notes in the editor. */
-export async function DocumentEditorView({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-
+export async function DocumentEditorView({ id }: { id: string }) {
   const [view, t] = await Promise.all([
     getDocumentTarget(id),
     getExtracted("documents"),

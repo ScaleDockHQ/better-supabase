@@ -11,6 +11,7 @@ import { cn } from "@/lib/utils";
 
 import { WINDOW_DAYS } from "../task-dates";
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /** The arrows that move a timeline or gantt window by two weeks. */
 export async function WindowNav({
   from,
@@ -49,6 +50,7 @@ export async function WindowNav({
   );
 }
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /** The day columns of the window, Mondays marked by their date. */
 export async function WindowDays({
   from,

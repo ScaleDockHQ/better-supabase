@@ -4,8 +4,7 @@ import {
   TriangleAlertIcon,
 } from "lucide-react";
 import { getExtracted } from "next-intl/server";
-import { refresh } from "next/cache";
-import { connection } from "next/server";
+import { io, refresh } from "next/cache";
 import * as v from "valibot";
 
 import {
@@ -66,6 +65,7 @@ async function CasesLoadError({ title }: { title: string }) {
   );
 }
 
+// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /** Render inside `<Suspense>`: the board of open cases by stage. */
 export async function CaseBoardSection() {
   const [t, permissions] = await Promise.all([
@@ -128,20 +128,20 @@ export async function CaseBoardSection() {
   );
 }
 
+// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /**
  * Render inside `<Suspense>`: the case `?case=<id>` picks, with its blockers
  * and actions.
  */
 export async function CaseDetailSection({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, query, permissions] = await Promise.all([
+  const [t, permissions] = await Promise.all([
     getExtracted("cases"),
-    searchParams,
     getPermissions(),
-    connection(),
+    io(),
   ]);
 
   const picked = v.safeParse(CaseParam, query["case"]);

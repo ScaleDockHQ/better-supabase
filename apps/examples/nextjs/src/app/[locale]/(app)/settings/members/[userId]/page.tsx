@@ -31,7 +31,9 @@ export default function MemberPage({
       </Link>
       <Suspense fallback={<MemberDetailSkeleton />}>
         <PermissionGate permission="members.read">
-          <MemberDetail params={params} />
+          {params.then(({ userId }) => (
+            <MemberDetail userId={userId} />
+          ))}
         </PermissionGate>
       </Suspense>
     </div>

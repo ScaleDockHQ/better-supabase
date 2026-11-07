@@ -26,7 +26,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { createCustomer } from "../customer-actions";
+import { createCustomer } from "../customers-actions";
 
 export function CreateCustomerDialog() {
   const t = useExtracted("customers");

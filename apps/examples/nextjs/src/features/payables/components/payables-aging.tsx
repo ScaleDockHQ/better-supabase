@@ -47,6 +47,7 @@ async function retry() {
   refresh();
 }
 
+// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /**
  * Render inside `<Suspense>`: what the organization owes its suppliers on open
  * purchase bills, then the same total by days past due.

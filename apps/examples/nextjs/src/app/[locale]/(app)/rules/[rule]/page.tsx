@@ -27,7 +27,9 @@ export default function RulePage({
         {t("All rules")}
       </Link>
       <Suspense fallback={<RuleBuilderSkeleton />}>
-        <RuleEditor params={params} />
+        {params.then(({ rule }) => (
+          <RuleEditor rule={rule} />
+        ))}
       </Suspense>
     </>
   );

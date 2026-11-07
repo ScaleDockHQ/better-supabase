@@ -433,16 +433,6 @@ msgid "Customer conversations from the Help widget and chat channels, kept live 
 msgstr "Customer conversations from the Help widget and chat channels, kept live over Realtime."
 
 #: src/app/[locale]/(app)/inspections/page.tsx
-msgctxt "inspections.Sl9G4R"
-msgid "Pick an inspection"
-msgstr "Pick an inspection"
-
-#: src/app/[locale]/(app)/inspections/page.tsx
-msgctxt "inspections.1cJBOV"
-msgid "Open an inspection in the programme to see its team, checklist and findings."
-msgstr "Open an inspection in the programme to see its team, checklist and findings."
-
-#: src/app/[locale]/(app)/inspections/page.tsx
 msgctxt "inspections.PcgHMz"
 msgid "Audits and inspections"
 msgstr "Audits and inspections"
@@ -936,26 +926,6 @@ msgstr "Durable runs on the Workflow SDK with the Supabase World. The list stays
 msgctxt "workflows.F42bEw"
 msgid "Schedules"
 msgstr "Schedules"
-
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.5Wwopw"
-msgid "Pricing"
-msgstr "Pricing"
-
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.BzkPrB"
-msgid "One plan per organization, billed monthly."
-msgstr "One plan per organization, billed monthly."
-
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.I32k58"
-msgid "Upgrade and save"
-msgstr "Upgrade and save"
-
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.RbnSLQ"
-msgid "The pricing-banner flag is on for your plan."
-msgstr "The pricing-banner flag is on for your plan."
 
 #: src/app/[locale]/islands/page.tsx
 msgctxt "islands.a8EoBn"
@@ -8238,6 +8208,26 @@ msgctxt "flags.OvzONl"
 msgid "Off"
 msgstr "Off"
 
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.5Wwopw"
+msgid "Pricing"
+msgstr "Pricing"
+
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.BzkPrB"
+msgid "One plan per organization, billed monthly."
+msgstr "One plan per organization, billed monthly."
+
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.I32k58"
+msgid "Upgrade and save"
+msgstr "Upgrade and save"
+
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.RbnSLQ"
+msgid "The pricing-banner flag is on for your plan."
+msgstr "The pricing-banner flag is on for your plan."
+
 #: src/features/forms/components/create-form-dialog.tsx
 msgctxt "forms.xeWtMD"
 msgid "{title} created"
@@ -9247,6 +9237,16 @@ msgstr "Approve an audit programme for the year, then schedule its audits with a
 msgctxt "inspections.BADGBv"
 msgid "Read the inspections guide"
 msgstr "Read the inspections guide"
+
+#: src/features/inspections/components/inspection-run-section.tsx
+msgctxt "inspections.Sl9G4R"
+msgid "Pick an inspection"
+msgstr "Pick an inspection"
+
+#: src/features/inspections/components/inspection-run-section.tsx
+msgctxt "inspections.1cJBOV"
+msgid "Open an inspection in the programme to see its team, checklist and findings."
+msgstr "Open an inspection in the programme to see its team, checklist and findings."
 
 #: src/features/inspections/components/inspection-run.tsx
 msgctxt "inspections.ab2qRi"

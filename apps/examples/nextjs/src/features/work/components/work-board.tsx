@@ -38,13 +38,12 @@ const TeamParam = v.pipe(v.string(), v.uuid());
  * item workflow, scoped to `teamId` when one is picked.
  */
 export async function WorkBoard({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, params, permissions] = await Promise.all([
+  const [t, permissions] = await Promise.all([
     getExtracted("work"),
-    searchParams,
     getPermissions(),
   ]);
 
@@ -52,7 +51,7 @@ export async function WorkBoard({
     forbidden();
   }
 
-  const parsed = v.safeParse(TeamParam, params["team"]);
+  const parsed = v.safeParse(TeamParam, query["team"]);
   const team = parsed.success ? parsed.output : null;
 
   const [board, teams, fields] = await Promise.all([

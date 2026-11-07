@@ -6,16 +6,9 @@ import {
   RiskHeatmap,
   RiskHeatmapSkeleton,
 } from "@/features/risks/components/risk-heatmap";
-import {
-  RiskRegister,
-  RiskRegisterSkeleton,
-} from "@/features/risks/components/risk-register";
-import { getRiskRegister } from "@/features/risks/risks-queries";
+import { RiskRegisterSkeleton } from "@/features/risks/components/risk-register";
+import { RiskRegisterSection } from "@/features/risks/components/risk-register-section";
 import { PermissionGate } from "@/features/user/components/permission-gate";
-
-async function Register() {
-  return <RiskRegister state={await getRiskRegister()} />;
-}
 
 export default function RisksPage() {
   const t = useExtracted("risks");
@@ -35,7 +28,7 @@ export default function RisksPage() {
       </Suspense>
       <Suspense fallback={<RiskRegisterSkeleton />}>
         <PermissionGate permission="risks.read">
-          <Register />
+          <RiskRegisterSection />
         </PermissionGate>
       </Suspense>
     </>

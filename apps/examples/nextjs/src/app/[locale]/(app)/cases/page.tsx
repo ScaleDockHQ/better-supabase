@@ -32,7 +32,9 @@ export default function CasesPage({
       </Suspense>
       <Suspense fallback={<CaseDetailSkeleton />}>
         <PermissionGate permission="cases.read">
-          <CaseDetailSection searchParams={searchParams} />
+          {searchParams.then((query) => (
+            <CaseDetailSection query={query} />
+          ))}
         </PermissionGate>
       </Suspense>
     </>

@@ -114,7 +114,7 @@ const config: KnipConfig = {
         "tests/**/*.test-d.ts",
         // The composite actions are the runnable example the docs link to; no
         // page calls them yet.
-        "src/features/composites/composite-actions.ts",
+        "src/features/composites/composites-actions.ts",
         // The usage billing action is the example the usage docs link to.
         "src/features/billing/usage-billing-actions.ts",
       ],

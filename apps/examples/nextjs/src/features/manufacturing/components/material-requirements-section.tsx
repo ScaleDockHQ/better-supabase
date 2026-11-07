@@ -40,6 +40,7 @@ async function retry() {
   refresh();
 }
 
+// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /** Render inside `<Suspense>`: the shortages over the next 30 days. */
 export async function MaterialRequirementsSection() {
   const [t, permissions, requirements] = await Promise.all([

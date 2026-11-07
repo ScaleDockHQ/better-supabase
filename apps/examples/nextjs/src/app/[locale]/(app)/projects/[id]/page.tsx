@@ -29,7 +29,9 @@ export default function ProjectRecordPage({
         {t("All projects")}
       </Link>
       <Suspense fallback={<ProjectPageSkeleton />}>
-        <ProjectPage params={params} />
+        {params.then(({ id }) => (
+          <ProjectPage id={id} />
+        ))}
       </Suspense>
     </>
   );

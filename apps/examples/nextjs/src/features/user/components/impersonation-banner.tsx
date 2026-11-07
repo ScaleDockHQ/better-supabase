@@ -6,6 +6,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import { getSession } from "../user-queries";
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /**
  * Shown during a support session (`bsb.startSupport`): staff see the app as the
  * user, and the audit log records who acted. Render inside `<Suspense>`.

@@ -11,10 +11,15 @@ import {
   SidebarRail,
 } from "@/components/ui/sidebar";
 import { Announcements } from "@/features/announcements/components/announcements";
+import { AppBreadcrumbs } from "@/features/navigation/components/app-breadcrumbs";
 import { AppHeader } from "@/features/navigation/components/app-header";
 import { AppNav } from "@/features/navigation/components/app-nav";
 import { SideNavSkeleton } from "@/features/navigation/components/side-nav";
 import { OfflineBanner } from "@/features/offline/components/offline-banner";
+import {
+  ActiveOrganizationName,
+  ActiveOrganizationNameSkeleton,
+} from "@/features/organization/components/active-organization-name";
 import {
   OrganizationSwitcher,
   OrganizationSwitcherSkeleton,
@@ -60,7 +65,19 @@ export default function AppLayout({ children }: LayoutProps<"/[locale]">) {
         <SidebarRail aria-label={toggle} title={toggle} />
       </Sidebar>
       <SidebarInset>
-        <AppHeader />
+        <AppHeader
+          breadcrumbs={
+            <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
+              <AppBreadcrumbs
+                organization={
+                  <Suspense fallback={<ActiveOrganizationNameSkeleton />}>
+                    <ActiveOrganizationName />
+                  </Suspense>
+                }
+              />
+            </Suspense>
+          }
+        />
         <div className="flex flex-1 flex-col gap-6 p-4 md:p-6">
           <OfflineBanner />
           <Suspense fallback={null}>

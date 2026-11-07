@@ -21,7 +21,9 @@ export default function ShipmentsPage({
         description={t("Track packages from label to delivery.")}
       />
       <Suspense fallback={<ShipmentTrackingSkeleton />}>
-        <ShipmentTracking searchParams={searchParams} />
+        {searchParams.then((query) => (
+          <ShipmentTracking query={query} />
+        ))}
       </Suspense>
     </>
   );

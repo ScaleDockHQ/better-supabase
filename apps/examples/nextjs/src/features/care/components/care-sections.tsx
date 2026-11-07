@@ -32,6 +32,7 @@ import {
 import { AccessLogGrid, ClientsGrid, ConsentsGrid } from "./care-grids";
 import { CareLoadError } from "./care-load-error";
 
+// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /** Render inside `<Suspense>`; the fallback is `CareSectionSkeleton`. */
 export async function ClientList() {
   const [clients, t] = await Promise.all([getClients(), getExtracted("care")]);
@@ -103,6 +104,7 @@ export function ClientHeadingSkeleton() {
   return <Skeleton className="h-8 w-56" aria-busy="true" />;
 }
 
+// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /** Render inside `<Suspense>`; the fallback is `CareSectionSkeleton`. */
 export async function ClientConsents({ clientId }: { clientId: string }) {
   const [consents, t] = await Promise.all([
@@ -157,6 +159,7 @@ export async function ClientConsents({ clientId }: { clientId: string }) {
   );
 }
 
+// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /** Render inside `<Suspense>`; the fallback is `CareSectionSkeleton`. */
 export async function ClientAccessLog({ clientId }: { clientId: string }) {
   const [reads, t] = await Promise.all([

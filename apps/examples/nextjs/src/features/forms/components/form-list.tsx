@@ -41,6 +41,7 @@ async function retry() {
   refresh();
 }
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /** The New form button, for members who may build forms. */
 export async function FormManagerActions() {
   const permissions = await getPermissions();

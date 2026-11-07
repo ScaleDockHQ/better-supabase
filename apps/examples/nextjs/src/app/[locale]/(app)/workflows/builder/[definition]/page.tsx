@@ -29,7 +29,9 @@ export default function WorkflowDefinitionPage({
         {t("All workflows")}
       </Link>
       <Suspense fallback={<BuilderEditorSkeleton />}>
-        <BuilderEditor params={params} />
+        {params.then(({ definition }) => (
+          <BuilderEditor definition={definition} />
+        ))}
       </Suspense>
     </>
   );

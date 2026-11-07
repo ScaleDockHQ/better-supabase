@@ -15,9 +15,9 @@ npx shadcn add badge button card empty skeleton
 
 ```tsx title="apps/examples/nextjs/src/features/calendar/components/calendar-view.tsx"
 export async function CalendarView({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
   const permissions = await getPermissions();
 
@@ -25,11 +25,10 @@ export async function CalendarView({
     forbidden();
   }
 
-  const [t, format, query] = await Promise.all([
+  const [t, format] = await Promise.all([
     getExtracted("calendar"),
     getFormatter(),
-    searchParams,
-    connection(),
+    io(),
   ]);
 
   const canWrite = can(permissions, "calendar.write");

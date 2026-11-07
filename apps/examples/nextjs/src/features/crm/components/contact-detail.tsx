@@ -38,13 +38,8 @@ import { LinkPersonForm } from "./link-person-form";
  * Render inside `<Suspense>`: a company or a person with its details, its
  * people (for a company) and the activity timeline.
  */
-export async function ContactDetail({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const [{ id }, t, permissions] = await Promise.all([
-    params,
+export async function ContactDetail({ id }: { id: string }) {
+  const [t, permissions] = await Promise.all([
     getExtracted("crm"),
     getPermissions(),
   ]);

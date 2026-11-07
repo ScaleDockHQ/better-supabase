@@ -43,8 +43,8 @@ import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { MemberOption, ProjectOption, TaskStatus } from "../project-types";
 
-import { createTask } from "../project-actions";
 import { TASK_STATUSES } from "../project-types";
+import { createTask } from "../projects-actions";
 import { useStatusLabel } from "../use-task-labels";
 
 // #region recipe:record-form

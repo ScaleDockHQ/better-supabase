@@ -4,15 +4,6 @@ import "server-only";
 
 import { bsb } from "@/lib/supabase/server";
 
-export const SCOPE_COUNT = 12;
-
-/** `plain` reads the request in every scope; `session` resolves a handle. */
-export function scopeVariant(
-  value: string | string[] | undefined,
-): "plain" | "session" {
-  return value === "session" ? "session" : "plain";
-}
-
 /** One private scope that resolves the caller and returns who it is. */
 export async function readScope(index: number): Promise<string> {
   "use cache: private";

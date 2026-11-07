@@ -45,9 +45,9 @@ import {
 import { useRouter } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type { AiTaskRow, AiTasksRead } from "../ai-task-queries";
+import type { AiTaskRow, AiTasksRead } from "../ai-tasks-queries";
 
-import { scheduleSampleTask, setAiTaskEnabled } from "../ai-task-actions";
+import { scheduleSampleTask, setAiTaskEnabled } from "../ai-tasks-actions";
 
 function RunStatusBadge({ status }: { status: AiTaskRunStatus | undefined }) {
   const t = useExtracted("aiTasks");

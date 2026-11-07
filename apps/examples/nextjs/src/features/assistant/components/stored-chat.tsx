@@ -7,12 +7,7 @@ import { durableAvailable } from "../assistant-server";
 import { AssistantChat } from "./assistant-chat";
 
 /** Render inside `<Suspense>`: reads the `id` param and the stored branch. */
-export async function StoredChat({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
+export async function StoredChat({ id }: { id: string }) {
   const chat = await getStoredChat(id);
 
   if (chat === undefined) {

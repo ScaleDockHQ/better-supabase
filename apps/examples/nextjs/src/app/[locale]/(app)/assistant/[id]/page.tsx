@@ -29,7 +29,9 @@ export default function AssistantChatPage({
         {t("All chats")}
       </Link>
       <Suspense fallback={<StoredChatSkeleton />}>
-        <StoredChat params={params} />
+        {params.then(({ id }) => (
+          <StoredChat id={id} />
+        ))}
       </Suspense>
     </>
   );

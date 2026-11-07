@@ -29,7 +29,9 @@ export default function ClientPage({
       </Link>
       <Suspense fallback={<ClientHeadingSkeleton />}>
         <PermissionGate permission="customers.read">
-          <ClientDossier params={params} />
+          {params.then(({ clientId }) => (
+            <ClientDossier clientId={clientId} />
+          ))}
         </PermissionGate>
       </Suspense>
     </div>

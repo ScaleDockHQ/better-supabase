@@ -19,13 +19,7 @@ import { getInvitationPreview } from "../invitation-queries";
 import { InvitationResponse } from "./invitation-response";
 
 /** Render inside `<Suspense>`: reads the `token` param and the session. */
-export async function InvitationCard({
-  params,
-}: {
-  params: Promise<{ token: string }>;
-}) {
-  const { token } = await params;
-
+export async function InvitationCard({ token }: { token: string }) {
   const [preview, session, t, format, locale] = await Promise.all([
     getInvitationPreview(token),
     getSession(),

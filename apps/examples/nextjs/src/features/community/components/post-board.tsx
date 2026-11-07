@@ -32,7 +32,7 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
 
-import { getBoard } from "../posts-queries";
+import { getBoard } from "../community-queries";
 import { CreateBoardButton, NewPostDialog, VoteButton } from "./post-controls";
 
 // oxlint-disable-next-line typescript/require-await -- a Server Action must be async, and refresh() returns nothing to await

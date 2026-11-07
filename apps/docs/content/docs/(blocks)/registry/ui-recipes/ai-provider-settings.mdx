@@ -97,10 +97,10 @@ import { useRouter } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Provider } from "../ai-provider-options";
-import type { ProviderKeyRow, ProviderKeysRead } from "../ai-provider-queries";
+import type { ProviderKeyRow, ProviderKeysRead } from "../ai-providers-queries";
 
-import { addProviderKey, removeProviderKey } from "../ai-provider-actions";
 import { PROVIDERS } from "../ai-provider-options";
+import { addProviderKey, removeProviderKey } from "../ai-providers-actions";
 
 const PROVIDER_LABELS = {
   anthropic: "Anthropic",

@@ -42,9 +42,12 @@ import {
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import type { CareAlertRow, Loaded } from "../care-alerts-queries";
+import type {
+  CareAlertRow,
+  Loaded,
+} from "../clinical-decision-support-queries";
 
-import { acknowledgeCareAlert } from "../care-alerts-actions";
+import { acknowledgeCareAlert } from "../clinical-decision-support-actions";
 
 type AlertCell = CellContext<DataGridFeatures, CareAlertRow>;
 

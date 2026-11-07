@@ -41,16 +41,13 @@ async function PlanEvaluations({ clientId }: { clientId: string }) {
   return <CarePlanEvaluations state={await getCarePlan(clientId)} />;
 }
 
+// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /**
  * Render inside `<Suspense>`: the client's name over one tab per part of the
  * dossier. Every tab streams in on its own and checks its own permission.
  */
-export async function ClientDossier({
-  params,
-}: {
-  params: Promise<{ clientId: string }>;
-}) {
-  const [{ clientId }, t] = await Promise.all([params, getExtracted("care")]);
+export async function ClientDossier({ clientId }: { clientId: string }) {
+  const t = await getExtracted("care");
 
   return (
     <div className="flex flex-col gap-6">

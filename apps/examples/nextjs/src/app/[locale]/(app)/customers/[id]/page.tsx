@@ -36,7 +36,9 @@ export default function CustomerPage({
           </ConnectivityFallback>
         }
       >
-        <CustomerDetail params={params} />
+        {params.then(({ id }) => (
+          <CustomerDetail id={id} />
+        ))}
       </Suspense>
     </>
   );

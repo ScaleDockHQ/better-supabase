@@ -9,14 +9,10 @@ import { RuleBuilder } from "./rule-builder";
 
 const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
+// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /** Render inside `<Suspense>`: reads the `rule` param, `new` for a new rule. */
-export async function RuleEditor({
-  params,
-}: {
-  params: Promise<{ rule: string }>;
-}) {
-  const [{ rule }, session, permissions] = await Promise.all([
-    params,
+export async function RuleEditor({ rule }: { rule: string }) {
+  const [session, permissions] = await Promise.all([
     getSession(),
     getPermissions(),
   ]);

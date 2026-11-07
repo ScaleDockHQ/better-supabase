@@ -23,7 +23,9 @@ export default function DispatchPage({
         )}
       />
       <Suspense fallback={<DispatchBoardSkeleton />}>
-        <DispatchBoard searchParams={searchParams} />
+        {searchParams.then((query) => (
+          <DispatchBoard query={query} />
+        ))}
       </Suspense>
     </>
   );

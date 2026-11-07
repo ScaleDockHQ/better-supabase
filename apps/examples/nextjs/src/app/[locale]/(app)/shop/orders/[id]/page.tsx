@@ -29,7 +29,9 @@ export default function OrderPage({
         {t("All orders")}
       </Link>
       <Suspense fallback={<OrderDetailSkeleton />}>
-        <OrderDetail params={params} />
+        {params.then(({ id }) => (
+          <OrderDetail id={id} />
+        ))}
       </Suspense>
     </>
   );

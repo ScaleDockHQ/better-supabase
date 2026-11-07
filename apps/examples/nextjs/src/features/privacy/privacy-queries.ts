@@ -3,6 +3,7 @@ import type {
   DataExportStatus,
 } from "better-supabase/blocks/data-lifecycle";
 
+import "server-only";
 import { tenantOf } from "better-supabase/next";
 
 import { readPermissions } from "@/features/user/permission-snapshot";

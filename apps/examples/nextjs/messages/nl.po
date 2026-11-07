@@ -433,16 +433,6 @@ msgid "Customer conversations from the Help widget and chat channels, kept live 
 msgstr "Klantgesprekken uit de Help-widget en chatkanalen, live bijgewerkt via Realtime."
 
 #: src/app/[locale]/(app)/inspections/page.tsx
-msgctxt "inspections.Sl9G4R"
-msgid "Pick an inspection"
-msgstr "Kies een inspectie"
-
-#: src/app/[locale]/(app)/inspections/page.tsx
-msgctxt "inspections.1cJBOV"
-msgid "Open an inspection in the programme to see its team, checklist and findings."
-msgstr "Open een inspectie in het programma om het team, de checklist en de bevindingen te zien."
-
-#: src/app/[locale]/(app)/inspections/page.tsx
 msgctxt "inspections.PcgHMz"
 msgid "Audits and inspections"
 msgstr "Audits en inspecties"
@@ -936,26 +926,6 @@ msgstr "Duurzame runs op de Workflow SDK met de Supabase World. De lijst blijft 
 msgctxt "workflows.F42bEw"
 msgid "Schedules"
 msgstr "Planningen"
-
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.5Wwopw"
-msgid "Pricing"
-msgstr "Prijzen"
-
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.BzkPrB"
-msgid "One plan per organization, billed monthly."
-msgstr "Eén abonnement per organisatie, maandelijks gefactureerd."
-
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.I32k58"
-msgid "Upgrade and save"
-msgstr "Upgrade en bespaar"
-
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.RbnSLQ"
-msgid "The pricing-banner flag is on for your plan."
-msgstr "De pricing-banner-flag staat aan voor je abonnement."
 
 #: src/app/[locale]/islands/page.tsx
 msgctxt "islands.a8EoBn"
@@ -8238,6 +8208,26 @@ msgctxt "flags.OvzONl"
 msgid "Off"
 msgstr "Uit"
 
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.5Wwopw"
+msgid "Pricing"
+msgstr "Prijzen"
+
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.BzkPrB"
+msgid "One plan per organization, billed monthly."
+msgstr "Eén abonnement per organisatie, maandelijks gefactureerd."
+
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.I32k58"
+msgid "Upgrade and save"
+msgstr "Upgrade en bespaar"
+
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.RbnSLQ"
+msgid "The pricing-banner flag is on for your plan."
+msgstr "De pricing-banner-flag staat aan voor je abonnement."
+
 #: src/features/forms/components/create-form-dialog.tsx
 msgctxt "forms.xeWtMD"
 msgid "{title} created"
@@ -9247,6 +9237,16 @@ msgstr "Keur een auditprogramma voor het jaar goed en plan daarna de audits met 
 msgctxt "inspections.BADGBv"
 msgid "Read the inspections guide"
 msgstr "Lees de handleiding voor inspecties"
+
+#: src/features/inspections/components/inspection-run-section.tsx
+msgctxt "inspections.Sl9G4R"
+msgid "Pick an inspection"
+msgstr "Kies een inspectie"
+
+#: src/features/inspections/components/inspection-run-section.tsx
+msgctxt "inspections.1cJBOV"
+msgid "Open an inspection in the programme to see its team, checklist and findings."
+msgstr "Open een inspectie in het programma om het team, de checklist en de bevindingen te zien."
 
 #: src/features/inspections/components/inspection-run.tsx
 msgctxt "inspections.ab2qRi"

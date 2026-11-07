@@ -16,7 +16,7 @@ import {
   SessionIsland,
   SessionIslandSkeleton,
 } from "@/features/islands/components/session-island";
-import { islandScope } from "@/features/islands/islands-queries";
+import { islandScope } from "@/features/islands/islands-cache";
 import { Link } from "@/i18n/navigation";
 import { bsb } from "@/lib/supabase/server";
 

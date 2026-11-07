@@ -42,9 +42,9 @@ import {
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 
-import type { Loaded, PrescriptionRow } from "../prescriptions-queries";
+import type { Loaded, PrescriptionRow } from "../e-prescribing-queries";
 
-import { cancelPrescription, signPrescription } from "../prescriptions-actions";
+import { cancelPrescription, signPrescription } from "../e-prescribing-actions";
 
 type PrescriptionCell = CellContext<DataGridFeatures, PrescriptionRow>;
 

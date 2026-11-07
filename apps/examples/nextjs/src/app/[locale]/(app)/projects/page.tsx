@@ -33,7 +33,9 @@ export default function ProjectsPage({
           </ConnectivityFallback>
         }
       >
-        <TaskViews searchParams={searchParams} />
+        {searchParams.then((query) => (
+          <TaskViews query={query} />
+        ))}
       </Suspense>
     </>
   );

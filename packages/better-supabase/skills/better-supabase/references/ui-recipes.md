@@ -3091,7 +3091,7 @@ import { useApiKeys } from "@/hooks/use-api-keys";
 import { apiKeysConfig } from "@/lib/supabase/blocks/slices";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { apiKeyCreated } from "../api-key-actions";
+import { apiKeyCreated } from "../api-keys-actions";
 import { CreateApiKeyDialog } from "./create-api-key-dialog";
 
 /**
@@ -6874,6 +6874,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import { getSession } from "../user-queries";
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /**
  * Shown during a support session (`bsb.startSupport`): staff see the app as the
  * user, and the audit log records who acted. Render inside `<Suspense>`.
@@ -6958,9 +6959,9 @@ import {
 import { useRouter } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type { AiTaskRow, AiTasksRead } from "../ai-task-queries";
+import type { AiTaskRow, AiTasksRead } from "../ai-tasks-queries";
 
-import { scheduleSampleTask, setAiTaskEnabled } from "../ai-task-actions";
+import { scheduleSampleTask, setAiTaskEnabled } from "../ai-tasks-actions";
 
 function RunStatusBadge({ status }: { status: AiTaskRunStatus | undefined }) {
   const t = useExtracted("aiTasks");
@@ -7306,10 +7307,10 @@ import { useRouter } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Provider } from "../ai-provider-options";
-import type { ProviderKeyRow, ProviderKeysRead } from "../ai-provider-queries";
+import type { ProviderKeyRow, ProviderKeysRead } from "../ai-providers-queries";
 
-import { addProviderKey, removeProviderKey } from "../ai-provider-actions";
 import { PROVIDERS } from "../ai-provider-options";
+import { addProviderKey, removeProviderKey } from "../ai-providers-actions";
 
 const PROVIDER_LABELS = {
   anthropic: "Anthropic",
@@ -12068,13 +12069,8 @@ npx shadcn add badge card empty skeleton
  * Render inside `<Suspense>`: a company or a person with its details, its
  * people (for a company) and the activity timeline.
  */
-export async function ContactDetail({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const [{ id }, t, permissions] = await Promise.all([
-    params,
+export async function ContactDetail({ id }: { id: string }) {
+  const [t, permissions] = await Promise.all([
     getExtracted("crm"),
     getPermissions(),
   ]);
@@ -12673,13 +12669,8 @@ npx shadcn add card skeleton table
  * quote with changes requested) is editable; the status decides what comes
  * next: send, record the customer's answer, or revise.
  */
-export async function QuoteBuilder({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const [{ id }, t, locale, permissions] = await Promise.all([
-    params,
+export async function QuoteBuilder({ id }: { id: string }) {
+  const [t, locale, permissions] = await Promise.all([
     getExtracted("crm"),
     getLocale(),
     getPermissions(),
@@ -14354,13 +14345,12 @@ npx shadcn add alert badge button card empty skeleton table
  * them.
  */
 export async function CustomFieldsEditor({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, params, permissions] = await Promise.all([
+  const [t, permissions] = await Promise.all([
     getExtracted("custom-fields"),
-    searchParams,
     getPermissions(),
   ]);
 
@@ -14368,7 +14358,7 @@ export async function CustomFieldsEditor({
     forbidden();
   }
 
-  const parsed = v.safeParse(FieldEntitySchema, params["entity"]);
+  const parsed = v.safeParse(FieldEntitySchema, query["entity"]);
   const entity = parsed.success ? parsed.output : "customer";
   const fields = await getFields(entity);
 
@@ -15452,7 +15442,7 @@ const STATUS_VARIANT = {
  * published shifts; planners with `shifts.write` also the drafts.
  */
 export async function RosterBoard() {
-  await connection();
+  await io();
   const today = Temporal.Now.plainDateISO("UTC");
   const monday = today.subtract({ days: today.dayOfWeek - 1 });
 
@@ -15640,7 +15630,7 @@ const DOSE_VARIANT = {
 export async function MedicationChart({
   clientId,
 }: { clientId?: string } = {}) {
-  await connection();
+  await io();
 
   const [state, t, format] = await Promise.all([
     getCustomerChart(clientId),
@@ -16445,13 +16435,12 @@ npx shadcn add badge button card empty skeleton
  * to another open stage, moves it. `?job=` picks the opening.
  */
 export async function HiringBoard({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, query, permissions] = await Promise.all([
+  const [t, permissions] = await Promise.all([
     getExtracted("people"),
-    searchParams,
     getPermissions(),
   ]);
 
@@ -16598,16 +16587,15 @@ npx shadcn add badge button card empty skeleton table
  * `?week=YYYY-MM-DD` picks the week.
  */
 export async function Timesheet({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, format, query, permissions] = await Promise.all([
+  const [t, format, permissions] = await Promise.all([
     getExtracted("people"),
     getFormatter(),
-    searchParams,
     getPermissions(),
-    connection(),
+    io(),
   ]);
 
   if (!can(permissions, "time_tracking.track")) {
@@ -16811,16 +16799,15 @@ npx shadcn add alert badge button card dialog empty field input skeleton table
  * week.
  */
 export async function DispatchBoard({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, format, query, permissions] = await Promise.all([
+  const [t, format, permissions] = await Promise.all([
     getExtracted("field"),
     getFormatter(),
-    searchParams,
     getPermissions(),
-    connection(),
+    io(),
   ]);
 
   if (!can(permissions, "dispatch.read")) {
@@ -17028,16 +17015,15 @@ npx shadcn add alert badge button card empty skeleton
  * with the button that moves it on. `?day=YYYY-MM-DD` picks the day.
  */
 export async function TechnicianDay({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, format, query, permissions] = await Promise.all([
+  const [t, format, permissions] = await Promise.all([
     getExtracted("field"),
     getFormatter(),
-    searchParams,
     getPermissions(),
-    connection(),
+    io(),
   ]);
 
   if (!can(permissions, "dispatch.work")) {
@@ -17168,16 +17154,15 @@ npx shadcn add alert badge button card dialog empty field input skeleton table
  * picks the shipment.
  */
 export async function ShipmentTracking({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, format, query, permissions] = await Promise.all([
+  const [t, format, permissions] = await Promise.all([
     getExtracted("field"),
     getFormatter(),
-    searchParams,
     getPermissions(),
-    connection(),
+    io(),
   ]);
 
   if (!can(permissions, "shipments.read")) {
@@ -17898,12 +17883,8 @@ async function retry() {
  * Render inside `<Suspense>`: a placed order, or the caller's draft (an open
  * cart) with the same id, with its lines, totals and next steps.
  */
-export async function OrderDetail({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const [{ id }, permissions] = await Promise.all([params, getPermissions()]);
+export async function OrderDetail({ id }: { id: string }) {
+  const permissions = await getPermissions();
 
   if (!can(permissions, "orders.read")) {
     forbidden();
@@ -18231,14 +18212,11 @@ npx shadcn add alert badge button card empty skeleton
  * page refreshes when a line changes anywhere in the kitchen.
  */
 export async function KitchenDisplay({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [params, permissions] = await Promise.all([
-    searchParams,
-    getPermissions(),
-  ]);
+  const permissions = await getPermissions();
 
   if (!can(permissions, "orders.read") && !can(permissions, "orders.prepare")) {
     forbidden();
@@ -18248,9 +18226,7 @@ export async function KitchenDisplay({
     can(permissions, "orders.prepare") || can(permissions, "orders.manage");
 
   const [kitchen, t] = await Promise.all([
-    getKitchen(
-      v.is(StationParam, params["station"]) ? params["station"] : null,
-    ),
+    getKitchen(v.is(StationParam, query["station"]) ? query["station"] : null),
     getExtracted("shop"),
   ]);
 
@@ -18688,9 +18664,9 @@ npx shadcn add badge button card empty skeleton
 
 ```tsx title="apps/examples/nextjs/src/features/calendar/components/calendar-view.tsx"
 export async function CalendarView({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
   const permissions = await getPermissions();
 
@@ -18698,11 +18674,10 @@ export async function CalendarView({
     forbidden();
   }
 
-  const [t, format, query] = await Promise.all([
+  const [t, format] = await Promise.all([
     getExtracted("calendar"),
     getFormatter(),
-    searchParams,
-    connection(),
+    io(),
   ]);
 
   const canWrite = can(permissions, "calendar.write");
@@ -18901,15 +18876,13 @@ npx shadcn add button card empty skeleton
 ```tsx title="apps/examples/nextjs/src/features/bookings/components/booking-page.tsx"
 /** The public page of a booking link: open slots for a week, then a form. */
 export async function BookingPage({
-  params,
-  searchParams,
+  token,
+  query,
 }: {
-  params: Promise<{ token: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  token: string;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [{ token }, query, t, format] = await Promise.all([
-    params,
-    searchParams,
+  const [t, format] = await Promise.all([
     getExtracted("bookings"),
     getFormatter(),
   ]);
@@ -19109,7 +19082,7 @@ export async function RemindersList() {
     getExtracted("calendar"),
     getFormatter(),
     settle(loadUpcomingReminders),
-    connection(),
+    io(),
   ]);
 
   if (!can(permissions, "reminders.manage")) {
@@ -20084,13 +20057,7 @@ function answerText(
 }
 
 /** Render inside `<Suspense>`: a form's builder, preview and responses. */
-export async function FormBuilder({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-
+export async function FormBuilder({ id }: { id: string }) {
   const [view, t, format] = await Promise.all([
     getForm(id),
     getExtracted("forms"),
@@ -20500,13 +20467,7 @@ const kindIcons = {
  * Render inside `<Suspense>`: a course's modules, lessons and the caller's
  * progress.
  */
-export async function CourseOutline({
-  params,
-}: {
-  params: Promise<{ courseId: string }>;
-}) {
-  const { courseId } = await params;
-
+export async function CourseOutline({ courseId }: { courseId: string }) {
   const [view, t] = await Promise.all([
     getOutline(courseId),
     getExtracted("courses"),
@@ -20771,12 +20732,12 @@ async function retry() {
 
 /** Render inside `<Suspense>`: one lesson's content, or its quiz. */
 export async function LessonPlayer({
-  params,
+  courseId,
+  lessonId,
 }: {
-  params: Promise<{ courseId: string; lessonId: string }>;
+  courseId: string;
+  lessonId: string;
 }) {
-  const { courseId, lessonId } = await params;
-
   const [view, t] = await Promise.all([
     getLesson(lessonId),
     getExtracted("courses"),
@@ -21590,6 +21551,7 @@ async function retry() {
   refresh();
 }
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /** The New template button, for members who may manage templates. */
 export async function TemplateManagerActions() {
   const permissions = await getPermissions();
@@ -24256,13 +24218,8 @@ function OverallAlert({
  * component with its uptime, then the public incidents with their updates.
  * Anyone can open it; the incidents block returns only fields marked public.
  */
-export async function StatusPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const [{ slug }, t, format] = await Promise.all([
-    params,
+export async function StatusPage({ slug }: { slug: string }) {
+  const [t, format] = await Promise.all([
     getExtracted("status"),
     getFormatter(),
   ]);
@@ -25940,13 +25897,8 @@ npx shadcn add badge card skeleton
  * tasks through the `project_id` reference, and the comments and tags that
  * reach it because `projects` is a subject.
  */
-export async function ProjectPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const [{ id }, session, permissions] = await Promise.all([
-    params,
+export async function ProjectPage({ id }: { id: string }) {
+  const [session, permissions] = await Promise.all([
     getSession(),
     getPermissions(),
   ]);
@@ -26302,6 +26254,7 @@ npx shadcn add badge button card
 ```tsx title="apps/examples/nextjs/src/features/projects/components/task-calendar.tsx"
 const SHOWN_PER_DAY = 3;
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /**
  * Tasks on a month grid by their due date. The month lives in the URL
  * (`?month=YYYY-MM`), so the arrows are links and the page stays a server
@@ -26473,6 +26426,7 @@ npx shadcn add button card
 ```tsx title="apps/examples/nextjs/src/features/projects/components/task-timeline.tsx"
 const UNASSIGNED = "";
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /**
  * Tasks as bars from `startsOn` to `dueOn`, one lane per assignee, over a
  * four-week window that lives in the URL (`?from=YYYY-MM-DD`).
@@ -26594,6 +26548,7 @@ const BAR = {
   done: "bg-primary/25",
 } as const satisfies Record<TaskStatus, string>;
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /**
  * One row per task under its project, with a bar from `startsOn` to `dueOn`.
  * Tasks without dates stay in the list with an empty track, so the plan shows

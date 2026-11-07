@@ -38,6 +38,7 @@ async function retry() {
   refresh();
 }
 
+// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /** Render inside `<Suspense>`: the production orders by status. */
 export async function ProductionOrderBoardSection() {
   const [t, permissions] = await Promise.all([
