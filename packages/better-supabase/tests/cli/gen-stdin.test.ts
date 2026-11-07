@@ -163,10 +163,8 @@ describe("gen --metadata", () => {
     ])[]) {
       const result = await gen(args);
       expect(result.code).toBe(2);
-      // --json reports the error as Problem Details on stdout.
-      expect(args.includes("--json") ? result.stdout : result.stderr).toMatch(
-        reason,
-      );
+      // --json reports the error document on stderr, and stdout stays empty.
+      expect(result.stderr).toMatch(reason);
     }
   });
 

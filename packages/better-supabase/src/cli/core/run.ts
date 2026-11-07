@@ -38,6 +38,7 @@ import {
   globalFlags,
   resolveCommand,
 } from "./parse.ts";
+import { removedFlag } from "./removed.ts";
 import { EXEC_CHANNEL, HTTP_CHANNEL } from "./trace.ts";
 
 export interface RunOptions {
@@ -554,6 +555,7 @@ export function cliFromTree(
       ]);
 
       command = loaded;
+      removedFlag(node.path, rest);
       rawArgs = joinRepeated(rest, listArgs(command));
 
       // A command without declared args parses its own argv.
@@ -597,11 +599,18 @@ export function cliFromTree(
       });
 
       const interactive =
-        !json && globals.yes !== true && !isCi(env) && agent === undefined;
+        !json &&
+        globals.yes !== true &&
+        globals["non-interactive"] !== true &&
+        !isCi(env) &&
+        agent === undefined;
 
       const requireConsent = (request: ConsentRequest): void => {
         if (agent !== undefined) {
-          checkConsent(argv, request, globals.confirm);
+          checkConsent(argv, request, {
+            yes: globals.yes,
+            digest: globals["effects-digest"],
+          });
         }
       };
 

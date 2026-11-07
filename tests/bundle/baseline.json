@@ -276,6 +276,6 @@
   "./blocks/leases": 39909,
   "./blocks/expenses": 40713,
   "./blocks/donations": 41263,
-  "better-supabase CLI (startup)": 29944,
-  "content mapper (startup)": 136865
+  "better-supabase CLI (startup)": 31704,
+  "content mapper (startup)": 140500
 }

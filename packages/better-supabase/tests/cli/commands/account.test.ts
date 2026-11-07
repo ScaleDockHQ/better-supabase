@@ -150,7 +150,7 @@ describe("cloudFailure", () => {
       errorCode: "network_error",
     });
     expect(cloudFailure(new CloudError("unauthorized", "no"))).toMatchObject({
-      code: 3,
+      code: 2,
       errorCode: "auth_required",
       next: [{ command: "better-supabase login" }],
     });
@@ -158,7 +158,7 @@ describe("cloudFailure", () => {
       cloudFailure(
         new CloudError("upgrade", "Pro only", { upgrade: "https://c.test/up" }),
       ),
-    ).toMatchObject({ code: 3, data: { upgrade: "https://c.test/up" } });
+    ).toMatchObject({ code: 2, data: { upgrade: "https://c.test/up" } });
     expect(cloudFailure(new CloudError("upgrade", "Pro only"))).toMatchObject({
       error: expect.stringContaining("https://app.bettersupabase.com/billing"),
     });
@@ -195,7 +195,7 @@ describe("runWhoami", () => {
   it("asks for a login when none is saved", async () => {
     await expect(
       runWhoami(await home(), () => answer(200, {}), 0),
-    ).resolves.toMatchObject({ code: 3, errorCode: "auth_required" });
+    ).resolves.toMatchObject({ code: 2, errorCode: "auth_required" });
   });
 
   it("reports the account and its plan", async () => {
@@ -219,7 +219,7 @@ describe("runWhoami", () => {
 
     await expect(
       runWhoami(env, () => answer(401, {}), 1000),
-    ).resolves.toMatchObject({ code: 3 });
+    ).resolves.toMatchObject({ code: 2 });
     await expect(
       runWhoami(env, () => Promise.reject(new Error("down")), 1000),
     ).resolves.toMatchObject({ code: 1, errorCode: "network_error" });

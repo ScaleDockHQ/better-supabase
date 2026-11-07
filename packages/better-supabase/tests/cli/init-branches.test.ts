@@ -69,8 +69,8 @@ describe("init options", () => {
 
     const result = await run(["init", "--cwd", dir]);
 
-    expect(result.stdout).toContain("pnpm add -D @supabase/postgrest-typegen@");
-    expect(result.stdout).not.toContain("-D pg");
+    expect(result.stderr).toContain("pnpm add -D @supabase/postgrest-typegen@");
+    expect(result.stderr).not.toContain("-D pg");
   });
 
   it("writes nothing on a dry run", async () => {

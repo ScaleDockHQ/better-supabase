@@ -1,11 +1,11 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://unpkg.com/better-supabase/schemas/cli-commands-v1.json",
+  "$id": "https://unpkg.com/better-supabase/schemas/cli-commands-v2.json",
   "title": "better-supabase CLI commands",
   "description": "Output of `better-supabase --help --json`: every command with its arguments, options, examples and side effects. `<command> --help --json` prints the same document with that command only.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["$schema", "name", "version", "options", "commands"],
+  "required": ["$schema", "name", "version", "options", "commands", "result"],
   "properties": {
     "$schema": {
       "type": "string"
@@ -28,6 +28,11 @@
       "items": {
         "$ref": "#/$defs/command"
       }
+    },
+    "result": {
+      "description": "The schema of the document each command prints under `--json`.",
+      "type": "string",
+      "format": "uri"
     }
   },
   "$defs": {
@@ -160,6 +165,10 @@
         },
         "list": {
           "description": "Takes several values, comma-separated or repeated.",
+          "const": true
+        },
+        "secret": {
+          "description": "The value is a secret: pass it through the matching `--*-stdin` option, never in arguments.",
           "const": true
         }
       }

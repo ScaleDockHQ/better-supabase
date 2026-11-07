@@ -10,10 +10,12 @@ import type { CommandNode } from "./parse.ts";
 
 import { GLOBAL_ARGS, listArgs } from "./command.ts";
 import { DOCS_ORIGIN, GROUPS } from "./manifest.ts";
+import { RESULT_SCHEMA_URL } from "./output.ts";
 import { commandArgs, isVariadic } from "./parse.ts";
+import { isSecretKey } from "./redact.ts";
 
 const COMMANDS_SCHEMA_URL =
-  "https://unpkg.com/better-supabase/schemas/cli-commands-v1.json";
+  "https://unpkg.com/better-supabase/schemas/cli-commands-v2.json";
 
 export interface HelpOptions {
   /** The name the CLI was called with. */
@@ -326,6 +328,7 @@ interface OptionJson {
   readonly default?: string | boolean;
   readonly choices?: readonly string[];
   readonly list?: true;
+  readonly secret?: true;
 }
 
 interface ArgumentJson {
@@ -350,6 +353,8 @@ interface CommandJson {
 
 export interface CommandsJson {
   readonly $schema: string;
+  /** The schema of the document each command prints under `--json`. */
+  readonly result: string;
   readonly name: string;
   readonly version: string;
   readonly options: readonly OptionJson[];
@@ -380,6 +385,7 @@ function optionJson(
       ? { choices: definition.options }
       : {}),
     ...(list ? { list: true as const } : {}),
+    ...(isSecretKey(name) ? { secret: true as const } : {}),
   };
 }
 
@@ -392,7 +398,7 @@ function optionsJson(args: ArgsDef, lists: ReadonlySet<string>): OptionJson[] {
 }
 
 /**
- * One command and its subcommands as `cli-commands-v1.json` describes them.
+ * One command and its subcommands as `cli-commands-v2.json` describes them.
  * Loads every leaf.
  */
 async function commandJson(node: CommandNode): Promise<CommandJson> {
@@ -438,6 +444,7 @@ export async function treeJson(
 ): Promise<CommandsJson> {
   return {
     $schema: COMMANDS_SCHEMA_URL,
+    result: RESULT_SCHEMA_URL,
     name: "better-supabase",
     version,
     options: optionsJson(

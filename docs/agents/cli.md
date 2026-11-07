@@ -20,7 +20,7 @@ has to keep.
   in `output`; under `--json` it moves to stderr. Never write to
   `process.stdout` from a command.
 - Errors are `CliError`s with a code from `CLI_ERROR_CODES`. A new code needs a
-  heading on `cli/errors.mdx` and an entry in `cli-result-v1.json`; the schema
+  heading on `cli/errors.mdx` and an entry in `cli-result-v2.json`; the schema
   test checks both.
 - A command that writes files builds a `FilePlan` and calls `applyPlan`, which
   gives it `--dry-run`, `--check` and `--force` for free. Take the flags from

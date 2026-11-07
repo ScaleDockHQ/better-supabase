@@ -107,7 +107,7 @@ describe("runSeedSample", () => {
       () => {},
     );
 
-    expect(result).toMatchObject({ code: 3, errorCode: "auth_required" });
+    expect(result).toMatchObject({ code: 2, errorCode: "auth_required" });
   });
 });
 

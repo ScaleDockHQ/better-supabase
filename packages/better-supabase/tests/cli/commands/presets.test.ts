@@ -772,7 +772,7 @@ describe("init --preset", () => {
       dir,
     ]);
 
-    expect(result.stderr).toBe("");
+    expect(result.stderr).not.toMatch(/^! /m);
     expect(result.code).toBe(0);
 
     const [first = ""] = Object.keys(appTables);

@@ -113,7 +113,7 @@ describe("init on an existing project", () => {
 
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("Found an existing Supabase project");
-    expect(result.stdout).toContain("better-supabase doctor");
+    expect(result.stderr).toContain("better-supabase doctor");
     expect(await readFile(join(dir, SNAPSHOT_PATH), "utf-8")).toContain(
       "snapshot-v2.json",
     );

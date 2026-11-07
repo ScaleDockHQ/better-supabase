@@ -14,6 +14,7 @@ import { CliError } from "../../../src/cli/core/errors.ts";
 import { RESULT_SCHEMA_URL } from "../../../src/cli/core/output.ts";
 import { createCli } from "../../../src/cli/core/run.ts";
 import { VERSION } from "../../../src/cli/version.ts";
+import { errorDoc } from "../error-doc.ts";
 import { fakeFetch } from "../fixtures/fake-fetch.ts";
 
 const ENV = { SUPABASE_ACCESS_TOKEN: "sbp_test" };
@@ -253,8 +254,9 @@ describe("run", () => {
     await writeFile(path, `${await readFile(path, "utf-8")} `);
     expect(await introspect("--check")).toMatchObject({
       code: 1,
-      stderr:
+      stderr: expect.stringContaining(
         "supabase/snapshot.json is out of date. Run `better-supabase gen --save-snapshot`.\n",
+      ),
     });
   });
 
@@ -638,13 +640,11 @@ describe("run", () => {
 
   it("prints one JSON document on stdout under --json, errors included", async () => {
     const unknown = await run(["genn", "--json"]);
-    expect(unknown).toMatchObject({ code: 2, stderr: "" });
-    expect(JSON.parse(unknown.stdout)).toMatchObject({
-      error: {
-        type: "https://bettersupabase.com/docs/cli/errors#unknown_command",
-        code: "unknown_command",
-        suggestion: "gen",
-      },
+    expect(unknown).toMatchObject({ code: 2, stdout: "" });
+    expect(errorDoc(unknown)).toMatchObject({
+      type: "https://bettersupabase.com/docs/cli/errors#unknown_command",
+      reason: "unknown_command",
+      data: { suggestion: "gen" },
     });
 
     expect(JSON.parse((await run(["--version", "--json"])).stdout)).toEqual({
@@ -665,9 +665,7 @@ describe("run", () => {
     ]);
 
     expect(missing.code).toBe(2);
-    expect(JSON.parse(missing.stdout)).toMatchObject({
-      error: { code: "config_not_found" },
-    });
+    expect(errorDoc(missing)).toMatchObject({ reason: "config_not_found" });
   });
 
   it("rejects an invalid environment and an invalid config", async () => {
@@ -695,11 +693,9 @@ describe("run", () => {
     ]);
 
     expect(config.code).toBe(2);
-    expect(JSON.parse(config.stdout)).toMatchObject({
-      error: {
-        code: "config_invalid",
-        issues: [expect.stringMatching(/^gen\.casing: /)],
-      },
+    expect(errorDoc(config)).toMatchObject({
+      reason: "config_invalid",
+      data: { issues: [expect.stringMatching(/^gen\.casing: /)] },
     });
   });
 
@@ -783,8 +779,9 @@ describe("run", () => {
 
     expect(result.code).toBe(2);
     expect(stdin).not.toHaveBeenCalled();
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      error: { code: "missing_value", flag: "--db-url-stdin" },
+    expect(errorDoc(result)).toMatchObject({
+      reason: "missing_value",
+      data: { flag: "--db-url-stdin" },
     });
   });
 
@@ -831,8 +828,9 @@ describe("run", () => {
     });
 
     expect(result.code).toBe(2);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      error: { code, flag: "--cwd" },
+    expect(errorDoc(result)).toMatchObject({
+      reason: code,
+      data: { flag: "--cwd" },
     });
   });
 
