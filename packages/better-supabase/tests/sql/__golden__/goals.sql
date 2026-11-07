@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:b9b0a22b1004a85ffcd7e60ff5ccc9425ea3c376d4b13bebb482cbd814b0ccce
+-- @bsb-hash sha256:75dde5af74545944503224080711c6e15270539b15c5fb856082425f58876cc1
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,7 +13,7 @@ create table "better_supabase"."goals" (
   "tenant_id" uuid not null,
   "name" text not null constraint bsb_goals_name_check check (length("name") >= 1 and length("name") <= 200),
   "metric" text not null constraint bsb_goals_metric_check check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$'),
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "team_id" uuid,
   "period_start" date not null,
   "period_end" date not null,
@@ -54,7 +54,7 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_user_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
+      insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
       values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
         (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
         upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
@@ -98,7 +98,7 @@ as $$
     cross join lateral (select x."actual" as value) v
     where x."tenant_id" = goal_progress.tenant and x."archived_at" is null
       and coalesce(goal_progress.on_date, current_date) between x."period_start" and x."period_end"
-      and (goal_progress.owner is null or x."owner_user_id" = goal_progress.owner)
+      and (goal_progress.owner is null or x."owner_id" = goal_progress.owner)
   ) p
 $$;
 revoke execute on function "better_supabase"."goal_progress"(uuid, date, uuid) from public, anon;
@@ -141,7 +141,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:0bf40566a6a1f9355762e8ef4ce1bc7083e645f6d845b8c1b23412f7186b3be8
+-- @bsb-hash sha256:57e823fdd7c285fec5c47219f71184e23f30ee8fdfce4293ce82407146322022
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -153,7 +153,7 @@ create table "better_supabase"."goals" (
   "tenant_id" uuid not null,
   "name" text not null constraint bsb_goals_name_check check (length("name") >= 1 and length("name") <= 200),
   "metric" text not null constraint bsb_goals_metric_check check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$'),
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "team_id" uuid,
   "period_start" date not null,
   "period_end" date not null,
@@ -194,7 +194,7 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_user_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
+      insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
       values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
         (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
         upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
@@ -237,13 +237,13 @@ as $$
     from "better_supabase"."goals" x
     cross join lateral (select case x."metric"
         when 'deals.won_amount' then (select coalesce(sum(d."amount"), 0) from "better_supabase"."deals" d where d."tenant_id" = x."tenant_id" and d."outcome" = 'won' and d."closed_at"::date between x."period_start" and x."period_end"
-        and (x."owner_user_id" is null or d."owner_user_id" = x."owner_user_id") and d."currency" = x."currency")
+        and (x."owner_id" is null or d."owner_id" = x."owner_id") and d."currency" = x."currency")
         when 'deals.won_count' then (select count(*) from "better_supabase"."deals" d where d."tenant_id" = x."tenant_id" and d."outcome" = 'won' and d."closed_at"::date between x."period_start" and x."period_end"
-        and (x."owner_user_id" is null or d."owner_user_id" = x."owner_user_id"))
+        and (x."owner_id" is null or d."owner_id" = x."owner_id"))
         when 'work_items.completed' then (select count(*) from "better_supabase"."tasks" w
       where w."tenant_id" = x."tenant_id" and w."state" = 'completed' and w."closed_at"::date between x."period_start" and x."period_end"
         and (x."team_id" is null or w."team_id" = x."team_id")
-        and (x."owner_user_id" is null or exists (select 1 from "better_supabase"."task_assignees" a where a."task_id" = w."id" and a."user_id" = x."owner_user_id")))
+        and (x."owner_id" is null or exists (select 1 from "better_supabase"."task_assignees" a where a."task_id" = w."id" and a."user_id" = x."owner_id")))
         when 'invoices.paid_amount' then (select coalesce(sum(e."amount"), 0) from "better_supabase"."ledger_entries" e
       join "better_supabase"."ledger_accounts" a on a."id" = e."account_id"
       join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
@@ -252,7 +252,7 @@ as $$
       end as value) v
     where x."tenant_id" = goal_progress.tenant and x."archived_at" is null
       and coalesce(goal_progress.on_date, current_date) between x."period_start" and x."period_end"
-      and (goal_progress.owner is null or x."owner_user_id" = goal_progress.owner)
+      and (goal_progress.owner is null or x."owner_id" = goal_progress.owner)
   ) p
 $$;
 revoke execute on function "better_supabase"."goal_progress"(uuid, date, uuid) from public, anon;
@@ -298,7 +298,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:81d21d94b9666c10cdeac128c19a0226ce96b69dc599fac0dc8100f4769c5ff0
+-- @bsb-hash sha256:47d6c194f5e85b4e5894577974e4a6bd62a78ca68d3a49c1d2cb1fd709702d6c
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -315,7 +315,7 @@ create table "app_private"."goals" (
   "tenant_id" uuid not null,
   "name" text not null constraint bsb_goals_name_check check (length("name") >= 1 and length("name") <= 200),
   "metric" text not null constraint bsb_goals_metric_check check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$'),
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "team_id" uuid,
   "period_start" date not null,
   "period_end" date not null,
@@ -356,7 +356,7 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "app_private"."goals" ("tenant_id", "name", "metric", "owner_user_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
+      insert into "app_private"."goals" ("tenant_id", "name", "metric", "owner_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
       values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
         (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
         upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
@@ -400,7 +400,7 @@ as $$
     cross join lateral (select x."actual" as value) v
     where x."tenant_id" = goal_progress.tenant and x."archived_at" is null
       and coalesce(goal_progress.on_date, current_date) between x."period_start" and x."period_end"
-      and (goal_progress.owner is null or x."owner_user_id" = goal_progress.owner)
+      and (goal_progress.owner is null or x."owner_id" = goal_progress.owner)
   ) p
 $$;
 revoke execute on function "app_private"."goal_progress"(uuid, date, uuid) from public, anon;
@@ -443,7 +443,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:99eda3cd45e26bb785860afbc5d517f106feb8ad668f2f783c0e8d0ebe317b6b
+-- @bsb-hash sha256:7a383be4e0135fce65cf2912fd0bb014a5ff8348d0ee534ce02afd3a6135c77d
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -455,7 +455,7 @@ create table "better_supabase"."goals" (
   "tenant_id" uuid not null,
   "name" text not null constraint bsb_goals_name_check check (length("name") >= 1 and length("name") <= 200),
   "metric" text not null constraint bsb_goals_metric_check check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$'),
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "team_id" uuid,
   "period_start" date not null,
   "period_end" date not null,
@@ -496,7 +496,7 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_user_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
+      insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
       values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
         (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
         upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
@@ -540,7 +540,7 @@ as $$
     cross join lateral (select x."actual" as value) v
     where x."tenant_id" = goal_progress.tenant and x."archived_at" is null
       and coalesce(goal_progress.on_date, current_date) between x."period_start" and x."period_end"
-      and (goal_progress.owner is null or x."owner_user_id" = goal_progress.owner)
+      and (goal_progress.owner is null or x."owner_id" = goal_progress.owner)
   ) p
 $$;
 revoke execute on function "better_supabase"."goal_progress"(uuid, date, uuid) from public, anon;
@@ -606,7 +606,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:413da8a94b6f62243d8698f03ad94059cf657524572b334901d1413b0afbf6d0
+-- @bsb-hash sha256:5155919fd5879b7e6b8fea9fabdfea12da7fe6ac1967790c227870b6edb67bc7
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -618,7 +618,7 @@ alter table "better_supabase"."goals" add column if not exists "id" uuid default
 alter table "better_supabase"."goals" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."goals" add column if not exists "name" text constraint bsb_goals_name_check check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."goals" add column if not exists "metric" text constraint bsb_goals_metric_check check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$');
-alter table "better_supabase"."goals" add column if not exists "owner_user_id" uuid;
+alter table "better_supabase"."goals" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."goals" add column if not exists "team_id" uuid;
 alter table "better_supabase"."goals" add column if not exists "period_start" date;
 alter table "better_supabase"."goals" add column if not exists "period_end" date;
@@ -656,7 +656,7 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_user_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
+      insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
       values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
         (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
         upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
@@ -700,7 +700,7 @@ as $$
     cross join lateral (select x."actual" as value) v
     where x."tenant_id" = goal_progress.tenant and x."archived_at" is null
       and coalesce(goal_progress.on_date, current_date) between x."period_start" and x."period_end"
-      and (goal_progress.owner is null or x."owner_user_id" = goal_progress.owner)
+      and (goal_progress.owner is null or x."owner_id" = goal_progress.owner)
   ) p
 $$;
 revoke execute on function "better_supabase"."goal_progress"(uuid, date, uuid) from public, anon;
@@ -743,7 +743,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:e4cf05d75d6b58ffc417ed944e17ca43429c952c55e1052c828d667b68c28f0c
+-- @bsb-hash sha256:10c844783e78837130d59c65e3a2b8eb2a5debaaa7e7a4b4e0f12e690b4d7862
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -755,7 +755,7 @@ create table "better_supabase"."goals" (
   "org_id" uuid not null,
   "name" text not null constraint bsb_goals_name_check check (length("name") >= 1 and length("name") <= 200),
   "metric" text not null constraint bsb_goals_metric_check check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$'),
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "team_id" uuid,
   "period_start" date not null,
   "period_end" date not null,
@@ -796,7 +796,7 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."goals" ("org_id", "name", "metric", "owner_user_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
+      insert into "better_supabase"."goals" ("org_id", "name", "metric", "owner_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
       values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
         (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
         upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
@@ -840,7 +840,7 @@ as $$
     cross join lateral (select x."actual" as value) v
     where x."org_id" = goal_progress.tenant and x."archived_at" is null
       and coalesce(goal_progress.on_date, current_date) between x."period_start" and x."period_end"
-      and (goal_progress.owner is null or x."owner_user_id" = goal_progress.owner)
+      and (goal_progress.owner is null or x."owner_id" = goal_progress.owner)
   ) p
 $$;
 revoke execute on function "better_supabase"."goal_progress"(uuid, date, uuid) from public, anon;

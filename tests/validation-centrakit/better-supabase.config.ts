@@ -380,7 +380,10 @@ export default defineConfig({
         },
       },
     },
-    "state-machine": { tables: { history: "centrakit.status_history" } },
+    "state-machine": {
+      tables: { history: "centrakit.status_history" },
+      columns: { history: { actor: "actor_user_id" } },
+    },
     "custom-fields": {
       tables: {
         definitions: "centrakit.field_definitions",

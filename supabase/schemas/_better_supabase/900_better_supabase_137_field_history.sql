@@ -1,6 +1,6 @@
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:0488ea5a605eb94fedd8eb1ae243f86ff25d1ba2180b48486c1b03a1303d3e96
+-- @bsb-hash sha256:01a19fba9c24f804b4e005ae88c21ff7809a9b3b715c614ace4361a5b62951a3
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -64,7 +64,7 @@ begin
   from (values
       ('amount', to_jsonb(old."amount"), to_jsonb(new."amount")),
       ('stage_id', to_jsonb(old."stage_id"), to_jsonb(new."stage_id")),
-      ('owner_user_id', to_jsonb(old."owner_user_id"), to_jsonb(new."owner_user_id")),
+      ('owner_id', to_jsonb(old."owner_id"), to_jsonb(new."owner_id")),
       ('expected_close_on', to_jsonb(old."expected_close_on"), to_jsonb(new."expected_close_on"))
   ) as x (field, old_value, new_value)
   where x.old_value is distinct from x.new_value;
@@ -72,7 +72,7 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_field_history_deal() from public, anon, authenticated;
-create trigger bsb_field_history_deal after update of "amount", "stage_id", "owner_user_id", "expected_close_on" on "better_supabase"."deals"
+create trigger bsb_field_history_deal after update of "amount", "stage_id", "owner_id", "expected_close_on" on "better_supabase"."deals"
 for each row execute function better_supabase.bsb_field_history_deal();
 
 -- Keeps the old and new value of each watched column of a company on update.
@@ -86,7 +86,7 @@ begin
   insert into "better_supabase"."field_changes" ("tenant_id", "subject_type", "subject_id", "field", "old_value", "new_value", "changed_by")
   select new."tenant_id", 'company', new."id"::text, x.field, x.old_value, x.new_value, auth.uid()
   from (values
-      ('owner_user_id', to_jsonb(old."owner_user_id"), to_jsonb(new."owner_user_id")),
+      ('owner_id', to_jsonb(old."owner_id"), to_jsonb(new."owner_id")),
       ('lifecycle', to_jsonb(old."lifecycle"), to_jsonb(new."lifecycle"))
   ) as x (field, old_value, new_value)
   where x.old_value is distinct from x.new_value;
@@ -94,7 +94,7 @@ begin
 end;
 $$;
 revoke execute on function better_supabase.bsb_field_history_company() from public, anon, authenticated;
-create trigger bsb_field_history_company after update of "owner_user_id", "lifecycle" on "better_supabase"."companies"
+create trigger bsb_field_history_company after update of "owner_id", "lifecycle" on "better_supabase"."companies"
 for each row execute function better_supabase.bsb_field_history_company();
 
 -- A record's changes, newest first, optionally of one field. before is the id

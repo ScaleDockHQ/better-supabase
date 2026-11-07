@@ -32,7 +32,7 @@ create table public.opportunities (
   seq bigint not null,
   code text not null,
   title text not null,
-  owner_user_id uuid,
+  owner_id uuid,
   amount bigint not null default 0,
   currency char(3) not null,
   result public.deal_result not null default 'open',

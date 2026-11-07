@@ -404,7 +404,7 @@ export function participantOf(value: unknown): AiChatParticipant {
     kind: oneOf(row["kind"], ["user", "team", "customer", "external"], "user"),
     userId: optionalText(row["user_id"]),
     teamId: optionalText(row["team_id"]),
-    customerUserId: optionalText(row["customer_user_id"]),
+    customerUserId: optionalText(row["customer_id"]),
     email: optionalText(row["email"]),
     role: oneOf(row["role"], ["owner", "viewer", "editor"], "viewer"),
     addedBy: optionalText(row["added_by"]),

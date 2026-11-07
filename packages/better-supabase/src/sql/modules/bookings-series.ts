@@ -39,7 +39,7 @@ export const SERIES_TABLES = {
       tz: "tz",
       customerName: "customer_name",
       customerEmail: "customer_email",
-      customerUser: "customer_user_id",
+      customerUser: "customer_id",
       status: "status",
       endsAt: "ends_at",
       createdBy: "created_by",

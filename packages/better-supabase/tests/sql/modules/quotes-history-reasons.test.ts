@@ -137,7 +137,7 @@ create table public.quote_history (
   subject_id uuid not null,
   from_status text,
   to_status text not null,
-  actor_user_id uuid,
+  actor_id uuid,
   reason text,
   ip_address ${ip},
   created_at timestamptz not null default now()

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:f59b0d65eccc45872adf65e8476248bce7b775f412df9b6339c061ab5b8ce5a5
+-- @bsb-hash sha256:e46e5702eec442d69cd61cbc04615a5217365947a3d53be6bac2daf3cfb0bf1b
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19,7 +19,7 @@ create table "better_supabase"."deals" (
   "company_id" text,
   "motion" text,
   "priority" text,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "product" text,
   "seats" integer constraint bsb_deals_seats_check check ("seats" >= 0),
   "amount" bigint not null default 0 constraint bsb_deals_amount_check check ("amount" >= 0),
@@ -61,7 +61,7 @@ create table "better_supabase"."deals" (
 );
 create index deals_pipeline_stage_idx on "better_supabase"."deals" ("pipeline_id", "stage_id", "rank");
 create index deals_tenant_close_idx on "better_supabase"."deals" ("tenant_id", "expected_close_on") where "outcome" = 'open';
-create index deals_owner_idx on "better_supabase"."deals" ("owner_user_id");
+create index deals_owner_idx on "better_supabase"."deals" ("owner_id");
 create index deals_company_idx on "better_supabase"."deals" ("company_type", "company_id");
 alter table "better_supabase"."deals" enable row level security;
 revoke all on "better_supabase"."deals" from public, anon, authenticated;
@@ -130,7 +130,7 @@ begin
       or new."company_id" is distinct from old."company_id"
       or new."motion" is distinct from old."motion"
       or new."priority" is distinct from old."priority"
-      or new."owner_user_id" is distinct from old."owner_user_id"
+      or new."owner_id" is distinct from old."owner_id"
       or new."product" is distinct from old."product"
       or new."seats" is distinct from old."seats"
       or new."amount" is distinct from old."amount"
@@ -230,7 +230,7 @@ begin
   v_identifier := 'DEAL-' || v_seq::text;
   end if;
   begin
-    insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_user_id", "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period", "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind", "flags", "source", "note", "created_by")
+    insert into "better_supabase"."deals" ("tenant_id", "number", "identifier", "name", "company_type", "company_id", "owner_id", "motion", "priority", "product", "seats", "amount", "existing_amount", "currency", "value_period", "pipeline_id", "stage_id", "probability", "forecast_category", "expected_close_on", "next_step", "next_at", "next_kind", "flags", "source", "note", "created_by")
     values (create_deal.tenant,
       v_seq,
       v_identifier,
@@ -319,7 +319,7 @@ begin
     v_field := v_change ->> 'field';
     begin
       v_deal := (v_change ->> 'dealId')::uuid;
-      select * into v_row from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
+      select * into v_row from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid())))) and x."archived_at" is null;
       if v_row."id" is null then
@@ -352,7 +352,7 @@ begin
       when 'priority' then
         update "better_supabase"."deals" x set "priority" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_deal returning * into v_row;
       when 'ownerId' then
-        update "better_supabase"."deals" x set "owner_user_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_deal returning * into v_row;
+        update "better_supabase"."deals" x set "owner_id" = (v_change -> 'value' #>> '{}')::uuid where x."id" = v_deal returning * into v_row;
       when 'product' then
         update "better_supabase"."deals" x set "product" = nullif(trim(v_change -> 'value' #>> '{}'), '') where x."id" = v_deal returning * into v_row;
       when 'seats' then
@@ -439,7 +439,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
+  select * into v_row from "better_supabase"."deals" x where x."id" = close_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
@@ -481,7 +481,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
+  select * into v_row from "better_supabase"."deals" x where x."id" = reopen_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_row."id" is null then
@@ -517,7 +517,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
+  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
@@ -563,7 +563,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
+  select x."tenant_id" into v_tenant from "better_supabase"."deals" x where x."id" = v_deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))));
   if v_tenant is null then
@@ -692,7 +692,7 @@ begin
   if v_tenant is null then
     raise exception 'no such record, or its lines are locked' using errcode = 'P0002', hint = 'LINES_RECORD_INVALID';
   end if;
-  if not exists (select 1 from "better_supabase"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
+  if not exists (select 1 from "better_supabase"."deals" x where x."id" = v_parent and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))) then
     raise exception 'no such deal you can edit' using errcode = 'P0002', hint = 'DEAL_NOT_FOUND';
@@ -745,7 +745,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."deals" x set "archived_at" = case when archive_deal.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_user_id" = auth.uid(), false)
+  where x."id" = archive_deal.deal and ((auth.role() = 'service_role') or (coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.write'), false) and (true or coalesce(x."owner_id" = auth.uid(), false)
       or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false)
       or exists (select 1 from "better_supabase"."deal_members" mm where mm."deal_id" = x."id" and mm."user_id" = auth.uid()))))
   returning * into v_row;
@@ -776,7 +776,7 @@ begin
   end if;
   delete from "better_supabase"."deals" x
   where x."id" = delete_deal.deal
-    and ((auth.role() = 'service_role') or x."owner_user_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false))
+    and ((auth.role() = 'service_role') or x."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'deals.manage'), false))
   returning * into v_row;
   if v_row."id" is null then
     return false;
@@ -806,7 +806,7 @@ as $$
       and x."currency" = upper(deal_forecast.currency)
       and x."archived_at" is null
       and (deal_forecast.pipeline is null or x."pipeline_id" = deal_forecast.pipeline)
-      and (deal_forecast.owner is null or x."owner_user_id" = deal_forecast.owner)
+      and (deal_forecast.owner is null or x."owner_id" = deal_forecast.owner)
   ),
   totals as (
     select jsonb_build_object(
@@ -823,7 +823,7 @@ as $$
   owners as (
     select coalesce(jsonb_agg(o.value order by o.owner_id), '[]'::jsonb) as list
     from (
-      select x."owner_user_id" as owner_id, jsonb_build_object('ownerId', x."owner_user_id", 
+      select x."owner_id" as owner_id, jsonb_build_object('ownerId', x."owner_id", 
       'won', coalesce(sum(x."amount") filter (where x."outcome" = 'won' and x."closed_at"::date >= deal_forecast.since and x."closed_at"::date <= deal_forecast.until), 0)::text,
       'commit', coalesce(sum(x."amount") filter (where x."outcome" = 'open' and x."forecast_category" is distinct from 'omit' and x."expected_close_on" >= deal_forecast.since and x."expected_close_on" <= deal_forecast.until and x."forecast_category" = 'commit'), 0)::text,
       'bestCase', coalesce(sum(x."amount") filter (where x."outcome" = 'open' and x."forecast_category" is distinct from 'omit' and x."expected_close_on" >= deal_forecast.since and x."expected_close_on" <= deal_forecast.until and x."forecast_category" = 'best_case'), 0)::text,
@@ -832,7 +832,7 @@ as $$
       'omit', coalesce(sum(x."amount") filter (where x."outcome" = 'open' and x."expected_close_on" >= deal_forecast.since and x."expected_close_on" <= deal_forecast.until and x."forecast_category" = 'omit'), 0)::text,
       'later', coalesce(sum(x."amount") filter (where x."outcome" = 'open' and x."forecast_category" is distinct from 'omit' and x."expected_close_on" > deal_forecast.until), 0)::text
       ) as value
-      from scoped x group by x."owner_user_id"
+      from scoped x group by x."owner_id"
     ) o
   )
   select totals.sums || jsonb_build_object(
@@ -898,7 +898,7 @@ begin
       jsonb_build_object(
         'id', x."id", 'identifier', x."identifier", 'name', x."name",
         'amount', x."amount"::text, 'currency', x."currency"::text,
-        'ownerId', x."owner_user_id", 'closeOn', x."expected_close_on",
+        'ownerId', x."owner_id", 'closeOn', x."expected_close_on",
         'probability', coalesce(x."probability", st."probability"),
         'daysInStage', (extract(epoch from now() - coalesce(x."stage_entered_at", x."created_at")) / 86400)::integer,
         'rotting', st."rotting_after_days" is not null and now() - coalesce(x."stage_entered_at", x."created_at") > make_interval(days => st."rotting_after_days"),

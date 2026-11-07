@@ -177,7 +177,7 @@ select better_supabase.record_inbound(jsonb_build_object(
 -- create_task numbers them (TASK-<n> per organization). The items insert
 -- runs without triggers, since the state machine would start every item in
 -- triage; the closed items set closed_at and close_reason here.
-insert into better_supabase.work_projects (id, tenant_id, key, name, owner_user_id, status, start_on, target_on) values
+insert into better_supabase.work_projects (id, tenant_id, key, name, owner_id, status, start_on, target_on) values
   ('00000000-0000-4000-8000-00000000f001', '00000000-0000-4000-8000-000000000001', 'WEB', 'Website relaunch', '00000000-0000-4000-8000-0000000000a1', 'active', current_date - 14, current_date + 30),
   ('00000000-0000-4000-8000-00000000f002', '00000000-0000-4000-8000-000000000001', 'ONB', 'Customer onboarding', '00000000-0000-4000-8000-0000000000a2', 'planned', current_date + 7, current_date + 60);
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:90cee4dbae04acac626fd4080df7393bdcf6243e2914b085d76b1579da199409
+-- @bsb-hash sha256:65c54708936471f3d3b98b559584142b6f695350bf563f0c23f1bec4b22fa957
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -34,7 +34,7 @@ create table "better_supabase"."forecast_snapshot_deals" (
   "tenant_id" uuid not null,
   "deal_id" uuid not null,
   "name" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "stage_id" uuid,
   "forecast_category" text,
   "outcome" text not null,
@@ -96,8 +96,8 @@ begin
   insert into "better_supabase"."forecast_snapshots" ("tenant_id", "pipeline_id", "period_start", "period_end", "currency", "target", "totals", "taken_by")
   values (take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, "better_supabase"."deal_forecast"(take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, null), auth.uid())
   returning * into v_row;
-  insert into "better_supabase"."forecast_snapshot_deals" ("snapshot_id", "tenant_id", "deal_id", "name", "owner_user_id", "stage_id", "forecast_category", "outcome", "amount", "expected_close_on", "closed_at")
-  select v_row."id", x."tenant_id", x."id", x."name", x."owner_user_id", x."stage_id", x."forecast_category"::text, x."outcome"::text, x."amount", x."expected_close_on", x."closed_at"
+  insert into "better_supabase"."forecast_snapshot_deals" ("snapshot_id", "tenant_id", "deal_id", "name", "owner_id", "stage_id", "forecast_category", "outcome", "amount", "expected_close_on", "closed_at")
+  select v_row."id", x."tenant_id", x."id", x."name", x."owner_id", x."stage_id", x."forecast_category"::text, x."outcome"::text, x."amount", x."expected_close_on", x."closed_at"
   from "better_supabase"."deals" x
   where x."tenant_id" = take_forecast_snapshot.tenant
     and x."currency" = v_currency
@@ -159,7 +159,7 @@ begin
     raise exception 'No forecast snapshot you can read has this id' using errcode = 'P0002', hint = 'FORECAST_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'pipelineId', v_row."pipeline_id", 'since', v_row."period_start", 'until', v_row."period_end", 'currency', v_row."currency", 'target', v_row."target"::text, 'totals', v_row."totals", 'dealCount', v_row."deal_count", 'takenBy', v_row."taken_by", 'takenAt', v_row."taken_at") || jsonb_build_object('deals', (
-    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_user_id", 'stageId', y."stage_id", 'forecast', y."forecast_category"::text, 'outcome', y."outcome"::text, 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_id", 'stageId', y."stage_id", 'forecast', y."forecast_category"::text, 'outcome', y."outcome"::text, 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
     from "better_supabase"."forecast_snapshot_deals" y where y."snapshot_id" = v_row."id"
   ));
 end;
@@ -204,8 +204,8 @@ begin
       when a."outcome" = 'open' and b."outcome" = 'lost' then 'lost'
       else 'changed'
     end,
-        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_user_id", 'stageId', a."stage_id", 'forecast', a."forecast_category"::text, 'outcome', a."outcome"::text, 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
-        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_user_id", 'stageId', b."stage_id", 'forecast', b."forecast_category"::text, 'outcome', b."outcome"::text, 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
+        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_id", 'stageId', a."stage_id", 'forecast', a."forecast_category"::text, 'outcome', a."outcome"::text, 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
+        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_id", 'stageId', b."stage_id", 'forecast', b."forecast_category"::text, 'outcome', b."outcome"::text, 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
       ) order by coalesce(b."amount", a."amount") desc, coalesce(b."deal_id", a."deal_id")), '[]'::jsonb)
       from (select * from "better_supabase"."forecast_snapshot_deals" where "snapshot_id" = v_from."id") a
       full join (select * from "better_supabase"."forecast_snapshot_deals" where "snapshot_id" = v_to."id") b on b."deal_id" = a."deal_id"
@@ -215,7 +215,7 @@ begin
       or a."forecast_category" is distinct from b."forecast_category"
       or a."stage_id" is distinct from b."stage_id"
       or a."expected_close_on" is distinct from b."expected_close_on"
-      or a."owner_user_id" is distinct from b."owner_user_id"
+      or a."owner_id" is distinct from b."owner_id"
     ));
 end;
 $$;
@@ -275,7 +275,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:0247bd4c1114faf95f972d9b14174eedf821ad5c29b521646270f8403b0f5e5f
+-- @bsb-hash sha256:23e5ce323ba64589284712a267ae0ac8fdba04763096189e3c0473c2e6a9a449
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -308,7 +308,7 @@ create table "better_supabase"."forecast_snapshot_deals" (
   "tenant_id" uuid not null,
   "deal_id" uuid not null,
   "name" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "stage_id" uuid,
   "forecast_category" text,
   "outcome" text not null,
@@ -370,8 +370,8 @@ begin
   insert into "better_supabase"."forecast_snapshots" ("tenant_id", "pipeline_id", "period_start", "period_end", "currency", "target", "totals", "taken_by")
   values (take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, "better_supabase"."deal_forecast"(take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, null), auth.uid())
   returning * into v_row;
-  insert into "better_supabase"."forecast_snapshot_deals" ("snapshot_id", "tenant_id", "deal_id", "name", "owner_user_id", "stage_id", "forecast_category", "outcome", "amount", "expected_close_on", "closed_at")
-  select v_row."id", x."tenant_id", x."id", x."name", x."owner_user_id", x."stage_id", x."forecast_category"::text, x."outcome"::text, x."amount", x."expected_close_on", x."closed_at"
+  insert into "better_supabase"."forecast_snapshot_deals" ("snapshot_id", "tenant_id", "deal_id", "name", "owner_id", "stage_id", "forecast_category", "outcome", "amount", "expected_close_on", "closed_at")
+  select v_row."id", x."tenant_id", x."id", x."name", x."owner_id", x."stage_id", x."forecast_category"::text, x."outcome"::text, x."amount", x."expected_close_on", x."closed_at"
   from "better_supabase"."deals" x
   where x."tenant_id" = take_forecast_snapshot.tenant
     and x."currency" = v_currency
@@ -433,7 +433,7 @@ begin
     raise exception 'No forecast snapshot you can read has this id' using errcode = 'P0002', hint = 'FORECAST_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'pipelineId', v_row."pipeline_id", 'since', v_row."period_start", 'until', v_row."period_end", 'currency', v_row."currency", 'target', v_row."target"::text, 'totals', v_row."totals", 'dealCount', v_row."deal_count", 'takenBy', v_row."taken_by", 'takenAt', v_row."taken_at") || jsonb_build_object('deals', (
-    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_user_id", 'stageId', y."stage_id", 'forecast', y."forecast_category"::text, 'outcome', y."outcome"::text, 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_id", 'stageId', y."stage_id", 'forecast', y."forecast_category"::text, 'outcome', y."outcome"::text, 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
     from "better_supabase"."forecast_snapshot_deals" y where y."snapshot_id" = v_row."id"
   ));
 end;
@@ -478,8 +478,8 @@ begin
       when a."outcome" = 'open' and b."outcome" = 'lost' then 'lost'
       else 'changed'
     end,
-        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_user_id", 'stageId', a."stage_id", 'forecast', a."forecast_category"::text, 'outcome', a."outcome"::text, 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
-        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_user_id", 'stageId', b."stage_id", 'forecast', b."forecast_category"::text, 'outcome', b."outcome"::text, 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
+        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_id", 'stageId', a."stage_id", 'forecast', a."forecast_category"::text, 'outcome', a."outcome"::text, 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
+        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_id", 'stageId', b."stage_id", 'forecast', b."forecast_category"::text, 'outcome', b."outcome"::text, 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
       ) order by coalesce(b."amount", a."amount") desc, coalesce(b."deal_id", a."deal_id")), '[]'::jsonb)
       from (select * from "better_supabase"."forecast_snapshot_deals" where "snapshot_id" = v_from."id") a
       full join (select * from "better_supabase"."forecast_snapshot_deals" where "snapshot_id" = v_to."id") b on b."deal_id" = a."deal_id"
@@ -489,7 +489,7 @@ begin
       or a."forecast_category" is distinct from b."forecast_category"
       or a."stage_id" is distinct from b."stage_id"
       or a."expected_close_on" is distinct from b."expected_close_on"
-      or a."owner_user_id" is distinct from b."owner_user_id"
+      or a."owner_id" is distinct from b."owner_id"
     ));
 end;
 $$;
@@ -552,7 +552,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:e940560254045d7fd0ed9b88be89b142fe3cc1397f7ff3f1a545f42b93feb931
+-- @bsb-hash sha256:511b2af4bbc53584fb4eb6648bed9ed8383c3e69b92db3bcf2d71ea85190ba69
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -590,7 +590,7 @@ create table "app_private"."forecast_snapshot_deals" (
   "tenant_id" uuid not null,
   "deal_id" uuid not null,
   "name" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "stage_id" uuid,
   "forecast_category" text,
   "outcome" text not null,
@@ -652,8 +652,8 @@ begin
   insert into "app_private"."forecast_snapshots" ("tenant_id", "pipeline_id", "period_start", "period_end", "currency", "target", "totals", "taken_by")
   values (take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, "better_supabase"."deal_forecast"(take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, null), auth.uid())
   returning * into v_row;
-  insert into "app_private"."forecast_snapshot_deals" ("snapshot_id", "tenant_id", "deal_id", "name", "owner_user_id", "stage_id", "forecast_category", "outcome", "amount", "expected_close_on", "closed_at")
-  select v_row."id", x."tenant_id", x."id", x."name", x."owner_user_id", x."stage_id", x."forecast_category"::text, x."outcome"::text, x."amount", x."expected_close_on", x."closed_at"
+  insert into "app_private"."forecast_snapshot_deals" ("snapshot_id", "tenant_id", "deal_id", "name", "owner_id", "stage_id", "forecast_category", "outcome", "amount", "expected_close_on", "closed_at")
+  select v_row."id", x."tenant_id", x."id", x."name", x."owner_id", x."stage_id", x."forecast_category"::text, x."outcome"::text, x."amount", x."expected_close_on", x."closed_at"
   from "better_supabase"."deals" x
   where x."tenant_id" = take_forecast_snapshot.tenant
     and x."currency" = v_currency
@@ -715,7 +715,7 @@ begin
     raise exception 'No forecast snapshot you can read has this id' using errcode = 'P0002', hint = 'FORECAST_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'pipelineId', v_row."pipeline_id", 'since', v_row."period_start", 'until', v_row."period_end", 'currency', v_row."currency", 'target', v_row."target"::text, 'totals', v_row."totals", 'dealCount', v_row."deal_count", 'takenBy', v_row."taken_by", 'takenAt', v_row."taken_at") || jsonb_build_object('deals', (
-    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_user_id", 'stageId', y."stage_id", 'forecast', y."forecast_category"::text, 'outcome', y."outcome"::text, 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_id", 'stageId', y."stage_id", 'forecast', y."forecast_category"::text, 'outcome', y."outcome"::text, 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
     from "app_private"."forecast_snapshot_deals" y where y."snapshot_id" = v_row."id"
   ));
 end;
@@ -760,8 +760,8 @@ begin
       when a."outcome" = 'open' and b."outcome" = 'lost' then 'lost'
       else 'changed'
     end,
-        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_user_id", 'stageId', a."stage_id", 'forecast', a."forecast_category"::text, 'outcome', a."outcome"::text, 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
-        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_user_id", 'stageId', b."stage_id", 'forecast', b."forecast_category"::text, 'outcome', b."outcome"::text, 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
+        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_id", 'stageId', a."stage_id", 'forecast', a."forecast_category"::text, 'outcome', a."outcome"::text, 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
+        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_id", 'stageId', b."stage_id", 'forecast', b."forecast_category"::text, 'outcome', b."outcome"::text, 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
       ) order by coalesce(b."amount", a."amount") desc, coalesce(b."deal_id", a."deal_id")), '[]'::jsonb)
       from (select * from "app_private"."forecast_snapshot_deals" where "snapshot_id" = v_from."id") a
       full join (select * from "app_private"."forecast_snapshot_deals" where "snapshot_id" = v_to."id") b on b."deal_id" = a."deal_id"
@@ -771,7 +771,7 @@ begin
       or a."forecast_category" is distinct from b."forecast_category"
       or a."stage_id" is distinct from b."stage_id"
       or a."expected_close_on" is distinct from b."expected_close_on"
-      or a."owner_user_id" is distinct from b."owner_user_id"
+      or a."owner_id" is distinct from b."owner_id"
     ));
 end;
 $$;
@@ -831,7 +831,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:d1a99fd9d52dfe8f552bed553e7f1760a5c49e37a273a5896264e0d1f548e6e7
+-- @bsb-hash sha256:b9555f460c25af1b92d2fc893f4efd8207860098be80a53fa15924d0c4a5ebb9
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -864,7 +864,7 @@ create table "better_supabase"."forecast_snapshot_deals" (
   "tenant_id" uuid not null,
   "deal_id" uuid not null,
   "name" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "stage_id" uuid,
   "forecast_category" text,
   "outcome" text not null,
@@ -926,8 +926,8 @@ begin
   insert into "better_supabase"."forecast_snapshots" ("tenant_id", "pipeline_id", "period_start", "period_end", "currency", "target", "totals", "taken_by")
   values (take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, "better_supabase"."deal_forecast"(take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, null), auth.uid())
   returning * into v_row;
-  insert into "better_supabase"."forecast_snapshot_deals" ("snapshot_id", "tenant_id", "deal_id", "name", "owner_user_id", "stage_id", "forecast_category", "outcome", "amount", "expected_close_on", "closed_at")
-  select v_row."id", x."tenant_id", x."id", x."name", x."owner_user_id", x."stage_id", x."forecast_category"::text, x."outcome"::text, x."amount", x."expected_close_on", x."closed_at"
+  insert into "better_supabase"."forecast_snapshot_deals" ("snapshot_id", "tenant_id", "deal_id", "name", "owner_id", "stage_id", "forecast_category", "outcome", "amount", "expected_close_on", "closed_at")
+  select v_row."id", x."tenant_id", x."id", x."name", x."owner_id", x."stage_id", x."forecast_category"::text, x."outcome"::text, x."amount", x."expected_close_on", x."closed_at"
   from "better_supabase"."deals" x
   where x."tenant_id" = take_forecast_snapshot.tenant
     and x."currency" = v_currency
@@ -989,7 +989,7 @@ begin
     raise exception 'No forecast snapshot you can read has this id' using errcode = 'P0002', hint = 'FORECAST_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'pipelineId', v_row."pipeline_id", 'since', v_row."period_start", 'until', v_row."period_end", 'currency', v_row."currency", 'target', v_row."target"::text, 'totals', v_row."totals", 'dealCount', v_row."deal_count", 'takenBy', v_row."taken_by", 'takenAt', v_row."taken_at") || jsonb_build_object('deals', (
-    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_user_id", 'stageId', y."stage_id", 'forecast', y."forecast_category"::text, 'outcome', y."outcome"::text, 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_id", 'stageId', y."stage_id", 'forecast', y."forecast_category"::text, 'outcome', y."outcome"::text, 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
     from "better_supabase"."forecast_snapshot_deals" y where y."snapshot_id" = v_row."id"
   ));
 end;
@@ -1034,8 +1034,8 @@ begin
       when a."outcome" = 'open' and b."outcome" = 'lost' then 'lost'
       else 'changed'
     end,
-        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_user_id", 'stageId', a."stage_id", 'forecast', a."forecast_category"::text, 'outcome', a."outcome"::text, 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
-        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_user_id", 'stageId', b."stage_id", 'forecast', b."forecast_category"::text, 'outcome', b."outcome"::text, 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
+        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_id", 'stageId', a."stage_id", 'forecast', a."forecast_category"::text, 'outcome', a."outcome"::text, 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
+        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_id", 'stageId', b."stage_id", 'forecast', b."forecast_category"::text, 'outcome', b."outcome"::text, 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
       ) order by coalesce(b."amount", a."amount") desc, coalesce(b."deal_id", a."deal_id")), '[]'::jsonb)
       from (select * from "better_supabase"."forecast_snapshot_deals" where "snapshot_id" = v_from."id") a
       full join (select * from "better_supabase"."forecast_snapshot_deals" where "snapshot_id" = v_to."id") b on b."deal_id" = a."deal_id"
@@ -1045,7 +1045,7 @@ begin
       or a."forecast_category" is distinct from b."forecast_category"
       or a."stage_id" is distinct from b."stage_id"
       or a."expected_close_on" is distinct from b."expected_close_on"
-      or a."owner_user_id" is distinct from b."owner_user_id"
+      or a."owner_id" is distinct from b."owner_id"
     ));
 end;
 $$;
@@ -1148,7 +1148,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:328ae0dcf04e4358149e6c24881461a657b10f66527dab79c0a123b5f747b95b
+-- @bsb-hash sha256:5323f5ed2ee1d3ed0bb8c48900c8a4c068b590796b52fd89ea1305e2d0a414a6
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1178,7 +1178,7 @@ alter table "better_supabase"."forecast_snapshot_deals" add column if not exists
 alter table "better_supabase"."forecast_snapshot_deals" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."forecast_snapshot_deals" add column if not exists "deal_id" uuid;
 alter table "better_supabase"."forecast_snapshot_deals" add column if not exists "name" text;
-alter table "better_supabase"."forecast_snapshot_deals" add column if not exists "owner_user_id" uuid;
+alter table "better_supabase"."forecast_snapshot_deals" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."forecast_snapshot_deals" add column if not exists "stage_id" uuid;
 alter table "better_supabase"."forecast_snapshot_deals" add column if not exists "forecast_category" text;
 alter table "better_supabase"."forecast_snapshot_deals" add column if not exists "outcome" text;
@@ -1237,8 +1237,8 @@ begin
   insert into "better_supabase"."forecast_snapshots" ("tenant_id", "pipeline_id", "period_start", "period_end", "currency", "target", "totals", "taken_by")
   values (take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, "better_supabase"."deal_forecast"(take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, null), auth.uid())
   returning * into v_row;
-  insert into "better_supabase"."forecast_snapshot_deals" ("snapshot_id", "tenant_id", "deal_id", "name", "owner_user_id", "stage_id", "forecast_category", "outcome", "amount", "expected_close_on", "closed_at")
-  select v_row."id", x."tenant_id", x."id", x."name", x."owner_user_id", x."stage_id", better_supabase.as_column_type(x."forecast_category"::text, (null::"better_supabase"."forecast_snapshot_deals")."forecast_category"), better_supabase.as_column_type(x."outcome"::text, (null::"better_supabase"."forecast_snapshot_deals")."outcome"), x."amount", x."expected_close_on", x."closed_at"
+  insert into "better_supabase"."forecast_snapshot_deals" ("snapshot_id", "tenant_id", "deal_id", "name", "owner_id", "stage_id", "forecast_category", "outcome", "amount", "expected_close_on", "closed_at")
+  select v_row."id", x."tenant_id", x."id", x."name", x."owner_id", x."stage_id", better_supabase.as_column_type(x."forecast_category"::text, (null::"better_supabase"."forecast_snapshot_deals")."forecast_category"), better_supabase.as_column_type(x."outcome"::text, (null::"better_supabase"."forecast_snapshot_deals")."outcome"), x."amount", x."expected_close_on", x."closed_at"
   from "better_supabase"."deals" x
   where x."tenant_id" = take_forecast_snapshot.tenant
     and x."currency" = v_currency
@@ -1300,7 +1300,7 @@ begin
     raise exception 'No forecast snapshot you can read has this id' using errcode = 'P0002', hint = 'FORECAST_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."tenant_id", 'pipelineId', v_row."pipeline_id", 'since', v_row."period_start", 'until', v_row."period_end", 'currency', v_row."currency", 'target', v_row."target"::text, 'totals', v_row."totals", 'dealCount', v_row."deal_count", 'takenBy', v_row."taken_by", 'takenAt', v_row."taken_at") || jsonb_build_object('deals', (
-    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_user_id", 'stageId', y."stage_id", 'forecast', y."forecast_category"::text, 'outcome', y."outcome"::text, 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_id", 'stageId', y."stage_id", 'forecast', y."forecast_category"::text, 'outcome', y."outcome"::text, 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
     from "better_supabase"."forecast_snapshot_deals" y where y."snapshot_id" = v_row."id"
   ));
 end;
@@ -1345,8 +1345,8 @@ begin
       when a."outcome" = 'open' and b."outcome" = 'lost' then 'lost'
       else 'changed'
     end,
-        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_user_id", 'stageId', a."stage_id", 'forecast', a."forecast_category"::text, 'outcome', a."outcome"::text, 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
-        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_user_id", 'stageId', b."stage_id", 'forecast', b."forecast_category"::text, 'outcome', b."outcome"::text, 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
+        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_id", 'stageId', a."stage_id", 'forecast', a."forecast_category"::text, 'outcome', a."outcome"::text, 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
+        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_id", 'stageId', b."stage_id", 'forecast', b."forecast_category"::text, 'outcome', b."outcome"::text, 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
       ) order by coalesce(b."amount", a."amount") desc, coalesce(b."deal_id", a."deal_id")), '[]'::jsonb)
       from (select * from "better_supabase"."forecast_snapshot_deals" where "snapshot_id" = v_from."id") a
       full join (select * from "better_supabase"."forecast_snapshot_deals" where "snapshot_id" = v_to."id") b on b."deal_id" = a."deal_id"
@@ -1356,7 +1356,7 @@ begin
       or a."forecast_category" is distinct from b."forecast_category"
       or a."stage_id" is distinct from b."stage_id"
       or a."expected_close_on" is distinct from b."expected_close_on"
-      or a."owner_user_id" is distinct from b."owner_user_id"
+      or a."owner_id" is distinct from b."owner_id"
     ));
 end;
 $$;
@@ -1416,7 +1416,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:0428aa4faae5727e800ceb5dc8fb3e0dd94897f88491c5d21e4a76f3c2834a7c
+-- @bsb-hash sha256:3bb98915b20586c372f2491f381128fd72574288b10d32759ff84733e05fe4b7
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1449,7 +1449,7 @@ create table "better_supabase"."forecast_snapshot_deals" (
   "org_id" uuid not null,
   "deal_id" uuid not null,
   "name" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "stage_id" uuid,
   "forecast_category" text,
   "outcome" text not null,
@@ -1511,8 +1511,8 @@ begin
   insert into "better_supabase"."forecast_snapshots" ("org_id", "pipeline_id", "period_start", "period_end", "currency", "target", "totals", "taken_by")
   values (take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, "better_supabase"."deal_forecast"(take_forecast_snapshot.tenant, take_forecast_snapshot.pipeline, take_forecast_snapshot.since, take_forecast_snapshot.until, v_currency, take_forecast_snapshot.target, null), auth.uid())
   returning * into v_row;
-  insert into "better_supabase"."forecast_snapshot_deals" ("snapshot_id", "org_id", "deal_id", "name", "owner_user_id", "stage_id", "forecast_category", "outcome", "amount", "expected_close_on", "closed_at")
-  select v_row."id", x."org_id", x."id", x."name", x."owner_user_id", x."stage_id", x."forecast_category"::text, x."outcome"::text, x."amount", x."expected_close_on", x."closed_at"
+  insert into "better_supabase"."forecast_snapshot_deals" ("snapshot_id", "org_id", "deal_id", "name", "owner_id", "stage_id", "forecast_category", "outcome", "amount", "expected_close_on", "closed_at")
+  select v_row."id", x."org_id", x."id", x."name", x."owner_id", x."stage_id", x."forecast_category"::text, x."outcome"::text, x."amount", x."expected_close_on", x."closed_at"
   from "better_supabase"."deals" x
   where x."org_id" = take_forecast_snapshot.tenant
     and x."currency" = v_currency
@@ -1574,7 +1574,7 @@ begin
     raise exception 'No forecast snapshot you can read has this id' using errcode = 'P0002', hint = 'FORECAST_NOT_FOUND';
   end if;
   return jsonb_build_object('id', v_row."id", 'organizationId', v_row."org_id", 'pipelineId', v_row."pipeline_id", 'since', v_row."period_start", 'until', v_row."period_end", 'currency', v_row."currency", 'target', v_row."target"::text, 'totals', v_row."totals", 'dealCount', v_row."deal_count", 'takenBy', v_row."taken_by", 'takenAt', v_row."taken_at") || jsonb_build_object('deals', (
-    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_user_id", 'stageId', y."stage_id", 'forecast', y."forecast_category"::text, 'outcome', y."outcome"::text, 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('dealId', y."deal_id", 'name', y."name", 'ownerId', y."owner_id", 'stageId', y."stage_id", 'forecast', y."forecast_category"::text, 'outcome', y."outcome"::text, 'amount', y."amount"::text, 'closeOn', y."expected_close_on", 'closedAt', y."closed_at") order by y."amount" desc, y."deal_id"), '[]'::jsonb)
     from "better_supabase"."forecast_snapshot_deals" y where y."snapshot_id" = v_row."id"
   ));
 end;
@@ -1619,8 +1619,8 @@ begin
       when a."outcome" = 'open' and b."outcome" = 'lost' then 'lost'
       else 'changed'
     end,
-        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_user_id", 'stageId', a."stage_id", 'forecast', a."forecast_category"::text, 'outcome', a."outcome"::text, 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
-        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_user_id", 'stageId', b."stage_id", 'forecast', b."forecast_category"::text, 'outcome', b."outcome"::text, 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
+        'before', case when a."deal_id" is null then null else jsonb_build_object('dealId', a."deal_id", 'name', a."name", 'ownerId', a."owner_id", 'stageId', a."stage_id", 'forecast', a."forecast_category"::text, 'outcome', a."outcome"::text, 'amount', a."amount"::text, 'closeOn', a."expected_close_on", 'closedAt', a."closed_at") end,
+        'after', case when b."deal_id" is null then null else jsonb_build_object('dealId', b."deal_id", 'name', b."name", 'ownerId', b."owner_id", 'stageId', b."stage_id", 'forecast', b."forecast_category"::text, 'outcome', b."outcome"::text, 'amount', b."amount"::text, 'closeOn', b."expected_close_on", 'closedAt', b."closed_at") end
       ) order by coalesce(b."amount", a."amount") desc, coalesce(b."deal_id", a."deal_id")), '[]'::jsonb)
       from (select * from "better_supabase"."forecast_snapshot_deals" where "snapshot_id" = v_from."id") a
       full join (select * from "better_supabase"."forecast_snapshot_deals" where "snapshot_id" = v_to."id") b on b."deal_id" = a."deal_id"
@@ -1630,7 +1630,7 @@ begin
       or a."forecast_category" is distinct from b."forecast_category"
       or a."stage_id" is distinct from b."stage_id"
       or a."expected_close_on" is distinct from b."expected_close_on"
-      or a."owner_user_id" is distinct from b."owner_user_id"
+      or a."owner_id" is distinct from b."owner_id"
     ));
 end;
 $$;

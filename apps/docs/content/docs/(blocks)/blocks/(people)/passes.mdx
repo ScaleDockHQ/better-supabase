@@ -27,10 +27,10 @@ logged in the module's own table instead of the audit log. Signing needs the
 
 ## Tables
 
-| Table            | Holds                                                                                                                                                                                                              |
-| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `passes`         | One pass: `kind`, the holder (`holder_user_id`, `holder_name`, `holder_email`), the record, booking or resource it is for, `uses_allowed`, `uses`, the validity window, `status` and the `nonce` its token carries |
-| `pass_check_ins` | Every scan: the pass, the resource and booking, the `gate`, the `method` (`qr`, `nfc` or `manual`), `admitted`, the `reason` when turned away                                                                      |
+| Table            | Holds                                                                                                                                                                                                         |
+| ---------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `passes`         | One pass: `kind`, the holder (`holder_id`, `holder_name`, `holder_email`), the record, booking or resource it is for, `uses_allowed`, `uses`, the validity window, `status` and the `nonce` its token carries |
+| `pass_check_ins` | Every scan: the pass, the resource and booking, the `gate`, the `method` (`qr`, `nfc` or `manual`), `admitted`, the `reason` when turned away                                                                 |
 
 Both tables are read through the functions only. The holder reads their own
 passes with the nonce; members with `passes.read` list the organization's.

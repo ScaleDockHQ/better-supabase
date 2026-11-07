@@ -41,7 +41,7 @@ describe("enrollments module", () => {
     const sql = sqlOf(["enrollments"]);
 
     expect(sql).toContain('"assignee_role" text');
-    expect(sql).toContain('"assignee_user_id" uuid references auth.users');
+    expect(sql).toContain('"assignee_id" uuid references auth.users');
     expect(sql).toContain('"due_at" timestamptz');
     expect(sql).toContain('"starts_at" timestamptz');
     expect(sql).toContain('"ends_at" timestamptz');

@@ -29,7 +29,7 @@ const ROW = {
   title: "Send proposal",
   body: null,
   outcome: null,
-  owner_user_id: "u1",
+  owner_id: "u1",
   due_at: "2026-10-16T09:00:00Z",
   done_at: null,
   duration_seconds: null,

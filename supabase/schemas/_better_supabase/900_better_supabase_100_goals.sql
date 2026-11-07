@@ -1,6 +1,6 @@
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:da08be72d201770f4369dc15ea56bf36973280b72dbdca45934efe3accc6b08b
+-- @bsb-hash sha256:0b17436f85a346ced538e9c3efafdaac4dd3e626891018508438191210e0637e
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,7 +12,7 @@ create table "better_supabase"."goals" (
   "tenant_id" uuid not null,
   "name" text not null constraint bsb_goals_name_check check (length("name") >= 1 and length("name") <= 200),
   "metric" text not null constraint bsb_goals_metric_check check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$'),
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "team_id" uuid,
   "period_start" date not null,
   "period_end" date not null,
@@ -53,7 +53,7 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_user_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
+      insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
       values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
         (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
         upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
@@ -96,13 +96,13 @@ as $$
     from "better_supabase"."goals" x
     cross join lateral (select case x."metric"
         when 'deals.won_amount' then (select coalesce(sum(d."amount"), 0) from "better_supabase"."deals" d where d."tenant_id" = x."tenant_id" and d."outcome" = 'won' and d."closed_at"::date between x."period_start" and x."period_end"
-        and (x."owner_user_id" is null or d."owner_user_id" = x."owner_user_id") and d."currency" = x."currency")
+        and (x."owner_id" is null or d."owner_id" = x."owner_id") and d."currency" = x."currency")
         when 'deals.won_count' then (select count(*) from "better_supabase"."deals" d where d."tenant_id" = x."tenant_id" and d."outcome" = 'won' and d."closed_at"::date between x."period_start" and x."period_end"
-        and (x."owner_user_id" is null or d."owner_user_id" = x."owner_user_id"))
+        and (x."owner_id" is null or d."owner_id" = x."owner_id"))
         when 'work_items.completed' then (select count(*) from "better_supabase"."work_items" w
       where w."tenant_id" = x."tenant_id" and w."state" = 'completed' and w."closed_at"::date between x."period_start" and x."period_end"
         and (x."team_id" is null or w."team_id" = x."team_id")
-        and (x."owner_user_id" is null or exists (select 1 from "better_supabase"."work_item_assignees" a where a."work_item_id" = w."id" and a."user_id" = x."owner_user_id")))
+        and (x."owner_id" is null or exists (select 1 from "better_supabase"."work_item_assignees" a where a."work_item_id" = w."id" and a."user_id" = x."owner_id")))
         when 'invoices.paid_amount' then (select coalesce(sum(e."amount"), 0) from "better_supabase"."ledger_entries" e
       join "better_supabase"."ledger_accounts" a on a."id" = e."account_id"
       join "better_supabase"."ledger_transactions" y on y."id" = e."transaction_id"
@@ -111,7 +111,7 @@ as $$
       end as value) v
     where x."tenant_id" = goal_progress.tenant and x."archived_at" is null
       and coalesce(goal_progress.on_date, current_date) between x."period_start" and x."period_end"
-      and (goal_progress.owner is null or x."owner_user_id" = goal_progress.owner)
+      and (goal_progress.owner is null or x."owner_id" = goal_progress.owner)
   ) p
 $$;
 revoke execute on function "better_supabase"."goal_progress"(uuid, date, uuid) from public, anon;

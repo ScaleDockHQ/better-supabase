@@ -148,7 +148,7 @@ select is(
 
 reset role;
 select is(
-  (select (q.total, q.decided_by, q.decided_user_id, q.decided_ip, q.decided_user_agent)::text
+  (select (q.total, q.decided_by, q.decider_id, q.decided_ip, q.decided_user_agent)::text
    from better_supabase.quotes q where q.id = current_setting('test.id')::uuid),
   '(32000,"Els Jansen",00000000-0000-4000-8000-0000000000e1,198.51.100.4,Browser/1)',
   'the answer records the total, the name, the signed-in user, the IP and the user agent'

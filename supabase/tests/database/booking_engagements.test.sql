@@ -19,7 +19,7 @@ insert into better_supabase.booking_services (id, tenant_id, name, duration) val
   ((select id from ids where name = 'service'), '00000000-0000-4000-8000-000000000001', 'Intro call', interval '30 minutes');
 insert into better_supabase.companies (id, tenant_id, name, lifecycle) values
   ((select id from ids where name = 'company'), '00000000-0000-4000-8000-000000000001', 'Initech', 'customer');
-insert into better_supabase.people (id, tenant_id, name, email, lifecycle, owner_user_id) values
+insert into better_supabase.people (id, tenant_id, name, email, lifecycle, owner_id) values
   ((select id from ids where name = 'person'), '00000000-0000-4000-8000-000000000001', 'Peter', 'peter@initech.test', 'customer', '00000000-0000-4000-8000-0000000000a1');
 insert into better_supabase.company_people (tenant_id, company_id, person_id, is_primary) values
   ('00000000-0000-4000-8000-000000000001', (select id from ids where name = 'company'), (select id from ids where name = 'person'), true);
@@ -38,7 +38,7 @@ select is(
 update better_supabase.bookings set status = 'confirmed', hold_expires_at = null where id = (select id from ids where name = 'booking');
 
 select results_eq(
-  $$select type, title, body, owner_user_id, due_at, duration_seconds, done_at is null
+  $$select type, title, body, owner_id, due_at, duration_seconds, done_at is null
     from better_supabase.activities where external_ref = 'booking:' || (select id from ids where name = 'booking')$$,
   $$values ('meeting'::text, 'Intro call with Peter'::text, 'Bring the TPS reports'::text, '00000000-0000-4000-8000-0000000000a1'::uuid, '2026-11-02 10:00+00'::timestamptz, 1800, true)$$,
   'confirming logs an open meeting owned by the person''s owner'
@@ -108,7 +108,7 @@ insert into better_supabase.bookings (id, tenant_id, resource_id, service_id, du
   ((select id from ids where name = 'stranger'), '00000000-0000-4000-8000-000000000001', (select id from ids where name = 'resource'), (select id from ids where name = 'service'),
    tstzrange('2026-11-04 10:00+00', '2026-11-04 10:30+00'), tstzrange('2026-11-04 10:00+00', '2026-11-04 10:30+00'), 'confirmed', 'nobody@elsewhere.test', '00000000-0000-4000-8000-0000000000a1');
 select results_eq(
-  $$select title, body, owner_user_id from better_supabase.activities where external_ref = 'booking:' || (select id from ids where name = 'stranger')$$,
+  $$select title, body, owner_id from better_supabase.activities where external_ref = 'booking:' || (select id from ids where name = 'stranger')$$,
   $$values ('Intro call'::text, null::text, '00000000-0000-4000-8000-0000000000a1'::uuid)$$,
   'an unknown booker gets a meeting owned by the booking''s author'
 );

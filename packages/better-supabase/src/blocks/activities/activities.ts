@@ -304,7 +304,7 @@ function engagementOf(value: unknown): Engagement {
   const optional = {
     body: optionalText(row["body"]),
     outcome: optionalText(row["outcome"]),
-    ownerId: optionalText(row["owner_user_id"]),
+    ownerId: optionalText(row["owner_id"]),
     dueAt: optionalInstant(row["due_at"]),
     doneAt: optionalInstant(row["done_at"]),
     durationSeconds:

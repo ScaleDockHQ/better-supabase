@@ -44,7 +44,7 @@ create table public.proposals (
   revision integer not null default 1,
   supersedes_id uuid references public.proposals (id) on delete set null,
   title text not null,
-  owner_user_id uuid,
+  owner_id uuid,
   currency char(3) not null,
   state public.proposal_state not null default 'draft',
   valid_until date,

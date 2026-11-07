@@ -165,7 +165,7 @@ const NAMES: BlockSqlNames = {
         outcome: "outcome",
         amount: "amount",
         currency: "currency",
-        actor: "actor_user_id",
+        actor: "actor_id",
         enteredAt: "entered_at",
         exitedAt: "exited_at",
       },

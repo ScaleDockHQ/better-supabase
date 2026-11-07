@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:29f37bc7531cd96bcfcf904b63ac96469fb1d4745b1f18c9fd3a69f2c3eb3857
+-- @bsb-hash sha256:c6e3bb90b596033d8bab8b8dcf8723a862505ce0d7565710f56294e1462f0b32
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -40,7 +40,7 @@ create table "better_supabase"."companies" (
   "registration_id" text constraint bsb_companies_registration_id check (length("registration_id") >= 1 and length("registration_id") <= 100),
   "phone" text,
   "lifecycle" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
@@ -59,7 +59,7 @@ create table "better_supabase"."companies" (
 create index companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
 create unique index companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
   where "domain" is not null and "archived_at" is null;
-create index companies_owner_idx on "better_supabase"."companies" ("owner_user_id");
+create index companies_owner_idx on "better_supabase"."companies" ("owner_id");
 create index companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
 create index companies_roles_idx on "better_supabase"."companies" using gin ("roles");
 create index companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
@@ -82,7 +82,7 @@ create table "better_supabase"."people" (
   "title" text,
   "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null)),
   "lifecycle" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "user_id" uuid,
   "avatar_url" text,
   "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object'),
@@ -103,7 +103,7 @@ create table "better_supabase"."people" (
 create index people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
 create unique index people_email_idx on "better_supabase"."people" ("tenant_id", "email")
   where "email" is not null and "archived_at" is null;
-create index people_owner_idx on "better_supabase"."people" ("owner_user_id");
+create index people_owner_idx on "better_supabase"."people" ("owner_id");
 create index people_user_idx on "better_supabase"."people" ("user_id");
 create index people_merged_into_idx on "better_supabase"."people" ("merged_into");
 create index people_roles_idx on "better_supabase"."people" using gin ("roles");
@@ -241,11 +241,11 @@ begin
       if nullif(trim(save_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
+      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
       values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."companies" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."companies" x
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
       update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
         "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
@@ -255,7 +255,7 @@ begin
         "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
         "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
         "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
         "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
@@ -265,7 +265,7 @@ begin
         "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -363,11 +363,11 @@ begin
       if nullif(trim(save_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_user_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
+      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
       values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."people" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."people" x
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
       update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
         "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
@@ -375,7 +375,7 @@ begin
         "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
         "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
         "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
         "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
@@ -385,7 +385,7 @@ begin
         "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -585,7 +585,7 @@ begin
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_companies.drop;
-  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_companies.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", merge_companies.keep, l."person_id", l."role", false
@@ -631,7 +631,7 @@ begin
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_people.drop;
-  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_people.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", l."company_id", merge_people.keep, l."role", false
@@ -671,7 +671,7 @@ begin
         and x."archived_at" is null
         and (list_companies.search is null or x."name" ilike v_like or x."domain" ilike v_like)
         and (list_companies.lifecycle is null or x."lifecycle" = list_companies.lifecycle)
-        and (list_companies.owner is null or x."owner_user_id" = list_companies.owner)
+        and (list_companies.owner is null or x."owner_id" = list_companies.owner)
         and (list_companies.role is null or list_companies.role = any (x."roles"))
         and (list_companies.supplier_status is null or x."supplier_status" = list_companies.supplier_status)
         and (list_companies.after_name is null or (lower(x."name"), x."id") > (lower(list_companies.after_name), list_companies.after_id))
@@ -707,7 +707,7 @@ begin
         and x."archived_at" is null
         and (list_people.search is null or x."name" ilike v_like or x."email" ilike v_like)
         and (list_people.lifecycle is null or x."lifecycle" = list_people.lifecycle)
-        and (list_people.owner is null or x."owner_user_id" = list_people.owner)
+        and (list_people.owner is null or x."owner_id" = list_people.owner)
         and (list_people.role is null or list_people.role = any (x."roles"))
         and (list_people.supplier_status is null or x."supplier_status" = list_people.supplier_status)
         and (list_people.after_name is null or (lower(x."name"), x."id") > (lower(list_people.after_name), list_people.after_id))
@@ -1463,7 +1463,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:18cc55bb4f55dc05bf1ce8473af1d6de4b3b312fc2fc666b5618570553a79d19
+-- @bsb-hash sha256:fcb1d1e1b89e82a58ff86c735f45fe8b7228f688d92cf1412215adab757922ca
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1502,7 +1502,7 @@ create table "better_supabase"."companies" (
   "registration_id" text constraint bsb_companies_registration_id check (length("registration_id") >= 1 and length("registration_id") <= 100),
   "phone" text,
   "lifecycle" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
@@ -1521,7 +1521,7 @@ create table "better_supabase"."companies" (
 create index companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
 create unique index companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
   where "domain" is not null and "archived_at" is null;
-create index companies_owner_idx on "better_supabase"."companies" ("owner_user_id");
+create index companies_owner_idx on "better_supabase"."companies" ("owner_id");
 create index companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
 create index companies_roles_idx on "better_supabase"."companies" using gin ("roles");
 create index companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
@@ -1544,7 +1544,7 @@ create table "better_supabase"."people" (
   "title" text,
   "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null)),
   "lifecycle" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "user_id" uuid,
   "avatar_url" text,
   "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object'),
@@ -1565,7 +1565,7 @@ create table "better_supabase"."people" (
 create index people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
 create unique index people_email_idx on "better_supabase"."people" ("tenant_id", "email")
   where "email" is not null and "archived_at" is null;
-create index people_owner_idx on "better_supabase"."people" ("owner_user_id");
+create index people_owner_idx on "better_supabase"."people" ("owner_id");
 create index people_user_idx on "better_supabase"."people" ("user_id");
 create index people_merged_into_idx on "better_supabase"."people" ("merged_into");
 create index people_roles_idx on "better_supabase"."people" using gin ("roles");
@@ -1703,11 +1703,11 @@ begin
       if nullif(trim(save_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
+      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
       values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."companies" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."companies" x
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
       update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
         "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
@@ -1717,7 +1717,7 @@ begin
         "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
         "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
         "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
         "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
@@ -1727,7 +1727,7 @@ begin
         "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -1830,11 +1830,11 @@ begin
       if nullif(trim(save_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_user_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
+      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
       values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."people" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."people" x
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
       update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
         "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
@@ -1842,7 +1842,7 @@ begin
         "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
         "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
         "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
         "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
@@ -1852,7 +1852,7 @@ begin
         "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -2057,7 +2057,7 @@ begin
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_companies.drop;
-  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_companies.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", merge_companies.keep, l."person_id", l."role", false
@@ -2113,7 +2113,7 @@ begin
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_people.drop;
-  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_people.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", l."company_id", merge_people.keep, l."role", false
@@ -2165,7 +2165,7 @@ begin
         and x."archived_at" is null
         and (list_companies.search is null or x."name" ilike v_like or x."domain" ilike v_like)
         and (list_companies.lifecycle is null or x."lifecycle" = list_companies.lifecycle)
-        and (list_companies.owner is null or x."owner_user_id" = list_companies.owner)
+        and (list_companies.owner is null or x."owner_id" = list_companies.owner)
         and (list_companies.role is null or list_companies.role = any (x."roles"))
         and (list_companies.supplier_status is null or x."supplier_status" = list_companies.supplier_status)
         and (list_companies.after_name is null or (lower(x."name"), x."id") > (lower(list_companies.after_name), list_companies.after_id))
@@ -2201,7 +2201,7 @@ begin
         and x."archived_at" is null
         and (list_people.search is null or x."name" ilike v_like or x."email" ilike v_like)
         and (list_people.lifecycle is null or x."lifecycle" = list_people.lifecycle)
-        and (list_people.owner is null or x."owner_user_id" = list_people.owner)
+        and (list_people.owner is null or x."owner_id" = list_people.owner)
         and (list_people.role is null or list_people.role = any (x."roles"))
         and (list_people.supplier_status is null or x."supplier_status" = list_people.supplier_status)
         and (list_people.after_name is null or (lower(x."name"), x."id") > (lower(list_people.after_name), list_people.after_id))
@@ -3085,7 +3085,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:f5a8d8ff598c1cffc3ccce1b003b725d98a4faeae39017192b48edb44bf53985
+-- @bsb-hash sha256:04c511baa2b1b683dd3e4be823fd6a6d790fff148e4334c0444bd4848d617f76
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3129,7 +3129,7 @@ create table "app_private"."companies" (
   "registration_id" text constraint bsb_companies_registration_id check (length("registration_id") >= 1 and length("registration_id") <= 100),
   "phone" text,
   "lifecycle" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "app_private"."payment_terms" ("id") on delete set null,
@@ -3148,7 +3148,7 @@ create table "app_private"."companies" (
 create index companies_tenant_name_idx on "app_private"."companies" ("tenant_id", lower("name"), "id");
 create unique index companies_domain_idx on "app_private"."companies" ("tenant_id", "domain")
   where "domain" is not null and "archived_at" is null;
-create index companies_owner_idx on "app_private"."companies" ("owner_user_id");
+create index companies_owner_idx on "app_private"."companies" ("owner_id");
 create index companies_merged_into_idx on "app_private"."companies" ("merged_into");
 create index companies_roles_idx on "app_private"."companies" using gin ("roles");
 create index companies_supplier_status_idx on "app_private"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
@@ -3171,7 +3171,7 @@ create table "app_private"."people" (
   "title" text,
   "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null)),
   "lifecycle" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "user_id" uuid,
   "avatar_url" text,
   "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object'),
@@ -3192,7 +3192,7 @@ create table "app_private"."people" (
 create index people_tenant_name_idx on "app_private"."people" ("tenant_id", lower("name"), "id");
 create unique index people_email_idx on "app_private"."people" ("tenant_id", "email")
   where "email" is not null and "archived_at" is null;
-create index people_owner_idx on "app_private"."people" ("owner_user_id");
+create index people_owner_idx on "app_private"."people" ("owner_id");
 create index people_user_idx on "app_private"."people" ("user_id");
 create index people_merged_into_idx on "app_private"."people" ("merged_into");
 create index people_roles_idx on "app_private"."people" using gin ("roles");
@@ -3330,11 +3330,11 @@ begin
       if nullif(trim(save_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "app_private"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
+      insert into "app_private"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
       values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "app_private"."companies" x
+      select x."owner_id" into v_previous_owner from "app_private"."companies" x
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
       update "app_private"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
         "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
@@ -3344,7 +3344,7 @@ begin
         "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
         "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
         "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
         "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
@@ -3354,7 +3354,7 @@ begin
         "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -3452,11 +3452,11 @@ begin
       if nullif(trim(save_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "app_private"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_user_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
+      insert into "app_private"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
       values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "app_private"."people" x
+      select x."owner_id" into v_previous_owner from "app_private"."people" x
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
       update "app_private"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
         "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
@@ -3464,7 +3464,7 @@ begin
         "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
         "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
         "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
         "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
@@ -3474,7 +3474,7 @@ begin
         "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -3674,7 +3674,7 @@ begin
   update "app_private"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_companies.drop;
-  update "app_private"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "app_private"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_companies.keep;
   insert into "app_private"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", merge_companies.keep, l."person_id", l."role", false
@@ -3720,7 +3720,7 @@ begin
   update "app_private"."people" x set "email" = null, "merged_into" = merge_people.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_people.drop;
-  update "app_private"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "app_private"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_people.keep;
   insert into "app_private"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", l."company_id", merge_people.keep, l."role", false
@@ -3760,7 +3760,7 @@ begin
         and x."archived_at" is null
         and (list_companies.search is null or x."name" ilike v_like or x."domain" ilike v_like)
         and (list_companies.lifecycle is null or x."lifecycle" = list_companies.lifecycle)
-        and (list_companies.owner is null or x."owner_user_id" = list_companies.owner)
+        and (list_companies.owner is null or x."owner_id" = list_companies.owner)
         and (list_companies.role is null or list_companies.role = any (x."roles"))
         and (list_companies.supplier_status is null or x."supplier_status" = list_companies.supplier_status)
         and (list_companies.after_name is null or (lower(x."name"), x."id") > (lower(list_companies.after_name), list_companies.after_id))
@@ -3796,7 +3796,7 @@ begin
         and x."archived_at" is null
         and (list_people.search is null or x."name" ilike v_like or x."email" ilike v_like)
         and (list_people.lifecycle is null or x."lifecycle" = list_people.lifecycle)
-        and (list_people.owner is null or x."owner_user_id" = list_people.owner)
+        and (list_people.owner is null or x."owner_id" = list_people.owner)
         and (list_people.role is null or list_people.role = any (x."roles"))
         and (list_people.supplier_status is null or x."supplier_status" = list_people.supplier_status)
         and (list_people.after_name is null or (lower(x."name"), x."id") > (lower(list_people.after_name), list_people.after_id))
@@ -4552,7 +4552,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:285a51a0040b165aefff4596eb94ab471365b8998cfa0642c920d6a292470f23
+-- @bsb-hash sha256:5d2e17e83017e8b659dc72ea8b773ddf589766a2336444ae5af5f1fa64984437
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4591,7 +4591,7 @@ create table "better_supabase"."companies" (
   "registration_id" text constraint bsb_companies_registration_id check (length("registration_id") >= 1 and length("registration_id") <= 100),
   "phone" text,
   "lifecycle" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
@@ -4610,7 +4610,7 @@ create table "better_supabase"."companies" (
 create index companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
 create unique index companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
   where "domain" is not null and "archived_at" is null;
-create index companies_owner_idx on "better_supabase"."companies" ("owner_user_id");
+create index companies_owner_idx on "better_supabase"."companies" ("owner_id");
 create index companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
 create index companies_roles_idx on "better_supabase"."companies" using gin ("roles");
 create index companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
@@ -4633,7 +4633,7 @@ create table "better_supabase"."people" (
   "title" text,
   "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null)),
   "lifecycle" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "user_id" uuid,
   "avatar_url" text,
   "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object'),
@@ -4654,7 +4654,7 @@ create table "better_supabase"."people" (
 create index people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
 create unique index people_email_idx on "better_supabase"."people" ("tenant_id", "email")
   where "email" is not null and "archived_at" is null;
-create index people_owner_idx on "better_supabase"."people" ("owner_user_id");
+create index people_owner_idx on "better_supabase"."people" ("owner_id");
 create index people_user_idx on "better_supabase"."people" ("user_id");
 create index people_merged_into_idx on "better_supabase"."people" ("merged_into");
 create index people_roles_idx on "better_supabase"."people" using gin ("roles");
@@ -4792,11 +4792,11 @@ begin
       if nullif(trim(save_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
+      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
       values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."companies" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."companies" x
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
       update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
         "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
@@ -4806,7 +4806,7 @@ begin
         "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
         "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
         "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
         "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
@@ -4816,7 +4816,7 @@ begin
         "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -4914,11 +4914,11 @@ begin
       if nullif(trim(save_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_user_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
+      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
       values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."people" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."people" x
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
       update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
         "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
@@ -4926,7 +4926,7 @@ begin
         "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
         "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
         "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
         "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
@@ -4936,7 +4936,7 @@ begin
         "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -5136,7 +5136,7 @@ begin
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_companies.drop;
-  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_companies.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", merge_companies.keep, l."person_id", l."role", false
@@ -5182,7 +5182,7 @@ begin
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_people.drop;
-  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_people.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", l."company_id", merge_people.keep, l."role", false
@@ -5222,7 +5222,7 @@ begin
         and x."archived_at" is null
         and (list_companies.search is null or x."name" ilike v_like or x."domain" ilike v_like)
         and (list_companies.lifecycle is null or x."lifecycle" = list_companies.lifecycle)
-        and (list_companies.owner is null or x."owner_user_id" = list_companies.owner)
+        and (list_companies.owner is null or x."owner_id" = list_companies.owner)
         and (list_companies.role is null or list_companies.role = any (x."roles"))
         and (list_companies.supplier_status is null or x."supplier_status" = list_companies.supplier_status)
         and (list_companies.after_name is null or (lower(x."name"), x."id") > (lower(list_companies.after_name), list_companies.after_id))
@@ -5258,7 +5258,7 @@ begin
         and x."archived_at" is null
         and (list_people.search is null or x."name" ilike v_like or x."email" ilike v_like)
         and (list_people.lifecycle is null or x."lifecycle" = list_people.lifecycle)
-        and (list_people.owner is null or x."owner_user_id" = list_people.owner)
+        and (list_people.owner is null or x."owner_id" = list_people.owner)
         and (list_people.role is null or list_people.role = any (x."roles"))
         and (list_people.supplier_status is null or x."supplier_status" = list_people.supplier_status)
         and (list_people.after_name is null or (lower(x."name"), x."id") > (lower(list_people.after_name), list_people.after_id))
@@ -6264,7 +6264,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:9fc1fdb059be98f8444f2320e8e0ceb0b2c1392c299c672150ac4e84ea6c87df
+-- @bsb-hash sha256:770dc3b78c9cdb74a7e173e540c5128375ea534a6c66fcad1e772e7189662d05
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6301,7 +6301,7 @@ alter table "better_supabase"."companies" add column if not exists "legal_name" 
 alter table "better_supabase"."companies" add column if not exists "registration_id" text constraint bsb_companies_registration_id check (length("registration_id") >= 1 and length("registration_id") <= 100);
 alter table "better_supabase"."companies" add column if not exists "phone" text;
 alter table "better_supabase"."companies" add column if not exists "lifecycle" text;
-alter table "better_supabase"."companies" add column if not exists "owner_user_id" uuid;
+alter table "better_supabase"."companies" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."companies" add column if not exists "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object');
 alter table "better_supabase"."companies" add column if not exists "roles" text[] not null default '{}'::text[];
 alter table "better_supabase"."companies" add column if not exists "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null;
@@ -6319,7 +6319,7 @@ alter table "better_supabase"."companies" add column if not exists "updated_at" 
 create index if not exists companies_tenant_name_idx on "better_supabase"."companies" ("tenant_id", lower("name"), "id");
 create unique index if not exists companies_domain_idx on "better_supabase"."companies" ("tenant_id", "domain")
   where "domain" is not null and "archived_at" is null;
-create index if not exists companies_owner_idx on "better_supabase"."companies" ("owner_user_id");
+create index if not exists companies_owner_idx on "better_supabase"."companies" ("owner_id");
 create index if not exists companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
 create index if not exists companies_roles_idx on "better_supabase"."companies" using gin ("roles");
 create index if not exists companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
@@ -6342,7 +6342,7 @@ alter table "better_supabase"."people" add column if not exists "title" text;
 alter table "better_supabase"."people" add column if not exists "user_id" uuid;
 alter table "better_supabase"."people" add column if not exists "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null));
 alter table "better_supabase"."people" add column if not exists "lifecycle" text;
-alter table "better_supabase"."people" add column if not exists "owner_user_id" uuid;
+alter table "better_supabase"."people" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."people" add column if not exists "avatar_url" text;
 alter table "better_supabase"."people" add column if not exists "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object');
 alter table "better_supabase"."people" add column if not exists "roles" text[] not null default '{}'::text[];
@@ -6361,7 +6361,7 @@ alter table "better_supabase"."people" add column if not exists "updated_at" tim
 create index if not exists people_tenant_name_idx on "better_supabase"."people" ("tenant_id", lower("name"), "id");
 create unique index if not exists people_email_idx on "better_supabase"."people" ("tenant_id", "email")
   where "email" is not null and "archived_at" is null;
-create index if not exists people_owner_idx on "better_supabase"."people" ("owner_user_id");
+create index if not exists people_owner_idx on "better_supabase"."people" ("owner_id");
 create index if not exists people_user_idx on "better_supabase"."people" ("user_id");
 create index if not exists people_merged_into_idx on "better_supabase"."people" ("merged_into");
 create index if not exists people_roles_idx on "better_supabase"."people" using gin ("roles");
@@ -6492,11 +6492,11 @@ begin
       if nullif(trim(save_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
+      insert into "better_supabase"."companies" ("tenant_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
       values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), better_supabase.as_column_type(coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), (null::"better_supabase"."companies")."lifecycle"), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."companies" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."companies" x
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant;
       update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
         "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
@@ -6506,7 +6506,7 @@ begin
         "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
         "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
         "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(better_supabase.as_column_type(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), (null::"better_supabase"."companies")."lifecycle"), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
         "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
@@ -6516,7 +6516,7 @@ begin
         "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
       where x."id" = save_company.company and x."tenant_id" = save_company.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -6614,11 +6614,11 @@ begin
       if nullif(trim(save_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_user_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
+      insert into "better_supabase"."people" ("tenant_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
       values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), better_supabase.as_column_type(coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), (null::"better_supabase"."people")."lifecycle"), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."people" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."people" x
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant;
       update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
         "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
@@ -6626,7 +6626,7 @@ begin
         "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
         "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
         "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(better_supabase.as_column_type(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), (null::"better_supabase"."people")."lifecycle"), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
         "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
@@ -6636,7 +6636,7 @@ begin
         "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
       where x."id" = save_person.person and x."tenant_id" = save_person.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -6836,7 +6836,7 @@ begin
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_companies.drop;
-  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_companies.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", merge_companies.keep, l."person_id", l."role", false
@@ -6882,7 +6882,7 @@ begin
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_people.drop;
-  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_people.keep;
   insert into "better_supabase"."company_people" ("tenant_id", "company_id", "person_id", "role", "is_primary")
   select l."tenant_id", l."company_id", merge_people.keep, l."role", false
@@ -6922,7 +6922,7 @@ begin
         and x."archived_at" is null
         and (list_companies.search is null or x."name" ilike v_like or x."domain" ilike v_like)
         and (list_companies.lifecycle is null or x."lifecycle"::text = list_companies.lifecycle)
-        and (list_companies.owner is null or x."owner_user_id" = list_companies.owner)
+        and (list_companies.owner is null or x."owner_id" = list_companies.owner)
         and (list_companies.role is null or list_companies.role = any (x."roles"))
         and (list_companies.supplier_status is null or x."supplier_status" = list_companies.supplier_status)
         and (list_companies.after_name is null or (lower(x."name"), x."id") > (lower(list_companies.after_name), list_companies.after_id))
@@ -6958,7 +6958,7 @@ begin
         and x."archived_at" is null
         and (list_people.search is null or x."name" ilike v_like or x."email" ilike v_like)
         and (list_people.lifecycle is null or x."lifecycle"::text = list_people.lifecycle)
-        and (list_people.owner is null or x."owner_user_id" = list_people.owner)
+        and (list_people.owner is null or x."owner_id" = list_people.owner)
         and (list_people.role is null or list_people.role = any (x."roles"))
         and (list_people.supplier_status is null or x."supplier_status" = list_people.supplier_status)
         and (list_people.after_name is null or (lower(x."name"), x."id") > (lower(list_people.after_name), list_people.after_id))
@@ -7714,7 +7714,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:92d5fd28fe690e83b32d7d91e818316a5cf7420469dfbc99fb995a2a08a4698e
+-- @bsb-hash sha256:a4c0900377c80a6ec06edde4947d2fee83d0398102c9a4144705a86ff437865a
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7753,7 +7753,7 @@ create table "better_supabase"."companies" (
   "registration_id" text constraint bsb_companies_registration_id check (length("registration_id") >= 1 and length("registration_id") <= 100),
   "phone" text,
   "lifecycle" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
@@ -7772,7 +7772,7 @@ create table "better_supabase"."companies" (
 create index companies_tenant_name_idx on "better_supabase"."companies" ("org_id", lower("name"), "id");
 create unique index companies_domain_idx on "better_supabase"."companies" ("org_id", "domain")
   where "domain" is not null and "archived_at" is null;
-create index companies_owner_idx on "better_supabase"."companies" ("owner_user_id");
+create index companies_owner_idx on "better_supabase"."companies" ("owner_id");
 create index companies_merged_into_idx on "better_supabase"."companies" ("merged_into");
 create index companies_roles_idx on "better_supabase"."companies" using gin ("roles");
 create index companies_supplier_status_idx on "better_supabase"."companies" ("org_id", "supplier_status") where "supplier_status" is not null;
@@ -7795,7 +7795,7 @@ create table "better_supabase"."people" (
   "title" text,
   "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null)),
   "lifecycle" text not null,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "user_id" uuid,
   "avatar_url" text,
   "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object'),
@@ -7816,7 +7816,7 @@ create table "better_supabase"."people" (
 create index people_tenant_name_idx on "better_supabase"."people" ("org_id", lower("name"), "id");
 create unique index people_email_idx on "better_supabase"."people" ("org_id", "email")
   where "email" is not null and "archived_at" is null;
-create index people_owner_idx on "better_supabase"."people" ("owner_user_id");
+create index people_owner_idx on "better_supabase"."people" ("owner_id");
 create index people_user_idx on "better_supabase"."people" ("user_id");
 create index people_merged_into_idx on "better_supabase"."people" ("merged_into");
 create index people_roles_idx on "better_supabase"."people" using gin ("roles");
@@ -7954,11 +7954,11 @@ begin
       if nullif(trim(save_company.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."companies" ("org_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
+      insert into "better_supabase"."companies" ("org_id", "name", "domain", "website", "vat_id", "legal_name", "registration_id", "phone", "lifecycle", "owner_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "address", "created_by")
       values (save_company.tenant, nullif(trim(save_company.attrs ->> 'name'), ''), lower(nullif(trim(save_company.attrs ->> 'domain'), '')), nullif(trim(save_company.attrs ->> 'website'), ''), nullif(trim(save_company.attrs ->> 'vatId'), ''), nullif(trim(save_company.attrs ->> 'legalName'), ''), nullif(trim(save_company.attrs ->> 'registrationId'), ''), nullif(trim(save_company.attrs ->> 'phone'), ''), coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), ('{lead,prospect,customer,churned}'::text[])[1]), nullif(save_company.attrs ->> 'ownerId', '')::uuid, nullif(save_company.attrs ->> 'customerTermsId', '')::uuid, nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_company.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_company.attrs ->> 'creditBlock'), '')), nullif(trim(save_company.attrs ->> 'language'), ''), save_company.attrs -> 'address', auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."companies" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."companies" x
       where x."id" = save_company.company and x."org_id" = save_company.tenant;
       update "better_supabase"."companies" x set "name" = case when save_company.attrs ? 'name' then coalesce(nullif(trim(save_company.attrs ->> 'name'), ''), x."name") else x."name" end,
         "domain" = case when save_company.attrs ? 'domain' then lower(nullif(trim(save_company.attrs ->> 'domain'), '')) else x."domain" end,
@@ -7968,7 +7968,7 @@ begin
         "registration_id" = case when save_company.attrs ? 'registrationId' then nullif(trim(save_company.attrs ->> 'registrationId'), '') else x."registration_id" end,
         "phone" = case when save_company.attrs ? 'phone' then nullif(trim(save_company.attrs ->> 'phone'), '') else x."phone" end,
         "lifecycle" = case when save_company.attrs ? 'lifecycle' then coalesce(nullif(trim(save_company.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_company.attrs ? 'ownerId' then nullif(save_company.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "customer_terms_id" = case when save_company.attrs ? 'customerTermsId' then nullif(save_company.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_company.attrs ? 'supplierTermsId' then nullif(save_company.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
         "credit_limit" = case when save_company.attrs ? 'creditLimit' then nullif(trim(save_company.attrs ->> 'creditLimit'), '')::bigint else x."credit_limit" end,
@@ -7978,7 +7978,7 @@ begin
         "address" = case when save_company.attrs ? 'address' then save_company.attrs -> 'address' else x."address" end,
         "updated_at" = now()
       where x."id" = save_company.company and x."org_id" = save_company.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'company not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -8076,11 +8076,11 @@ begin
       if nullif(trim(save_person.attrs ->> 'name'), '') is null then
         raise exception 'a name is required' using errcode = '23502', hint = 'PARTY_NAME_REQUIRED';
       end if;
-      insert into "better_supabase"."people" ("org_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_user_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
+      insert into "better_supabase"."people" ("org_id", "name", "email", "phone", "title", "mode", "lifecycle", "owner_id", "user_id", "customer_terms_id", "supplier_terms_id", "credit_limit", "credit_currency", "credit_block", "language", "created_by")
       values (save_person.tenant, nullif(trim(save_person.attrs ->> 'name'), ''), lower(nullif(trim(save_person.attrs ->> 'email'), '')), nullif(trim(save_person.attrs ->> 'phone'), ''), nullif(trim(save_person.attrs ->> 'title'), ''), coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), 'external'), coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), ('{lead,mql,sql,opportunity,customer}'::text[])[1]), nullif(save_person.attrs ->> 'ownerId', '')::uuid, nullif(save_person.attrs ->> 'userId', '')::uuid, nullif(save_person.attrs ->> 'customerTermsId', '')::uuid, nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid, nullif(trim(save_person.attrs ->> 'creditLimit'), '')::bigint, upper(nullif(trim(save_person.attrs ->> 'creditCurrency'), '')), lower(nullif(trim(save_person.attrs ->> 'creditBlock'), '')), nullif(trim(save_person.attrs ->> 'language'), ''), auth.uid())
-      returning "id", "owner_user_id" into v_id, v_owner;
+      returning "id", "owner_id" into v_id, v_owner;
     else
-      select x."owner_user_id" into v_previous_owner from "better_supabase"."people" x
+      select x."owner_id" into v_previous_owner from "better_supabase"."people" x
       where x."id" = save_person.person and x."org_id" = save_person.tenant;
       update "better_supabase"."people" x set "name" = case when save_person.attrs ? 'name' then coalesce(nullif(trim(save_person.attrs ->> 'name'), ''), x."name") else x."name" end,
         "email" = case when save_person.attrs ? 'email' then lower(nullif(trim(save_person.attrs ->> 'email'), '')) else x."email" end,
@@ -8088,7 +8088,7 @@ begin
         "title" = case when save_person.attrs ? 'title' then nullif(trim(save_person.attrs ->> 'title'), '') else x."title" end,
         "mode" = case when save_person.attrs ? 'mode' then coalesce(lower(nullif(trim(save_person.attrs ->> 'mode'), '')), x."mode") else x."mode" end,
         "lifecycle" = case when save_person.attrs ? 'lifecycle' then coalesce(nullif(trim(save_person.attrs ->> 'lifecycle'), ''), x."lifecycle") else x."lifecycle" end,
-        "owner_user_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_person.attrs ? 'ownerId' then nullif(save_person.attrs ->> 'ownerId', '')::uuid else x."owner_id" end,
         "user_id" = case when save_person.attrs ? 'userId' then nullif(save_person.attrs ->> 'userId', '')::uuid else x."user_id" end,
         "customer_terms_id" = case when save_person.attrs ? 'customerTermsId' then nullif(save_person.attrs ->> 'customerTermsId', '')::uuid else x."customer_terms_id" end,
         "supplier_terms_id" = case when save_person.attrs ? 'supplierTermsId' then nullif(save_person.attrs ->> 'supplierTermsId', '')::uuid else x."supplier_terms_id" end,
@@ -8098,7 +8098,7 @@ begin
         "language" = case when save_person.attrs ? 'language' then nullif(trim(save_person.attrs ->> 'language'), '') else x."language" end,
         "updated_at" = now()
       where x."id" = save_person.person and x."org_id" = save_person.tenant and x."merged_into" is null
-      returning x."owner_user_id" into v_owner;
+      returning x."owner_id" into v_owner;
       if not found then
         raise exception 'person not found' using errcode = 'P0002', hint = 'PARTY_NOT_FOUND';
       end if;
@@ -8298,7 +8298,7 @@ begin
   update "better_supabase"."companies" x set "domain" = null, "merged_into" = merge_companies.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_companies.drop;
-  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."companies" x set "domain" = coalesce(x."domain", v_drop."domain"), "website" = coalesce(x."website", v_drop."website"), "vat_id" = coalesce(x."vat_id", v_drop."vat_id"), "legal_name" = coalesce(x."legal_name", v_drop."legal_name"), "registration_id" = coalesce(x."registration_id", v_drop."registration_id"), "phone" = coalesce(x."phone", v_drop."phone"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_companies.keep;
   insert into "better_supabase"."company_people" ("org_id", "company_id", "person_id", "role", "is_primary")
   select l."org_id", merge_companies.keep, l."person_id", l."role", false
@@ -8344,7 +8344,7 @@ begin
   update "better_supabase"."people" x set "email" = null, "merged_into" = merge_people.keep,
     "archived_at" = coalesce(x."archived_at", now()), "updated_at" = now()
   where x."id" = merge_people.drop;
-  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_user_id" = coalesce(x."owner_user_id", v_drop."owner_user_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
+  update "better_supabase"."people" x set "email" = coalesce(x."email", v_drop."email"), "phone" = coalesce(x."phone", v_drop."phone"), "title" = coalesce(x."title", v_drop."title"), "owner_id" = coalesce(x."owner_id", v_drop."owner_id"), "user_id" = coalesce(x."user_id", v_drop."user_id"), "customer_terms_id" = coalesce(x."customer_terms_id", v_drop."customer_terms_id"), "supplier_terms_id" = coalesce(x."supplier_terms_id", v_drop."supplier_terms_id"), "credit_limit" = coalesce(x."credit_limit", v_drop."credit_limit"), "credit_currency" = coalesce(x."credit_currency", v_drop."credit_currency"), "credit_block" = coalesce(x."credit_block", v_drop."credit_block"), "language" = coalesce(x."language", v_drop."language"), "supplier_status" = coalesce(x."supplier_status", v_drop."supplier_status"), "updated_at" = now()
   where x."id" = merge_people.keep;
   insert into "better_supabase"."company_people" ("org_id", "company_id", "person_id", "role", "is_primary")
   select l."org_id", l."company_id", merge_people.keep, l."role", false
@@ -8384,7 +8384,7 @@ begin
         and x."archived_at" is null
         and (list_companies.search is null or x."name" ilike v_like or x."domain" ilike v_like)
         and (list_companies.lifecycle is null or x."lifecycle" = list_companies.lifecycle)
-        and (list_companies.owner is null or x."owner_user_id" = list_companies.owner)
+        and (list_companies.owner is null or x."owner_id" = list_companies.owner)
         and (list_companies.role is null or list_companies.role = any (x."roles"))
         and (list_companies.supplier_status is null or x."supplier_status" = list_companies.supplier_status)
         and (list_companies.after_name is null or (lower(x."name"), x."id") > (lower(list_companies.after_name), list_companies.after_id))
@@ -8420,7 +8420,7 @@ begin
         and x."archived_at" is null
         and (list_people.search is null or x."name" ilike v_like or x."email" ilike v_like)
         and (list_people.lifecycle is null or x."lifecycle" = list_people.lifecycle)
-        and (list_people.owner is null or x."owner_user_id" = list_people.owner)
+        and (list_people.owner is null or x."owner_id" = list_people.owner)
         and (list_people.role is null or list_people.role = any (x."roles"))
         and (list_people.supplier_status is null or x."supplier_status" = list_people.supplier_status)
         and (list_people.after_name is null or (lower(x."name"), x."id") > (lower(list_people.after_name), list_people.after_id))

@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:2ef2905488779073d2b59ef733bebe51d6964097dfcd04e275adb874e89f9592
+-- @bsb-hash sha256:700d1b69dc4ee805deee2b395c052e24e18842ea33c9aff574ab33f9372df7c9
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,7 +13,7 @@ create table "better_supabase"."work_projects" (
   "tenant_id" uuid not null,
   "key" text not null constraint bsb_work_projects_key_check check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
   "name" text not null constraint bsb_work_projects_name_check check (length("name") >= 1 and length("name") <= 200),
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "status" text not null default 'planned' constraint bsb_work_projects_status_check check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
   "start_on" date,
   "target_on" date,
@@ -989,7 +989,7 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."work_projects" ("tenant_id", "key", "name", "owner_user_id", "status", "start_on", "target_on", "budget_amount", "budget_currency", "budget_hours")
+      insert into "better_supabase"."work_projects" ("tenant_id", "key", "name", "owner_id", "status", "start_on", "target_on", "budget_amount", "budget_currency", "budget_hours")
       values (save_project.tenant, upper(save_project.attrs ->> 'key'), save_project.attrs ->> 'name', (save_project.attrs ->> 'ownerId')::uuid,
         coalesce(save_project.attrs ->> 'status', 'planned'), (save_project.attrs ->> 'startOn')::date, (save_project.attrs ->> 'targetOn')::date,
         (save_project.attrs ->> 'budgetAmount')::bigint, upper(save_project.attrs ->> 'budgetCurrency'), (save_project.attrs ->> 'budgetHours')::numeric)
@@ -998,7 +998,7 @@ begin
       update "better_supabase"."work_projects" x set
         "key" = coalesce(upper(save_project.attrs ->> 'key'), x."key"),
         "name" = coalesce(save_project.attrs ->> 'name', x."name"),
-        "owner_user_id" = case when save_project.attrs ? 'ownerId' then (save_project.attrs ->> 'ownerId')::uuid else x."owner_user_id" end,
+        "owner_id" = case when save_project.attrs ? 'ownerId' then (save_project.attrs ->> 'ownerId')::uuid else x."owner_id" end,
         "status" = coalesce(save_project.attrs ->> 'status', x."status"),
         "start_on" = case when save_project.attrs ? 'startOn' then (save_project.attrs ->> 'startOn')::date else x."start_on" end,
         "target_on" = case when save_project.attrs ? 'targetOn' then (save_project.attrs ->> 'targetOn')::date else x."target_on" end,

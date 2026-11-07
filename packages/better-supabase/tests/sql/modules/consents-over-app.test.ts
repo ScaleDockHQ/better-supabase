@@ -50,7 +50,7 @@ create table public.privacy_consents (
   subject_id text not null,
   given_by text not null default 'self',
   given_by_contact_id uuid,
-  given_by_user_id uuid,
+  grantor_id uuid,
   state public.consent_state not null,
   granted_at timestamptz not null default now(),
   expires_at timestamptz,

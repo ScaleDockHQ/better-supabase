@@ -151,7 +151,7 @@ begin
   v_quote := better_supabase.decide_quote(v_id, 'accepted', null, null, null,
     '{"id": "${CUSTOMER}", "name": "Cleo", "email": "cleo@example.com", "ip": "198.51.100.4", "userAgent": "App/2"}'::jsonb);
   if v_quote ->> 'status' <> 'accepted' or v_quote ->> 'decided_by' <> 'Cleo' or v_quote ->> 'decided_ip' <> '198.51.100.4'
-    or v_quote ->> 'decided_user_agent' <> 'App/2' or v_quote ->> 'decided_user_id' <> '${CUSTOMER}' then
+    or v_quote ->> 'decided_user_agent' <> 'App/2' or v_quote ->> 'decider_id' <> '${CUSTOMER}' then
     raise exception 'decided %', v_quote;
   end if;
 end;
@@ -378,14 +378,14 @@ begin
   v_id := (better_supabase.create_quote('${TENANT}', '{"title": "Website", "currency": "EUR"}'::jsonb,
     '[{"description": "Design", "unitAmount": "5000"}]'::jsonb) ->> 'id')::uuid;
   v_token := better_supabase.send_quote(v_id, '{"id": "${STAFF}", "name": "Sam", "email": "sam@example.com"}'::jsonb) ->> 'token';
-  if (select (actor_user_id, actor_name, actor_email) from better_supabase.status_history where to_status = 'sent')
+  if (select (actor_id, actor_name, actor_email) from better_supabase.status_history where to_status = 'sent')
     is distinct from ('${STAFF}'::uuid, 'Sam'::text, 'sam@example.com'::text) then
     raise exception 'sent by %', (select jsonb_agg(h) from better_supabase.status_history h);
   end if;
   ${ANON}
   perform better_supabase.respond_to_quote(v_token, 'rejected', 'Cleo', 'too much');
   ${SERVICE}
-  if (select (actor_user_id, actor_name, host(ip_address), user_agent) from better_supabase.status_history where to_status = 'rejected')
+  if (select (actor_id, actor_name, host(ip_address), user_agent) from better_supabase.status_history where to_status = 'rejected')
     is distinct from (null::uuid, 'Cleo'::text, '203.0.113.9'::text, 'Browser/1'::text) then
     raise exception 'answered by %', (select jsonb_agg(h) from better_supabase.status_history h);
   end if;

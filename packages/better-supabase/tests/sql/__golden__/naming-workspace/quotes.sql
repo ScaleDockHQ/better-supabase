@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:0471f720a92bd69b5e7ca4630fe0b7ef46d1fd4ad0acf05a97369669b6ac1adf
+-- @bsb-hash sha256:e8c92c9b6d7e68517c145d8b78b83a85fe81c1e1e53d74efa28d742b7276141e
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -21,7 +21,7 @@ create table "better_supabase"."quotes" (
   "company_id" text,
   "contact_type" text,
   "contact_id" text,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "currency" char(3) not null constraint bsb_quotes_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "status" text not null default 'draft' constraint bsb_quotes_status_check check ("status" in ('draft', 'sent', 'viewed', 'accepted', 'rejected', 'changes_requested', 'expired', 'withdrawn')),
   "valid_until" date,
@@ -35,7 +35,7 @@ create table "better_supabase"."quotes" (
   "decided_at" timestamptz,
   "decided_by" text,
   "decision_note" text,
-  "decided_user_id" uuid,
+  "decider_id" uuid,
   "decided_ip" text,
   "decided_user_agent" text,
   "prices_include_tax" boolean not null default false,
@@ -176,7 +176,7 @@ begin
   end if;
   begin
     insert into "better_supabase"."quotes" ("tenant_id", "number", "identifier", "title", "company_type", "company_id", "contact_type", "contact_id",
-      "owner_user_id", "currency", "valid_until", "terms", "note", "origin_type", "origin_id", "prices_include_tax", "discount_bps", "discount_amount", "deposit_bps", "deposit_amount", "deposit_required", "created_by")
+      "owner_id", "currency", "valid_until", "terms", "note", "origin_type", "origin_id", "prices_include_tax", "discount_bps", "discount_amount", "deposit_bps", "deposit_amount", "deposit_required", "created_by")
     values (create_quote.tenant, v_seq, v_identifier, trim(create_quote.attrs ->> 'title'),
       case when v_company_id is null then null else v_company_type end, v_company_id,
       case when v_contact_id is null then null else v_contact_type end, v_contact_id,
@@ -238,7 +238,7 @@ begin
     update "better_supabase"."quotes" x set
       "title" = coalesce(nullif(trim(update_quote.attrs ->> 'title'), ''), x."title"),
       "currency" = coalesce(upper(update_quote.attrs ->> 'currency'), x."currency"),
-      "owner_user_id" = case when update_quote.attrs ? 'ownerId' then (update_quote.attrs ->> 'ownerId')::uuid else x."owner_user_id" end,
+      "owner_id" = case when update_quote.attrs ? 'ownerId' then (update_quote.attrs ->> 'ownerId')::uuid else x."owner_id" end,
       "valid_until" = case when update_quote.attrs ? 'validUntil' then (update_quote.attrs ->> 'validUntil')::date else x."valid_until" end,
       "terms" = case when update_quote.attrs ? 'terms' then update_quote.attrs ->> 'terms' else x."terms" end,
       "note" = case when update_quote.attrs ? 'note' then update_quote.attrs ->> 'note' else x."note" end,
@@ -556,7 +556,7 @@ begin
   end;
   update "better_supabase"."quotes" x set "status" = 'sent', "sent_at" = now(), "token_hash" = encode(extensions.digest(v_token, 'sha256'), 'hex'),
     "revision" = case when exists (select 1 from "better_supabase"."quote_versions" v where v."quote_id" = x."id" and v."revision" = x."revision") then x."revision" + 1 else x."revision" end,
-    "decided_at" = null, "decided_by" = null, "decision_note" = null, "decided_user_id" = null, "decided_ip" = null, "decided_user_agent" = null, "updated_at" = now()
+    "decided_at" = null, "decided_by" = null, "decision_note" = null, "decider_id" = null, "decided_ip" = null, "decided_user_agent" = null, "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
   insert into "better_supabase"."quote_versions" ("tenant_id", "quote_id", "revision", "snapshot", "total", "currency", "published_by")
@@ -617,7 +617,7 @@ begin
   perform set_config('better_supabase.transition_actor', coalesce(revise_quote.actor::text, ''), true);
   update "better_supabase"."quotes" x set "status" = 'draft', "revision" = x."revision" + 1, "token_hash" = null, "sent_at" = null, "viewed_at" = null,
     "valid_until" = greatest(x."valid_until", current_date + 30),
-    "decided_at" = null, "decided_by" = null, "decision_note" = null, "decided_user_id" = null, "decided_ip" = null, "decided_user_agent" = null, "updated_at" = now()
+    "decided_at" = null, "decided_by" = null, "decision_note" = null, "decider_id" = null, "decided_ip" = null, "decided_user_agent" = null, "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
   null;
@@ -749,7 +749,7 @@ begin
   end if;
   perform set_config('better_supabase.transition_reason', coalesce(nullif(trim(decide_quote.note), ''), ''), true);
   update "better_supabase"."quotes" x set "status" = decide_quote.decision, "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(decide_quote.by), ''), nullif(trim(decide_quote.actor ->> 'name'), ''), decide_quote.actor ->> 'email')), ''),
-    "decision_note" = nullif(trim(decide_quote.note), ''), "decided_user_id" = coalesce(nullif(decide_quote.actor ->> 'id', '')::uuid, auth.uid()), "decided_ip" = left(decide_quote.actor ->> 'ip', 64), "decided_user_agent" = left(decide_quote.actor ->> 'userAgent', 512), "updated_at" = now()
+    "decision_note" = nullif(trim(decide_quote.note), ''), "decider_id" = coalesce(nullif(decide_quote.actor ->> 'id', '')::uuid, auth.uid()), "decided_ip" = left(decide_quote.actor ->> 'ip', 64), "decided_user_agent" = left(decide_quote.actor ->> 'userAgent', 512), "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
   perform set_config('better_supabase.transition_reason', '', true);
@@ -896,7 +896,7 @@ begin
   end;
   end if;
   update "better_supabase"."quotes" x set "status" = respond_to_quote.decision, "decided_at" = now(), "decided_by" = nullif(trim(respond_to_quote.name), ''),
-    "decision_note" = nullif(trim(respond_to_quote.note), ''), "decided_user_id" = auth.uid(), "decided_ip" = left(nullif(trim(reverse(split_part(reverse(v_headers ->> 'x-forwarded-for'), ',', 1))), ''), 64), "decided_user_agent" = left(v_headers ->> 'user-agent', 512), "updated_at" = now()
+    "decision_note" = nullif(trim(respond_to_quote.note), ''), "decider_id" = auth.uid(), "decided_ip" = left(nullif(trim(reverse(split_part(reverse(v_headers ->> 'x-forwarded-for'), ',', 1))), ''), 64), "decided_user_agent" = left(v_headers ->> 'user-agent', 512), "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
   case respond_to_quote.decision
@@ -1060,7 +1060,7 @@ begin
   end;
   end if;
   update "better_supabase"."quotes" x set "status" = respond_to_portal_quote.decision, "decided_at" = now(), "decided_by" = nullif(trim(coalesce(nullif(trim(respond_to_portal_quote.name), ''), auth.jwt() ->> 'email')), ''),
-    "decision_note" = nullif(trim(respond_to_portal_quote.note), ''), "decided_user_id" = auth.uid(), "decided_ip" = left(nullif(trim(reverse(split_part(reverse(v_headers ->> 'x-forwarded-for'), ',', 1))), ''), 64), "decided_user_agent" = left(v_headers ->> 'user-agent', 512), "updated_at" = now()
+    "decision_note" = nullif(trim(respond_to_portal_quote.note), ''), "decider_id" = auth.uid(), "decided_ip" = left(nullif(trim(reverse(split_part(reverse(v_headers ->> 'x-forwarded-for'), ',', 1))), ''), 64), "decided_user_agent" = left(v_headers ->> 'user-agent', 512), "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
   case respond_to_portal_quote.decision

@@ -251,7 +251,7 @@ function jobOf(value: unknown): Job {
     location: optionalText(row["location"]),
     employmentType: optionalText(row["employment_type"]),
     description: optionalText(row["description"]),
-    hiringManagerId: optionalText(row["hiring_manager_user_id"]),
+    hiringManagerId: optionalText(row["hiring_manager_id"]),
     status: enumOrThrow(row["status"], JOB_STATUSES, "job status"),
     openedAt: optionalInstant(row["opened_at"]),
     closedAt: optionalInstant(row["closed_at"]),
@@ -270,7 +270,7 @@ function applicationOf(value: unknown): Application {
       id: "",
     },
     source: optionalText(row["source"]),
-    ownerId: optionalText(row["owner_user_id"]),
+    ownerId: optionalText(row["owner_id"]),
     pipelineId: optionalText(row["pipeline_id"]),
     stageId: optionalText(row["stage_id"]),
     stageEnteredAt: optionalInstant(row["stage_entered_at"]),
@@ -299,7 +299,7 @@ function scorecardOf(value: unknown): Scorecard {
   return compact<Scorecard>({
     id: textOf(row["id"]),
     stageId: optionalText(row["stage_id"]),
-    reviewerId: textOf(row["reviewer_user_id"]),
+    reviewerId: textOf(row["reviewer_id"]),
     rating: Number(row["rating"]),
     recommendation:
       recommendation === null || recommendation === undefined

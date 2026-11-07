@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:4ab280a3c4e624cc4f1d3bda4c484805bb0b936906dacc13ca53797829aaeb83
+-- @bsb-hash sha256:23d64287064d6a5acedbc15e389880389484664537fa183994f58e3a5be801ba
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,7 +13,7 @@ create table "better_supabase"."goals" (
   "tenant_id" uuid not null,
   "name" text not null constraint bsb_goals_name_check check (length("name") >= 1 and length("name") <= 200),
   "metric" text not null constraint bsb_goals_metric_check check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$'),
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "team_id" uuid,
   "period_start" date not null,
   "period_end" date not null,
@@ -54,7 +54,7 @@ begin
   end if;
   begin
     if v_id is null then
-      insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_user_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
+      insert into "better_supabase"."goals" ("tenant_id", "name", "metric", "owner_id", "team_id", "period_start", "period_end", "currency", "goal", "actual")
       values (save_goal.tenant, save_goal.attrs ->> 'name', save_goal.attrs ->> 'metric', (save_goal.attrs ->> 'ownerId')::uuid,
         (save_goal.attrs ->> 'teamId')::uuid, (save_goal.attrs ->> 'periodStart')::date, (save_goal.attrs ->> 'periodEnd')::date,
         upper(save_goal.attrs ->> 'currency'), (save_goal.attrs ->> 'goal')::bigint, coalesce((save_goal.attrs ->> 'actual')::bigint, 0))
@@ -98,7 +98,7 @@ as $$
     cross join lateral (select x."actual" as value) v
     where x."tenant_id" = goal_progress.tenant and x."archived_at" is null
       and coalesce(goal_progress.on_date, current_date) between x."period_start" and x."period_end"
-      and (goal_progress.owner is null or x."owner_user_id" = goal_progress.owner)
+      and (goal_progress.owner is null or x."owner_id" = goal_progress.owner)
   ) p
 $$;
 revoke execute on function "better_supabase"."goal_progress"(uuid, date, uuid) from public, anon;

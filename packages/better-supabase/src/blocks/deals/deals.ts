@@ -370,7 +370,7 @@ const KNOWN = new Set([
   "company_id",
   "motion",
   "priority",
-  "owner_user_id",
+  "owner_id",
   "product",
   "seats",
   "amount",
@@ -441,7 +441,7 @@ function dealOf(value: unknown): Deal {
       companyType === undefined || companyId === undefined
         ? undefined
         : { type: companyType, id: companyId },
-    ownerId: optionalText(row["owner_user_id"]),
+    ownerId: optionalText(row["owner_id"]),
     motion: optionalText(row["motion"]),
     priority: optionalText(row["priority"]),
     product: optionalText(row["product"]),

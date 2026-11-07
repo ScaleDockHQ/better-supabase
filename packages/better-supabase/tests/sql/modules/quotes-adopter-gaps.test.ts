@@ -510,7 +510,7 @@ begin
   update better_supabase.quotes set valid_until = current_date - 1 where id = v_id;
   perform better_supabase.expire_quotes();
   select * into v_row from better_supabase.status_history where to_status = 'expired';
-  if v_row.actor_name is not null or v_row.actor_user_id is not null then
+  if v_row.actor_name is not null or v_row.actor_id is not null then
     raise exception 'expiry inherited an actor %', row_to_json(v_row);
   end if;
   if (select string_agg(coalesce(actor_name, '-'), ',' order by actor_name) from better_supabase.status_history where to_status in ('withdrawn', 'draft'))

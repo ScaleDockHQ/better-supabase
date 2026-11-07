@@ -139,7 +139,7 @@ const NAMES: BlockSqlNames = {
         tenant: "tenant_id",
         step: "step",
         assigneeRole: "assignee_role",
-        assigneeUser: "assignee_user_id",
+        assigneeUser: "assignee_id",
         dueAt: "due_at",
         completedBy: "completed_by",
         completedAt: "completed_at",

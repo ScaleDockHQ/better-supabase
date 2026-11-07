@@ -233,7 +233,7 @@ const NAMES: BlockSqlNames = {
         tenant: "tenant_id",
         key: "key",
         name: "name",
-        owner: "owner_user_id",
+        owner: "owner_id",
         status: "status",
         startOn: "start_on",
         targetOn: "target_on",

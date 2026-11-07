@@ -704,11 +704,7 @@ export function createShifts<
     requestSwap: ({ assignmentId, toUserId, note }) =>
       call(
         "request_shift_swap",
-        {
-          assignment_id: assignmentId,
-          to_user_id: toUserId,
-          note: note ?? null,
-        },
+        { assignment_id: assignmentId, to_id: toUserId, note: note ?? null },
         one("request_shift_swap", swapOf),
       ),
     decideSwap: ({ swapId, approve, ...decide }) =>

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:3a2065cce6dbbd8f307e70b7e8f8d7f1c6d1aaf30b056e881d754ffb9881f1f2
+-- @bsb-hash sha256:18bdb3a06d81c2230eeb67a3e9db2bf22919c4502cccc689c722fb9d3ad0b9b0
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -42,7 +42,7 @@ create table "better_supabase"."referrals" (
   "tenant_id" uuid not null,
   "code_id" uuid not null,
   "referrer_id" uuid not null,
-  "referred_user_id" uuid,
+  "referred_id" uuid,
   "referred_workspace_id" uuid,
   "referred_email" text constraint bsb_referrals_referred_email_check check ("referred_email" is null or length("referred_email") <= 320),
   "status" text not null default 'attributed' constraint bsb_referrals_status_check check ("status" in ('attributed', 'qualified', 'rewarded', 'void')),
@@ -55,10 +55,10 @@ create table "better_supabase"."referrals" (
   "ledger_transaction_id" uuid,
   "voided_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  constraint bsb_referrals_check check ("referred_user_id" is not null or "referred_workspace_id" is not null or "referred_email" is not null),
+  constraint bsb_referrals_check check ("referred_id" is not null or "referred_workspace_id" is not null or "referred_email" is not null),
   foreign key ("tenant_id", "code_id") references "better_supabase"."referral_codes" ("tenant_id", "id") on delete cascade
 );
-create unique index referrals_user_key on "better_supabase"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;
+create unique index referrals_user_key on "better_supabase"."referrals" ("tenant_id", "referred_id") where "referred_id" is not null;
 create unique index referrals_workspace_key on "better_supabase"."referrals" ("tenant_id", "referred_workspace_id") where "referred_workspace_id" is not null;
 create index referrals_code_idx on "better_supabase"."referrals" ("tenant_id", "code_id");
 create index referrals_referrer_idx on "better_supabase"."referrals" ("tenant_id", "referrer_id", "created_at" desc);
@@ -135,10 +135,10 @@ begin
   end if;
   select * into v_ref from "better_supabase"."referrals" x
   where x."tenant_id" = referral_attribute.tenant
-    and ((referral_attribute.referred_user is not null and x."referred_user_id" = referral_attribute.referred_user)
+    and ((referral_attribute.referred_user is not null and x."referred_id" = referral_attribute.referred_user)
       or (referral_attribute.referred_org is not null and x."referred_workspace_id" = referral_attribute.referred_org));
   if found then
-    return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
+    return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
   end if;
   select * into v_code from "better_supabase"."referral_codes" x
   where x."tenant_id" = referral_attribute.tenant and x."code" = upper(trim(referral_attribute.code)) for update;
@@ -149,13 +149,13 @@ begin
   if referral_attribute.referred_user = v_code."referrer_id" then
     raise exception 'a member can''t refer themselves' using errcode = '22023', hint = 'REFERRAL_SELF';
   end if;
-  insert into "better_supabase"."referrals" ("tenant_id", "code_id", "referrer_id", "referred_user_id", "referred_workspace_id", "referred_email", "reward_amount", "reward_unit")
+  insert into "better_supabase"."referrals" ("tenant_id", "code_id", "referrer_id", "referred_id", "referred_workspace_id", "referred_email", "reward_amount", "reward_unit")
   values (referral_attribute.tenant, v_code."id", v_code."referrer_id", referral_attribute.referred_user, referral_attribute.referred_org,
     lower(nullif(trim(referral_attribute.referred_email), '')), v_code."reward_amount", v_code."reward_unit")
   returning * into v_ref;
   update "better_supabase"."referral_codes" x set "uses" = x."uses" + 1 where x."id" = v_code."id";
   null;
-  return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
+  return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."referral_attribute"(uuid, text, uuid, uuid, text) from public, anon, authenticated;
@@ -206,14 +206,14 @@ begin
   end if;
   select * into v_ref from "better_supabase"."referrals" x
   where x."tenant_id" = qualify_referral.tenant
-    and ((qualify_referral.referred_user is not null and x."referred_user_id" = qualify_referral.referred_user)
+    and ((qualify_referral.referred_user is not null and x."referred_id" = qualify_referral.referred_user)
       or (qualify_referral.referred_org is not null and x."referred_workspace_id" = qualify_referral.referred_org))
   for update;
   if not found then
     return null;
   end if;
   if v_ref."status" <> 'attributed' then
-    return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
+    return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
   end if;
   update "better_supabase"."referrals" x set "status" = 'qualified', "qualified_at" = now(), "qualified_by" = left(qualify_referral.source, 200)
   where x."id" = v_ref."id" returning * into v_ref;
@@ -229,7 +229,7 @@ begin
     where x."id" = v_ref."id" returning * into v_ref;
     null;
   end if;
-  return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
+  return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."qualify_referral"(uuid, uuid, uuid, text) from public, anon;
@@ -259,7 +259,7 @@ begin
     raise exception 'not allowed to void referrals' using errcode = '42501', hint = 'REFERRAL_FORBIDDEN';
   end if;
   if v_ref."status" = 'void' then
-    return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
+    return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
   end if;
   if v_ref."ledger_transaction_id" is not null then
     perform "better_supabase"."ledger_post"(v_ref."tenant_id", 'referral.reversal',
@@ -271,7 +271,7 @@ begin
   update "better_supabase"."referrals" x set "status" = 'void', "voided_at" = now()
   where x."id" = v_ref."id" returning * into v_ref;
   null;
-  return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_user_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
+  return jsonb_build_object('id', v_ref."id", 'organizationId', v_ref."tenant_id", 'codeId', v_ref."code_id", 'referrerId', v_ref."referrer_id", 'referredUserId', v_ref."referred_id", 'referredOrganizationId', v_ref."referred_workspace_id", 'referredEmail', v_ref."referred_email", 'status', v_ref."status", 'rewardAmount', v_ref."reward_amount"::text, 'rewardUnit', v_ref."reward_unit", 'qualifiedAt', v_ref."qualified_at", 'rewardedAt', v_ref."rewarded_at", 'ledgerTransactionId', v_ref."ledger_transaction_id", 'createdAt', v_ref."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."void_referral"(uuid, text) from public, anon;
@@ -293,7 +293,7 @@ declare
   v_all boolean := (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (list_referrals.tenant is not null and coalesce(better_supabase.can('tenant', list_referrals.tenant, 'referrals.read'), false)));
 begin
   return coalesce((
-    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'codeId', y."code_id", 'referrerId', y."referrer_id", 'referredUserId', y."referred_user_id", 'referredOrganizationId', y."referred_workspace_id", 'referredEmail', y."referred_email", 'status', y."status", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'qualifiedAt', y."qualified_at", 'rewardedAt', y."rewarded_at", 'ledgerTransactionId', y."ledger_transaction_id", 'createdAt', y."created_at") order by y."created_at" desc)
+    select jsonb_agg(jsonb_build_object('id', y."id", 'organizationId', y."tenant_id", 'codeId', y."code_id", 'referrerId', y."referrer_id", 'referredUserId', y."referred_id", 'referredOrganizationId', y."referred_workspace_id", 'referredEmail', y."referred_email", 'status', y."status", 'rewardAmount', y."reward_amount"::text, 'rewardUnit', y."reward_unit", 'qualifiedAt', y."qualified_at", 'rewardedAt', y."rewarded_at", 'ledgerTransactionId', y."ledger_transaction_id", 'createdAt', y."created_at") order by y."created_at" desc)
     from (
       select * from "better_supabase"."referrals" z
       where z."tenant_id" = list_referrals.tenant

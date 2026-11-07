@@ -650,7 +650,7 @@ function projectOf(value: unknown): Project {
     id: textOf(row["id"]),
     key: textOf(row["key"]),
     name: textOf(row["name"]),
-    ownerId: optionalText(row["owner_user_id"]),
+    ownerId: optionalText(row["owner_id"]),
     status: enumOrThrow(
       row["status"],
       ["planned", "active", "paused", "completed", "canceled"] as const,

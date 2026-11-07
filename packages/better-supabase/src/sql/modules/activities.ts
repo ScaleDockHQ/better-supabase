@@ -138,7 +138,7 @@ const NAMES: BlockSqlNames = {
         title: "title",
         body: "body",
         outcome: "outcome",
-        owner: "owner_user_id",
+        owner: "owner_id",
         dueAt: "due_at",
         doneAt: "done_at",
         durationSeconds: "duration_seconds",

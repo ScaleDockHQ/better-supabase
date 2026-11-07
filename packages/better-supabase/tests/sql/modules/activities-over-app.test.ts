@@ -29,7 +29,7 @@ create table public.activities (
   title text not null,
   body text,
   outcome text,
-  owner_user_id uuid,
+  owner_id uuid,
   due_at timestamptz,
   done_at timestamptz,
   created_at timestamptz not null default now()

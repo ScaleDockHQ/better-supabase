@@ -245,7 +245,7 @@ const PARTICIPANTS = {
   user: "user_id",
   kind: "kind",
   team: "team_id",
-  customerUser: "customer_user_id",
+  customerUser: "customer_id",
   email: "email",
   role: "role",
   addedBy: "added_by",

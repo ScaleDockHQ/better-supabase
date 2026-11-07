@@ -409,7 +409,7 @@ const COMMON = [
   "tenant_id",
   "name",
   "lifecycle",
-  "owner_user_id",
+  "owner_id",
   "merged_into",
   "roles",
   "customer_terms_id",
@@ -460,7 +460,7 @@ function base(
   known: ReadonlySet<string>,
 ): PartyRecord {
   const fields = row["fields"];
-  const ownerId = optionalText(row["owner_user_id"]);
+  const ownerId = optionalText(row["owner_id"]);
   const mergedInto = optionalText(row["merged_into"]);
   const roles = row["roles"];
   const customerTermsId = optionalText(row["customer_terms_id"]);

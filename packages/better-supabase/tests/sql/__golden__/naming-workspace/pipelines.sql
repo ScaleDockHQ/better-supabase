@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:64dd1ce8f255b828535896da379927df1987cecd70ed3008ddc33a4f22d8c165
+-- @bsb-hash sha256:a45f15d484927203764bfa6029c1a7144c72bfdbbd2b95c61d0b99127f83cf07
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -92,7 +92,7 @@ create table "better_supabase"."pipeline_stage_history" (
   "outcome" text not null,
   "amount" bigint,
   "currency" char(3),
-  "actor_user_id" uuid,
+  "actor_id" uuid,
   "entered_at" timestamptz not null default now(),
   "exited_at" timestamptz
 );

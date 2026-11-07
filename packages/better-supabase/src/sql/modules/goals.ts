@@ -39,7 +39,7 @@ const NAMES: BlockSqlNames = {
         tenant: "tenant_id",
         name: "name",
         metric: "metric",
-        owner: "owner_user_id",
+        owner: "owner_id",
         team: "team_id",
         periodStart: "period_start",
         periodEnd: "period_end",

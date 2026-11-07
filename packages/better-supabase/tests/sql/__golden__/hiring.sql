@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:f7706f20f8476a8ecfbc31932ef7eac8231b5b84de6f665373fe60b1fc828019
+-- @bsb-hash sha256:ea7985ecaa3deb3c7d8f4d7ea5bf74fe9c2168542cf9e200f401bd0fa60ae70c
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17,7 +17,7 @@ create table "better_supabase"."job_openings" (
   "location" text,
   "employment_type" text,
   "description" text,
-  "hiring_manager_user_id" uuid,
+  "hiring_manager_id" uuid,
   "status" text not null default 'draft' constraint bsb_job_openings_status_check check ("status" in ('draft', 'open', 'closed')),
   "opened_at" timestamptz,
   "closed_at" timestamptz,
@@ -40,7 +40,7 @@ create table "better_supabase"."applications" (
   "candidate_type" text not null,
   "candidate_id" text not null,
   "source" text,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "pipeline_id" uuid,
   "stage_id" uuid,
   "stage_entered_at" timestamptz,
@@ -67,14 +67,14 @@ create table "better_supabase"."application_scorecards" (
   "tenant_id" uuid not null,
   "application_id" uuid not null references "better_supabase"."applications" ("id") on delete cascade,
   "stage_id" uuid,
-  "reviewer_user_id" uuid not null,
+  "reviewer_id" uuid not null,
   "rating" smallint not null constraint bsb_application_scorecards_rating_check check ("rating" >= 1 and "rating" <= 4),
   "recommendation" text not null constraint bsb_application_scorecards_recommendation_check check ("recommendation" in ('strong_no', 'no', 'yes', 'strong_yes')),
   "notes" text,
   "submitted_at" timestamptz not null default now(),
-  unique nulls not distinct ("application_id", "stage_id", "reviewer_user_id")
+  unique nulls not distinct ("application_id", "stage_id", "reviewer_id")
 );
-create index application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_user_id");
+create index application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_id");
 alter table "better_supabase"."application_scorecards" enable row level security;
 revoke all on "better_supabase"."application_scorecards" from public, anon, authenticated;
 grant select on "better_supabase"."application_scorecards" to authenticated;
@@ -164,7 +164,7 @@ begin
   end if;
   begin
     if save_job.job is null then
-      insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
+      insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_id", "status")
       values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
         save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
         coalesce(save_job.attrs ->> 'status', 'draft'))
@@ -176,7 +176,7 @@ begin
         "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
         "employment_type" = case when save_job.attrs ? 'employmentType' then save_job.attrs ->> 'employmentType' else x."employment_type" end,
         "description" = case when save_job.attrs ? 'description' then save_job.attrs ->> 'description' else x."description" end,
-        "hiring_manager_user_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_user_id" end,
+        "hiring_manager_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
         "status" = coalesce(save_job.attrs ->> 'status', x."status"),
         "updated_at" = now()
       where x."id" = save_job.job
@@ -233,7 +233,7 @@ begin
   if v_row."id" is not null then
     return to_jsonb(v_row);
   end if;
-  insert into "better_supabase"."applications" ("tenant_id", "job_id", "candidate_type", "candidate_id", "source", "owner_user_id")
+  insert into "better_supabase"."applications" ("tenant_id", "job_id", "candidate_type", "candidate_id", "source", "owner_id")
   values (v_job."tenant_id", v_job."id", v_type, v_id, nullif(trim(apply_to_job.source), ''), coalesce(apply_to_job.owner, auth.uid()))
   returning * into v_row;
   null;
@@ -342,9 +342,9 @@ begin
     raise exception 'no such application you can review' using errcode = 'P0002', hint = 'HIRING_APPLICATION_NOT_FOUND';
   end if;
   begin
-    insert into "better_supabase"."application_scorecards" ("tenant_id", "application_id", "stage_id", "reviewer_user_id", "rating", "recommendation", "notes")
+    insert into "better_supabase"."application_scorecards" ("tenant_id", "application_id", "stage_id", "reviewer_id", "rating", "recommendation", "notes")
     values (v_row."tenant_id", v_row."id", v_row."stage_id", auth.uid(), submit_scorecard.rating, submit_scorecard.recommendation, submit_scorecard.notes)
-    on conflict ("application_id", "stage_id", "reviewer_user_id") do update set
+    on conflict ("application_id", "stage_id", "reviewer_id") do update set
       "rating" = excluded."rating", "recommendation" = excluded."recommendation",
       "notes" = excluded."notes", "submitted_at" = now()
     returning * into v_card;
@@ -528,7 +528,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:ddab2d8647113d28cd4607182c436fc329ac0c8d7bad1d86814ffc331fa3d4ae
+-- @bsb-hash sha256:4c70ac6c9f660ade9df1441c1e99425c7c6d4fe6dda13e1954f0130e49127bce
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -544,7 +544,7 @@ create table "better_supabase"."job_openings" (
   "location" text,
   "employment_type" text,
   "description" text,
-  "hiring_manager_user_id" uuid,
+  "hiring_manager_id" uuid,
   "status" text not null default 'draft' constraint bsb_job_openings_status_check check ("status" in ('draft', 'open', 'closed')),
   "opened_at" timestamptz,
   "closed_at" timestamptz,
@@ -567,7 +567,7 @@ create table "better_supabase"."applications" (
   "candidate_type" text not null,
   "candidate_id" text not null,
   "source" text,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "pipeline_id" uuid,
   "stage_id" uuid,
   "stage_entered_at" timestamptz,
@@ -594,14 +594,14 @@ create table "better_supabase"."application_scorecards" (
   "tenant_id" uuid not null,
   "application_id" uuid not null references "better_supabase"."applications" ("id") on delete cascade,
   "stage_id" uuid,
-  "reviewer_user_id" uuid not null,
+  "reviewer_id" uuid not null,
   "rating" smallint not null constraint bsb_application_scorecards_rating_check check ("rating" >= 1 and "rating" <= 4),
   "recommendation" text not null constraint bsb_application_scorecards_recommendation_check check ("recommendation" in ('strong_no', 'no', 'yes', 'strong_yes')),
   "notes" text,
   "submitted_at" timestamptz not null default now(),
-  unique nulls not distinct ("application_id", "stage_id", "reviewer_user_id")
+  unique nulls not distinct ("application_id", "stage_id", "reviewer_id")
 );
-create index application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_user_id");
+create index application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_id");
 alter table "better_supabase"."application_scorecards" enable row level security;
 revoke all on "better_supabase"."application_scorecards" from public, anon, authenticated;
 grant select on "better_supabase"."application_scorecards" to authenticated;
@@ -691,7 +691,7 @@ begin
   end if;
   begin
     if save_job.job is null then
-      insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
+      insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_id", "status")
       values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
         save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
         coalesce(save_job.attrs ->> 'status', 'draft'))
@@ -703,7 +703,7 @@ begin
         "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
         "employment_type" = case when save_job.attrs ? 'employmentType' then save_job.attrs ->> 'employmentType' else x."employment_type" end,
         "description" = case when save_job.attrs ? 'description' then save_job.attrs ->> 'description' else x."description" end,
-        "hiring_manager_user_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_user_id" end,
+        "hiring_manager_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
         "status" = coalesce(save_job.attrs ->> 'status', x."status"),
         "updated_at" = now()
       where x."id" = save_job.job
@@ -760,7 +760,7 @@ begin
   if v_row."id" is not null then
     return to_jsonb(v_row);
   end if;
-  insert into "better_supabase"."applications" ("tenant_id", "job_id", "candidate_type", "candidate_id", "source", "owner_user_id")
+  insert into "better_supabase"."applications" ("tenant_id", "job_id", "candidate_type", "candidate_id", "source", "owner_id")
   values (v_job."tenant_id", v_job."id", v_type, v_id, nullif(trim(apply_to_job.source), ''), coalesce(apply_to_job.owner, auth.uid()))
   returning * into v_row;
   perform "better_supabase".emit_event('application.created', jsonb_build_object('organizationId', v_row."tenant_id", 'applicationId', v_row."id", 'subjectType', 'application', 'subjectId', v_row."id"::text, 'jobId', v_row."job_id", 'candidateType', v_row."candidate_type", 'candidateId', v_row."candidate_id"), 'applications/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/hiring');
@@ -869,16 +869,16 @@ begin
     raise exception 'no such application you can review' using errcode = 'P0002', hint = 'HIRING_APPLICATION_NOT_FOUND';
   end if;
   begin
-    insert into "better_supabase"."application_scorecards" ("tenant_id", "application_id", "stage_id", "reviewer_user_id", "rating", "recommendation", "notes")
+    insert into "better_supabase"."application_scorecards" ("tenant_id", "application_id", "stage_id", "reviewer_id", "rating", "recommendation", "notes")
     values (v_row."tenant_id", v_row."id", v_row."stage_id", auth.uid(), submit_scorecard.rating, submit_scorecard.recommendation, submit_scorecard.notes)
-    on conflict ("application_id", "stage_id", "reviewer_user_id") do update set
+    on conflict ("application_id", "stage_id", "reviewer_id") do update set
       "rating" = excluded."rating", "recommendation" = excluded."recommendation",
       "notes" = excluded."notes", "submitted_at" = now()
     returning * into v_card;
   exception when check_violation or not_null_violation then
     raise exception 'a scorecard needs a rating from 1 to 4 and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
   end;
-  perform "better_supabase".emit_event('scorecard.submitted', jsonb_build_object('organizationId', v_row."tenant_id", 'applicationId', v_row."id", 'subjectType', 'application', 'subjectId', v_row."id"::text, 'jobId', v_row."job_id", 'candidateType', v_row."candidate_type", 'candidateId', v_row."candidate_id", 'reviewerId', v_card."reviewer_user_id", 'recommendation', v_card."recommendation"), 'applications/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/hiring');
+  perform "better_supabase".emit_event('scorecard.submitted', jsonb_build_object('organizationId', v_row."tenant_id", 'applicationId', v_row."id", 'subjectType', 'application', 'subjectId', v_row."id"::text, 'jobId', v_row."job_id", 'candidateType', v_row."candidate_type", 'candidateId', v_row."candidate_id", 'reviewerId', v_card."reviewer_id", 'recommendation', v_card."recommendation"), 'applications/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/hiring');
   return to_jsonb(v_card);
 end;
 $$;
@@ -1064,7 +1064,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:ce33f05e15454e4bedf5d3908cd500e6acc5e5a145f47cbd021fb5fda4a942e4
+-- @bsb-hash sha256:f77a80703b9fdf006d0761cc7dcd483661a661be1364a329e395d2072522d184
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1085,7 +1085,7 @@ create table "app_private"."job_openings" (
   "location" text,
   "employment_type" text,
   "description" text,
-  "hiring_manager_user_id" uuid,
+  "hiring_manager_id" uuid,
   "status" text not null default 'draft' constraint bsb_job_openings_status_check check ("status" in ('draft', 'open', 'closed')),
   "opened_at" timestamptz,
   "closed_at" timestamptz,
@@ -1108,7 +1108,7 @@ create table "app_private"."applications" (
   "candidate_type" text not null,
   "candidate_id" text not null,
   "source" text,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "pipeline_id" uuid,
   "stage_id" uuid,
   "stage_entered_at" timestamptz,
@@ -1135,14 +1135,14 @@ create table "app_private"."application_scorecards" (
   "tenant_id" uuid not null,
   "application_id" uuid not null references "app_private"."applications" ("id") on delete cascade,
   "stage_id" uuid,
-  "reviewer_user_id" uuid not null,
+  "reviewer_id" uuid not null,
   "rating" smallint not null constraint bsb_application_scorecards_rating_check check ("rating" >= 1 and "rating" <= 4),
   "recommendation" text not null constraint bsb_application_scorecards_recommendation_check check ("recommendation" in ('strong_no', 'no', 'yes', 'strong_yes')),
   "notes" text,
   "submitted_at" timestamptz not null default now(),
-  unique nulls not distinct ("application_id", "stage_id", "reviewer_user_id")
+  unique nulls not distinct ("application_id", "stage_id", "reviewer_id")
 );
-create index application_scorecards_reviewer_idx on "app_private"."application_scorecards" ("reviewer_user_id");
+create index application_scorecards_reviewer_idx on "app_private"."application_scorecards" ("reviewer_id");
 alter table "app_private"."application_scorecards" enable row level security;
 revoke all on "app_private"."application_scorecards" from public, anon, authenticated;
 grant select on "app_private"."application_scorecards" to authenticated;
@@ -1232,7 +1232,7 @@ begin
   end if;
   begin
     if save_job.job is null then
-      insert into "app_private"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
+      insert into "app_private"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_id", "status")
       values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
         save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
         coalesce(save_job.attrs ->> 'status', 'draft'))
@@ -1244,7 +1244,7 @@ begin
         "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
         "employment_type" = case when save_job.attrs ? 'employmentType' then save_job.attrs ->> 'employmentType' else x."employment_type" end,
         "description" = case when save_job.attrs ? 'description' then save_job.attrs ->> 'description' else x."description" end,
-        "hiring_manager_user_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_user_id" end,
+        "hiring_manager_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
         "status" = coalesce(save_job.attrs ->> 'status', x."status"),
         "updated_at" = now()
       where x."id" = save_job.job
@@ -1301,7 +1301,7 @@ begin
   if v_row."id" is not null then
     return to_jsonb(v_row);
   end if;
-  insert into "app_private"."applications" ("tenant_id", "job_id", "candidate_type", "candidate_id", "source", "owner_user_id")
+  insert into "app_private"."applications" ("tenant_id", "job_id", "candidate_type", "candidate_id", "source", "owner_id")
   values (v_job."tenant_id", v_job."id", v_type, v_id, nullif(trim(apply_to_job.source), ''), coalesce(apply_to_job.owner, auth.uid()))
   returning * into v_row;
   null;
@@ -1410,9 +1410,9 @@ begin
     raise exception 'no such application you can review' using errcode = 'P0002', hint = 'HIRING_APPLICATION_NOT_FOUND';
   end if;
   begin
-    insert into "app_private"."application_scorecards" ("tenant_id", "application_id", "stage_id", "reviewer_user_id", "rating", "recommendation", "notes")
+    insert into "app_private"."application_scorecards" ("tenant_id", "application_id", "stage_id", "reviewer_id", "rating", "recommendation", "notes")
     values (v_row."tenant_id", v_row."id", v_row."stage_id", auth.uid(), submit_scorecard.rating, submit_scorecard.recommendation, submit_scorecard.notes)
-    on conflict ("application_id", "stage_id", "reviewer_user_id") do update set
+    on conflict ("application_id", "stage_id", "reviewer_id") do update set
       "rating" = excluded."rating", "recommendation" = excluded."recommendation",
       "notes" = excluded."notes", "submitted_at" = now()
     returning * into v_card;
@@ -1596,7 +1596,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:191342f35611209889d23fd79f716d0bd02dde84d0e0b096fc3f2525941beb98
+-- @bsb-hash sha256:8225a24a83d6647977de4763c6fb220e12a22746ef9b51cb491bb738dc6b64cd
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1612,7 +1612,7 @@ create table "better_supabase"."job_openings" (
   "location" text,
   "employment_type" text,
   "description" text,
-  "hiring_manager_user_id" uuid,
+  "hiring_manager_id" uuid,
   "status" text not null default 'draft' constraint bsb_job_openings_status_check check ("status" in ('draft', 'open', 'closed')),
   "opened_at" timestamptz,
   "closed_at" timestamptz,
@@ -1635,7 +1635,7 @@ create table "better_supabase"."applications" (
   "candidate_type" text not null,
   "candidate_id" text not null,
   "source" text,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "pipeline_id" uuid,
   "stage_id" uuid,
   "stage_entered_at" timestamptz,
@@ -1662,14 +1662,14 @@ create table "better_supabase"."application_scorecards" (
   "tenant_id" uuid not null,
   "application_id" uuid not null references "better_supabase"."applications" ("id") on delete cascade,
   "stage_id" uuid,
-  "reviewer_user_id" uuid not null,
+  "reviewer_id" uuid not null,
   "rating" smallint not null constraint bsb_application_scorecards_rating_check check ("rating" >= 1 and "rating" <= 4),
   "recommendation" text not null constraint bsb_application_scorecards_recommendation_check check ("recommendation" in ('strong_no', 'no', 'yes', 'strong_yes')),
   "notes" text,
   "submitted_at" timestamptz not null default now(),
-  unique nulls not distinct ("application_id", "stage_id", "reviewer_user_id")
+  unique nulls not distinct ("application_id", "stage_id", "reviewer_id")
 );
-create index application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_user_id");
+create index application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_id");
 alter table "better_supabase"."application_scorecards" enable row level security;
 revoke all on "better_supabase"."application_scorecards" from public, anon, authenticated;
 grant select on "better_supabase"."application_scorecards" to authenticated;
@@ -1759,7 +1759,7 @@ begin
   end if;
   begin
     if save_job.job is null then
-      insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
+      insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_id", "status")
       values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
         save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
         coalesce(save_job.attrs ->> 'status', 'draft'))
@@ -1771,7 +1771,7 @@ begin
         "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
         "employment_type" = case when save_job.attrs ? 'employmentType' then save_job.attrs ->> 'employmentType' else x."employment_type" end,
         "description" = case when save_job.attrs ? 'description' then save_job.attrs ->> 'description' else x."description" end,
-        "hiring_manager_user_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_user_id" end,
+        "hiring_manager_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
         "status" = coalesce(save_job.attrs ->> 'status', x."status"),
         "updated_at" = now()
       where x."id" = save_job.job
@@ -1828,7 +1828,7 @@ begin
   if v_row."id" is not null then
     return to_jsonb(v_row);
   end if;
-  insert into "better_supabase"."applications" ("tenant_id", "job_id", "candidate_type", "candidate_id", "source", "owner_user_id")
+  insert into "better_supabase"."applications" ("tenant_id", "job_id", "candidate_type", "candidate_id", "source", "owner_id")
   values (v_job."tenant_id", v_job."id", v_type, v_id, nullif(trim(apply_to_job.source), ''), coalesce(apply_to_job.owner, auth.uid()))
   returning * into v_row;
   null;
@@ -1937,9 +1937,9 @@ begin
     raise exception 'no such application you can review' using errcode = 'P0002', hint = 'HIRING_APPLICATION_NOT_FOUND';
   end if;
   begin
-    insert into "better_supabase"."application_scorecards" ("tenant_id", "application_id", "stage_id", "reviewer_user_id", "rating", "recommendation", "notes")
+    insert into "better_supabase"."application_scorecards" ("tenant_id", "application_id", "stage_id", "reviewer_id", "rating", "recommendation", "notes")
     values (v_row."tenant_id", v_row."id", v_row."stage_id", auth.uid(), submit_scorecard.rating, submit_scorecard.recommendation, submit_scorecard.notes)
-    on conflict ("application_id", "stage_id", "reviewer_user_id") do update set
+    on conflict ("application_id", "stage_id", "reviewer_id") do update set
       "rating" = excluded."rating", "recommendation" = excluded."recommendation",
       "notes" = excluded."notes", "submitted_at" = now()
     returning * into v_card;
@@ -2202,7 +2202,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:eeaaaf4aa8ba59088ffcdf507fe018df8ad5641d2454c68cdbb369e0309b169b
+-- @bsb-hash sha256:a1010c4e243d28c4cb41eaa86633d03fde7df92675d03618f8cb460fe41d95b2
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2218,7 +2218,7 @@ alter table "better_supabase"."job_openings" add column if not exists "team_id" 
 alter table "better_supabase"."job_openings" add column if not exists "location" text;
 alter table "better_supabase"."job_openings" add column if not exists "employment_type" text;
 alter table "better_supabase"."job_openings" add column if not exists "description" text;
-alter table "better_supabase"."job_openings" add column if not exists "hiring_manager_user_id" uuid;
+alter table "better_supabase"."job_openings" add column if not exists "hiring_manager_id" uuid;
 alter table "better_supabase"."job_openings" add column if not exists "status" text not null default 'draft' constraint bsb_job_openings_status_check check ("status" in ('draft', 'open', 'closed'));
 alter table "better_supabase"."job_openings" add column if not exists "opened_at" timestamptz;
 alter table "better_supabase"."job_openings" add column if not exists "closed_at" timestamptz;
@@ -2239,7 +2239,7 @@ alter table "better_supabase"."applications" add column if not exists "job_id" u
 alter table "better_supabase"."applications" add column if not exists "candidate_type" text;
 alter table "better_supabase"."applications" add column if not exists "candidate_id" text;
 alter table "better_supabase"."applications" add column if not exists "source" text;
-alter table "better_supabase"."applications" add column if not exists "owner_user_id" uuid;
+alter table "better_supabase"."applications" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."applications" add column if not exists "pipeline_id" uuid;
 alter table "better_supabase"."applications" add column if not exists "stage_id" uuid;
 alter table "better_supabase"."applications" add column if not exists "stage_entered_at" timestamptz;
@@ -2263,13 +2263,13 @@ alter table "better_supabase"."application_scorecards" add column if not exists 
 alter table "better_supabase"."application_scorecards" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."application_scorecards" add column if not exists "application_id" uuid references "better_supabase"."applications" ("id") on delete cascade;
 alter table "better_supabase"."application_scorecards" add column if not exists "stage_id" uuid;
-alter table "better_supabase"."application_scorecards" add column if not exists "reviewer_user_id" uuid;
+alter table "better_supabase"."application_scorecards" add column if not exists "reviewer_id" uuid;
 alter table "better_supabase"."application_scorecards" add column if not exists "rating" smallint constraint bsb_application_scorecards_rating_check check ("rating" >= 1 and "rating" <= 4);
 alter table "better_supabase"."application_scorecards" add column if not exists "recommendation" text constraint bsb_application_scorecards_recommendation_check check ("recommendation" in ('strong_no', 'no', 'yes', 'strong_yes'));
 alter table "better_supabase"."application_scorecards" add column if not exists "notes" text;
 alter table "better_supabase"."application_scorecards" add column if not exists "submitted_at" timestamptz not null default now();
-create unique index if not exists "application_scorecards_application_id_stage_id_reviewer_user_id" on "better_supabase"."application_scorecards" ("application_id", "stage_id", "reviewer_user_id") nulls not distinct;
-create index if not exists application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_user_id");
+create unique index if not exists "application_scorecards_application_id_stage_id_reviewer_id_key" on "better_supabase"."application_scorecards" ("application_id", "stage_id", "reviewer_id") nulls not distinct;
+create index if not exists application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_id");
 alter table "better_supabase"."application_scorecards" enable row level security;
 grant select on "better_supabase"."application_scorecards" to authenticated;
 grant all on "better_supabase"."application_scorecards" to service_role;
@@ -2355,7 +2355,7 @@ begin
   end if;
   begin
     if save_job.job is null then
-      insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
+      insert into "better_supabase"."job_openings" ("tenant_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_id", "status")
       values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
         save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
         better_supabase.as_column_type(coalesce(save_job.attrs ->> 'status', 'draft'), (null::"better_supabase"."job_openings")."status"))
@@ -2367,7 +2367,7 @@ begin
         "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
         "employment_type" = case when save_job.attrs ? 'employmentType' then save_job.attrs ->> 'employmentType' else x."employment_type" end,
         "description" = case when save_job.attrs ? 'description' then save_job.attrs ->> 'description' else x."description" end,
-        "hiring_manager_user_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_user_id" end,
+        "hiring_manager_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
         "status" = coalesce(better_supabase.as_column_type(save_job.attrs ->> 'status', (null::"better_supabase"."job_openings")."status"), x."status"),
         "updated_at" = now()
       where x."id" = save_job.job
@@ -2424,7 +2424,7 @@ begin
   if v_row."id" is not null then
     return to_jsonb(v_row);
   end if;
-  insert into "better_supabase"."applications" ("tenant_id", "job_id", "candidate_type", "candidate_id", "source", "owner_user_id")
+  insert into "better_supabase"."applications" ("tenant_id", "job_id", "candidate_type", "candidate_id", "source", "owner_id")
   values (v_job."tenant_id", v_job."id", v_type, v_id, nullif(trim(apply_to_job.source), ''), coalesce(apply_to_job.owner, auth.uid()))
   returning * into v_row;
   null;
@@ -2537,9 +2537,9 @@ begin
     raise exception 'a scorecard needs a rating from 1 to 4 and a recommendation' using errcode = '22023', hint = 'HIRING_SCORECARD_INVALID';
   end if;
   begin
-    insert into "better_supabase"."application_scorecards" ("tenant_id", "application_id", "stage_id", "reviewer_user_id", "rating", "recommendation", "notes")
+    insert into "better_supabase"."application_scorecards" ("tenant_id", "application_id", "stage_id", "reviewer_id", "rating", "recommendation", "notes")
     values (v_row."tenant_id", v_row."id", v_row."stage_id", auth.uid(), submit_scorecard.rating, better_supabase.as_column_type(submit_scorecard.recommendation, (null::"better_supabase"."application_scorecards")."recommendation"), submit_scorecard.notes)
-    on conflict ("application_id", "stage_id", "reviewer_user_id") do update set
+    on conflict ("application_id", "stage_id", "reviewer_id") do update set
       "rating" = excluded."rating", "recommendation" = excluded."recommendation",
       "notes" = excluded."notes", "submitted_at" = now()
     returning * into v_card;
@@ -2726,7 +2726,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:f76c36664f0e40b645dda5a61f26d74729e77712c48f37077c942d9619a4cd6d
+-- @bsb-hash sha256:f3d8476aed5f4d483e7adba312fec426ad8271eca1aa9ad3478c7f90bd3438e4
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2742,7 +2742,7 @@ create table "better_supabase"."job_openings" (
   "location" text,
   "employment_type" text,
   "description" text,
-  "hiring_manager_user_id" uuid,
+  "hiring_manager_id" uuid,
   "status" text not null default 'draft' constraint bsb_job_openings_status_check check ("status" in ('draft', 'open', 'closed')),
   "opened_at" timestamptz,
   "closed_at" timestamptz,
@@ -2765,7 +2765,7 @@ create table "better_supabase"."applications" (
   "candidate_type" text not null,
   "candidate_id" text not null,
   "source" text,
-  "owner_user_id" uuid,
+  "owner_id" uuid,
   "pipeline_id" uuid,
   "stage_id" uuid,
   "stage_entered_at" timestamptz,
@@ -2792,14 +2792,14 @@ create table "better_supabase"."application_scorecards" (
   "org_id" uuid not null,
   "application_id" uuid not null references "better_supabase"."applications" ("id") on delete cascade,
   "stage_id" uuid,
-  "reviewer_user_id" uuid not null,
+  "reviewer_id" uuid not null,
   "rating" smallint not null constraint bsb_application_scorecards_rating_check check ("rating" >= 1 and "rating" <= 4),
   "recommendation" text not null constraint bsb_application_scorecards_recommendation_check check ("recommendation" in ('strong_no', 'no', 'yes', 'strong_yes')),
   "notes" text,
   "submitted_at" timestamptz not null default now(),
-  unique nulls not distinct ("application_id", "stage_id", "reviewer_user_id")
+  unique nulls not distinct ("application_id", "stage_id", "reviewer_id")
 );
-create index application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_user_id");
+create index application_scorecards_reviewer_idx on "better_supabase"."application_scorecards" ("reviewer_id");
 alter table "better_supabase"."application_scorecards" enable row level security;
 revoke all on "better_supabase"."application_scorecards" from public, anon, authenticated;
 grant select on "better_supabase"."application_scorecards" to authenticated;
@@ -2889,7 +2889,7 @@ begin
   end if;
   begin
     if save_job.job is null then
-      insert into "better_supabase"."job_openings" ("org_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_user_id", "status")
+      insert into "better_supabase"."job_openings" ("org_id", "title", "team_id", "location", "employment_type", "description", "hiring_manager_id", "status")
       values (save_job.tenant, save_job.attrs ->> 'title', (save_job.attrs ->> 'teamId')::uuid, save_job.attrs ->> 'location',
         save_job.attrs ->> 'employmentType', save_job.attrs ->> 'description', (save_job.attrs ->> 'hiringManagerId')::uuid,
         coalesce(save_job.attrs ->> 'status', 'draft'))
@@ -2901,7 +2901,7 @@ begin
         "location" = case when save_job.attrs ? 'location' then save_job.attrs ->> 'location' else x."location" end,
         "employment_type" = case when save_job.attrs ? 'employmentType' then save_job.attrs ->> 'employmentType' else x."employment_type" end,
         "description" = case when save_job.attrs ? 'description' then save_job.attrs ->> 'description' else x."description" end,
-        "hiring_manager_user_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_user_id" end,
+        "hiring_manager_id" = case when save_job.attrs ? 'hiringManagerId' then (save_job.attrs ->> 'hiringManagerId')::uuid else x."hiring_manager_id" end,
         "status" = coalesce(save_job.attrs ->> 'status', x."status"),
         "updated_at" = now()
       where x."id" = save_job.job
@@ -2958,7 +2958,7 @@ begin
   if v_row."id" is not null then
     return (to_jsonb(v_row) || jsonb_build_object('tenant_id', v_row."org_id"));
   end if;
-  insert into "better_supabase"."applications" ("org_id", "job_id", "candidate_type", "candidate_id", "source", "owner_user_id")
+  insert into "better_supabase"."applications" ("org_id", "job_id", "candidate_type", "candidate_id", "source", "owner_id")
   values (v_job."org_id", v_job."id", v_type, v_id, nullif(trim(apply_to_job.source), ''), coalesce(apply_to_job.owner, auth.uid()))
   returning * into v_row;
   null;
@@ -3067,9 +3067,9 @@ begin
     raise exception 'no such application you can review' using errcode = 'P0002', hint = 'HIRING_APPLICATION_NOT_FOUND';
   end if;
   begin
-    insert into "better_supabase"."application_scorecards" ("org_id", "application_id", "stage_id", "reviewer_user_id", "rating", "recommendation", "notes")
+    insert into "better_supabase"."application_scorecards" ("org_id", "application_id", "stage_id", "reviewer_id", "rating", "recommendation", "notes")
     values (v_row."org_id", v_row."id", v_row."stage_id", auth.uid(), submit_scorecard.rating, submit_scorecard.recommendation, submit_scorecard.notes)
-    on conflict ("application_id", "stage_id", "reviewer_user_id") do update set
+    on conflict ("application_id", "stage_id", "reviewer_id") do update set
       "rating" = excluded."rating", "recommendation" = excluded."recommendation",
       "notes" = excluded."notes", "submitted_at" = now()
     returning * into v_card;

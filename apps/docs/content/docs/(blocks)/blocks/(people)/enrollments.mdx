@@ -68,11 +68,11 @@ const rows = useEnrollments({ limit: 50 });
 | ---------- | ------- | ------------------------------ |
 | `maxSteps` | `100`   | The most steps a program holds |
 
-| Table                 | Holds                                                                                                                                                  |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------ |
-| `enrollment_programs` | One row per program: `key`, `name`, `subject_types`, the ordered `steps` and `version`                                                                 |
-| `enrollments`         | One row per program and subject: the step snapshot, `completed_steps`, `status`, `starts_at` and `ends_at`                                             |
-| `enrollment_steps`    | One row per completed step, and one open row per step with an assignee or a due date: `assignee_role`, `assignee_user_id`, `due_at` and `completed_at` |
+| Table                 | Holds                                                                                                                                             |
+| --------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `enrollment_programs` | One row per program: `key`, `name`, `subject_types`, the ordered `steps` and `version`                                                            |
+| `enrollments`         | One row per program and subject: the step snapshot, `completed_steps`, `status`, `starts_at` and `ends_at`                                        |
+| `enrollment_steps`    | One row per completed step, and one open row per step with an assignee or a due date: `assignee_role`, `assignee_id`, `due_at` and `completed_at` |
 
 ## Programs
 

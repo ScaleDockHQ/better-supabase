@@ -106,7 +106,7 @@ begin
   v_void := ${issued("Void")};
   perform better_supabase.void_invoice(v_void, 'sent in error', ${ACTOR});
   select * into v_row from better_supabase.status_history where subject_id = v_void::text and to_status = 'void';
-  if v_row.reason is distinct from 'sent in error' or v_row.actor_user_id is distinct from '${STAFF}'::uuid or v_row.actor_name is distinct from 'Sam' then
+  if v_row.reason is distinct from 'sent in error' or v_row.actor_id is distinct from '${STAFF}'::uuid or v_row.actor_name is distinct from 'Sam' then
     raise exception 'void %', row_to_json(v_row);
   end if;
 

@@ -18,7 +18,7 @@ const ROW = {
   company_id: "c1",
   contact_type: null,
   contact_id: null,
-  owner_user_id: "u1",
+  owner_id: "u1",
   currency: "EUR",
   status: "draft",
   valid_until: "2026-11-14",

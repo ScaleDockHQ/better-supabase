@@ -56,7 +56,7 @@ export const RECORDING_TABLES = {
       tenant: "tenant_id",
       position: "position",
       speaker: "speaker",
-      speakerUser: "speaker_user_id",
+      speakerUser: "speaker_id",
       startsMs: "starts_ms",
       endsMs: "ends_ms",
       text: "text",

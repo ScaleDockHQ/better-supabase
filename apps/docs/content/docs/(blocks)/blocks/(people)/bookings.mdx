@@ -28,13 +28,13 @@ booker's contact.
 
 ## Tables
 
-| Table                  | Holds                                                                                                                                                    |
-| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `booking_resources`    | A bookable resource in an organization: `name`, `kind`, `capacity` (overlapping seats), an IANA `tz`, a `calendar_id`, a `host_user_id` and `check_busy` |
-| `booking_availability` | Weekly hours: a `weekday` (1 is Monday) with a `starts_at` and `ends_at` time in the resource's zone                                                     |
-| `booking_exceptions`   | A `during` range that closes the resource, or opens it outside its hours with `available`                                                                |
-| `booking_services`     | What is booked: `duration`, `buffer_before`, `buffer_after`, the `resource_kinds` that serve it, `step` and `min_notice`                                 |
-| `bookings`             | `resource_id`, `service_id`, `seat`, `during`, `status` (`hold`, `confirmed`, `cancelled`), `hold_expires_at`, customer                                  |
+| Table                  | Holds                                                                                                                                               |
+| ---------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `booking_resources`    | A bookable resource in an organization: `name`, `kind`, `capacity` (overlapping seats), an IANA `tz`, a `calendar_id`, a `host_id` and `check_busy` |
+| `booking_availability` | Weekly hours: a `weekday` (1 is Monday) with a `starts_at` and `ends_at` time in the resource's zone                                                |
+| `booking_exceptions`   | A `during` range that closes the resource, or opens it outside its hours with `available`                                                           |
+| `booking_services`     | What is booked: `duration`, `buffer_before`, `buffer_after`, the `resource_kinds` that serve it, `step` and `min_notice`                            |
+| `bookings`             | `resource_id`, `service_id`, `seat`, `during`, `status` (`hold`, `confirmed`, `cancelled`), `hold_expires_at`, customer                             |
 
 Each booking also stores `blocked`, its `during` widened by the service's
 buffers. The constraint is on that range:

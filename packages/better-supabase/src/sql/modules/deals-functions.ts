@@ -19,7 +19,7 @@ export const DEAL_COLUMNS: Readonly<Record<string, string>> = {
   companyId: "company_id",
   motion: "motion",
   priority: "priority",
-  owner: "owner_user_id",
+  owner: "owner_id",
   product: "product",
   seats: "seats",
   amount: "amount",

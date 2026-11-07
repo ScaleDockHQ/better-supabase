@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_060_state_machine.sql
 -- better-supabase module: state-machine
 -- @bsb-block state-machine@3 managed
--- @bsb-hash sha256:14e25180bc0e17aed92c7d28e8beebde02c5647aecf0169c1e3e5d4a5c848822
+-- @bsb-hash sha256:8b2784cf4e127b43ba66ce624f1c172a234772ab0510f76ba759eec7629c6482
 -- Allowed status transitions as the caller, a history row and a status.changed event. A machine can also write a stages timeline and keep a lifecycle row (pause, flags, pinned version). Each machine is a subject table named in options.machines, or a config.subjects type.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,7 +13,7 @@ create table "better_supabase"."status_history" (
   "subject_id" text not null,
   "from_status" text,
   "to_status" text not null,
-  "actor_user_id" uuid,
+  "actor_id" uuid,
   "actor_name" text,
   "actor_email" text,
   "ip_address" inet,
@@ -58,7 +58,7 @@ create table "better_supabase"."subject_lifecycles" (
   "paused_at" timestamptz,
   "pause_expires_at" timestamptz,
   "pause_reason" text,
-  "paused_by_user_id" uuid,
+  "paused_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id")

@@ -262,7 +262,7 @@ describe("quote writes", () => {
         company_id: "c1",
         contact_type: "contact",
         contact_id: "p1",
-        owner_user_id: "u1",
+        owner_id: "u1",
         terms: "Net 30",
         note: "Careful",
         deposit_bps: 1000,

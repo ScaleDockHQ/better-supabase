@@ -568,8 +568,8 @@ blocks: {
       workingHours: null,
     },
     columns: {
-      calendars: { tenant: "organization_id", ownerType: null, ownerId: "owner_user_id", rank: "position" },
-      events: { tenant: "organization_id", rrule: null, exdates: null, rdates: null, owner: "owner_user_id" },
+      calendars: { tenant: "organization_id", ownerType: null, ownerId: "owner_id", rank: "position" },
+      events: { tenant: "organization_id", rrule: null, exdates: null, rdates: null, owner: "owner_id" },
       attendees: { tenant: "organization_id", role: null, subjectType: "record_type", subjectId: "record_id" },
       grants: { tenant: "organization_id", role: "access" },
       rules: { rrule: null, freq: "frequency", interval: "every", count: "occurrences", until: "ends_at", byDay: "weekdays", byMonthDay: "month_days", byMonth: null, bySetPos: null },

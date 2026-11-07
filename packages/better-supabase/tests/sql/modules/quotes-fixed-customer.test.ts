@@ -55,7 +55,7 @@ create table public.quotes (
   revision integer not null default 1,
   title text not null,
   customer_id uuid references public.customers (id),
-  owner_user_id uuid,
+  owner_id uuid,
   currency text not null,
   status text not null default 'draft',
   valid_until date,

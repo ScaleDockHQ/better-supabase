@@ -113,7 +113,7 @@ const DRIVE_APP_MODULES = {
       drives: {
         tenant: "organization_id",
         kind: "drive_type",
-        owner: "owner_user_id",
+        owner: "owner_id",
         connection: "connection_id",
         createdBy: "created_by",
         updatedAt: "updated_at",

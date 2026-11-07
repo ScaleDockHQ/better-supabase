@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:2d9f66c0c436a4b405f4258ac8fa8a45bbfaa989008f3de4e1f6b8b6bfab4284
+-- @bsb-hash sha256:eed49fcd10de0ffbbc84927b706e61d8c29c396db30340332d8c18d6776e6a4a
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -115,27 +115,27 @@ create table "better_supabase"."shift_swaps" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "assignment_id" uuid not null,
-  "from_user_id" uuid not null,
-  "to_user_id" uuid not null,
+  "from_id" uuid not null,
+  "to_id" uuid not null,
   "status" text not null default 'pending' constraint bsb_shift_swaps_status_check check ("status" in ('pending', 'approved', 'rejected', 'canceled')),
   "approval_id" uuid,
   "note" text constraint bsb_shift_swaps_note_check check ("note" is null or length("note") <= 2000),
   "decided_by" uuid,
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  constraint bsb_shift_swaps_check check ("to_user_id" <> "from_user_id"),
+  constraint bsb_shift_swaps_check check ("to_id" <> "from_id"),
   foreign key ("tenant_id", "assignment_id") references "better_supabase"."shift_assignments" ("tenant_id", "id") on delete cascade
 );
 create index "shift_swaps_tenant_idx" on "better_supabase"."shift_swaps" ("tenant_id", "assignment_id");
 create unique index "shift_swaps_pending_idx" on "better_supabase"."shift_swaps" ("assignment_id") where "status" = 'pending';
-create index "shift_swaps_to_user_idx" on "better_supabase"."shift_swaps" ("to_user_id");
+create index "shift_swaps_to_user_idx" on "better_supabase"."shift_swaps" ("to_id");
 alter table "better_supabase"."shift_swaps" enable row level security;
 revoke all on "better_supabase"."shift_swaps" from public, anon, authenticated;
 grant select on "better_supabase"."shift_swaps" to authenticated;
 grant all on "better_supabase"."shift_swaps" to service_role;
 create policy bsb_shift_swaps_read on "better_supabase"."shift_swaps"
   for select to authenticated
-  using ("from_user_id" = (select auth.uid()) or "to_user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('shifts.manage')));
+  using ("from_id" = (select auth.uid()) or "to_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('shifts.manage')));
 
 create table "better_supabase"."shift_availability" (
   "id" uuid primary key default gen_random_uuid(),
@@ -834,7 +834,7 @@ grant execute on function "better_supabase"."decide_shift_request"(uuid, boolean
 
 -- Offers an assigned shift that hasn't started to another member. A manager
 -- decides with decide_shift_swap; the member who asked may withdraw it there.
-create or replace function "better_supabase"."request_shift_swap"(assignment_id uuid, to_user_id uuid, note text default null)
+create or replace function "better_supabase"."request_shift_swap"(assignment_id uuid, to_id uuid, note text default null)
 returns jsonb
 language plpgsql
 security definer
@@ -860,7 +860,7 @@ begin
   if v_row."status" <> 'assigned' or v_shift."status" = 'canceled' or v_shift."starts_at" <= now() then
     raise exception 'only an assigned shift that hasn''t started can be swapped' using errcode = '22023', hint = 'SHIFT_SWAP_INVALID';
   end if;
-  if request_shift_swap.to_user_id is null or request_shift_swap.to_user_id = v_row."user_id" or not exists (select 1 from "better_supabase"."memberships" mm where mm."organization_id" = v_row."tenant_id" and mm."user_id" = request_shift_swap.to_user_id and mm."disabled_at" is null) then
+  if request_shift_swap.to_id is null or request_shift_swap.to_id = v_row."user_id" or not exists (select 1 from "better_supabase"."memberships" mm where mm."organization_id" = v_row."tenant_id" and mm."user_id" = request_shift_swap.to_id and mm."disabled_at" is null) then
     raise exception 'the swap goes to another member of this organization' using errcode = '22023', hint = 'SHIFT_SWAP_INVALID';
   end if;
   if request_shift_swap.note is not null and length(request_shift_swap.note) > 2000 then
@@ -869,12 +869,12 @@ begin
   if exists (select 1 from "better_supabase"."shift_swaps" x where x."assignment_id" = v_row."id" and x."status" = 'pending') then
     raise exception 'the shift already has a pending swap' using errcode = '22023', hint = 'SHIFT_SWAP_INVALID';
   end if;
-  insert into "better_supabase"."shift_swaps" ("tenant_id", "assignment_id", "from_user_id", "to_user_id", "note")
-  values (v_row."tenant_id", v_row."id", v_row."user_id", request_shift_swap.to_user_id, nullif(trim(request_shift_swap.note), ''))
+  insert into "better_supabase"."shift_swaps" ("tenant_id", "assignment_id", "from_id", "to_id", "note")
+  values (v_row."tenant_id", v_row."id", v_row."user_id", request_shift_swap.to_id, nullif(trim(request_shift_swap.note), ''))
   returning * into v_swap;
   null;
   
-  return jsonb_build_object('id', v_swap."id", 'organizationId', v_swap."tenant_id", 'assignmentId', v_swap."assignment_id", 'fromUserId', v_swap."from_user_id", 'toUserId', v_swap."to_user_id", 'status', v_swap."status", 'approvalId', v_swap."approval_id", 'note', v_swap."note", 'decidedBy', v_swap."decided_by", 'decidedAt', v_swap."decided_at", 'createdAt', v_swap."created_at");
+  return jsonb_build_object('id', v_swap."id", 'organizationId', v_swap."tenant_id", 'assignmentId', v_swap."assignment_id", 'fromUserId', v_swap."from_id", 'toUserId', v_swap."to_id", 'status', v_swap."status", 'approvalId', v_swap."approval_id", 'note', v_swap."note", 'decidedBy', v_swap."decided_by", 'decidedAt', v_swap."decided_at", 'createdAt', v_swap."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."request_shift_swap"(uuid, uuid, text) from public, anon;
@@ -905,7 +905,7 @@ begin
   end if;
   if (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_swap."tenant_id", 'shifts.manage'), false)) then
     v_status := case when coalesce(decide_shift_swap.approve, false) then 'approved' else 'rejected' end;
-  elsif v_swap."from_user_id" = (select auth.uid()) and not coalesce(decide_shift_swap.approve, false) then
+  elsif v_swap."from_id" = (select auth.uid()) and not coalesce(decide_shift_swap.approve, false) then
     v_status := 'canceled';
   else
     raise exception 'not allowed to decide shift swaps' using errcode = '42501', hint = 'SHIFT_FORBIDDEN';
@@ -922,14 +922,14 @@ begin
     if v_row."status" <> 'assigned' or v_shift."status" = 'canceled' then
       raise exception 'the shift is no longer assigned to the member who asked' using errcode = '22023', hint = 'SHIFT_SWAP_INVALID';
     end if;
-    perform "better_supabase"."shift_assignment_check"(v_shift."id", v_swap."to_user_id", null);
+    perform "better_supabase"."shift_assignment_check"(v_shift."id", v_swap."to_id", null);
     update "better_supabase"."shift_assignments" x set "status" = 'released', "updated_at" = now()
     where x."id" = v_row."id"
     returning x.* into v_row;
     null;
     begin
       insert into "better_supabase"."shift_assignments" ("tenant_id", "shift_id", "user_id", "status", "starts_at", "ends_at", "assigned_by")
-  values (v_shift."tenant_id", v_shift."id", v_swap."to_user_id", 'assigned', v_shift."starts_at", v_shift."ends_at", (select auth.uid()))
+  values (v_shift."tenant_id", v_shift."id", v_swap."to_id", 'assigned', v_shift."starts_at", v_shift."ends_at", (select auth.uid()))
   on conflict ("shift_id", "user_id") do update set "status" = 'assigned', "starts_at" = excluded."starts_at", "ends_at" = excluded."ends_at", "assigned_by" = excluded."assigned_by", "updated_at" = now()
   returning * into v_row;
     exception when exclusion_violation then
@@ -947,7 +947,7 @@ begin
   if v_status = 'approved' then
     
   end if;
-  return jsonb_build_object('id', v_swap."id", 'organizationId', v_swap."tenant_id", 'assignmentId', v_swap."assignment_id", 'fromUserId', v_swap."from_user_id", 'toUserId', v_swap."to_user_id", 'status', v_swap."status", 'approvalId', v_swap."approval_id", 'note', v_swap."note", 'decidedBy', v_swap."decided_by", 'decidedAt', v_swap."decided_at", 'createdAt', v_swap."created_at");
+  return jsonb_build_object('id', v_swap."id", 'organizationId', v_swap."tenant_id", 'assignmentId', v_swap."assignment_id", 'fromUserId', v_swap."from_id", 'toUserId', v_swap."to_id", 'status', v_swap."status", 'approvalId', v_swap."approval_id", 'note', v_swap."note", 'decidedBy', v_swap."decided_by", 'decidedAt', v_swap."decided_at", 'createdAt', v_swap."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."decide_shift_swap"(uuid, boolean, uuid) from public, anon;
@@ -1176,7 +1176,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."shift_swaps" as rest
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("from_user_id" = (select auth.uid()) or "to_user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('shifts.manage')))
+    or ("from_id" = (select auth.uid()) or "to_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('shifts.manage')))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."shift_swaps" as restrictive
   for insert to public

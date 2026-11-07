@@ -102,7 +102,7 @@ const NAMES: BlockSqlNames = {
         id: "id",
         tenant: "tenant_id",
         kind: "kind",
-        holderUser: "holder_user_id",
+        holderUser: "holder_id",
         holderName: "holder_name",
         holderEmail: "holder_email",
         subjectType: "subject_type",

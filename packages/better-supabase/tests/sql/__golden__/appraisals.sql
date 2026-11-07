@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:2c8b724212329e797a986b0758f48cff08eb24a4aa29b8ffd89f8331f1d216f9
+-- @bsb-hash sha256:42a325563b66e0d3934ea7e21f4507210b47a4b2039005c00ea0017d45153c85
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -40,7 +40,7 @@ begin
   select x."anonymity" into v_mode from "better_supabase"."appraisal_cycles" x where x."id" = v_row."cycle_id";
   return case v_mode
     when 'none' then false
-    when 'subject' then coalesce(v_row."subject_user_id" = auth.uid(), false)
+    when 'subject' then coalesce(v_row."appraisee_id" = auth.uid(), false)
     else true
   end;
 end;
@@ -83,7 +83,7 @@ create table "better_supabase"."appraisals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cycle_id" uuid not null,
-  "subject_user_id" uuid not null,
+  "appraisee_id" uuid not null,
   "manager_id" uuid,
   "status" text not null default 'pending' constraint bsb_appraisals_status_check check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off')),
   -- The average of the submitted reviews.
@@ -99,12 +99,12 @@ create table "better_supabase"."appraisals" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  unique ("cycle_id", "subject_user_id"),
+  unique ("cycle_id", "appraisee_id"),
   foreign key ("tenant_id", "cycle_id") references "better_supabase"."appraisal_cycles" ("tenant_id", "id") on delete cascade,
   constraint bsb_appraisals_check check (("status" = 'signed_off') = ("signed_off_at" is not null))
 );
 create index "appraisals_cycle_idx" on "better_supabase"."appraisals" ("tenant_id", "cycle_id", "status");
-create index "appraisals_subject_idx" on "better_supabase"."appraisals" ("tenant_id", "subject_user_id");
+create index "appraisals_subject_idx" on "better_supabase"."appraisals" ("tenant_id", "appraisee_id");
 create index "appraisals_approval_idx" on "better_supabase"."appraisals" ("approval_id") where "approval_id" is not null;
 alter table "better_supabase"."appraisals" enable row level security;
 revoke all on "better_supabase"."appraisals" from public, anon, authenticated;
@@ -362,14 +362,14 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'cycleId', x."cycle_id",
-    'subjectUserId', x."subject_user_id", 'managerId', x."manager_id", 'status', x."status",
+    'subjectUserId', x."appraisee_id", 'managerId', x."manager_id", 'status', x."status",
     'rating', x."rating"::text, 'calibratedRating', x."calibrated_rating", 'approvalId', x."approval_id",
     'signedOffAt', x."signed_off_at", 'signedOffBy', x."signed_off_by", 'createdAt', x."created_at",
     'rubric', coalesce((
       select jsonb_agg(jsonb_build_object('key', w."key", 'name', w."name", 'weight', w."weight") order by w."position")
       from "better_supabase"."appraisal_competencies" w where w."cycle_id" = x."cycle_id"
     ), '[]'::jsonb),
-    'competencies', case when appraisal_json.all_reviews or (x."subject_user_id" = auth.uid() and x."status" = 'signed_off'
+    'competencies', case when appraisal_json.all_reviews or (x."appraisee_id" = auth.uid() and x."status" = 'signed_off'
       and (select z."share_feedback" from "better_supabase"."appraisal_cycles" z where z."id" = x."cycle_id")) then coalesce((
       select jsonb_agg(jsonb_build_object('key', w."key", 'name', w."name", 'weight', w."weight",
         'average', (
@@ -391,7 +391,7 @@ as $$
         order by y."kind", y."id")
       from "better_supabase"."appraisal_reviews" y
       where y."appraisal_id" = x."id"
-        and (appraisal_json.all_reviews or y."reviewer_id" = auth.uid() or ((x."subject_user_id" = auth.uid() and x."status" = 'signed_off'
+        and (appraisal_json.all_reviews or y."reviewer_id" = auth.uid() or ((x."appraisee_id" = auth.uid() and x."status" = 'signed_off'
       and (select z."share_feedback" from "better_supabase"."appraisal_cycles" z where z."id" = x."cycle_id")) and y."submitted_at" is not null))
     ), '[]'::jsonb),
     'calibrations', coalesce((
@@ -552,7 +552,7 @@ begin
     if v_subject = any(v_peers) or v_manager = any(v_peers) then
       raise exception 'a peer is neither the person nor the manager' using errcode = '22023', hint = 'APPRAISALS_INVALID';
     end if;
-    insert into "better_supabase"."appraisals" ("tenant_id", "cycle_id", "subject_user_id", "manager_id")
+    insert into "better_supabase"."appraisals" ("tenant_id", "cycle_id", "appraisee_id", "manager_id")
     values (v_cycle."tenant_id", v_cycle."id", v_subject, v_manager)
     on conflict do nothing
     returning * into v_appraisal;
@@ -945,7 +945,7 @@ declare
   v_row "better_supabase"."appraisals";
 begin
   select * into v_row from "better_supabase"."appraisals" x where x."id" = get_appraisal.appraisal_id;
-  if not found or not coalesce((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'appraisals.read'), false))) or (v_row."subject_user_id" = auth.uid()
+  if not found or not coalesce((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'appraisals.read'), false))) or (v_row."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = v_row."id" and z."reviewer_id" = auth.uid())), false) then
     raise exception 'no such appraisal' using errcode = 'P0002', hint = 'APPRAISALS_NOT_FOUND';
   end if;
@@ -979,8 +979,8 @@ begin
       where x."tenant_id" = list_appraisals.tenant
         and (not v_filters ? 'cycleId' or x."cycle_id" = (v_filters ->> 'cycleId')::uuid)
         and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'subjectUserId' or x."subject_user_id" = (v_filters ->> 'subjectUserId')::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."subject_user_id" = auth.uid()
+        and (not v_filters ? 'subjectUserId' or x."appraisee_id" = (v_filters ->> 'subjectUserId')::uuid)
+        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
       order by x."created_at" desc, x."id"
       limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
@@ -1167,7 +1167,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:adbeadb37588f91222166aa5a553d23ea5d6a722adb38d29e71b98a87fdbb9ae
+-- @bsb-hash sha256:42c5a8167ce5704cb1c968d08996371576e10cfd79345161f887f45d22b1123e
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1206,7 +1206,7 @@ begin
   select x."anonymity" into v_mode from "better_supabase"."appraisal_cycles" x where x."id" = v_row."cycle_id";
   return case v_mode
     when 'none' then false
-    when 'subject' then coalesce(v_row."subject_user_id" = auth.uid(), false)
+    when 'subject' then coalesce(v_row."appraisee_id" = auth.uid(), false)
     else true
   end;
 end;
@@ -1249,7 +1249,7 @@ create table "better_supabase"."appraisals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cycle_id" uuid not null,
-  "subject_user_id" uuid not null,
+  "appraisee_id" uuid not null,
   "manager_id" uuid,
   "status" text not null default 'pending' constraint bsb_appraisals_status_check check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off')),
   -- The average of the submitted reviews.
@@ -1265,12 +1265,12 @@ create table "better_supabase"."appraisals" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  unique ("cycle_id", "subject_user_id"),
+  unique ("cycle_id", "appraisee_id"),
   foreign key ("tenant_id", "cycle_id") references "better_supabase"."appraisal_cycles" ("tenant_id", "id") on delete cascade,
   constraint bsb_appraisals_check check (("status" = 'signed_off') = ("signed_off_at" is not null))
 );
 create index "appraisals_cycle_idx" on "better_supabase"."appraisals" ("tenant_id", "cycle_id", "status");
-create index "appraisals_subject_idx" on "better_supabase"."appraisals" ("tenant_id", "subject_user_id");
+create index "appraisals_subject_idx" on "better_supabase"."appraisals" ("tenant_id", "appraisee_id");
 create index "appraisals_approval_idx" on "better_supabase"."appraisals" ("approval_id") where "approval_id" is not null;
 alter table "better_supabase"."appraisals" enable row level security;
 revoke all on "better_supabase"."appraisals" from public, anon, authenticated;
@@ -1554,14 +1554,14 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'cycleId', x."cycle_id",
-    'subjectUserId', x."subject_user_id", 'managerId', x."manager_id", 'status', x."status",
+    'subjectUserId', x."appraisee_id", 'managerId', x."manager_id", 'status', x."status",
     'rating', x."rating"::text, 'calibratedRating', x."calibrated_rating", 'approvalId', x."approval_id",
     'signedOffAt', x."signed_off_at", 'signedOffBy', x."signed_off_by", 'createdAt', x."created_at",
     'rubric', coalesce((
       select jsonb_agg(jsonb_build_object('key', w."key", 'name', w."name", 'weight', w."weight") order by w."position")
       from "better_supabase"."appraisal_competencies" w where w."cycle_id" = x."cycle_id"
     ), '[]'::jsonb),
-    'competencies', case when appraisal_json.all_reviews or (x."subject_user_id" = auth.uid() and x."status" = 'signed_off'
+    'competencies', case when appraisal_json.all_reviews or (x."appraisee_id" = auth.uid() and x."status" = 'signed_off'
       and (select z."share_feedback" from "better_supabase"."appraisal_cycles" z where z."id" = x."cycle_id")) then coalesce((
       select jsonb_agg(jsonb_build_object('key', w."key", 'name', w."name", 'weight', w."weight",
         'average', (
@@ -1583,7 +1583,7 @@ as $$
         order by y."kind", y."id")
       from "better_supabase"."appraisal_reviews" y
       where y."appraisal_id" = x."id"
-        and (appraisal_json.all_reviews or y."reviewer_id" = auth.uid() or ((x."subject_user_id" = auth.uid() and x."status" = 'signed_off'
+        and (appraisal_json.all_reviews or y."reviewer_id" = auth.uid() or ((x."appraisee_id" = auth.uid() and x."status" = 'signed_off'
       and (select z."share_feedback" from "better_supabase"."appraisal_cycles" z where z."id" = x."cycle_id")) and y."submitted_at" is not null))
     ), '[]'::jsonb),
     'calibrations', coalesce((
@@ -1759,7 +1759,7 @@ begin
     if v_subject = any(v_peers) or v_manager = any(v_peers) then
       raise exception 'a peer is neither the person nor the manager' using errcode = '22023', hint = 'APPRAISALS_INVALID';
     end if;
-    insert into "better_supabase"."appraisals" ("tenant_id", "cycle_id", "subject_user_id", "manager_id")
+    insert into "better_supabase"."appraisals" ("tenant_id", "cycle_id", "appraisee_id", "manager_id")
     values (v_cycle."tenant_id", v_cycle."id", v_subject, v_manager)
     on conflict do nothing
     returning * into v_appraisal;
@@ -1781,7 +1781,7 @@ begin
         perform "better_supabase"."enrollment_ensure"(v_cycle."tenant_id", v_cycle."program", v_version, v_steps,
           'appraisal', v_appraisal."id"::text, auth.uid());
       end if;
-      perform "better_supabase".emit_event('appraisal.created', jsonb_build_object('organizationId', v_appraisal."tenant_id", 'id', v_appraisal."id", 'cycleId', v_appraisal."cycle_id", 'subjectUserId', v_appraisal."subject_user_id", 'status', v_appraisal."status"), 'appraisals/' || v_appraisal."id"::text, (v_appraisal."tenant_id")::text, null, 'better-supabase/appraisals');
+      perform "better_supabase".emit_event('appraisal.created', jsonb_build_object('organizationId', v_appraisal."tenant_id", 'id', v_appraisal."id", 'cycleId', v_appraisal."cycle_id", 'subjectUserId', v_appraisal."appraisee_id", 'status', v_appraisal."status"), 'appraisals/' || v_appraisal."id"::text, (v_appraisal."tenant_id")::text, null, 'better-supabase/appraisals');
   perform better_supabase.audit_event(
     event_type => 'appraisal.created',
     category => 'data',
@@ -1789,7 +1789,7 @@ begin
     record_id => v_appraisal."id"::text,
     summary => 'appraisal created',
     tenant => (v_appraisal."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_appraisal."tenant_id", 'id', v_appraisal."id", 'cycleId', v_appraisal."cycle_id", 'subjectUserId', v_appraisal."subject_user_id", 'status', v_appraisal."status")
+    metadata => jsonb_build_object('organizationId', v_appraisal."tenant_id", 'id', v_appraisal."id", 'cycleId', v_appraisal."cycle_id", 'subjectUserId', v_appraisal."appraisee_id", 'status', v_appraisal."status")
   );
     end if;
     v_appraisal := null;
@@ -2077,7 +2077,7 @@ begin
   set "calibrated_rating" = calibrate_appraisal.rating, "status" = 'calibrated', "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('appraisal.calibrated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'cycleId', v_row."cycle_id", 'subjectUserId', v_row."subject_user_id", 'status', v_row."status", 'rating', v_row."calibrated_rating"), 'appraisals/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/appraisals');
+  perform "better_supabase".emit_event('appraisal.calibrated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'cycleId', v_row."cycle_id", 'subjectUserId', v_row."appraisee_id", 'status', v_row."status", 'rating', v_row."calibrated_rating"), 'appraisals/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/appraisals');
   perform better_supabase.audit_event(
     event_type => 'appraisal.calibrated',
     category => 'data',
@@ -2085,7 +2085,7 @@ begin
     record_id => v_row."id"::text,
     summary => 'appraisal calibrated',
     tenant => (v_row."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'cycleId', v_row."cycle_id", 'subjectUserId', v_row."subject_user_id", 'status', v_row."status", 'rating', v_row."calibrated_rating")
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'cycleId', v_row."cycle_id", 'subjectUserId', v_row."appraisee_id", 'status', v_row."status", 'rating', v_row."calibrated_rating")
   );
   perform "better_supabase"."appraisal_step"(v_row."id", 'calibration');
   return "better_supabase"."appraisal_json"(v_row."id", true);
@@ -2153,7 +2153,7 @@ begin
     "status" = 'calibrated', "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('appraisal.calibrated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'cycleId', v_row."cycle_id", 'subjectUserId', v_row."subject_user_id", 'status', v_row."status", 'rating', v_row."calibrated_rating"), 'appraisals/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/appraisals');
+  perform "better_supabase".emit_event('appraisal.calibrated', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'cycleId', v_row."cycle_id", 'subjectUserId', v_row."appraisee_id", 'status', v_row."status", 'rating', v_row."calibrated_rating"), 'appraisals/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/appraisals');
   perform better_supabase.audit_event(
     event_type => 'appraisal.calibrated',
     category => 'data',
@@ -2161,7 +2161,7 @@ begin
     record_id => v_row."id"::text,
     summary => 'appraisal calibrated',
     tenant => (v_row."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'cycleId', v_row."cycle_id", 'subjectUserId', v_row."subject_user_id", 'status', v_row."status", 'rating', v_row."calibrated_rating")
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'cycleId', v_row."cycle_id", 'subjectUserId', v_row."appraisee_id", 'status', v_row."status", 'rating', v_row."calibrated_rating")
   );
   perform "better_supabase"."appraisal_step"(v_row."id", 'calibration');
   return "better_supabase"."appraisal_json"(v_row."id", true);
@@ -2221,7 +2221,7 @@ declare
   v_row "better_supabase"."appraisals";
 begin
   select * into v_row from "better_supabase"."appraisals" x where x."id" = get_appraisal.appraisal_id;
-  if not found or not coalesce((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'appraisals.read'), false))) or (v_row."subject_user_id" = auth.uid()
+  if not found or not coalesce((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'appraisals.read'), false))) or (v_row."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = v_row."id" and z."reviewer_id" = auth.uid())), false) then
     raise exception 'no such appraisal' using errcode = 'P0002', hint = 'APPRAISALS_NOT_FOUND';
   end if;
@@ -2255,8 +2255,8 @@ begin
       where x."tenant_id" = list_appraisals.tenant
         and (not v_filters ? 'cycleId' or x."cycle_id" = (v_filters ->> 'cycleId')::uuid)
         and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'subjectUserId' or x."subject_user_id" = (v_filters ->> 'subjectUserId')::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."subject_user_id" = auth.uid()
+        and (not v_filters ? 'subjectUserId' or x."appraisee_id" = (v_filters ->> 'subjectUserId')::uuid)
+        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
       order by x."created_at" desc, x."id"
       limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
@@ -2288,7 +2288,7 @@ begin
   set "status" = 'signed_off', "signed_off_at" = now(), "signed_off_by" = auth.uid(), "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('appraisal.finalized', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'cycleId', v_row."cycle_id", 'subjectUserId', v_row."subject_user_id", 'status', v_row."status", 'rating', coalesce(v_row."calibrated_rating"::numeric, v_row."rating")), 'appraisals/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/appraisals');
+  perform "better_supabase".emit_event('appraisal.finalized', jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'cycleId', v_row."cycle_id", 'subjectUserId', v_row."appraisee_id", 'status', v_row."status", 'rating', coalesce(v_row."calibrated_rating"::numeric, v_row."rating")), 'appraisals/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/appraisals');
   perform better_supabase.audit_event(
     event_type => 'appraisal.finalized',
     category => 'data',
@@ -2296,7 +2296,7 @@ begin
     record_id => v_row."id"::text,
     summary => 'appraisal signed off',
     tenant => (v_row."tenant_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'cycleId', v_row."cycle_id", 'subjectUserId', v_row."subject_user_id", 'status', v_row."status", 'rating', coalesce(v_row."calibrated_rating"::numeric, v_row."rating"))
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id", 'id', v_row."id", 'cycleId', v_row."cycle_id", 'subjectUserId', v_row."appraisee_id", 'status', v_row."status", 'rating', coalesce(v_row."calibrated_rating"::numeric, v_row."rating"))
   );
   perform "better_supabase"."appraisal_step"(v_row."id", 'sign_off');
 end;
@@ -2351,7 +2351,7 @@ begin
   if v_cycle."status" <> 'open' or v_row."status" not in ('reviewed', 'calibrated') then
     raise exception 'only a reviewed or calibrated appraisal in an open cycle is signed off' using errcode = '55000', hint = 'APPRAISALS_STATE';
   end if;
-  v_payload := jsonb_build_object('appraisalId', v_row."id", 'cycleId', v_row."cycle_id", 'subjectUserId', v_row."subject_user_id",
+  v_payload := jsonb_build_object('appraisalId', v_row."id", 'cycleId', v_row."cycle_id", 'subjectUserId', v_row."appraisee_id",
     'rating', coalesce(v_row."calibrated_rating"::numeric, v_row."rating")::text,
     'competencies', "better_supabase"."appraisal_json"(v_row."id", true) -> 'competencies');
   v_approval := "better_supabase"."open_approval"(
@@ -2511,7 +2511,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:2c821673c8063aafa2367f8cbb2677047d69ffec0db6950ecb90277e6fceb7f0
+-- @bsb-hash sha256:18bb2eedba2a6a7537f6b4f6b0ea2f39d28338e1236031bad8438f6abb68cc90
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2555,7 +2555,7 @@ begin
   select x."anonymity" into v_mode from "app_private"."appraisal_cycles" x where x."id" = v_row."cycle_id";
   return case v_mode
     when 'none' then false
-    when 'subject' then coalesce(v_row."subject_user_id" = auth.uid(), false)
+    when 'subject' then coalesce(v_row."appraisee_id" = auth.uid(), false)
     else true
   end;
 end;
@@ -2598,7 +2598,7 @@ create table "app_private"."appraisals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cycle_id" uuid not null,
-  "subject_user_id" uuid not null,
+  "appraisee_id" uuid not null,
   "manager_id" uuid,
   "status" text not null default 'pending' constraint bsb_appraisals_status_check check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off')),
   -- The average of the submitted reviews.
@@ -2614,12 +2614,12 @@ create table "app_private"."appraisals" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  unique ("cycle_id", "subject_user_id"),
+  unique ("cycle_id", "appraisee_id"),
   foreign key ("tenant_id", "cycle_id") references "app_private"."appraisal_cycles" ("tenant_id", "id") on delete cascade,
   constraint bsb_appraisals_check check (("status" = 'signed_off') = ("signed_off_at" is not null))
 );
 create index "appraisals_cycle_idx" on "app_private"."appraisals" ("tenant_id", "cycle_id", "status");
-create index "appraisals_subject_idx" on "app_private"."appraisals" ("tenant_id", "subject_user_id");
+create index "appraisals_subject_idx" on "app_private"."appraisals" ("tenant_id", "appraisee_id");
 create index "appraisals_approval_idx" on "app_private"."appraisals" ("approval_id") where "approval_id" is not null;
 alter table "app_private"."appraisals" enable row level security;
 revoke all on "app_private"."appraisals" from public, anon, authenticated;
@@ -2877,14 +2877,14 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'cycleId', x."cycle_id",
-    'subjectUserId', x."subject_user_id", 'managerId', x."manager_id", 'status', x."status",
+    'subjectUserId', x."appraisee_id", 'managerId', x."manager_id", 'status', x."status",
     'rating', x."rating"::text, 'calibratedRating', x."calibrated_rating", 'approvalId', x."approval_id",
     'signedOffAt', x."signed_off_at", 'signedOffBy', x."signed_off_by", 'createdAt', x."created_at",
     'rubric', coalesce((
       select jsonb_agg(jsonb_build_object('key', w."key", 'name', w."name", 'weight', w."weight") order by w."position")
       from "app_private"."appraisal_competencies" w where w."cycle_id" = x."cycle_id"
     ), '[]'::jsonb),
-    'competencies', case when appraisal_json.all_reviews or (x."subject_user_id" = auth.uid() and x."status" = 'signed_off'
+    'competencies', case when appraisal_json.all_reviews or (x."appraisee_id" = auth.uid() and x."status" = 'signed_off'
       and (select z."share_feedback" from "app_private"."appraisal_cycles" z where z."id" = x."cycle_id")) then coalesce((
       select jsonb_agg(jsonb_build_object('key', w."key", 'name', w."name", 'weight', w."weight",
         'average', (
@@ -2906,7 +2906,7 @@ as $$
         order by y."kind", y."id")
       from "app_private"."appraisal_reviews" y
       where y."appraisal_id" = x."id"
-        and (appraisal_json.all_reviews or y."reviewer_id" = auth.uid() or ((x."subject_user_id" = auth.uid() and x."status" = 'signed_off'
+        and (appraisal_json.all_reviews or y."reviewer_id" = auth.uid() or ((x."appraisee_id" = auth.uid() and x."status" = 'signed_off'
       and (select z."share_feedback" from "app_private"."appraisal_cycles" z where z."id" = x."cycle_id")) and y."submitted_at" is not null))
     ), '[]'::jsonb),
     'calibrations', coalesce((
@@ -3067,7 +3067,7 @@ begin
     if v_subject = any(v_peers) or v_manager = any(v_peers) then
       raise exception 'a peer is neither the person nor the manager' using errcode = '22023', hint = 'APPRAISALS_INVALID';
     end if;
-    insert into "app_private"."appraisals" ("tenant_id", "cycle_id", "subject_user_id", "manager_id")
+    insert into "app_private"."appraisals" ("tenant_id", "cycle_id", "appraisee_id", "manager_id")
     values (v_cycle."tenant_id", v_cycle."id", v_subject, v_manager)
     on conflict do nothing
     returning * into v_appraisal;
@@ -3460,7 +3460,7 @@ declare
   v_row "app_private"."appraisals";
 begin
   select * into v_row from "app_private"."appraisals" x where x."id" = get_appraisal.appraisal_id;
-  if not found or not coalesce((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'appraisals.read'), false))) or (v_row."subject_user_id" = auth.uid()
+  if not found or not coalesce((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'appraisals.read'), false))) or (v_row."appraisee_id" = auth.uid()
     or exists (select 1 from "app_private"."appraisal_reviews" z where z."appraisal_id" = v_row."id" and z."reviewer_id" = auth.uid())), false) then
     raise exception 'no such appraisal' using errcode = 'P0002', hint = 'APPRAISALS_NOT_FOUND';
   end if;
@@ -3494,8 +3494,8 @@ begin
       where x."tenant_id" = list_appraisals.tenant
         and (not v_filters ? 'cycleId' or x."cycle_id" = (v_filters ->> 'cycleId')::uuid)
         and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'subjectUserId' or x."subject_user_id" = (v_filters ->> 'subjectUserId')::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."subject_user_id" = auth.uid()
+        and (not v_filters ? 'subjectUserId' or x."appraisee_id" = (v_filters ->> 'subjectUserId')::uuid)
+        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "app_private"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
       order by x."created_at" desc, x."id"
       limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
@@ -3682,7 +3682,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:41b1e23a1a95319a25cdf999b3af925e3869427225f725290da70284dca939f8
+-- @bsb-hash sha256:e8e70f58d69a4107c7e815669c0997f633b65642947bc1da0ff0ccc3cc35cf21
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3721,7 +3721,7 @@ begin
   select x."anonymity" into v_mode from "better_supabase"."appraisal_cycles" x where x."id" = v_row."cycle_id";
   return case v_mode
     when 'none' then false
-    when 'subject' then coalesce(v_row."subject_user_id" = auth.uid(), false)
+    when 'subject' then coalesce(v_row."appraisee_id" = auth.uid(), false)
     else true
   end;
 end;
@@ -3764,7 +3764,7 @@ create table "better_supabase"."appraisals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cycle_id" uuid not null,
-  "subject_user_id" uuid not null,
+  "appraisee_id" uuid not null,
   "manager_id" uuid,
   "status" text not null default 'pending' constraint bsb_appraisals_status_check check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off')),
   -- The average of the submitted reviews.
@@ -3780,12 +3780,12 @@ create table "better_supabase"."appraisals" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  unique ("cycle_id", "subject_user_id"),
+  unique ("cycle_id", "appraisee_id"),
   foreign key ("tenant_id", "cycle_id") references "better_supabase"."appraisal_cycles" ("tenant_id", "id") on delete cascade,
   constraint bsb_appraisals_check check (("status" = 'signed_off') = ("signed_off_at" is not null))
 );
 create index "appraisals_cycle_idx" on "better_supabase"."appraisals" ("tenant_id", "cycle_id", "status");
-create index "appraisals_subject_idx" on "better_supabase"."appraisals" ("tenant_id", "subject_user_id");
+create index "appraisals_subject_idx" on "better_supabase"."appraisals" ("tenant_id", "appraisee_id");
 create index "appraisals_approval_idx" on "better_supabase"."appraisals" ("approval_id") where "approval_id" is not null;
 alter table "better_supabase"."appraisals" enable row level security;
 revoke all on "better_supabase"."appraisals" from public, anon, authenticated;
@@ -4043,14 +4043,14 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'cycleId', x."cycle_id",
-    'subjectUserId', x."subject_user_id", 'managerId', x."manager_id", 'status', x."status",
+    'subjectUserId', x."appraisee_id", 'managerId', x."manager_id", 'status', x."status",
     'rating', x."rating"::text, 'calibratedRating', x."calibrated_rating", 'approvalId', x."approval_id",
     'signedOffAt', x."signed_off_at", 'signedOffBy', x."signed_off_by", 'createdAt', x."created_at",
     'rubric', coalesce((
       select jsonb_agg(jsonb_build_object('key', w."key", 'name', w."name", 'weight', w."weight") order by w."position")
       from "better_supabase"."appraisal_competencies" w where w."cycle_id" = x."cycle_id"
     ), '[]'::jsonb),
-    'competencies', case when appraisal_json.all_reviews or (x."subject_user_id" = auth.uid() and x."status" = 'signed_off'
+    'competencies', case when appraisal_json.all_reviews or (x."appraisee_id" = auth.uid() and x."status" = 'signed_off'
       and (select z."share_feedback" from "better_supabase"."appraisal_cycles" z where z."id" = x."cycle_id")) then coalesce((
       select jsonb_agg(jsonb_build_object('key', w."key", 'name', w."name", 'weight', w."weight",
         'average', (
@@ -4072,7 +4072,7 @@ as $$
         order by y."kind", y."id")
       from "better_supabase"."appraisal_reviews" y
       where y."appraisal_id" = x."id"
-        and (appraisal_json.all_reviews or y."reviewer_id" = auth.uid() or ((x."subject_user_id" = auth.uid() and x."status" = 'signed_off'
+        and (appraisal_json.all_reviews or y."reviewer_id" = auth.uid() or ((x."appraisee_id" = auth.uid() and x."status" = 'signed_off'
       and (select z."share_feedback" from "better_supabase"."appraisal_cycles" z where z."id" = x."cycle_id")) and y."submitted_at" is not null))
     ), '[]'::jsonb),
     'calibrations', coalesce((
@@ -4233,7 +4233,7 @@ begin
     if v_subject = any(v_peers) or v_manager = any(v_peers) then
       raise exception 'a peer is neither the person nor the manager' using errcode = '22023', hint = 'APPRAISALS_INVALID';
     end if;
-    insert into "better_supabase"."appraisals" ("tenant_id", "cycle_id", "subject_user_id", "manager_id")
+    insert into "better_supabase"."appraisals" ("tenant_id", "cycle_id", "appraisee_id", "manager_id")
     values (v_cycle."tenant_id", v_cycle."id", v_subject, v_manager)
     on conflict do nothing
     returning * into v_appraisal;
@@ -4626,7 +4626,7 @@ declare
   v_row "better_supabase"."appraisals";
 begin
   select * into v_row from "better_supabase"."appraisals" x where x."id" = get_appraisal.appraisal_id;
-  if not found or not coalesce((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'appraisals.read'), false))) or (v_row."subject_user_id" = auth.uid()
+  if not found or not coalesce((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'appraisals.read'), false))) or (v_row."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = v_row."id" and z."reviewer_id" = auth.uid())), false) then
     raise exception 'no such appraisal' using errcode = 'P0002', hint = 'APPRAISALS_NOT_FOUND';
   end if;
@@ -4660,8 +4660,8 @@ begin
       where x."tenant_id" = list_appraisals.tenant
         and (not v_filters ? 'cycleId' or x."cycle_id" = (v_filters ->> 'cycleId')::uuid)
         and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'subjectUserId' or x."subject_user_id" = (v_filters ->> 'subjectUserId')::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."subject_user_id" = auth.uid()
+        and (not v_filters ? 'subjectUserId' or x."appraisee_id" = (v_filters ->> 'subjectUserId')::uuid)
+        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
       order by x."created_at" desc, x."id"
       limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
@@ -4973,7 +4973,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:ace9b7f51e82865996ce3c3687aa0a2d4fed907cb83dcea90fde8e45e8fa27ac
+-- @bsb-hash sha256:a353417de98704df79a338956a2562a756773e7a6b80c838dc59004f863cc7cf
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5012,7 +5012,7 @@ begin
   select x."anonymity" into v_mode from "better_supabase"."appraisal_cycles" x where x."id" = v_row."cycle_id";
   return case v_mode
     when 'none' then false
-    when 'subject' then coalesce(v_row."subject_user_id" = auth.uid(), false)
+    when 'subject' then coalesce(v_row."appraisee_id" = auth.uid(), false)
     else true
   end;
 end;
@@ -5047,7 +5047,7 @@ create policy bsb_appraisal_cycles_read on "better_supabase"."appraisal_cycles"
 alter table "better_supabase"."appraisals" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."appraisals" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."appraisals" add column if not exists "cycle_id" uuid;
-alter table "better_supabase"."appraisals" add column if not exists "subject_user_id" uuid;
+alter table "better_supabase"."appraisals" add column if not exists "appraisee_id" uuid;
 alter table "better_supabase"."appraisals" add column if not exists "manager_id" uuid;
 alter table "better_supabase"."appraisals" add column if not exists "status" text not null default 'pending' constraint bsb_appraisals_status_check check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off'));
 alter table "better_supabase"."appraisals" add column if not exists "rating" numeric(3, 2) constraint bsb_appraisals_rating_check check ("rating" is null or "rating" >= 1 and "rating" <= 5);
@@ -5060,7 +5060,7 @@ alter table "better_supabase"."appraisals" add column if not exists "created_at"
 alter table "better_supabase"."appraisals" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_appraisals_tenant_id_key" on "better_supabase"."appraisals" ("tenant_id", "id");
 create index if not exists "appraisals_cycle_idx" on "better_supabase"."appraisals" ("tenant_id", "cycle_id", "status");
-create index if not exists "appraisals_subject_idx" on "better_supabase"."appraisals" ("tenant_id", "subject_user_id");
+create index if not exists "appraisals_subject_idx" on "better_supabase"."appraisals" ("tenant_id", "appraisee_id");
 create index if not exists "appraisals_approval_idx" on "better_supabase"."appraisals" ("approval_id") where "approval_id" is not null;
 alter table "better_supabase"."appraisals" enable row level security;
 grant select on "better_supabase"."appraisals" to authenticated;
@@ -5292,14 +5292,14 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object('id', x."id", 'organizationId', x."tenant_id", 'cycleId', x."cycle_id",
-    'subjectUserId', x."subject_user_id", 'managerId', x."manager_id", 'status', x."status",
+    'subjectUserId', x."appraisee_id", 'managerId', x."manager_id", 'status', x."status",
     'rating', x."rating"::text, 'calibratedRating', x."calibrated_rating", 'approvalId', x."approval_id",
     'signedOffAt', x."signed_off_at", 'signedOffBy', x."signed_off_by", 'createdAt', x."created_at",
     'rubric', coalesce((
       select jsonb_agg(jsonb_build_object('key', w."key", 'name', w."name", 'weight', w."weight") order by w."position")
       from "better_supabase"."appraisal_competencies" w where w."cycle_id" = x."cycle_id"
     ), '[]'::jsonb),
-    'competencies', case when appraisal_json.all_reviews or (x."subject_user_id" = auth.uid() and x."status" = 'signed_off'
+    'competencies', case when appraisal_json.all_reviews or (x."appraisee_id" = auth.uid() and x."status" = 'signed_off'
       and (select z."share_feedback" from "better_supabase"."appraisal_cycles" z where z."id" = x."cycle_id")) then coalesce((
       select jsonb_agg(jsonb_build_object('key', w."key", 'name', w."name", 'weight', w."weight",
         'average', (
@@ -5321,7 +5321,7 @@ as $$
         order by y."kind", y."id")
       from "better_supabase"."appraisal_reviews" y
       where y."appraisal_id" = x."id"
-        and (appraisal_json.all_reviews or y."reviewer_id" = auth.uid() or ((x."subject_user_id" = auth.uid() and x."status" = 'signed_off'
+        and (appraisal_json.all_reviews or y."reviewer_id" = auth.uid() or ((x."appraisee_id" = auth.uid() and x."status" = 'signed_off'
       and (select z."share_feedback" from "better_supabase"."appraisal_cycles" z where z."id" = x."cycle_id")) and y."submitted_at" is not null))
     ), '[]'::jsonb),
     'calibrations', coalesce((
@@ -5482,7 +5482,7 @@ begin
     if v_subject = any(v_peers) or v_manager = any(v_peers) then
       raise exception 'a peer is neither the person nor the manager' using errcode = '22023', hint = 'APPRAISALS_INVALID';
     end if;
-    insert into "better_supabase"."appraisals" ("tenant_id", "cycle_id", "subject_user_id", "manager_id")
+    insert into "better_supabase"."appraisals" ("tenant_id", "cycle_id", "appraisee_id", "manager_id")
     values (v_cycle."tenant_id", v_cycle."id", v_subject, v_manager)
     on conflict do nothing
     returning * into v_appraisal;
@@ -5875,7 +5875,7 @@ declare
   v_row "better_supabase"."appraisals";
 begin
   select * into v_row from "better_supabase"."appraisals" x where x."id" = get_appraisal.appraisal_id;
-  if not found or not coalesce((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'appraisals.read'), false))) or (v_row."subject_user_id" = auth.uid()
+  if not found or not coalesce((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'appraisals.read'), false))) or (v_row."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = v_row."id" and z."reviewer_id" = auth.uid())), false) then
     raise exception 'no such appraisal' using errcode = 'P0002', hint = 'APPRAISALS_NOT_FOUND';
   end if;
@@ -5909,8 +5909,8 @@ begin
       where x."tenant_id" = list_appraisals.tenant
         and (not v_filters ? 'cycleId' or x."cycle_id" = (v_filters ->> 'cycleId')::uuid)
         and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'subjectUserId' or x."subject_user_id" = (v_filters ->> 'subjectUserId')::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."subject_user_id" = auth.uid()
+        and (not v_filters ? 'subjectUserId' or x."appraisee_id" = (v_filters ->> 'subjectUserId')::uuid)
+        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
       order by x."created_at" desc, x."id"
       limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)
@@ -6097,7 +6097,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:0caf9df597cafb8d404ee717540ac632e4db9a339039eb943b91e30c1f570e1c
+-- @bsb-hash sha256:5f9245295e9f3dc11d60381858a0df7c15a0f6529b93dfd069eb41944d58a58f
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6136,7 +6136,7 @@ begin
   select x."anonymity" into v_mode from "better_supabase"."appraisal_cycles" x where x."id" = v_row."cycle_id";
   return case v_mode
     when 'none' then false
-    when 'subject' then coalesce(v_row."subject_user_id" = auth.uid(), false)
+    when 'subject' then coalesce(v_row."appraisee_id" = auth.uid(), false)
     else true
   end;
 end;
@@ -6179,7 +6179,7 @@ create table "better_supabase"."appraisals" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "cycle_id" uuid not null,
-  "subject_user_id" uuid not null,
+  "appraisee_id" uuid not null,
   "manager_id" uuid,
   "status" text not null default 'pending' constraint bsb_appraisals_status_check check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off')),
   -- The average of the submitted reviews.
@@ -6195,12 +6195,12 @@ create table "better_supabase"."appraisals" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "id"),
-  unique ("cycle_id", "subject_user_id"),
+  unique ("cycle_id", "appraisee_id"),
   foreign key ("org_id", "cycle_id") references "better_supabase"."appraisal_cycles" ("org_id", "id") on delete cascade,
   constraint bsb_appraisals_check check (("status" = 'signed_off') = ("signed_off_at" is not null))
 );
 create index "appraisals_cycle_idx" on "better_supabase"."appraisals" ("org_id", "cycle_id", "status");
-create index "appraisals_subject_idx" on "better_supabase"."appraisals" ("org_id", "subject_user_id");
+create index "appraisals_subject_idx" on "better_supabase"."appraisals" ("org_id", "appraisee_id");
 create index "appraisals_approval_idx" on "better_supabase"."appraisals" ("approval_id") where "approval_id" is not null;
 alter table "better_supabase"."appraisals" enable row level security;
 revoke all on "better_supabase"."appraisals" from public, anon, authenticated;
@@ -6458,14 +6458,14 @@ security definer
 set search_path = ''
 as $$
   select jsonb_build_object('id', x."id", 'organizationId', x."org_id", 'cycleId', x."cycle_id",
-    'subjectUserId', x."subject_user_id", 'managerId', x."manager_id", 'status', x."status",
+    'subjectUserId', x."appraisee_id", 'managerId', x."manager_id", 'status', x."status",
     'rating', x."rating"::text, 'calibratedRating', x."calibrated_rating", 'approvalId', x."approval_id",
     'signedOffAt', x."signed_off_at", 'signedOffBy', x."signed_off_by", 'createdAt', x."created_at",
     'rubric', coalesce((
       select jsonb_agg(jsonb_build_object('key', w."key", 'name', w."name", 'weight', w."weight") order by w."position")
       from "better_supabase"."appraisal_competencies" w where w."cycle_id" = x."cycle_id"
     ), '[]'::jsonb),
-    'competencies', case when appraisal_json.all_reviews or (x."subject_user_id" = auth.uid() and x."status" = 'signed_off'
+    'competencies', case when appraisal_json.all_reviews or (x."appraisee_id" = auth.uid() and x."status" = 'signed_off'
       and (select z."share_feedback" from "better_supabase"."appraisal_cycles" z where z."id" = x."cycle_id")) then coalesce((
       select jsonb_agg(jsonb_build_object('key', w."key", 'name', w."name", 'weight', w."weight",
         'average', (
@@ -6487,7 +6487,7 @@ as $$
         order by y."kind", y."id")
       from "better_supabase"."appraisal_reviews" y
       where y."appraisal_id" = x."id"
-        and (appraisal_json.all_reviews or y."reviewer_id" = auth.uid() or ((x."subject_user_id" = auth.uid() and x."status" = 'signed_off'
+        and (appraisal_json.all_reviews or y."reviewer_id" = auth.uid() or ((x."appraisee_id" = auth.uid() and x."status" = 'signed_off'
       and (select z."share_feedback" from "better_supabase"."appraisal_cycles" z where z."id" = x."cycle_id")) and y."submitted_at" is not null))
     ), '[]'::jsonb),
     'calibrations', coalesce((
@@ -6648,7 +6648,7 @@ begin
     if v_subject = any(v_peers) or v_manager = any(v_peers) then
       raise exception 'a peer is neither the person nor the manager' using errcode = '22023', hint = 'APPRAISALS_INVALID';
     end if;
-    insert into "better_supabase"."appraisals" ("org_id", "cycle_id", "subject_user_id", "manager_id")
+    insert into "better_supabase"."appraisals" ("org_id", "cycle_id", "appraisee_id", "manager_id")
     values (v_cycle."org_id", v_cycle."id", v_subject, v_manager)
     on conflict do nothing
     returning * into v_appraisal;
@@ -7041,7 +7041,7 @@ declare
   v_row "better_supabase"."appraisals";
 begin
   select * into v_row from "better_supabase"."appraisals" x where x."id" = get_appraisal.appraisal_id;
-  if not found or not coalesce((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'appraisals.read'), false))) or (v_row."subject_user_id" = auth.uid()
+  if not found or not coalesce((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'appraisals.read'), false))) or (v_row."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = v_row."id" and z."reviewer_id" = auth.uid())), false) then
     raise exception 'no such appraisal' using errcode = 'P0002', hint = 'APPRAISALS_NOT_FOUND';
   end if;
@@ -7075,8 +7075,8 @@ begin
       where x."org_id" = list_appraisals.tenant
         and (not v_filters ? 'cycleId' or x."cycle_id" = (v_filters ->> 'cycleId')::uuid)
         and (not v_filters ? 'status' or x."status" = v_filters ->> 'status')
-        and (not v_filters ? 'subjectUserId' or x."subject_user_id" = (v_filters ->> 'subjectUserId')::uuid)
-        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."subject_user_id" = auth.uid()
+        and (not v_filters ? 'subjectUserId' or x."appraisee_id" = (v_filters ->> 'subjectUserId')::uuid)
+        and ((v_all and (v_filters ->> 'mine') is distinct from 'true') or (x."appraisee_id" = auth.uid()
     or exists (select 1 from "better_supabase"."appraisal_reviews" z where z."appraisal_id" = x."id" and z."reviewer_id" = auth.uid())))
       order by x."created_at" desc, x."id"
       limit v_limit offset coalesce((v_filters ->> 'offset')::integer, 0)

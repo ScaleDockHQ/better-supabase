@@ -47,7 +47,7 @@ const ROW = {
   company_id: "c1",
   contact_type: null,
   contact_id: null,
-  owner_user_id: "u1",
+  owner_id: "u1",
   currency: "EUR",
   status: "sent",
   valid_until: "2026-11-14",
@@ -433,7 +433,7 @@ describe("quote documents", () => {
     discount_amount: "1000",
     deposit_bps: 3000,
     deposit_due: "6600",
-    decided_user_id: "g1",
+    decider_id: "g1",
     decided_ip: "10.0.0.1",
     decided_user_agent: "Browser/1",
     lines: [

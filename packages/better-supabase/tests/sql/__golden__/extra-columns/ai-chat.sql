@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:1d8e26d4407105f987b6efc256e7825b344954040673945e0c2e5dab8930fe58
+-- @bsb-hash sha256:20988466a3b707f2429aa39f4b3f340ce0daf3835bd80cb7b3aa1d14a036b0ec
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -73,7 +73,7 @@ create table "better_supabase"."ai_chat_participants" (
   "user_id" uuid references auth.users (id) on delete cascade,
   "kind" text not null default 'user' constraint bsb_ai_chat_participants_kind_check check ("kind" in ('user', 'team', 'customer', 'external')),
   "team_id" uuid,
-  "customer_user_id" uuid references auth.users (id) on delete cascade,
+  "customer_id" uuid references auth.users (id) on delete cascade,
   "email" text constraint bsb_ai_chat_participants_email_check check (length("email") <= 320),
   "role" text not null default 'viewer' constraint bsb_ai_chat_participants_role_check check ("role" in ('viewer', 'editor')),
   "added_by" uuid references auth.users (id) on delete set null,
@@ -81,17 +81,17 @@ create table "better_supabase"."ai_chat_participants" (
   constraint bsb_ai_chat_participants_check check (
     ("kind" = 'user' and "user_id" is not null)
     or ("kind" = 'team' and "team_id" is not null)
-    or ("kind" = 'customer' and "customer_user_id" is not null)
+    or ("kind" = 'customer' and "customer_id" is not null)
     or ("kind" = 'external' and "email" is not null)
   )
 );
 create unique index ai_chat_participants_user_key on "better_supabase"."ai_chat_participants" ("chat_id", "user_id") where "kind" = 'user';
 create unique index ai_chat_participants_team_key on "better_supabase"."ai_chat_participants" ("chat_id", "team_id") where "kind" = 'team';
-create unique index ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_user_id") where "kind" = 'customer';
+create unique index ai_chat_participants_customer_key on "better_supabase"."ai_chat_participants" ("chat_id", "customer_id") where "kind" = 'customer';
 create unique index ai_chat_participants_email_key on "better_supabase"."ai_chat_participants" ("chat_id", lower("email")) where "kind" = 'external';
 create index ai_chat_participants_chat_idx on "better_supabase"."ai_chat_participants" ("chat_id");
 create index ai_chat_participants_user_idx on "better_supabase"."ai_chat_participants" ("user_id");
-create index ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_user_id");
+create index ai_chat_participants_customer_user_idx on "better_supabase"."ai_chat_participants" ("customer_id");
 create index ai_chat_participants_added_by_idx on "better_supabase"."ai_chat_participants" ("added_by");
 alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
@@ -806,7 +806,7 @@ begin
   update "better_supabase"."ai_chats" c set "visibility" = 'shared', "updated_at" = now()
   where c."id" = v_chat.id and c."visibility" = 'private';
   perform "better_supabase"."ai_chat_notify"(v_chat.id, add_ai_chat_participant.participant, 'participant.added', jsonb_build_object('userId', add_ai_chat_participant.participant, 'role', v_role), true);
-  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_user_id', v_row."customer_user_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_id', v_row."customer_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."add_ai_chat_participant"(uuid, uuid, text, jsonb) from public, anon;
@@ -862,9 +862,9 @@ begin
     raise exception 'No chat %', list_ai_chat_participants.chat using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
   end if;
   return (
-    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c."id", 'user_id', c."owner_id", 'kind', 'user', 'team_id', null, 'customer_user_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', c."created_at"))
+    select jsonb_build_array(jsonb_build_object('id', null, 'chat_id', c."id", 'user_id', c."owner_id", 'kind', 'user', 'team_id', null, 'customer_id', null, 'email', null, 'role', 'owner', 'added_by', null, 'created_at', c."created_at"))
       || coalesce((
-        select jsonb_agg(jsonb_build_object('id', x."id", 'chat_id', x."chat_id", 'user_id', x."user_id", 'kind', x."kind", 'team_id', x."team_id", 'customer_user_id', x."customer_user_id", 'email', x."email", 'role', x."role", 'added_by', x."added_by", 'created_at', x."created_at") order by x."created_at", x."id")
+        select jsonb_agg(jsonb_build_object('id', x."id", 'chat_id', x."chat_id", 'user_id', x."user_id", 'kind', x."kind", 'team_id', x."team_id", 'customer_id', x."customer_id", 'email', x."email", 'role', x."role", 'added_by', x."added_by", 'created_at', x."created_at") order by x."created_at", x."id")
         from "better_supabase"."ai_chat_participants" x
         where x."chat_id" = list_ai_chat_participants.chat
       ), '[]'::jsonb)
@@ -928,9 +928,9 @@ begin
     on conflict ("chat_id", "team_id") where "kind" = 'team' do update set "role" = excluded."role"
     returning * into v_row;
   elsif add_ai_chat_party.party_kind = 'customer' then
-    insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "customer_user_id", "role", "added_by")
+    insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "customer_id", "role", "added_by")
     values (v_chat.id, 'customer', add_ai_chat_party.party::uuid, v_role, auth.uid())
-    on conflict ("chat_id", "customer_user_id") where "kind" = 'customer' do update set "role" = excluded."role"
+    on conflict ("chat_id", "customer_id") where "kind" = 'customer' do update set "role" = excluded."role"
     returning * into v_row;
   elsif add_ai_chat_party.party_kind = 'external' then
     insert into "better_supabase"."ai_chat_participants" ("chat_id", "kind", "email", "role", "added_by")
@@ -941,7 +941,7 @@ begin
   update "better_supabase"."ai_chats" c set "visibility" = 'shared', "updated_at" = now()
   where c."id" = v_chat.id and c."visibility" = 'private';
   perform "better_supabase"."ai_chat_notify"(v_chat.id, v_chat.owner, 'participant.added', jsonb_build_object('kind', add_ai_chat_party.party_kind, 'role', v_role), true);
-  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_user_id', v_row."customer_user_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'chat_id', v_row."chat_id", 'user_id', v_row."user_id", 'kind', v_row."kind", 'team_id', v_row."team_id", 'customer_id', v_row."customer_id", 'email', v_row."email", 'role', v_row."role", 'added_by', v_row."added_by", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."add_ai_chat_party"(uuid, text, text, text) from public, anon;
@@ -970,7 +970,7 @@ begin
   end if;
   delete from "better_supabase"."ai_chat_participants" x
   where x."chat_id" = v_chat.id and x."kind"::text = remove_ai_chat_party.party_kind
-    and ((remove_ai_chat_party.party_kind = 'team' and x."team_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'customer' and x."customer_user_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'external' and lower(x."email") = lower(btrim(remove_ai_chat_party.party))));
+    and ((remove_ai_chat_party.party_kind = 'team' and x."team_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'customer' and x."customer_id" = remove_ai_chat_party.party::uuid) or (remove_ai_chat_party.party_kind = 'external' and lower(x."email") = lower(btrim(remove_ai_chat_party.party))));
   get diagnostics v_count = row_count;
   if v_count > 0 then
     perform "better_supabase"."ai_chat_notify"(v_chat.id, v_chat.owner, 'participant.removed', jsonb_build_object('kind', remove_ai_chat_party.party_kind), true);

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:6d500e8cd9117c6fe5b67c9135f5ef872c52dfd621849ffa4c0e29a7c19f400a
+-- @bsb-hash sha256:b5bac2da23e04cd9de58fad1b080e4153aee68e950a4dabd94d4b21cef4cd2af
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -62,13 +62,13 @@ create table "better_supabase"."enrollment_steps" (
   "tenant_id" uuid,
   "step" text not null,
   "assignee_role" text constraint bsb_enrollment_steps_assignee_role_check check ("assignee_role" is null or "assignee_role" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "assignee_user_id" uuid references auth.users (id) on delete set null,
+  "assignee_id" uuid references auth.users (id) on delete set null,
   "due_at" timestamptz,
   "completed_by" uuid,
   "completed_at" timestamptz default now(),
   primary key ("enrollment_id", "step")
 );
-create index "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_user_id", "due_at");
+create index "enrollment_steps_assignee_idx" on "better_supabase"."enrollment_steps" ("assignee_id", "due_at");
 create index "enrollment_steps_due_idx" on "better_supabase"."enrollment_steps" ("tenant_id", "due_at") where "completed_at" is null;
 
 alter table "better_supabase"."enrollment_programs" enable row level security;
@@ -114,10 +114,10 @@ as $$
     ), '[]'::jsonb),
     'startsAt', x."starts_at", 'endsAt', x."ends_at",
     'schedule', coalesce((
-      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
+      select jsonb_agg(jsonb_strip_nulls(jsonb_build_object('step', y."step", 'assignee', case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_id" is not null then jsonb_build_object('userId', y."assignee_id") end, 'dueAt', y."due_at", 'completedAt', y."completed_at")) order by array_position(x."steps", y."step"), y."step")
       from "better_supabase"."enrollment_steps" y
       where y."enrollment_id" = x."id"
-        and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null)
+        and (y."assignee_role" is not null or y."assignee_id" is not null or y."due_at" is not null)
     ), '[]'::jsonb)
   )
   from "better_supabase"."enrollments" x
@@ -220,14 +220,14 @@ begin
   delete from "better_supabase"."enrollment_steps" y
   where y."enrollment_id" = v_row."id" and y."completed_at" is null and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step");
   update "better_supabase"."enrollment_steps" y
-  set "assignee_role" = null, "assignee_user_id" = null, "due_at" = null
+  set "assignee_role" = null, "assignee_id" = null, "due_at" = null
   where y."enrollment_id" = v_row."id" and not exists (select 1 from jsonb_array_elements(v_plan) as z(value) where z.value ->> 'step' = y."step")
-    and (y."assignee_role" is not null or y."assignee_user_id" is not null or y."due_at" is not null);
-  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_user_id", "due_at", "completed_by", "completed_at")
+    and (y."assignee_role" is not null or y."assignee_id" is not null or y."due_at" is not null);
+  insert into "better_supabase"."enrollment_steps" as y ("enrollment_id", "tenant_id", "step", "assignee_role", "assignee_id", "due_at", "completed_by", "completed_at")
   select v_row."id", v_row."tenant_id", z.value ->> 'step', z.value ->> 'role', (z.value ->> 'userId')::uuid, (z.value ->> 'dueAt')::timestamptz, null, null
   from jsonb_array_elements(v_plan) as z(value)
   on conflict ("enrollment_id", "step") do update
-  set "assignee_role" = excluded."assignee_role", "assignee_user_id" = excluded."assignee_user_id", "due_at" = excluded."due_at";
+  set "assignee_role" = excluded."assignee_role", "assignee_id" = excluded."assignee_id", "due_at" = excluded."due_at";
 end;
 $$;
 revoke execute on function "better_supabase"."enrollment_schedule"(uuid) from public, anon, authenticated;
@@ -739,10 +739,10 @@ declare
   v_row "better_supabase"."enrollments";
 begin
   select * into v_row from "better_supabase"."enrollments" x where x."id" = enrollment_step.enrollment_id;
-  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
+  if v_row."id" is null or not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.read'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_id" = auth.uid())) then
     raise exception 'enrollment not found' using errcode = 'P0002', hint = 'ENROLLMENTS_NOT_FOUND';
   end if;
-  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_user_id" = auth.uid())) then
+  if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'enrollments.enroll'), false))) or (v_row."user_id" is not null and coalesce(v_row."user_id" = auth.uid(), false)) or exists (select 1 from "better_supabase"."enrollment_steps" a where a."enrollment_id" = v_row."id" and a."step" = enrollment_step.step and a."assignee_id" = auth.uid())) then
     raise exception 'not allowed to change this enrollment' using errcode = '42501', hint = 'ENROLLMENTS_FORBIDDEN';
   end if;
   -- A course's steps follow its lessons, so they change only through courses.
@@ -1001,7 +1001,7 @@ begin
     from (
       select x."id" as row_id, x."tenant_id" as scope_id, x."program" as program,
         x."subject_type" as subject_type, x."subject_id" as subject_id, y."step" as step,
-        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_user_id" is not null then jsonb_build_object('userId', y."assignee_user_id") end as assignee, y."due_at" as due_at,
+        case when y."assignee_role" is not null then jsonb_build_object('role', y."assignee_role") when y."assignee_id" is not null then jsonb_build_object('userId', y."assignee_id") end as assignee, y."due_at" as due_at,
         (select t.value ->> 'title' from "better_supabase"."enrollment_programs" q, jsonb_array_elements(q."steps") as t(value)
           where q."tenant_id" = x."tenant_id" and q."key" = x."program" and t.value ->> 'id' = y."step" limit 1) as title
       from "better_supabase"."enrollment_steps" y
@@ -1010,9 +1010,9 @@ begin
         and y."completed_at" is null and x."status" = 'active'
         -- A sequence's open step is its next run, which its runner takes.
         and x."program" not like 'sequence:%'
-        and (v_read or y."assignee_user_id" = auth.uid())
+        and (v_read or y."assignee_id" = auth.uid())
         and (open_enrollment_steps.assignee_role is null or y."assignee_role" = open_enrollment_steps.assignee_role)
-        and (open_enrollment_steps.assignee_user is null or y."assignee_user_id" = open_enrollment_steps.assignee_user)
+        and (open_enrollment_steps.assignee_user is null or y."assignee_id" = open_enrollment_steps.assignee_user)
         and (open_enrollment_steps.due_before is null or y."due_at" < open_enrollment_steps.due_before)
       order by y."due_at" nulls last, x."id", y."step"
       limit least(greatest(coalesce(open_enrollment_steps.page_size, 50), 1), 200)

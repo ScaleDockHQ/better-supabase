@@ -193,9 +193,9 @@ export default defineConfig({
     "field-history": {
       on: {
         deal: {
-          fields: ["amount", "stage_id", "owner_user_id", "expected_close_on"],
+          fields: ["amount", "stage_id", "owner_id", "expected_close_on"],
         },
-        company: { fields: ["owner_user_id", "lifecycle"] },
+        company: { fields: ["owner_id", "lifecycle"] },
       },
     },
     // Tags on customers, edited with the tag input on the customer page. The

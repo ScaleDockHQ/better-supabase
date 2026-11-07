@@ -60,10 +60,10 @@ create table public.bsb_test_scorecards (
   id uuid primary key default gen_random_uuid(),
   tenant_id uuid not null,
   application_id uuid not null references public.bsb_test_applications (id) on delete cascade,
-  reviewer_user_id uuid not null,
+  reviewer_id uuid not null,
   rating smallint not null,
   submitted_at timestamptz not null default now(),
-  unique (application_id, reviewer_user_id)
+  unique (application_id, reviewer_id)
 );
 
 create table public.bsb_test_scorecard_scores (

@@ -410,6 +410,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0344: Pause block controllers offline and write the Next.js layout from init.
 - 0345: Timestamp columns end in _at.
 - 0346: Soft-deleted block rows carry archived_at.
+- 0347: User references are named by their role.
 
 ## Pre-release pins
 

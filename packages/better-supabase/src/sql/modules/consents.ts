@@ -121,7 +121,7 @@ const NAMES: BlockSqlNames = {
         subjectId: "subject_id",
         givenBy: "given_by",
         givenByContact: "given_by_contact_id",
-        givenByUser: "given_by_user_id",
+        givenByUser: "grantor_id",
         status: "status",
         scope: "scope",
         grantedAt: "granted_at",

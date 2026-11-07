@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:15a4a256ec862795b18d8233cfcbbb6f83688632f897b970c6ce36859f808c77
+-- @bsb-hash sha256:fefb64fef943b26412e0b3bff2ed75a2c6286bbf9b0472b75d863433de2be258
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -92,7 +92,7 @@ create table "better_supabase"."pipeline_stage_history" (
   "outcome" text not null,
   "amount" bigint,
   "currency" char(3),
-  "actor_user_id" uuid,
+  "actor_id" uuid,
   "entered_at" timestamptz not null default now(),
   "exited_at" timestamptz
 );
@@ -668,7 +668,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:fc6a004f23b88fc2d6e579d046f1be2157c06c7ad5d0d75766d63673cbe7f1bf
+-- @bsb-hash sha256:fd85350cdaef080b4bcb96ed4b969ceb71a877f3f5f32ad9f11ae9de0334ddd7
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -759,7 +759,7 @@ create table "better_supabase"."pipeline_stage_history" (
   "outcome" text not null,
   "amount" bigint,
   "currency" char(3),
-  "actor_user_id" uuid,
+  "actor_id" uuid,
   "entered_at" timestamptz not null default now(),
   "exited_at" timestamptz
 );
@@ -890,9 +890,9 @@ declare
 begin
   if tg_op = 'UPDATE' and new."stage_id" is not distinct from old."stage_id" and new."pipeline_id" is not distinct from old."pipeline_id" then
   -- The owner watches the record; a level they already chose stays.
-  if new."owner_user_id" is not null and (tg_op = 'INSERT' or new."owner_user_id" is distinct from old."owner_user_id") then
+  if new."owner_id" is not null and (tg_op = 'INSERT' or new."owner_id" is distinct from old."owner_id") then
     insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
-    values (new."tenant_id", new."owner_user_id", 'deal', new."id"::text, 'participating')
+    values (new."tenant_id", new."owner_id", 'deal', new."id"::text, 'participating')
     on conflict do nothing;
   end if;
     return new;
@@ -945,7 +945,7 @@ begin
     new."stage_entered_at" := now();
     update "better_supabase"."pipeline_stage_history" set "exited_at" = now()
     where "subject_type" = 'deal' and "subject_id" = new."id"::text and "exited_at" is null;
-    insert into "better_supabase"."pipeline_stage_history" ("tenant_id", "subject_type", "subject_id", "pipeline_id", "from_stage_id", "to_stage_id", "stage_name", "category", "outcome", "amount", "currency", "actor_user_id")
+    insert into "better_supabase"."pipeline_stage_history" ("tenant_id", "subject_type", "subject_id", "pipeline_id", "from_stage_id", "to_stage_id", "stage_name", "category", "outcome", "amount", "currency", "actor_id")
     values (new."tenant_id", 'deal', new."id"::text, new."pipeline_id", case when tg_op = 'UPDATE' then old."stage_id" end, new."stage_id", v_stage_name, v_category, v_outcome, new."amount", new."currency", auth.uid());
     if tg_op = 'UPDATE' then
       perform "better_supabase".emit_event('pipeline.stage_changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'deal', 'subjectId', new."id"::text, 'pipelineId', new."pipeline_id", 'fromStageId', old."stage_id", 'toStageId', new."stage_id", 'category', v_category, 'outcome', v_outcome), 'pipelines/' || new."pipeline_id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/pipelines');
@@ -977,15 +977,15 @@ begin
   end;
   end if;
   -- The owner watches the record; a level they already chose stays.
-  if new."owner_user_id" is not null and (tg_op = 'INSERT' or new."owner_user_id" is distinct from old."owner_user_id") then
+  if new."owner_id" is not null and (tg_op = 'INSERT' or new."owner_id" is distinct from old."owner_id") then
     insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
-    values (new."tenant_id", new."owner_user_id", 'deal', new."id"::text, 'participating')
+    values (new."tenant_id", new."owner_id", 'deal', new."id"::text, 'participating')
     on conflict do nothing;
   end if;
   return new;
 end;
 $$;
-create trigger bsb_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."deals"
+create trigger bsb_pipeline_deal before insert or update of "stage_id", "pipeline_id", "owner_id" on "better_supabase"."deals"
 for each row execute function better_supabase.bsb_pipeline_deal();
 
 create or replace function better_supabase.bsb_pipeline_status_deal()
@@ -1072,7 +1072,7 @@ begin
     new."stage_entered_at" := now();
     update "better_supabase"."pipeline_stage_history" set "exited_at" = now()
     where "subject_type" = 'task' and "subject_id" = new."id"::text and "exited_at" is null;
-    insert into "better_supabase"."pipeline_stage_history" ("tenant_id", "subject_type", "subject_id", "pipeline_id", "from_stage_id", "to_stage_id", "stage_name", "category", "outcome", "amount", "currency", "actor_user_id")
+    insert into "better_supabase"."pipeline_stage_history" ("tenant_id", "subject_type", "subject_id", "pipeline_id", "from_stage_id", "to_stage_id", "stage_name", "category", "outcome", "amount", "currency", "actor_id")
     values (new."tenant_id", 'task', new."id"::text, new."pipeline_id", case when tg_op = 'UPDATE' then old."stage_id" end, new."stage_id", v_stage_name, v_category, v_outcome, null, null, auth.uid());
     if tg_op = 'UPDATE' then
       perform "better_supabase".emit_event('pipeline.stage_changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'task', 'subjectId', new."id"::text, 'pipelineId', new."pipeline_id", 'fromStageId', old."stage_id", 'toStageId', new."stage_id", 'category', v_category, 'outcome', v_outcome), 'pipelines/' || new."pipeline_id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/pipelines');
@@ -1144,9 +1144,9 @@ declare
 begin
   if tg_op = 'UPDATE' and new."stage_id" is not distinct from old."stage_id" and new."pipeline_id" is not distinct from old."pipeline_id" then
   -- The owner watches the record; a level they already chose stays.
-  if new."owner_user_id" is not null and (tg_op = 'INSERT' or new."owner_user_id" is distinct from old."owner_user_id") then
+  if new."owner_id" is not null and (tg_op = 'INSERT' or new."owner_id" is distinct from old."owner_id") then
     insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
-    values (new."tenant_id", new."owner_user_id", 'application', new."id"::text, 'participating')
+    values (new."tenant_id", new."owner_id", 'application', new."id"::text, 'participating')
     on conflict do nothing;
   end if;
     return new;
@@ -1199,7 +1199,7 @@ begin
     new."stage_entered_at" := now();
     update "better_supabase"."pipeline_stage_history" set "exited_at" = now()
     where "subject_type" = 'application' and "subject_id" = new."id"::text and "exited_at" is null;
-    insert into "better_supabase"."pipeline_stage_history" ("tenant_id", "subject_type", "subject_id", "pipeline_id", "from_stage_id", "to_stage_id", "stage_name", "category", "outcome", "amount", "currency", "actor_user_id")
+    insert into "better_supabase"."pipeline_stage_history" ("tenant_id", "subject_type", "subject_id", "pipeline_id", "from_stage_id", "to_stage_id", "stage_name", "category", "outcome", "amount", "currency", "actor_id")
     values (new."tenant_id", 'application', new."id"::text, new."pipeline_id", case when tg_op = 'UPDATE' then old."stage_id" end, new."stage_id", v_stage_name, v_category, v_outcome, null, null, auth.uid());
     if tg_op = 'UPDATE' then
       perform "better_supabase".emit_event('pipeline.stage_changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'application', 'subjectId', new."id"::text, 'pipelineId', new."pipeline_id", 'fromStageId', old."stage_id", 'toStageId', new."stage_id", 'category', v_category, 'outcome', v_outcome), 'pipelines/' || new."pipeline_id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/pipelines');
@@ -1231,15 +1231,15 @@ begin
   end;
   end if;
   -- The owner watches the record; a level they already chose stays.
-  if new."owner_user_id" is not null and (tg_op = 'INSERT' or new."owner_user_id" is distinct from old."owner_user_id") then
+  if new."owner_id" is not null and (tg_op = 'INSERT' or new."owner_id" is distinct from old."owner_id") then
     insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
-    values (new."tenant_id", new."owner_user_id", 'application', new."id"::text, 'participating')
+    values (new."tenant_id", new."owner_id", 'application', new."id"::text, 'participating')
     on conflict do nothing;
   end if;
   return new;
 end;
 $$;
-create trigger bsb_pipeline_application before insert or update of "stage_id", "pipeline_id", "owner_user_id" on "better_supabase"."applications"
+create trigger bsb_pipeline_application before insert or update of "stage_id", "pipeline_id", "owner_id" on "better_supabase"."applications"
 for each row execute function better_supabase.bsb_pipeline_application();
 
 create or replace function better_supabase.bsb_pipeline_status_application()
@@ -1326,7 +1326,7 @@ begin
     new."stage_entered_at" := now();
     update "better_supabase"."pipeline_stage_history" set "exited_at" = now()
     where "subject_type" = 'case' and "subject_id" = new."id"::text and "exited_at" is null;
-    insert into "better_supabase"."pipeline_stage_history" ("tenant_id", "subject_type", "subject_id", "pipeline_id", "from_stage_id", "to_stage_id", "stage_name", "category", "outcome", "amount", "currency", "actor_user_id")
+    insert into "better_supabase"."pipeline_stage_history" ("tenant_id", "subject_type", "subject_id", "pipeline_id", "from_stage_id", "to_stage_id", "stage_name", "category", "outcome", "amount", "currency", "actor_id")
     values (new."tenant_id", 'case', new."id"::text, new."pipeline_id", case when tg_op = 'UPDATE' then old."stage_id" end, new."stage_id", v_stage_name, v_category, v_outcome, null, null, auth.uid());
     if tg_op = 'UPDATE' then
       perform "better_supabase".emit_event('pipeline.stage_changed', jsonb_build_object('organizationId', new."tenant_id"::text, 'subjectType', 'case', 'subjectId', new."id"::text, 'pipelineId', new."pipeline_id", 'fromStageId', old."stage_id", 'toStageId', new."stage_id", 'category', v_category, 'outcome', v_outcome), 'pipelines/' || new."pipeline_id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/pipelines');
@@ -1867,7 +1867,7 @@ begin
             r."amount" * coalesce(r."probability", st."probability", 0) / 100.0 as weighted
           from "better_supabase"."deals" r
           join "better_supabase"."pipeline_stages" st on st."id" = r."stage_id"
-          where r."pipeline_id" = pipeline_board.pipeline and (pipeline_board.owner is null or r."owner_user_id" = pipeline_board.owner)
+          where r."pipeline_id" = pipeline_board.pipeline and (pipeline_board.owner is null or r."owner_id" = pipeline_board.owner)
         ),
         counts as (select stage_id, count(*) as n from rows group by stage_id),
         sums as (
@@ -1919,7 +1919,7 @@ begin
           select r."stage_id" as stage_id, null::text as currency, null::bigint as amount, null::numeric as weighted
           from "better_supabase"."applications" r
           join "better_supabase"."pipeline_stages" st on st."id" = r."stage_id"
-          where r."pipeline_id" = pipeline_board.pipeline and (pipeline_board.owner is null or r."owner_user_id" = pipeline_board.owner)
+          where r."pipeline_id" = pipeline_board.pipeline and (pipeline_board.owner is null or r."owner_id" = pipeline_board.owner)
         ),
         counts as (select stage_id, count(*) as n from rows group by stage_id),
         sums as (
@@ -2184,7 +2184,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:8022f5234ef344b5ff729f9e0d20f03a4f3dd431100f60f6afb28de666265196
+-- @bsb-hash sha256:801b5652d3ace7441cb0a8602a10744c06eaba9905a908903988ea6894ba00b3
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2280,7 +2280,7 @@ create table "app_private"."pipeline_stage_history" (
   "outcome" text not null,
   "amount" bigint,
   "currency" char(3),
-  "actor_user_id" uuid,
+  "actor_id" uuid,
   "entered_at" timestamptz not null default now(),
   "exited_at" timestamptz
 );
@@ -2856,7 +2856,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:ed32243fa84db62f58bcbdca84015ee98e8f7a5ed60681da955c22c19a38845a
+-- @bsb-hash sha256:77e027c88a8bfbef535d1b3c29c0b6f8678137eb4d9ecc60ba203418f4b7a481
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2947,7 +2947,7 @@ create table "better_supabase"."pipeline_stage_history" (
   "outcome" text not null,
   "amount" bigint,
   "currency" char(3),
-  "actor_user_id" uuid,
+  "actor_id" uuid,
   "entered_at" timestamptz not null default now(),
   "exited_at" timestamptz
 );
@@ -3630,7 +3630,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:83de987bdc808502d4eb386e14f80ac3f5416f25f6c62ceddb98a92002cc2b19
+-- @bsb-hash sha256:580affcd22d07a19e4df19c8b301fb7616b19b8eba2ba02cdba2f2afb8941047
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3716,7 +3716,7 @@ alter table "better_supabase"."pipeline_stage_history" add column if not exists 
 alter table "better_supabase"."pipeline_stage_history" add column if not exists "outcome" text;
 alter table "better_supabase"."pipeline_stage_history" add column if not exists "amount" bigint;
 alter table "better_supabase"."pipeline_stage_history" add column if not exists "currency" char(3);
-alter table "better_supabase"."pipeline_stage_history" add column if not exists "actor_user_id" uuid;
+alter table "better_supabase"."pipeline_stage_history" add column if not exists "actor_id" uuid;
 alter table "better_supabase"."pipeline_stage_history" add column if not exists "entered_at" timestamptz not null default now();
 alter table "better_supabase"."pipeline_stage_history" add column if not exists "exited_at" timestamptz;
 create index if not exists pipeline_stage_history_subject_idx on "better_supabase"."pipeline_stage_history" ("subject_type", "subject_id", "entered_at");
@@ -4290,7 +4290,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:edf218d9520f0d266f4c63e0acd92d6ec602652be680d78345c02aa9cf31a134
+-- @bsb-hash sha256:9aa9ba7d62fd714533254ad115aa4f442116d26c80e7b8bff430587943c53c4b
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4381,7 +4381,7 @@ create table "better_supabase"."pipeline_stage_history" (
   "outcome" text not null,
   "amount" bigint,
   "currency" char(3),
-  "actor_user_id" uuid,
+  "actor_id" uuid,
   "entered_at" timestamptz not null default now(),
   "exited_at" timestamptz
 );

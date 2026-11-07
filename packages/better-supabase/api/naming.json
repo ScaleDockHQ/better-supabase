@@ -902,6 +902,202 @@
       "kind": "column",
       "since": "0.54",
       "table": "better_supabase.messages"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.activities"
+    },
+    {
+      "from": "customer_user_id",
+      "to": "customer_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_chat_participants"
+    },
+    {
+      "from": "reviewer_user_id",
+      "to": "reviewer_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.application_scorecards"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.applications"
+    },
+    {
+      "from": "subject_user_id",
+      "to": "appraisee_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.appraisals"
+    },
+    {
+      "from": "host_user_id",
+      "to": "host_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.booking_resources"
+    },
+    {
+      "from": "customer_user_id",
+      "to": "customer_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.bookings"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.companies"
+    },
+    {
+      "from": "given_by_user_id",
+      "to": "grantor_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.consents"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.deals"
+    },
+    {
+      "from": "assignee_user_id",
+      "to": "assignee_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.enrollment_steps"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.forecast_snapshot_deals"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.goals"
+    },
+    {
+      "from": "hiring_manager_user_id",
+      "to": "hiring_manager_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.job_openings"
+    },
+    {
+      "from": "holder_user_id",
+      "to": "holder_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.passes"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.people"
+    },
+    {
+      "from": "actor_user_id",
+      "to": "actor_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.pipeline_stage_history"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.projects"
+    },
+    {
+      "from": "decided_user_id",
+      "to": "decider_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.quotes"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.quotes"
+    },
+    {
+      "from": "referred_user_id",
+      "to": "referred_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.referrals"
+    },
+    {
+      "from": "from_user_id",
+      "to": "from_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.shift_swaps"
+    },
+    {
+      "from": "to_user_id",
+      "to": "to_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.shift_swaps"
+    },
+    {
+      "from": "actor_user_id",
+      "to": "actor_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.status_history"
+    },
+    {
+      "from": "paused_by_user_id",
+      "to": "paused_by",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.subject_lifecycles"
+    },
+    {
+      "from": "customer_user_id",
+      "to": "customer_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.booking_series"
+    },
+    {
+      "from": "speaker_user_id",
+      "to": "speaker_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.engagement_transcript_segments"
+    },
+    {
+      "from": "owner_user_id",
+      "to": "owner_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.work_projects"
     }
   ],
   "allowlist": {

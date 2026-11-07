@@ -112,7 +112,7 @@ function targetOf(value: unknown): Target {
     id: textOf(row["id"]),
     name: textOf(row["name"]),
     metric: textOf(row["metric"]),
-    ownerId: optionalText(row["owner_user_id"]),
+    ownerId: optionalText(row["owner_id"]),
     teamId: optionalText(row["team_id"]),
     periodStart:
       optionalPlainDateOf(row["period_start"]) ??
