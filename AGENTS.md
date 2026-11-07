@@ -385,6 +385,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0320: Check same-tenant references from the foreign keys by default.
 - 0321: Infer the numbering table and column.
 - 0322: Install vector-search from the tables that use it.
+- 0323: Gate the config type-check on a provider key union.
 - 0290: CLI contract 3 follows the Vercel CLI design guidelines.
 - 0291: Memoize the adoption scan on disk, watch with `dev`, and purge the cache with `cache purge`.
 - 0292: Give each first-party generator a subpath and declare its library as a peer.

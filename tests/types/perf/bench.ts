@@ -66,6 +66,8 @@ interface Baseline {
   readonly profiles: Readonly<Record<string, BaselineEntry>>;
   /** `upgrade` on the CentraKit fixture, by case (ADR 0247). */
   readonly upgrade?: UpgradeTimes;
+  /** The config program typed against a provider key union (ADR 0323). */
+  readonly config?: Readonly<Record<Compiler, Measurement>>;
 }
 
 /** What one `upgrade` run did. */
@@ -466,10 +468,14 @@ function calibrate() {
   } satisfies Readonly<Record<Compiler, number>>;
 }
 
-function measure(tsc: string, flags: readonly string[] = []): Measurement {
+function measure(
+  tsc: string,
+  flags: readonly string[] = [],
+  project = join(work, "tsconfig.json"),
+): Measurement {
   const result = spawnSync(
     process.execPath,
-    [tsc, "-p", join(work, "tsconfig.json"), "--extendedDiagnostics", ...flags],
+    [tsc, "-p", project, "--extendedDiagnostics", ...flags],
     { encoding: "utf-8" },
   );
 
@@ -944,20 +950,140 @@ function checkUpgrade(
   }
 }
 
+/**
+ * A `defineConfig` call typed against a provider with a large key union: 300
+ * keys, 40 subjects that name keys, 20 roles that list them and 5 blocks that
+ * rename an action. The permission typing is the one change that can grow the
+ * config's check time, so it has its own gate (ADR 0323).
+ */
+function configProgram(): string {
+  const keys = Array.from(
+    { length: 300 },
+    (_, i) => `"res${String(i % 40)}.act${String(i)}"`,
+  );
+
+  const key = (i: number): string => keys[i % keys.length]!;
+
+  const roles = Array.from(
+    { length: 20 },
+    (_, r) =>
+      `      r${String(r)}: [${Array.from({ length: 15 }, (_, k) => key(r * 15 + k)).join(", ")}],`,
+  );
+
+  const subjects = Array.from(
+    { length: 40 },
+    (_, i) =>
+      `    s${String(i)}: { table: "public.s${String(i)}", permissions: { read: ${key(i)}, write: { key: ${key(i + 40)}, also: ${key(i + 80)} } } },`,
+  );
+
+  return `import type { AuthorizationProvider } from "better-supabase/config";
+
+import { defineConfig } from "better-supabase/config";
+
+type Key = ${keys.join(" | ")};
+
+declare const provider: AuthorizationProvider<Key>;
+
+export default defineConfig({
+  auth: { authorization: provider },
+  blocks: {
+    permissions: {
+      roles: {
+${roles.join("\n")}
+      },
+    },
+    tasks: { permissions: { read: ${key(1)} } },
+  },
+  subjects: {
+${subjects.join("\n")}
+  },
+});
+`;
+}
+
+function benchConfig(): Readonly<Record<Compiler, Measurement>> {
+  const directory = join(work, "config");
+  rmSync(directory, { recursive: true, force: true });
+  mkdirSync(directory, { recursive: true });
+  writeFileSync(join(directory, "config.ts"), configProgram());
+  writeFileSync(
+    join(directory, "tsconfig.json"),
+    JSON.stringify({
+      compilerOptions: {
+        strict: true,
+        exactOptionalPropertyTypes: true,
+        module: "nodenext",
+        moduleResolution: "nodenext",
+        target: "es2024",
+        lib: ["ES2024"],
+        types: [],
+        allowImportingTsExtensions: true,
+        skipLibCheck: true,
+        noEmit: true,
+      },
+      files: ["config.ts"],
+    }),
+  );
+
+  const project = join(directory, "tsconfig.json");
+
+  return {
+    ts6: measure(compilers.ts6, [], project),
+    ts7: measure(compilers.ts7, [], project),
+    ts71: measure(compilers.ts71, [], project),
+  };
+}
+
+function checkConfig(
+  now: Readonly<Record<Compiler, Measurement>>,
+  before: Readonly<Record<Compiler, Measurement>> | undefined,
+): void {
+  if (!before) {
+    console.error(
+      "config has no baseline. Run `pnpm --filter @better-supabase/types-perf update`.",
+    );
+    process.exitCode = 1;
+
+    return;
+  }
+
+  for (const compiler of ["ts6", "ts7", "ts71"] as const) {
+    for (const metric of ["instantiations", "types"] as const) {
+      if (now[compiler][metric] > before[compiler][metric] * (1 + TOLERANCE)) {
+        console.error(
+          `config (${compiler}): ${metric} grew from ${String(before[compiler][metric])} to ${String(now[compiler][metric])} (tolerance ${String(TOLERANCE * 100)}%).`,
+        );
+        process.exitCode = 1;
+      }
+    }
+  }
+}
+
 const upgradeNow = benchUpgrade();
 
 console.log(
   `upgrade (centrakit): cold ${upgradeNow.cold.seconds.toFixed(2)}s (${String(upgradeNow.cold.rendered)} rendered, ${String(upgradeNow.cold.written)} written), warm ${upgradeNow.warm.seconds.toFixed(2)}s (${String(upgradeNow.warm.rendered)} rendered, ${String(upgradeNow.warm.written)} written), edit ${upgradeNow.edit.seconds.toFixed(2)}s (${String(upgradeNow.edit.rendered)} rendered, ${String(upgradeNow.edit.written)} written)`,
 );
 
+const configNow = benchConfig();
+
+console.log(
+  `config (300 keys): ${(["ts6", "ts7", "ts71"] as const).map((compiler) => `${compiler} ${String(configNow[compiler].instantiations)} instantiations, ${String(configNow[compiler].types)} types`).join("; ")}`,
+);
+
 if (!update) {
   checkUpgrade(upgradeNow, baseline.upgrade);
+  checkConfig(configNow, baseline.config);
 }
 
 if (update && only === undefined) {
   writeFileSync(
     baselinePath,
-    `${JSON.stringify({ calibration, profiles: next, upgrade: upgradeNow }, null, 2)}\n`,
+    `${JSON.stringify(
+      { calibration, profiles: next, upgrade: upgradeNow, config: configNow },
+      null,
+      2,
+    )}\n`,
   );
   console.log("baseline updated");
 }

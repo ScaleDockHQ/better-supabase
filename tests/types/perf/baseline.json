@@ -98,5 +98,22 @@
       "rendered": 0,
       "written": 0
     }
+  },
+  "config": {
+    "ts6": {
+      "types": 4080,
+      "instantiations": 17260,
+      "checkTime": 0.0
+    },
+    "ts7": {
+      "types": 4608,
+      "instantiations": 17260,
+      "checkTime": 0.0
+    },
+    "ts71": {
+      "types": 4618,
+      "instantiations": 17260,
+      "checkTime": 0.0
+    }
   }
 }
