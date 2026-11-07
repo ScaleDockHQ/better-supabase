@@ -800,14 +800,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { useComments } from "@/hooks/use-comments";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-interface Row {
-  readonly id: string;
-  readonly authorId: string | null;
-  readonly body: string;
-  readonly at: number;
-  readonly pending: boolean;
-}
-
 /**
  * A record's comments, oldest first, through the browser client. `subject` is
  * any type in `config.subjects`, such as a customer or a project.
@@ -831,29 +823,12 @@ export function CommentThread({
 
   const { comments, error, add } = useComments({ subject });
 
-  const rows: readonly Row[] | undefined = comments
-    ?.filter((comment) => !comment.deletedAt)
-    .map((comment) => ({
-      id: comment.id,
-      authorId: comment.authorId ?? null,
-      body: comment.body,
-      at: (comment.sentAt ?? comment.createdAt).epochMilliseconds,
-      pending: false,
-    }));
+  const visible = comments?.filter((comment) => !comment.deletedAt);
 
   // The comment shows at once and settles when the server's list arrives.
-  const [visible, addPending] = useOptimistic(
-    rows,
-    (list, text: string): readonly Row[] => [
-      ...(list ?? []),
-      {
-        id: `pending-${text}`,
-        authorId: null,
-        body: text,
-        at: 0,
-        pending: true,
-      },
-    ],
+  const [sending, addPending] = useOptimistic<string | undefined, string>(
+    undefined,
+    (_current, text) => text,
   );
 
   const submit = (event: SubmitEvent<HTMLFormElement>) => {
@@ -877,41 +852,35 @@ export function CommentThread({
     <div className="flex flex-col gap-6">
       {visible === undefined ? (
         <Skeleton className="h-16" />
-      ) : visible.length === 0 ? (
+      ) : visible.length === 0 && sending === undefined ? (
         <p className="text-sm text-muted-foreground">{t("No comments yet.")}</p>
       ) : (
         <ol className="flex flex-col gap-4" data-testid="comments">
           {visible.map((comment) => (
-            <li
-              key={comment.id}
-              className="flex flex-col gap-1"
-              aria-busy={comment.pending ? true : undefined}
-            >
-              {comment.pending ? null : (
-                <p className="text-sm">
-                  <span className="font-medium">
-                    {(comment.authorId && authors[comment.authorId]) ??
-                      t("Someone")}
-                  </span>{" "}
-                  <span className="text-xs text-muted-foreground">
-                    {format.dateTime(comment.at, {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
-                  </span>
-                </p>
-              )}
-              <p
-                className={
-                  comment.pending
-                    ? "text-sm whitespace-pre-wrap text-muted-foreground"
-                    : "text-sm whitespace-pre-wrap"
-                }
-              >
-                {comment.body}
+            <li key={comment.id} className="flex flex-col gap-1">
+              <p className="text-sm">
+                <span className="font-medium">
+                  {(comment.authorId && authors[comment.authorId]) ??
+                    t("Someone")}
+                </span>{" "}
+                <span className="text-xs text-muted-foreground">
+                  {format.dateTime(
+                    (comment.sentAt ?? comment.createdAt).epochMilliseconds,
+                    { dateStyle: "medium", timeStyle: "short" },
+                  )}
+                </span>
               </p>
+              <p className="text-sm whitespace-pre-wrap">{comment.body}</p>
             </li>
           ))}
+          {sending === undefined ? null : (
+            <li
+              className="text-sm whitespace-pre-wrap text-muted-foreground"
+              aria-busy
+            >
+              {sending}
+            </li>
+          )}
         </ol>
       )}
       {canComment ? (
@@ -2239,7 +2208,6 @@ import { useTable } from "@tanstack/react-table";
 import { DbException } from "better-supabase";
 import { UserMinusIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { useQueryState } from "nuqs";
 import { createContext, use, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import * as v from "valibot";
@@ -2283,7 +2251,7 @@ import { Link } from "@/i18n/navigation";
 import { Role } from "@/lib/claims";
 import { initials } from "@/lib/initials";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
-import { searchParam } from "@/lib/url-filters";
+import { useSearchParam } from "@/lib/url-filters";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 async function loadOrganizationMembers(): Promise<readonly Member[]> {
@@ -2489,7 +2457,7 @@ export function MemberTable({
   const t = useExtracted("members");
   const roleLabel = useRoleLabel();
   const errorMessage = useErrorMessage();
-  const [search, setSearch] = useQueryState("q", searchParam);
+  const [search, setSearch] = useSearchParam();
 
   const [roleFilter, setRoleFilter] = useState<Role | typeof ALL_ROLES>(
     ALL_ROLES,
@@ -2589,7 +2557,7 @@ export function MemberTable({
   });
 
   const clearFilters = () => {
-    void setSearch("");
+    setSearch("");
     setRoleFilter(ALL_ROLES);
   };
 
@@ -2604,7 +2572,7 @@ export function MemberTable({
             placeholder={t("Search members")}
             aria-label={t("Search members")}
             onChange={(event) => {
-              void setSearch(event.target.value);
+              setSearch(event.target.value);
             }}
           />
           <Select
@@ -7722,7 +7690,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { env } from "@/env";
+import { publicEnv as env } from "@/env-public";
 import { useSupabase } from "@/lib/hooks";
 import { pushConfig } from "@/lib/supabase/blocks/slices";
 

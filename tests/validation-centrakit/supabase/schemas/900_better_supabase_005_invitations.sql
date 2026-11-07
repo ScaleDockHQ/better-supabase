@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:860199d8c4bb2c9187285f3acc40bc35a05c7a4aed0cc449f064daa90adcbfc0
+-- @bsb-hash sha256:74feba6b49fe8c96d1993e72fade148b11500c95b62c44b18dcb97cd121ba57f
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -39,9 +39,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."invitation_tenant_ids"() from public, anon;
 grant execute on function "better_supabase"."invitation_tenant_ids"() to authenticated, service_role;
-create policy bsb_invitations_read on "centrakit"."organization_invitations"
-  for select to authenticated
-  using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()));
 
 -- Invitations to a platform role (the catalog model's platform assignments).
 -- centrakit.organization_invitations is the app's table, and it has every column this block needs.
@@ -68,6 +65,10 @@ end;
 $$;
 revoke execute on function "better_supabase"."platform_invitations_readable"() from public, anon;
 grant execute on function "better_supabase"."platform_invitations_readable"() to authenticated, service_role;
+-- Tenant and platform invitations share "centrakit"."organization_invitations", so one policy reads both.
+create policy bsb_invitations_read on "centrakit"."organization_invitations"
+  for select to authenticated
+  using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()) or (select "better_supabase"."platform_invitations_readable"()));
 
 -- blocks.invitations.options.platformRoles.through.where names the
 -- platform roles. Every write to "centrakit"."user_roles" stores one of them,
@@ -1144,7 +1145,6 @@ create policy bsb_tenant_scope_select on "centrakit"."organization_invitations" 
   for select to public
   using (
     "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()))
     or ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()) or (select "better_supabase"."platform_invitations_readable"()))
   );
 create policy bsb_tenant_scope_insert on "centrakit"."organization_invitations" as restrictive

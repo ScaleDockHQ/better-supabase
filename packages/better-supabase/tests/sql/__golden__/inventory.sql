@@ -14007,7 +14007,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:c25a44f31deb949e47533096b49fbd6e0c3c99810719d043c95740fb811f82a8
+-- @bsb-hash sha256:7db7ba370032b4390453e3434832bc30d897cd9fa9da982aae9c664b61277441
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14332,8 +14332,8 @@ alter table "better_supabase"."stock_allocations" add column if not exists "line
 alter table "better_supabase"."stock_allocations" add column if not exists "quantity" numeric(20, 6) constraint bsb_stock_allocations_quantity_check check ("quantity" > 0);
 alter table "better_supabase"."stock_allocations" add column if not exists "allocated" numeric(20, 6) not null default 0 constraint bsb_stock_allocations_allocated_check check ("allocated" >= 0);
 alter table "better_supabase"."stock_allocations" add column if not exists "fulfilled" numeric(20, 6) not null default 0 constraint bsb_stock_allocations_fulfilled_check check ("fulfilled" >= 0);
-alter table "better_supabase"."stock_allocations" add column if not exists "backordered" numeric(20, 6) generated always as (case when "status" = 'open' then "quantity" - "allocated" - "fulfilled" else 0 end) stored;
 alter table "better_supabase"."stock_allocations" add column if not exists "status" text not null default 'open' constraint bsb_stock_allocations_status_check check ("status" in ('open', 'fulfilled', 'released'));
+alter table "better_supabase"."stock_allocations" add column if not exists "backordered" numeric(20, 6) generated always as (case when "status" = 'open' then "quantity" - "allocated" - "fulfilled" else 0 end) stored;
 alter table "better_supabase"."stock_allocations" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."stock_allocations" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists stock_allocations_document_idx on "better_supabase"."stock_allocations" ("tenant_id", "document_type", "document_id");

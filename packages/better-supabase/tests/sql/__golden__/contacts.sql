@@ -6264,7 +6264,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:875759bffa72b1298baff48b647d04e5983725c3533a7b61cf865405afdb77ab
+-- @bsb-hash sha256:9fc1fdb059be98f8444f2320e8e0ceb0b2c1392c299c672150ac4e84ea6c87df
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6339,10 +6339,10 @@ alter table "better_supabase"."people" add column if not exists "name" text cons
 alter table "better_supabase"."people" add column if not exists "email" text constraint bsb_people_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$');
 alter table "better_supabase"."people" add column if not exists "phone" text;
 alter table "better_supabase"."people" add column if not exists "title" text;
+alter table "better_supabase"."people" add column if not exists "user_id" uuid;
 alter table "better_supabase"."people" add column if not exists "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null));
 alter table "better_supabase"."people" add column if not exists "lifecycle" text;
 alter table "better_supabase"."people" add column if not exists "owner_user_id" uuid;
-alter table "better_supabase"."people" add column if not exists "user_id" uuid;
 alter table "better_supabase"."people" add column if not exists "avatar_url" text;
 alter table "better_supabase"."people" add column if not exists "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object');
 alter table "better_supabase"."people" add column if not exists "roles" text[] not null default '{}'::text[];

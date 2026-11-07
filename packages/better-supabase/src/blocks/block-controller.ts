@@ -31,24 +31,11 @@ export interface BlockQueryState<T> {
   readonly status: "idle" | "loading" | "success" | "error";
   readonly data: T | undefined;
   readonly error: DbError | undefined;
-  /**
-   * `true` while the read is paused for lack of a connection: the last data
-   * stays, no error is set, and the read runs once when `setOffline(false)` is
-   * called. Absent until `setOffline` is first called.
-   */
-  readonly offline?: boolean;
 }
 
 export interface BlockQueryActions {
   /** Calls the method again. */
   readonly refetch: () => void;
-  /**
-   * Pauses the controller's reads (`true`) or resumes them (`false`) and runs
-   * the one a pause held back. Calling it with the current value changes
-   * nothing, so a double effect is safe. Reads kept in a `DataEngine` follow
-   * the engine's own online handling and only report the flag.
-   */
-  readonly setOffline: (offline: boolean) => void;
 }
 
 /** Where a block read hears the events that make it stale. */
@@ -64,16 +51,9 @@ export interface BlockRefetchOn {
  * shares them with `blockQueries`. `instance` is the block's key in
  * `createBlocks`.
  */
-export type BlockEngineOptions = (
+export type BlockEngineOptions =
   | { readonly engine?: undefined }
-  | { readonly engine: DataEngine; readonly instance: string }
-) & {
-  /**
-   * Starts the controller paused, for a component that mounts while the app is
-   * already offline. `setOffline` keeps it current afterwards.
-   */
-  readonly offline?: boolean;
-};
+  | { readonly engine: DataEngine; readonly instance: string };
 
 export type BlockQueryOptions = BlockEngineOptions & {
   /** Calls the method again when one of these block events arrives. */
@@ -103,7 +83,6 @@ export function createBlockQuery<
       [BLOCK_KEY, options.instance, method, ...args],
       () => call(...args),
       options.refetchOn,
-      options.offline === true,
     );
   }
 
@@ -111,36 +90,15 @@ export function createBlockQuery<
     status: "idle",
     data: undefined,
     error: undefined,
-    ...(options.offline ? { offline: true } : {}),
   };
 
   return defineController(initial, (state) => {
-    let offline = options.offline === true;
-    let held = false;
-
     const load = (): void => {
-      if (offline) {
-        held = true;
-
-        return;
-      }
-
-      held = false;
       const run = state.run();
       state.set({ status: "loading" });
 
       void Promise.resolve(call(...args)).then((result) => {
         if (run !== state.run()) {
-          return result;
-        }
-
-        if (!result.ok && offline) {
-          // The connection dropped mid-read: keep the last data, show no error.
-          held = true;
-          state.set({
-            status: state.get().data === undefined ? "idle" : "success",
-          });
-
           return result;
         }
 
@@ -159,21 +117,8 @@ export function createBlockQuery<
       });
     };
 
-    const setOffline = (next: boolean): void => {
-      if (next === offline) {
-        return;
-      }
-
-      offline = next;
-      state.set({ offline: next });
-
-      if (!next && held) {
-        load();
-      }
-    };
-
     return {
-      actions: { refetch: load, setOffline },
+      actions: { refetch: load },
       start: () => {
         load();
 
@@ -195,14 +140,13 @@ export function createBlockQuery<
   });
 }
 
-const BLOCK_KEY = "bsb";
+export const BLOCK_KEY = "bsb";
 
 function engineQuery<T>(
   engine: DataEngine,
   key: DataKey,
   call: () => PromiseLike<Result<unknown>>,
   refetchOn: BlockRefetchOn | undefined,
-  offline: boolean,
 ): Controller<BlockQueryState<T>, BlockQueryActions> {
   // SAFETY: the entry under `key` holds what this method's `Result` carries.
   const read = (): BlockQueryState<T> =>
@@ -218,45 +162,37 @@ function engineQuery<T>(
     return result.data;
   };
 
-  return defineController(
-    offline ? { ...read(), offline: true } : read(),
-    (state) => ({
-      actions: {
-        refetch: () => {
-          if (!state.get().offline) {
-            engine.refetch(key);
-          }
-        },
-        setOffline: (offline) => {
-          state.set({ offline });
-        },
+  return defineController(read(), (state) => ({
+    actions: {
+      refetch: () => {
+        engine.refetch(key);
       },
-      start: () => {
-        const stopWatching = engine.watch(key, load, () => {
-          state.set(read());
-        });
-
+    },
+    start: () => {
+      const stopWatching = engine.watch(key, load, () => {
         state.set(read());
+      });
 
-        if (refetchOn === undefined) {
-          return stopWatching;
+      state.set(read());
+
+      if (refetchOn === undefined) {
+        return stopWatching;
+      }
+
+      const types = new Set(refetchOn.types);
+
+      const stopListening = refetchOn.source.events.on("block", (event) => {
+        if (types.has(event.type)) {
+          engine.refetch(key);
         }
+      });
 
-        const types = new Set(refetchOn.types);
-
-        const stopListening = refetchOn.source.events.on("block", (event) => {
-          if (types.has(event.type) && !state.get().offline) {
-            engine.refetch(key);
-          }
-        });
-
-        return () => {
-          stopListening();
-          stopWatching();
-        };
-      },
-    }),
-  );
+      return () => {
+        stopListening();
+        stopWatching();
+      };
+    },
+  }));
 }
 
 /** A block write's state. */
@@ -264,12 +200,6 @@ export interface BlockMutationState<T> {
   readonly status: "idle" | "pending" | "success" | "error";
   readonly data: T | undefined;
   readonly error: DbError | undefined;
-  /**
-   * `true` while a write waits for the connection. The status stays `pending`
-   * and the write runs once when `setOffline(false)` is called. Absent until
-   * `setOffline` is first called.
-   */
-  readonly offline?: boolean;
 }
 
 export interface BlockMutationActions<A extends readonly unknown[], T> {
@@ -277,12 +207,6 @@ export interface BlockMutationActions<A extends readonly unknown[], T> {
   readonly mutate: (...args: A) => Promise<Result<T>>;
   /** Back to `idle`. */
   readonly reset: () => void;
-  /**
-   * Holds writes while offline (`true`): one write queues, a later call
-   * replaces its arguments and shares its promise, and the write runs once on
-   * `setOffline(false)`. Calling it with the current value changes nothing.
-   */
-  readonly setOffline: (offline: boolean) => void;
 }
 
 /**
@@ -306,102 +230,38 @@ export function createBlockMutation<
     status: "idle",
     data: undefined,
     error: undefined,
-    ...(options.offline ? { offline: true } : {}),
   };
 
   return defineController(initial, (state) => {
     let latest = 0;
-    let offline = options.offline === true;
-
-    let queued:
-      | {
-          args: BlockArgsOf<C, K>;
-          readonly promise: Promise<Result<BlockDataOf<C, K>>>;
-          readonly settle: (result: Result<BlockDataOf<C, K>>) => void;
-        }
-      | undefined;
-
-    const send = async (
-      args: BlockArgsOf<C, K>,
-    ): Promise<Result<BlockDataOf<C, K>>> => {
-      latest += 1;
-      const mine = latest;
-      state.set({ status: "pending", error: undefined });
-
-      // SAFETY: the method's `Result` carries `BlockDataOf<C, K>`.
-      const result = (await call(...args)) as Result<BlockDataOf<C, K>>;
-
-      if (result.ok && options.engine !== undefined) {
-        options.engine.invalidate([BLOCK_KEY, options.instance]);
-      }
-
-      if (mine === latest) {
-        state.set(
-          result.ok
-            ? { status: "success", data: result.data, error: undefined }
-            : { status: "error", error: result.error },
-        );
-      }
-
-      return result;
-    };
-
-    const queue = (
-      args: BlockArgsOf<C, K>,
-    ): Promise<Result<BlockDataOf<C, K>>> => {
-      if (queued) {
-        queued.args = args;
-
-        return queued.promise;
-      }
-
-      let settle: (result: Result<BlockDataOf<C, K>>) => void = () => undefined;
-
-      const promise = new Promise<Result<BlockDataOf<C, K>>>((resolve) => {
-        settle = resolve;
-      });
-
-      queued = { args, promise, settle };
-      latest += 1;
-      state.set({ status: "pending", error: undefined });
-
-      return promise;
-    };
 
     return {
       actions: {
-        mutate: (...args) => (offline ? queue(args) : send(args)),
+        mutate: async (...args) => {
+          latest += 1;
+          const mine = latest;
+          state.set({ status: "pending", error: undefined });
+
+          // SAFETY: the method's `Result` carries `BlockDataOf<C, K>`.
+          const result = (await call(...args)) as Result<BlockDataOf<C, K>>;
+
+          if (result.ok && options.engine !== undefined) {
+            options.engine.invalidate([BLOCK_KEY, options.instance]);
+          }
+
+          if (mine === latest) {
+            state.set(
+              result.ok
+                ? { status: "success", data: result.data, error: undefined }
+                : { status: "error", error: result.error },
+            );
+          }
+
+          return result;
+        },
         reset: () => {
           latest += 1;
-
-          if (queued) {
-            queued.settle({
-              ok: false,
-              data: null,
-              error: {
-                kind: "network",
-                message: "The queued write was cancelled.",
-                status: 503,
-              },
-            });
-            queued = undefined;
-          }
-
-          state.set({ ...initial, ...(offline ? { offline } : {}) });
-        },
-        setOffline: (next) => {
-          if (next === offline) {
-            return;
-          }
-
-          offline = next;
-          state.set({ offline: next });
-
-          if (!next && queued) {
-            const { args, settle } = queued;
-            queued = undefined;
-            void send(args).then(settle);
-          }
+          state.set(initial);
         },
       },
     };

@@ -285,7 +285,7 @@ describe.skipIf(!live)("compliance", () => {
       await s.client.query(
         `create schema compliance_up;
 create table compliance_up.versions (id uuid primary key);
-create table compliance_up.policies (
+create table compliance_up.compliance_policies (
   id uuid primary key,
   tenant_id uuid not null,
   requires_acknowledgement boolean not null,
@@ -302,7 +302,7 @@ create table compliance_up.policy_acknowledgements (
 create function compliance_up.acknowledge_compliance_policy(policy_id uuid) returns jsonb
 language sql as $$ select '{}'::jsonb $$;
 insert into compliance_up.versions values ('$version');
-insert into compliance_up.policies values
+insert into compliance_up.compliance_policies values
   ('$policy', '$tenant', true, null),
   ('$archived', '$tenant', true, now());
 insert into compliance_up.policy_acknowledgements (tenant_id, policy_id, version_id, user_id, acknowledged_at)

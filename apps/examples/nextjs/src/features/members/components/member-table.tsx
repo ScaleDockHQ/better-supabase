@@ -7,7 +7,6 @@ import { useTable } from "@tanstack/react-table";
 import { DbException } from "better-supabase";
 import { UserMinusIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { useQueryState } from "nuqs";
 import { createContext, use, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import * as v from "valibot";
@@ -51,7 +50,7 @@ import { Link } from "@/i18n/navigation";
 import { Role } from "@/lib/claims";
 import { initials } from "@/lib/initials";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
-import { searchParam } from "@/lib/url-filters";
+import { useSearchParam } from "@/lib/url-filters";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 async function loadOrganizationMembers(): Promise<readonly Member[]> {
@@ -257,7 +256,7 @@ export function MemberTable({
   const t = useExtracted("members");
   const roleLabel = useRoleLabel();
   const errorMessage = useErrorMessage();
-  const [search, setSearch] = useQueryState("q", searchParam);
+  const [search, setSearch] = useSearchParam();
 
   const [roleFilter, setRoleFilter] = useState<Role | typeof ALL_ROLES>(
     ALL_ROLES,
@@ -357,7 +356,7 @@ export function MemberTable({
   });
 
   const clearFilters = () => {
-    void setSearch("");
+    setSearch("");
     setRoleFilter(ALL_ROLES);
   };
 
@@ -372,7 +371,7 @@ export function MemberTable({
             placeholder={t("Search members")}
             aria-label={t("Search members")}
             onChange={(event) => {
-              void setSearch(event.target.value);
+              setSearch(event.target.value);
             }}
           />
           <Select

@@ -19,9 +19,14 @@ read keeps the last data and holds one run for `setOffline(false)`; a write
 queues in one slot, shares its promise across calls and sends on reconnect;
 `reset` settles a queued write with a `network` error. The state field
 `offline` is optional, so existing snapshots are unchanged until it is set.
-`better-supabase/next/client` binds them to `useOffline()` from `next/offline`
-with `useBlockQuery` and `useBlockMutation`, seeding the controller from the
-first value so a component that mounts offline never starts a read.
+`better-supabase/next/offline` binds them to `useOffline()` from
+`next/offline` with `useBlockQuery` and `useBlockMutation`, seeding the
+controller from the first value so a component that mounts offline never starts
+a read. The offline controllers live in `blocks/block-offline.ts`, apart from the
+plain ones, and the hooks sit in their own subpath: Turbopack keeps the code of
+an unused export of a client entry, so putting them in `next/client` added about
+700 bytes to the first load of every route of an app that only used
+`useSessionChange`, and the next-build baseline never grows.
 
 `init` renders `templates-next.ts` into the Next.js integration: the layout the
 check script lists, the PWA files and the Web Push keys. The output is committed

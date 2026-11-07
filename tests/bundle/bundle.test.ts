@@ -261,6 +261,7 @@ function overBaseline(
 const NODE_LOADED = [
   "./next",
   "./next/client",
+  "./next/offline",
   "./next/image",
   "./next/proxy",
   "./next/auth-gate",
@@ -571,6 +572,7 @@ describe("bundle", () => {
     for (const file of [
       "dist/react/index.js",
       "dist/next/client/index.js",
+      "dist/next/offline/index.js",
       "dist/next/auth-gate/user.js",
     ]) {
       const source = await readFile(join(PACKAGE, file), "utf-8");

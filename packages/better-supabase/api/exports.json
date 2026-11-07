@@ -1914,8 +1914,6 @@
   },
   "./next/client": {
     "values": [
-      "useBlockMutation",
-      "useBlockQuery",
       "useSessionChange",
       "useSessionWatch",
       "watchSession"
@@ -1932,6 +1930,13 @@
       "TokenRefresher",
       "UseSessionWatchOptions"
     ]
+  },
+  "./next/offline": {
+    "values": [
+      "useBlockMutation",
+      "useBlockQuery"
+    ],
+    "types": []
   },
   "./hono": {
     "values": [

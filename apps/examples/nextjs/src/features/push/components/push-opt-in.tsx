@@ -32,7 +32,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { env } from "@/env";
+import { publicEnv as env } from "@/env-public";
 import { useSupabase } from "@/lib/hooks";
 import { pushConfig } from "@/lib/supabase/blocks/slices";
 

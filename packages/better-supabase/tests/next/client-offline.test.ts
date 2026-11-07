@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/query-core";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AsyncResult } from "../../src/core/result.ts";
@@ -5,7 +6,8 @@ import type { AsyncResult } from "../../src/core/result.ts";
 import {
   useBlockMutation,
   useBlockQuery,
-} from "../../src/next/client/index.ts";
+} from "../../src/next/offline/index.ts";
+import { blockControllerEngine } from "../../src/query/blocks.ts";
 import { renderHook } from "../fixtures/hook-runtime.ts";
 import { flush, resolved } from "../fixtures/ports.ts";
 
@@ -101,5 +103,28 @@ describe("next/client offline block hooks", () => {
 
     expect(calls).toEqual([]);
     view.unmount();
+  });
+
+  it("keeps reads and writes in a data engine when given one", async () => {
+    const engine = blockControllerEngine(new QueryClient());
+    const options = { engine, instance: "tasks" } as const;
+
+    const read = renderHook(
+      () => useBlockQuery(tasks, "list", [], options),
+      undefined,
+    );
+
+    await flush();
+    expect(read.result.data).toEqual(["a"]);
+    read.unmount();
+
+    const write = renderHook(
+      () => useBlockMutation(tasks, "rename", options),
+      undefined,
+    );
+
+    const result = await write.result.mutate("t2");
+    expect(result.ok && result.data).toBe("t2");
+    write.unmount();
   });
 });

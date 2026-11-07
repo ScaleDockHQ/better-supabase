@@ -1,3 +1,4 @@
+import { QueryClient } from "@tanstack/query-core";
 import { describe, expect, expectTypeOf, it } from "vitest";
 
 import type { OrganizationsEvents } from "../../src/blocks/organizations/events.ts";
@@ -9,11 +10,16 @@ import {
   createBlockQuery,
   listenToBlockEvents,
 } from "../../src/blocks/block-controller.ts";
+import {
+  createOfflineBlockMutation,
+  createOfflineBlockQuery,
+} from "../../src/blocks/block-offline.ts";
 import { organizationsEvents } from "../../src/blocks/organizations/events.ts";
 import { emitBlockEvent } from "../../src/core/block-events.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { EventHub } from "../../src/core/events.ts";
 import { AsyncResult, err, ok } from "../../src/core/result.ts";
+import { blockControllerEngine } from "../../src/query/blocks.ts";
 import { failed, flush, held, mount, resolved } from "../fixtures/ports.ts";
 
 interface Task {
@@ -190,9 +196,12 @@ describe("offline block controllers", () => {
   it("holds a read while offline and runs it once on reconnect", async () => {
     const { client, calls } = fakeTasks();
 
-    const query = createBlockQuery(client, "list", [{ status: "open" }], {
-      offline: true,
-    });
+    const query = createOfflineBlockQuery(
+      client,
+      "list",
+      [{ status: "open" }],
+      { offline: true },
+    );
 
     const view = mount(query);
     await flush();
@@ -211,7 +220,7 @@ describe("offline block controllers", () => {
 
   it("ignores a refetch while offline and runs it on reconnect", async () => {
     const { client, calls } = fakeTasks();
-    const query = createBlockQuery(client, "list", [{ status: "open" }]);
+    const query = createOfflineBlockQuery(client, "list", [{ status: "open" }]);
     const view = mount(query);
     await flush();
 
@@ -246,7 +255,7 @@ describe("offline block controllers", () => {
       },
     };
 
-    const query = createBlockQuery(client, "list", []);
+    const query = createOfflineBlockQuery(client, "list", []);
     const view = mount(query);
     await flush();
 
@@ -274,7 +283,10 @@ describe("offline block controllers", () => {
   it("queues one write while offline and shares its promise", async () => {
     const { client, calls } = fakeTasks();
 
-    const mutation = createBlockMutation(client, "create", { offline: true });
+    const mutation = createOfflineBlockMutation(client, "create", {
+      offline: true,
+    });
+
     const view = mount(mutation);
 
     const first = mutation.actions.mutate({ title: "a" });
@@ -296,7 +308,11 @@ describe("offline block controllers", () => {
 
   it("cancels the queued write on reset", async () => {
     const { client, calls } = fakeTasks();
-    const mutation = createBlockMutation(client, "create", { offline: true });
+
+    const mutation = createOfflineBlockMutation(client, "create", {
+      offline: true,
+    });
+
     const queued = mutation.actions.mutate({ title: "a" });
 
     mutation.actions.reset();
@@ -308,11 +324,101 @@ describe("offline block controllers", () => {
   });
 });
 
+describe("offline block controllers in a data engine", () => {
+  const engineOptions = () =>
+    ({
+      engine: blockControllerEngine(new QueryClient()),
+      instance: "tasks",
+    }) as const;
+
+  it("reports the flag, skips refetches and event reads while offline", async () => {
+    const { client, calls } = fakeTasks();
+    const events = new EventHub();
+
+    const query = createOfflineBlockQuery(
+      client,
+      "list",
+      [{ status: "open" }],
+      {
+        ...engineOptions(),
+        offline: true,
+        refetchOn: { source: { events }, types: ["invitation.accepted"] },
+      },
+    );
+
+    const view = mount(query);
+    await flush();
+    expect(view.view()).toMatchObject({ offline: true });
+
+    query.actions.refetch();
+
+    emitBlockEvent<OrganizationsEvents>(events, "invitation.accepted", {
+      invitationId: "i1",
+    });
+
+    await flush();
+    const held = calls.length;
+
+    query.actions.setOffline(false);
+    query.actions.refetch();
+    await flush();
+
+    expect(view.view()).toMatchObject({ offline: false });
+    expect(calls.length).toBeGreaterThanOrEqual(held);
+    view.unmount();
+  });
+
+  it("runs a read again on a block event once back online", async () => {
+    const { client, calls } = fakeTasks();
+    const events = new EventHub();
+
+    const query = createOfflineBlockQuery(client, "list", [{ status: "a" }], {
+      refetchOn: { source: { events }, types: ["invitation.accepted"] },
+    });
+
+    const view = mount(query);
+    await flush();
+    const before = calls.length;
+
+    emitBlockEvent<OrganizationsEvents>(events, "invitation.accepted", {
+      invitationId: "i1",
+    });
+
+    await flush();
+    expect(calls).toHaveLength(before + 1);
+    view.unmount();
+  });
+
+  it("makes a write invalidate the reads of its engine instance", async () => {
+    const { client, calls } = fakeTasks();
+    const options = engineOptions();
+
+    const list = createOfflineBlockQuery(
+      client,
+      "list",
+      [{ status: "a" }],
+      options,
+    );
+
+    const view = mount(list);
+    await flush();
+    const before = calls.length;
+
+    await createOfflineBlockMutation(client, "create", options).actions.mutate({
+      title: "x",
+    });
+
+    await flush();
+    expect(calls.length).toBeGreaterThan(before);
+    view.unmount();
+  });
+});
+
 describe("offline types", () => {
   it("types the offline flag and setOffline", () => {
     const { client } = fakeTasks();
-    const query = createBlockQuery(client, "list", [{ status: "open" }]);
-    const mutation = createBlockMutation(client, "create");
+    const query = createOfflineBlockQuery(client, "list", [{ status: "open" }]);
+    const mutation = createOfflineBlockMutation(client, "create");
 
     expectTypeOf(query.getSnapshot().offline).toEqualTypeOf<
       boolean | undefined

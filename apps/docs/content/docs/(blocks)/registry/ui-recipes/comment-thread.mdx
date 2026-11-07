@@ -32,14 +32,6 @@ import { Textarea } from "@/components/ui/textarea";
 import { useComments } from "@/hooks/use-comments";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-interface Row {
-  readonly id: string;
-  readonly authorId: string | null;
-  readonly body: string;
-  readonly at: number;
-  readonly pending: boolean;
-}
-
 /**
  * A record's comments, oldest first, through the browser client. `subject` is
  * any type in `config.subjects`, such as a customer or a project.
@@ -63,29 +55,12 @@ export function CommentThread({
 
   const { comments, error, add } = useComments({ subject });
 
-  const rows: readonly Row[] | undefined = comments
-    ?.filter((comment) => !comment.deletedAt)
-    .map((comment) => ({
-      id: comment.id,
-      authorId: comment.authorId ?? null,
-      body: comment.body,
-      at: (comment.sentAt ?? comment.createdAt).epochMilliseconds,
-      pending: false,
-    }));
+  const visible = comments?.filter((comment) => !comment.deletedAt);
 
   // The comment shows at once and settles when the server's list arrives.
-  const [visible, addPending] = useOptimistic(
-    rows,
-    (list, text: string): readonly Row[] => [
-      ...(list ?? []),
-      {
-        id: `pending-${text}`,
-        authorId: null,
-        body: text,
-        at: 0,
-        pending: true,
-      },
-    ],
+  const [sending, addPending] = useOptimistic<string | undefined, string>(
+    undefined,
+    (_current, text) => text,
   );
 
   const submit = (event: SubmitEvent<HTMLFormElement>) => {
@@ -109,41 +84,35 @@ export function CommentThread({
     <div className="flex flex-col gap-6">
       {visible === undefined ? (
         <Skeleton className="h-16" />
-      ) : visible.length === 0 ? (
+      ) : visible.length === 0 && sending === undefined ? (
         <p className="text-sm text-muted-foreground">{t("No comments yet.")}</p>
       ) : (
         <ol className="flex flex-col gap-4" data-testid="comments">
           {visible.map((comment) => (
-            <li
-              key={comment.id}
-              className="flex flex-col gap-1"
-              aria-busy={comment.pending ? true : undefined}
-            >
-              {comment.pending ? null : (
-                <p className="text-sm">
-                  <span className="font-medium">
-                    {(comment.authorId && authors[comment.authorId]) ??
-                      t("Someone")}
-                  </span>{" "}
-                  <span className="text-xs text-muted-foreground">
-                    {format.dateTime(comment.at, {
-                      dateStyle: "medium",
-                      timeStyle: "short",
-                    })}
-                  </span>
-                </p>
-              )}
-              <p
-                className={
-                  comment.pending
-                    ? "text-sm whitespace-pre-wrap text-muted-foreground"
-                    : "text-sm whitespace-pre-wrap"
-                }
-              >
-                {comment.body}
+            <li key={comment.id} className="flex flex-col gap-1">
+              <p className="text-sm">
+                <span className="font-medium">
+                  {(comment.authorId && authors[comment.authorId]) ??
+                    t("Someone")}
+                </span>{" "}
+                <span className="text-xs text-muted-foreground">
+                  {format.dateTime(
+                    (comment.sentAt ?? comment.createdAt).epochMilliseconds,
+                    { dateStyle: "medium", timeStyle: "short" },
+                  )}
+                </span>
               </p>
+              <p className="text-sm whitespace-pre-wrap">{comment.body}</p>
             </li>
           ))}
+          {sending === undefined ? null : (
+            <li
+              className="text-sm whitespace-pre-wrap text-muted-foreground"
+              aria-busy
+            >
+              {sending}
+            </li>
+          )}
         </ol>
       )}
       {canComment ? (

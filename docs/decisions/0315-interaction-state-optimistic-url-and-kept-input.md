@@ -17,9 +17,12 @@ uncontrolled form after its action.
   through `useOptimistic` at once; the server's list replaces it. It keeps no
   `pending` state of its own.
 - The members, teams and employees searches (and the teams status filter) live
-  in the URL through nuqs: `lib/url-filters.ts` exports `searchParam`
-  (`?q=`, cleared at its default, URL writes debounced 250 ms), so a link
-  carries the filter and a reload keeps it.
+  in the URL: `lib/url-filters.ts` exports `useUrlParam` and `useSearchParam`
+  (`?q=`, cleared at its default, URL writes debounced 250 ms through
+  `history.replaceState`), so a link carries the filter and a reload keeps it.
+  The hooks use `useSearchParams` and no nuqs: the nuqs hooks add about 7 kB
+  to the first load of the routes that use them, and the next-build baseline
+  never grows.
 - A form whose action can reject returns the submitted values in its action
   state and the fields read them as `defaultValue`: the login and forgot
   password forms keep the email, the sign-up form keeps the name and the email.
@@ -28,4 +31,4 @@ uncontrolled form after its action.
 ## Consequences
 
 Other hand-rolled lists keep `useState` until they gain a shareable filter.
-The customers list already uses the library's `customerList.nuqs` parsers.
+The customers list keeps the library's `customerList.nuqs` parsers.

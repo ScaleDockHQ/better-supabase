@@ -29,6 +29,42 @@ create index invoices_status on public.invoices (status);
 `;
 
 describe("overAppTables", () => {
+  it("keeps the given order for columns that read each other", () => {
+    const sql = `create table if not exists public.pairs (
+  id uuid primary key,
+  "a" int check ("b" > 0),
+  "b" int check ("a" > 0)
+);
+`;
+
+    const out = overAppTables(sql, new Set(["public.pairs"]), {
+      "public.pairs": ["id"],
+    });
+
+    expect(out.indexOf('"a" int')).toBeGreaterThan(-1);
+    expect(out.indexOf('"b" int')).toBeGreaterThan(-1);
+  });
+
+  it("adds a column after the new column its check reads", () => {
+    const sql = `create table if not exists public.contacts (
+  id uuid primary key,
+  "mode" text not null default 'a' check ("mode" = 'a' or "user_id" is not null),
+  "user_id" uuid
+);
+`;
+
+    const out = overAppTables(sql, new Set(["public.contacts"]), {
+      "public.contacts": ["id"],
+    });
+
+    expect(out.indexOf('add column if not exists "user_id"')).toBeGreaterThan(
+      -1,
+    );
+    expect(out.indexOf('add column if not exists "user_id"')).toBeLessThan(
+      out.indexOf('add column if not exists "mode"'),
+    );
+  });
+
   it("turns the create table of an app table into the columns it lacks", () => {
     expect(
       overAppTables(SQL, new Set(["public.invoices"]), {

@@ -31,6 +31,7 @@ const entries = [
   "next/auth-gate/index",
   "next/auth-gate/user",
   "next/client/index",
+  "next/offline/index",
   "hono/index",
   "orpc/index",
   "edge/index",

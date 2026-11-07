@@ -308,6 +308,50 @@ function addable(definition: string): string {
 }
 
 /**
+ * `columns` with each column after the ones its own definition mentions, so an
+ * inline check that reads another new column runs once that column exists.
+ */
+function dependenciesFirst(columns: readonly string[]): string[] {
+  const names = columns.map((column) => COLUMN_NAME.exec(column)?.[0] ?? "");
+  const ordered: string[] = [];
+  const placed = new Set<number>();
+
+  const place = (index: number, trail: ReadonlySet<number>): void => {
+    if (placed.has(index) || trail.has(index)) {
+      return;
+    }
+
+    const next = new Set(trail).add(index);
+    const own = names[index]!;
+
+    // A foreign key names the other table's column, not a column of this one.
+    const definition = columns[index]!.replaceAll(
+      /\breferences\s+[^(]*\([^)]*\)/gi,
+      "",
+    );
+
+    for (const [other, name] of names.entries()) {
+      if (
+        other !== index &&
+        name !== "" &&
+        definition.includes(name, own.length)
+      ) {
+        place(other, next);
+      }
+    }
+
+    placed.add(index);
+    ordered.push(columns[index]!);
+  };
+
+  for (const index of columns.keys()) {
+    place(index, new Set());
+  }
+
+  return ordered;
+}
+
+/**
  * `sql` with the `create table` statement of each table in `appTables` (as
  * `schema.table`) replaced by `alter table ... add column if not exists` for
  * the columns it declares. `appColumns` lists the columns the app's table
@@ -359,7 +403,7 @@ export function overAppTables(
         ? `-- ${table} is the app's table, and it has every column this block needs.`
         : [
             `-- ${table} is the app's table: this block adds only the columns it needs.`,
-            ...columns.map(
+            ...dependenciesFirst(columns).map(
               (column) =>
                 `alter table ${name} add column if not exists ${addable(column)};`,
             ),

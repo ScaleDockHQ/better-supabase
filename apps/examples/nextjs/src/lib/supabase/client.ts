@@ -1,6 +1,6 @@
 import { createClient } from "better-supabase/client";
 
-import { env } from "@/env";
+import { publicEnv as env } from "@/env-public";
 
 import {
   announcementsConfig,

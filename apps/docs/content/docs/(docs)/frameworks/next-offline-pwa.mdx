@@ -154,7 +154,7 @@ is offline (`SubmitLabel` in the example).
 
 ## Block controllers that pause offline
 
-`useBlockQuery` and `useBlockMutation` from `better-supabase/next/client` read
+`useBlockQuery` and `useBlockMutation` from `better-supabase/next/offline` read
 `useOffline()` for you. A read pauses while the app is offline: the last data
 stays, `offline` is `true` instead of an error, and the read runs once when the
 connection returns. A write queues once (a second call replaces the arguments
@@ -164,7 +164,7 @@ and shares the first promise) and runs when the connection returns, the way
 ```tsx
 "use client";
 
-import { useBlockQuery } from "better-supabase/next/client";
+import { useBlockQuery } from "better-supabase/next/offline";
 
 export function Tasks() {
   const tasks = useBlockQuery(blocks.tasks, "list", [{ status: "open" }]);

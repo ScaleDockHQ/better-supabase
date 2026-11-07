@@ -30,7 +30,10 @@ const config = createNextConfig({
   images: { loader: "custom", loaderFile: "./src/image-loader.ts" },
   // `[locale]` matches every path, so no URL reaches a global not-found page;
   // `[locale]/not-found.tsx` and `api/[...rest]` answer unknown paths.
-  experimental: { globalNotFound: false },
+  // `experimental.taint` swaps in the experimental React build, which adds about
+  // 21 kB (6.6 kB gzip) to the first load of every route, and the next-build
+  // baseline never grows. createNext leaves tokens untainted without it.
+  experimental: { globalNotFound: false, taint: false },
   ...remoteCache(),
 });
 
