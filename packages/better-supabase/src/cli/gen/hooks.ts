@@ -81,7 +81,7 @@ export function emitHooks(
     path: hooksPath(config),
     contents: [
       GENERATED_HEADER,
-      "/* oxlint-disable no-inline-comments -- the PURE annotations sit inline. */",
+      "/* oxlint-disable no-inline-comments, typescript/no-empty-interface -- the PURE annotations sit inline, and AppDb only names a type. */",
       ...(config.hooks === "react" ? ['"use client";'] : []),
       "",
       `import type { DbOf } from ${q(runtime)};`,
@@ -95,7 +95,8 @@ export function emitHooks(
       ...(tableImports.length > 0 ? ["", ...tableImports] : []),
       ...(selectImport && group === "relative" ? ["", selectImport] : []),
       "",
-      "type AppDb = DbOf<typeof betterSupabase>;",
+      "/** The `db` the hooks read, as one named type. */",
+      "export interface AppDb extends DbOf<typeof betterSupabase> {}",
       ...tables.flatMap((property) => {
         const names = hookNames(property);
 

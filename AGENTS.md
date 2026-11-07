@@ -375,6 +375,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0262: Write one module per table and register the tables a client uses.
 - 0263: Write block config slices as exports of one module and import them per record.
 - 0264: Write table and block modules by default.
+- 0265: Read tables in every framework's hooks, name AppDb, and keep Insert and Update written out.
 
 ## Pre-release pins
 

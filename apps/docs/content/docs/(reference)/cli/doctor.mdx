@@ -2353,6 +2353,16 @@ or move the admin read out of the cached function.
 
 These checks read the app's source text, matched by `doctor.sources`, for code the library now covers. Each one reports once per file and only in files that name better-supabase. The shim registry in `src/cli/doctor/shims.ts` lists them, so one entry adds a check.
 
+### BS621
+
+**Warning: a client file imports a generated barrel.** A file with
+`"use client"` imports `generated-schema`, `blocks.generated` or
+`blocks.config`. Each one lists every table or every installed block, so the
+page ships all of them. Import the table modules (`tables/<table>`) and block
+slices (`blocks/slices`) the page uses, and build the browser's client over
+`clientSchema`. The check is off with `gen.tableModules: false` and in content
+mapper mode.
+
 ### BS612
 
 **Info: the proxy re-syncs session cookies with `setAll`.** Since 0.40 the library's own cookie handling in `bsb.proxy` writes them. Remove the callback.

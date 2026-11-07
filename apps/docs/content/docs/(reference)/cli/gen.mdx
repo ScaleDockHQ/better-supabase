@@ -171,6 +171,13 @@ const customers = bsb.table(customersTable);
 await customers.list({ where: { status: "active" } });
 ```
 
+The generated `hooks.ts` does this for every `gen.hooks` framework (React, Vue,
+Solid and Svelte): each hook is made with the table module and reads through
+`client.table`. The file also exports `AppDb`, an interface over the app's
+`db`, so each hook resolves one named type. Doctor reports a `"use client"` file
+that imports `generated-schema`, `blocks.generated` or `blocks.config`
+([BS621](/docs/cli/doctor#bs621)).
+
 `defineListQuery` takes a table module in place of a table name, so a module
 that defines a list for a client component loads one table. Keep server code on
 `schema` from `generated-schema.ts`: a page that imports it loads every table.

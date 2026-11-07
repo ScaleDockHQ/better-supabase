@@ -48,17 +48,21 @@ function client(): ClientLike {
 
 /**
  * The list reader for one table or block instance, for a module that wants to
- * tree-shake each one on its own. `defineDataHooks` makes both.
+ * tree-shake each one on its own. `defineDataHooks` makes both. With a table
+ * module from `tables/<table>.ts` as `table`, it reads through
+ * `client.table(table)`, so a client of a `lazyTables` schema registers just
+ * that table.
  */
 export const defineListHook =
   /*#__NO_SIDE_EFFECTS__*/
   <D, S extends DataSource>(
     name: string,
     select: (db: D) => S,
+    table?: object,
   ): DataHooks<S>["useList"] =>
     (args) =>
       bindSvelteController(
-        createDataList(dataTarget(client(), name, select), args),
+        createDataList(dataTarget(client(), name, select, table), args),
       );
 
 /** The record reader for one table or block instance (see `defineListHook`). */
@@ -67,10 +71,11 @@ export const defineOneHook =
   <D, S extends DataSource>(
     name: string,
     select: (db: D) => S,
+    table?: object,
   ): DataHooks<S>["useOne"] =>
     (id) =>
       bindSvelteController(
-        createDataOne(dataTarget(client(), name, select), id),
+        createDataOne(dataTarget(client(), name, select, table), id),
       );
 
 /**
