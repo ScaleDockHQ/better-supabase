@@ -131,7 +131,13 @@ describe("renameMigrationSql", () => {
   it("writes nothing for renames that touch no SQL", () => {
     expect(
       renameMigrationSql(
-        NAMING_RENAMES.filter((rename) => rename.kind !== "sqlFunction"),
+        NAMING_RENAMES.filter(
+          (rename) =>
+            rename.kind !== "sqlFunction" &&
+            rename.kind !== "trigger" &&
+            rename.kind !== "constraint" &&
+            rename.kind !== "index",
+        ),
       ),
     ).toBeUndefined();
   });
@@ -147,6 +153,36 @@ describe("renameMigrationSql", () => {
     expect(renameMigrationSql([rename], "select 1;")).toBeUndefined();
     expect(renameMigrationSql([rename], "using (bsb.owns(owner))")).toContain(
       "alter function bsb.owns(uuid)",
+    );
+  });
+
+  it("renames a trigger or an index the project's SQL names, and no other", () => {
+    const rename = (kind: "index" | "trigger", from: string, to: string) =>
+      ({
+        from,
+        to,
+        kind,
+        since: "0.54",
+        table: "better_supabase.bookings",
+      }) as const;
+
+    const renames = [
+      rename("trigger", "bookings_engagement", "bsb_bookings_engagement"),
+      rename("index", "bsb_old_scope", "bsb_old_scope_key"),
+    ];
+
+    expect(renameMigrationSql(renames, "select 1;")).toBeUndefined();
+
+    const sql = renameMigrationSql(
+      renames,
+      'create trigger bookings_engagement after insert on "better_supabase"."bookings"; create index bsb_old_scope on t (a);',
+    )!;
+
+    expect(sql).toContain(
+      'alter trigger "bookings_engagement" on "better_supabase"."bookings" rename to "bsb_bookings_engagement"',
+    );
+    expect(sql).toContain(
+      'alter index "better_supabase"."bsb_old_scope" rename to "bsb_old_scope_key"',
     );
   });
 

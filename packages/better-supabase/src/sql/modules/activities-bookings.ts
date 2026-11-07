@@ -48,7 +48,7 @@ export function bookingEngagementsSql(ctx: BlockSqlContext): string {
   const b = (column: string): string => bookings.col("bookings", column);
   const s = (column: string): string => bookings.col("services", column);
   const fn = ctx.fn("bsb_booking_engagement");
-  const trigger = ctx.naming.rename("bookings_engagement");
+  const trigger = ctx.naming.rename("bsb_bookings_engagement");
 
   const createdBy = bookings.has("bookings", "createdBy")
     ? `new.${b("createdBy")}`

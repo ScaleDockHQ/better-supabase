@@ -12,14 +12,17 @@ import naming from "../../api/naming.json" with { type: "json" };
 
 export type RenameKind =
   | "column"
+  | "constraint"
   | "env"
   | "event"
   | "function"
   | "hint"
+  | "index"
   | "policy"
   | "sqlFunction"
   | "subpath"
   | "table"
+  | "trigger"
   | "type";
 
 /** One row of the rename table in `api/naming.json`. */
@@ -28,7 +31,10 @@ export interface NamingRename {
   readonly to: string;
   readonly kind: RenameKind;
   readonly since: string;
-  /** The table a `column` or `policy` rename belongs to (`schema.table`). */
+  /**
+   * The table a `column`, `constraint`, `policy`, `trigger` or `index` rename
+   * belongs to (`schema.table`).
+   */
   readonly table?: string;
 }
 
@@ -138,6 +144,42 @@ export function renameMigrationSql(
 
         return [
           `if exists (select 1 from pg_policies where schemaname = ${literal(schema)} and tablename = ${literal(name)} and policyname = ${literal(rename.from)}) then\n    alter policy ${quote(rename.from)} on ${quote(schema)}.${quote(name)} rename to ${quote(rename.to)};\n  end if;`,
+        ];
+      }
+
+      case "constraint": {
+        if (projectSql !== undefined && !projectSql.includes(rename.from)) {
+          return [];
+        }
+
+        const { schema, name } = qualifiedOf(rename.table ?? "");
+
+        return [
+          `if exists (select 1 from pg_constraint k join pg_class c on c.oid = k.conrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = ${literal(schema)} and c.relname = ${literal(name)} and k.conname = ${literal(rename.from)}) then\n    alter table ${quote(schema)}.${quote(name)} rename constraint ${quote(rename.from)} to ${quote(rename.to)};\n  end if;`,
+        ];
+      }
+
+      case "trigger": {
+        if (projectSql !== undefined && !projectSql.includes(rename.from)) {
+          return [];
+        }
+
+        const { schema, name } = qualifiedOf(rename.table ?? "");
+
+        return [
+          `if exists (select 1 from pg_trigger t join pg_class c on c.oid = t.tgrelid join pg_namespace n on n.oid = c.relnamespace where n.nspname = ${literal(schema)} and c.relname = ${literal(name)} and t.tgname = ${literal(rename.from)} and not t.tgisinternal) then\n    alter trigger ${quote(rename.from)} on ${quote(schema)}.${quote(name)} rename to ${quote(rename.to)};\n  end if;`,
+        ];
+      }
+
+      case "index": {
+        if (projectSql !== undefined && !projectSql.includes(rename.from)) {
+          return [];
+        }
+
+        const { schema } = qualifiedOf(rename.table ?? "");
+
+        return [
+          `if to_regclass(${literal(`${quote(schema)}.${quote(rename.from)}`)}) is not null then\n    alter index ${quote(schema)}.${quote(rename.from)} rename to ${quote(rename.to)};\n  end if;`,
         ];
       }
 

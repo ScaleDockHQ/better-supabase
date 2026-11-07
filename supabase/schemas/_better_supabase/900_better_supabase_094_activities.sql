@@ -1,6 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:93572daa25915988f41ee3b560782c107c06c2389a9fc2de3d2258b691117c87
+-- @bsb-hash sha256:f0839330d44e6e1ccf222b291b9c78b454a194543d769fc135c2c248b89d0573
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1050,7 +1050,7 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."bsb_booking_engagement"() from public, anon, authenticated;
-create trigger bookings_engagement
+create trigger bsb_bookings_engagement
 after insert or update of "status", "during" on "better_supabase"."bookings"
 for each row execute function "better_supabase"."bsb_booking_engagement"();
 

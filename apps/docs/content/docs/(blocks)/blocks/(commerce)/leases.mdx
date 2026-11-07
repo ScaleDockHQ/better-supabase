@@ -64,7 +64,7 @@ const rows = useLeases({ limit: 50 });
 
 ## No overlapping leases
 
-`noOverlap: true` adds the `leases_no_overlap` exclusion constraint. A unit
+`noOverlap: true` adds the `leases_no_overlap_excl` exclusion constraint. A unit
 can't have two active leases whose date ranges overlap; an open-ended lease
 counts as running to infinity. It is off by default because existing data may
 already overlap.

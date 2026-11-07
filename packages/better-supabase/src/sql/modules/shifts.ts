@@ -341,7 +341,7 @@ create table if not exists ${assignments} (
   unique (${a("shift")}, ${a("user")}),
   unique (${a("tenant")}, ${a("id")}),
   foreign key (${a("tenant")}, ${a("shift")}) references ${shifts} (${s("tenant")}, ${s("id")}) on delete cascade,
-  constraint ${name("assignments", "no_overlap")} exclude using gist (
+  constraint ${name("assignments", "no_overlap_excl")} exclude using gist (
     ${a("tenant")} with =,
     ${a("user")} with =,
     tstzrange(${a("startsAt")}, ${a("endsAt")}) with &&

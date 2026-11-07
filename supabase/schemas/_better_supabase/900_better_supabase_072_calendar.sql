@@ -1,6 +1,6 @@
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:f40b886bc08786717d2bcdb2509e1f686e003b03b57dfde68341f2eaf6f0491b
+-- @bsb-hash sha256:10bd177f385aff39020789fa1f39684813c1f078a8067a37d6d3310e7a9ac03c
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -886,7 +886,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."calendar_attendee_auto_decline"() from public, anon, authenticated;
-create trigger "calendar_attendees_auto_decline"
+create trigger "bsb_calendar_attendees_auto_decline"
 before insert or update of "user_id" on "better_supabase"."calendar_attendees"
 for each row
 when (new."user_id" is not null and new."response" = 'needs-action')
@@ -924,7 +924,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."calendar_block_auto_decline"() from public, anon, authenticated;
-create trigger "calendar_events_auto_decline"
+create trigger "bsb_calendar_events_auto_decline"
 after insert or update of "starts_at", "ends_at", "kind", "auto_decline", "status" on "better_supabase"."calendar_events"
 for each row
 when (new."kind" <> 'event' and new."auto_decline" and new."status" <> 'cancelled' and new."rrule" is null)

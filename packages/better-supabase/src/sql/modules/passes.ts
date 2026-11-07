@@ -173,7 +173,7 @@ function passOverlap(ctx: BlockSqlContext): string {
 
   return `\n${ensureExclusion(
     ctx.table("passes"),
-    ctx.naming.rename("passes_no_overlap"),
+    ctx.naming.rename("passes_no_overlap_excl"),
     [
       { expression: p("holderUser"), operator: "=" },
       { expression: p("kind"), operator: "=" },

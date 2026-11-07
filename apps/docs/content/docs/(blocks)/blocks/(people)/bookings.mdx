@@ -40,7 +40,7 @@ Each booking also stores `blocked`, its `during` widened by the service's
 buffers. The constraint is on that range:
 
 ```sql
-constraint bookings_no_overlap exclude using gist
+constraint bookings_no_overlap_excl exclude using gist
   (resource_id with =, seat with =, blocked with &&)
   where (status <> 'cancelled')
 ```
@@ -224,7 +224,7 @@ booked.skipped; // empty unless skipConflicts was set
 ```
 
 Each occurrence is placed like a confirmed booking, through the same slot
-check and the same `bookings_no_overlap` exclusion constraint, so a series can
+check and the same `bookings_no_overlap_excl` exclusion constraint, so a series can
 never double-book a seat. When an occurrence is taken the whole series fails
 with `BOOKING_SERIES_CONFLICT` and nothing is booked; pass
 `{ skipConflicts: true }` to book the open occurrences and get the taken

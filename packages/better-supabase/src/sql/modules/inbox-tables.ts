@@ -457,8 +457,8 @@ begin${
 end;
 $$;
 revoke execute on function ${q.fn("inbox_conversation_broadcast")}() from public, anon, authenticated;
-drop trigger if exists conversations_broadcast on ${q.t("conversations")};
-create trigger conversations_broadcast after insert or update on ${q.t("conversations")}
+drop trigger if exists ${q.ctx.naming.rename("bsb_conversations_broadcast")} on ${q.t("conversations")};
+create trigger ${q.ctx.naming.rename("bsb_conversations_broadcast")} after insert or update on ${q.t("conversations")}
   for each row execute function ${q.fn("inbox_conversation_broadcast")}();
 
 -- A timeline event (assignment, status, hand-off, note) pings the staff topic
@@ -480,8 +480,8 @@ begin
 end;
 $$;
 revoke execute on function ${q.fn("inbox_event_broadcast")}() from public, anon, authenticated;
-drop trigger if exists ${sqlIdent(`${q.ctx.tableName("events").name}_broadcast`)} on ${q.t("events")};
-create trigger ${sqlIdent(`${q.ctx.tableName("events").name}_broadcast`)} after insert on ${q.t("events")}
+drop trigger if exists ${sqlIdent(`bsb_${q.ctx.tableName("events").name}_broadcast`)} on ${q.t("events")};
+create trigger ${sqlIdent(`bsb_${q.ctx.tableName("events").name}_broadcast`)} after insert on ${q.t("events")}
   for each row execute function ${q.fn("inbox_event_broadcast")}();
 
 create or replace function ${q.fn("inbox_delivery_broadcast")}()
@@ -504,8 +504,8 @@ begin
 end;
 $$;
 revoke execute on function ${q.fn("inbox_delivery_broadcast")}() from public, anon, authenticated;
-drop trigger if exists ${sqlIdent(`${q.ctx.tableName("deliveries").name}_broadcast`)} on ${q.t("deliveries")};
-create trigger ${sqlIdent(`${q.ctx.tableName("deliveries").name}_broadcast`)} after insert or update of ${dl("status")} on ${q.t("deliveries")}
+drop trigger if exists ${sqlIdent(`bsb_${q.ctx.tableName("deliveries").name}_broadcast`)} on ${q.t("deliveries")};
+create trigger ${sqlIdent(`bsb_${q.ctx.tableName("deliveries").name}_broadcast`)} after insert or update of ${dl("status")} on ${q.t("deliveries")}
   for each row execute function ${q.fn("inbox_delivery_broadcast")}();
 
 -- Staff join ${q.topic}:org:<tenant>. A conversation's own topic, with typing

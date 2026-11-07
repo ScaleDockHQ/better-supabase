@@ -524,6 +524,132 @@
       "to": "better_supabase.can(uuid, text)",
       "kind": "sqlFunction",
       "since": "0.54"
+    },
+    {
+      "from": "conversations_broadcast",
+      "to": "bsb_conversations_broadcast",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.inbox_conversations"
+    },
+    {
+      "from": "inbox_conversation_events_broadcast",
+      "to": "bsb_inbox_conversation_events_broadcast",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.inbox_conversation_events"
+    },
+    {
+      "from": "inbox_message_deliveries_broadcast",
+      "to": "bsb_inbox_message_deliveries_broadcast",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.inbox_message_deliveries"
+    },
+    {
+      "from": "bookings_engagement",
+      "to": "bsb_bookings_engagement",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.bookings"
+    },
+    {
+      "from": "passes_credit_refund",
+      "to": "bsb_passes_credit_refund",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.bookings"
+    },
+    {
+      "from": "calendar_attendees_auto_decline",
+      "to": "bsb_calendar_attendees_auto_decline",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.calendar_attendees"
+    },
+    {
+      "from": "calendar_events_auto_decline",
+      "to": "bsb_calendar_events_auto_decline",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.calendar_events"
+    },
+    {
+      "from": "bsb_rate_limit_rules_scope_global",
+      "to": "bsb_rate_limit_rules_scope_global_key",
+      "kind": "index",
+      "since": "0.54",
+      "table": "better_supabase.rate_limit_rules"
+    },
+    {
+      "from": "bsb_rate_limit_rules_scope_org",
+      "to": "bsb_rate_limit_rules_scope_org_key",
+      "kind": "index",
+      "since": "0.54",
+      "table": "better_supabase.rate_limit_rules"
+    },
+    {
+      "from": "permission_overrides_bump_authz_versions",
+      "to": "bsb_permission_overrides_bump_authz_versions",
+      "kind": "trigger",
+      "since": "0.54",
+      "table": "better_supabase.permission_overrides"
+    },
+    {
+      "from": "flag_overrides_unique",
+      "to": "flag_overrides_key",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.flag_overrides"
+    },
+    {
+      "from": "flag_revisions_unique",
+      "to": "flag_revisions_key",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.flag_revisions"
+    },
+    {
+      "from": "bookings_no_overlap",
+      "to": "bookings_no_overlap_excl",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.bookings"
+    },
+    {
+      "from": "time_entries_no_overlap",
+      "to": "time_entries_no_overlap_excl",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.time_entries"
+    },
+    {
+      "from": "shift_assignments_no_overlap",
+      "to": "shift_assignments_no_overlap_excl",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.shift_assignments"
+    },
+    {
+      "from": "leases_no_overlap",
+      "to": "leases_no_overlap_excl",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.leases"
+    },
+    {
+      "from": "passes_no_overlap",
+      "to": "passes_no_overlap_excl",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.passes"
+    },
+    {
+      "from": "calendar_events_no_overlap",
+      "to": "calendar_events_no_overlap_excl",
+      "kind": "constraint",
+      "since": "0.54",
+      "table": "better_supabase.calendar_events"
     }
   ],
   "allowlist": {

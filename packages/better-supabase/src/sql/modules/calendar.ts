@@ -77,7 +77,7 @@ function eventOverlap(ctx: BlockSqlContext): string {
 
   return `\n${ensureExclusion(
     ctx.table("events"),
-    ctx.naming.rename("calendar_events_no_overlap"),
+    ctx.naming.rename("calendar_events_no_overlap_excl"),
     [
       { expression: e("calendar"), operator: "=" },
       {

@@ -133,7 +133,7 @@ function leaseOverlap(ctx: BlockSqlContext): string {
 
   return `\n${ensureExclusion(
     ctx.table("leases"),
-    ctx.naming.rename("leases_no_overlap"),
+    ctx.naming.rename("leases_no_overlap_excl"),
     [
       { expression: l("unit"), operator: "=" },
       {

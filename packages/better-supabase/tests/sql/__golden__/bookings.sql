@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:dd93a881f849bf38cbb2966f99a21e7662e2d39a41fc13a45af6f1462d16ed74
+-- @bsb-hash sha256:7a56904fa8c50f66221c2ce45ed9c1a1fe4b580779c6d83328d346d46dec470b
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -107,7 +107,7 @@ create table "better_supabase"."bookings" (
   "cancel_reason" text,
   check ("blocked" @> "during"),
   check (("status" = 'hold') = ("hold_expires_at" is not null)),
-  constraint bookings_no_overlap exclude using gist (
+  constraint bookings_no_overlap_excl exclude using gist (
     "resource_id" with =,
     "seat" with =,
     "blocked" with &&
@@ -841,7 +841,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:54ec1d9ef748555ad60631390da78c842d3aa6446ec43cc709e7318adb3f1c59
+-- @bsb-hash sha256:e95a937541ab9bcf6464ae807b9e70e17d0510be77fccc4bdbbbcd63ff0a34a2
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -947,7 +947,7 @@ create table "better_supabase"."bookings" (
   "cancel_reason" text,
   check ("blocked" @> "during"),
   check (("status" = 'hold') = ("hold_expires_at" is not null)),
-  constraint bookings_no_overlap exclude using gist (
+  constraint bookings_no_overlap_excl exclude using gist (
     "resource_id" with =,
     "seat" with =,
     "blocked" with &&
@@ -1932,7 +1932,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:16c6fcd3685e0afc0b8d61b139bbc3f7b8dfe5ff216b9ea19ba2e1bb1733dad5
+-- @bsb-hash sha256:e8a0e3b5ba64827b1bcfb9f4f77c07c6822cc01c22c123ce78265ec3d78fe4f6
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2043,7 +2043,7 @@ create table "app_private"."bookings" (
   "cancel_reason" text,
   check ("blocked" @> "during"),
   check (("status" = 'hold') = ("hold_expires_at" is not null)),
-  constraint bookings_no_overlap exclude using gist (
+  constraint bookings_no_overlap_excl exclude using gist (
     "resource_id" with =,
     "seat" with =,
     "blocked" with &&
@@ -2777,7 +2777,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:3fcc6e7313ea86b177b211e2caaf9a88be7e5176b34d17230db314d1bf2cacff
+-- @bsb-hash sha256:518abe2afb3fad708929a891e2847322932ecd60ee45828c35b0ccb9e7828d55
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2883,7 +2883,7 @@ create table "better_supabase"."bookings" (
   "cancel_reason" text,
   check ("blocked" @> "during"),
   check (("status" = 'hold') = ("hold_expires_at" is not null)),
-  constraint bookings_no_overlap exclude using gist (
+  constraint bookings_no_overlap_excl exclude using gist (
     "resource_id" with =,
     "seat" with =,
     "blocked" with &&
@@ -4603,7 +4603,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:73b2262e4db3500b537553b0eb250767cc2e7eeb392ed977f2c9c82cb7a1caa1
+-- @bsb-hash sha256:4f6f919dcf895435721344c16a5a528614571f431525922bac2653a9f855defd
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4709,7 +4709,7 @@ create table "better_supabase"."bookings" (
   "cancel_reason" text,
   check ("blocked" @> "during"),
   check (("status" = 'hold') = ("hold_expires_at" is not null)),
-  constraint bookings_no_overlap exclude using gist (
+  constraint bookings_no_overlap_excl exclude using gist (
     "resource_id" with =,
     "seat" with =,
     "blocked" with &&

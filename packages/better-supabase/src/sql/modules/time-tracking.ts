@@ -509,7 +509,7 @@ create table if not exists ${entries} (
       ? ""
       : `,
   -- A running entry reaches to infinity, so this also allows one running timer per user.
-  constraint ${sqlIdent(`${ctx.tableName("entries").name}_no_overlap`)} exclude using gist (
+  constraint ${sqlIdent(`${ctx.tableName("entries").name}_no_overlap_excl`)} exclude using gist (
     ${e("tenant")} with =,
     ${eOwner} with =,
     tstzrange(${e("startedAt")}, coalesce(${e("endedAt")}, 'infinity'::timestamptz)) with &&
@@ -518,7 +518,7 @@ create table if not exists ${entries} (
 );${
         allowOverlap
           ? `
-alter table ${entries} drop constraint if exists ${sqlIdent(`${ctx.tableName("entries").name}_no_overlap`)};`
+alter table ${entries} drop constraint if exists ${sqlIdent(`${ctx.tableName("entries").name}_no_overlap_excl`)};`
           : ""
       }
 alter table ${entries} add column if not exists ${e("rateCurrency")} text;

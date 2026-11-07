@@ -1,6 +1,6 @@
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:c5fe859c55712fcc04973202ba401fb493d554f2587eac109b172893ab79a092
+-- @bsb-hash sha256:fa7e41e0ee89bb71a8afb6b157cb2dbf3a524c6801d7c0ac600755e81432a281
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -94,7 +94,7 @@ create table "better_supabase"."shift_assignments" (
   unique ("shift_id", "user_id"),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "shift_id") references "better_supabase"."shifts" ("tenant_id", "id") on delete cascade,
-  constraint "shift_assignments_no_overlap" exclude using gist (
+  constraint "shift_assignments_no_overlap_excl" exclude using gist (
     "tenant_id" with =,
     "user_id" with =,
     tstzrange("starts_at", "ends_at") with &&

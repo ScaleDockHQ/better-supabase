@@ -214,7 +214,7 @@ function overrideConstraints(ctx: BlockSqlContext): {
 
   return {
     target: `constraint ${ctx.naming.rename("flag_overrides_target")} check (num_nonnulls(${o("tenant")}, ${o("user")}, ${o("context")}) = 1 and (${o("context")} is null) = (${o("contextKey")} is null))`,
-    unique: `constraint ${ctx.naming.rename("flag_overrides_unique")} unique nulls not distinct (${overrideTarget(ctx)})`,
+    unique: `constraint ${ctx.naming.rename("flag_overrides_key")} unique nulls not distinct (${overrideTarget(ctx)})`,
   };
 }
 
@@ -401,7 +401,7 @@ create table if not exists ${revisions} (
   ${r("message")} text check (length(${r("message")}) <= 500),
   ${r("changedBy")} uuid references auth.users (id) on delete set null,
   ${r("changedAt")} timestamptz not null default now(),
-  constraint ${ctx.naming.rename("flag_revisions_unique")} unique (${r("flag")}, ${r("revision")})
+  constraint ${ctx.naming.rename("flag_revisions_key")} unique (${r("flag")}, ${r("revision")})
 );
 create index if not exists ${ctx.naming.rename("flag_revisions_changed_by_idx")} on ${revisions} (${r("changedBy")});
 ${lockTable(revisions)}
@@ -845,7 +845,7 @@ begin
   end if;
   insert into ${overrides} (${o("flag")}, ${o("tenant")}, ${o("user")}, ${o("context")}, ${o("contextKey")}, ${o("variant")})
   values (set_flag_override.key, set_flag_override.tenant, set_flag_override.member, set_flag_override.context, set_flag_override.context_key, set_flag_override.variant)
-  on conflict ${ctx.owns("overrides") ? `on constraint ${ctx.naming.rename("flag_overrides_unique")}` : `(${overrideTarget(ctx)})`} do update set ${o("variant")} = excluded.${o("variant")};
+  on conflict ${ctx.owns("overrides") ? `on constraint ${ctx.naming.rename("flag_overrides_key")}` : `(${overrideTarget(ctx)})`} do update set ${o("variant")} = excluded.${o("variant")};
   ${overrideEvent}
   return true;
 end;
@@ -913,14 +913,14 @@ begin
     select c.conname from pg_catalog.pg_constraint c
     where c.conrelid = ${sqlString(overrides)}::regclass and c.contype in ('c', 'u')
       and cardinality(c.conkey) > 1
-      and c.conname not in (${sqlString(ctx.naming.rename("flag_overrides_target"))}, ${sqlString(ctx.naming.rename("flag_overrides_unique"))})
+      and c.conname not in (${sqlString(ctx.naming.rename("flag_overrides_target"))}, ${sqlString(ctx.naming.rename("flag_overrides_key"))})
   loop
     execute format('alter table %s drop constraint %I', ${sqlString(overrides)}, v_name);
   end loop;
   if not exists (select 1 from pg_catalog.pg_constraint c where c.conrelid = ${sqlString(overrides)}::regclass and c.conname = ${sqlString(ctx.naming.rename("flag_overrides_target"))}) then
     alter table ${overrides} add ${target};
   end if;
-  if not exists (select 1 from pg_catalog.pg_constraint c where c.conrelid = ${sqlString(overrides)}::regclass and c.conname = ${sqlString(ctx.naming.rename("flag_overrides_unique"))}) then
+  if not exists (select 1 from pg_catalog.pg_constraint c where c.conrelid = ${sqlString(overrides)}::regclass and c.conname = ${sqlString(ctx.naming.rename("flag_overrides_key"))}) then
     alter table ${overrides} add ${unique};
   end if;
 end;

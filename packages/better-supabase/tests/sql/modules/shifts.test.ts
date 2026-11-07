@@ -35,7 +35,9 @@ describe("shifts module", () => {
   it("refuses overlap with an exclusion constraint and in the assignment check", () => {
     const sql = sqlOf();
     expect(sql).toContain("create extension if not exists btree_gist");
-    expect(sql).toContain('"shift_assignments_no_overlap" exclude using gist');
+    expect(sql).toContain(
+      '"shift_assignments_no_overlap_excl" exclude using gist',
+    );
     expect(sql).toContain("SHIFT_ASSIGNMENT_OVERLAP");
     expect(sql).toContain("interval '11 hours'");
   });

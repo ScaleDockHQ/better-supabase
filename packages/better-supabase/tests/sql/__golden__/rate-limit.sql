@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:b64c7b0d9c0ae1d10894c9fe7cf8ffb0b2c3cafdf2e0a266eb262b06965d2bea
+-- @bsb-hash sha256:1523f566927eb900544e6dd05cc32296a0dd52265edddd5937ee6c6f8f40bb71
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19,8 +19,8 @@ create table "better_supabase"."rate_limit_rules" (
 );
 -- Rules from before organization_id are global rules.
 
-create unique index "bsb_rate_limit_rules_scope_global" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
-create unique index "bsb_rate_limit_rules_scope_org" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
+create unique index "bsb_rate_limit_rules_scope_global_key" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
+create unique index "bsb_rate_limit_rules_scope_org_key" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
 
 create unlogged table "better_supabase"."rate_limits" (
   "scope" text not null,
@@ -441,7 +441,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:b64c7b0d9c0ae1d10894c9fe7cf8ffb0b2c3cafdf2e0a266eb262b06965d2bea
+-- @bsb-hash sha256:1523f566927eb900544e6dd05cc32296a0dd52265edddd5937ee6c6f8f40bb71
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -459,8 +459,8 @@ create table "better_supabase"."rate_limit_rules" (
 );
 -- Rules from before organization_id are global rules.
 
-create unique index "bsb_rate_limit_rules_scope_global" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
-create unique index "bsb_rate_limit_rules_scope_org" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
+create unique index "bsb_rate_limit_rules_scope_global_key" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
+create unique index "bsb_rate_limit_rules_scope_org_key" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
 
 create unlogged table "better_supabase"."rate_limits" (
   "scope" text not null,
@@ -881,7 +881,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:2ba55a19bca2129bbfe53dee8816f7a680af736866e45cc0c4895450022b4784
+-- @bsb-hash sha256:afc7516161cafffc195eeafa141ac7b91e9f80cb10bd680963bca54e415bbac2
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -905,8 +905,8 @@ create table "app_private"."rate_limit_rules" (
 );
 -- Rules from before organization_id are global rules.
 
-create unique index "bsb_rate_limit_rules_scope_global" on "app_private"."rate_limit_rules" ("scope") where "organization_id" is null;
-create unique index "bsb_rate_limit_rules_scope_org" on "app_private"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
+create unique index "bsb_rate_limit_rules_scope_global_key" on "app_private"."rate_limit_rules" ("scope") where "organization_id" is null;
+create unique index "bsb_rate_limit_rules_scope_org_key" on "app_private"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
 
 create unlogged table "app_private"."rate_limits" (
   "scope" text not null,
@@ -1327,7 +1327,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:d272dc905fc51f2c7a3ca6e7f63b99c7b6caa04a1cb962296dd9d822c5752fcf
+-- @bsb-hash sha256:62632241cc0637f13c76b24c92b90432871d3b59ed0d66ddd3d750e453675e0d
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1345,8 +1345,8 @@ create table "better_supabase"."rate_limit_rules" (
 );
 -- Rules from before organization_id are global rules.
 
-create unique index "bsb_rate_limit_rules_scope_global" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
-create unique index "bsb_rate_limit_rules_scope_org" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
+create unique index "bsb_rate_limit_rules_scope_global_key" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
+create unique index "bsb_rate_limit_rules_scope_org_key" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
 
 create unlogged table "better_supabase"."rate_limits" (
   "scope" text not null,
@@ -1834,7 +1834,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:66cce46aff03b558ec55e36af6f8919e3d707d018310af127b64da93588384f9
+-- @bsb-hash sha256:45a73800d4c71c06da45804a9ace9ed8509af568fb8d9200de78049f88c41018
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1851,8 +1851,8 @@ alter table "better_supabase"."rate_limit_rules" add column if not exists "key_c
 alter table "better_supabase"."rate_limit_rules" add column if not exists "organization_id" uuid;
 -- Rules from before organization_id are global rules.
 alter table "better_supabase"."rate_limit_rules" add column if not exists "organization_id" uuid;
-create unique index if not exists "bsb_rate_limit_rules_scope_global" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
-create unique index if not exists "bsb_rate_limit_rules_scope_org" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
+create unique index if not exists "bsb_rate_limit_rules_scope_global_key" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
+create unique index if not exists "bsb_rate_limit_rules_scope_org_key" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
 
 -- better_supabase.rate_limits is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."rate_limits" add column if not exists "scope" text;

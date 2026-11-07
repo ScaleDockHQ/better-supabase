@@ -1,6 +1,6 @@
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:5e8176b79dc0fe71d47f4afb35d3fec76989566865fab983c581ff2217f7797e
+-- @bsb-hash sha256:5178381a01f4a89cf1349619a1c4665dfb438be125990d0fed689ea51d7e5c59
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -106,7 +106,7 @@ create table "better_supabase"."bookings" (
   "cancel_reason" text,
   check ("blocked" @> "during"),
   check (("status" = 'hold') = ("hold_expires_at" is not null)),
-  constraint bookings_no_overlap exclude using gist (
+  constraint bookings_no_overlap_excl exclude using gist (
     "resource_id" with =,
     "seat" with =,
     "blocked" with &&

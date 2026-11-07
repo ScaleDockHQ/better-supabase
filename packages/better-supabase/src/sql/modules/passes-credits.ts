@@ -68,7 +68,7 @@ export function creditsSql(ctx: BlockSqlContext): string {
   const manage = ctx.permission("manage", moduleOperations("passes").manage);
 
   const refundBefore = sqlString(ctx.text("creditRefundBefore", "12 hours"));
-  const trigger = sqlIdent(`${ctx.tableName("passes").name}_credit_refund`);
+  const trigger = sqlIdent(`bsb_${ctx.tableName("passes").name}_credit_refund`);
 
   const allowed = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or ${ctx.can("tenant", tenant, permission)})`;

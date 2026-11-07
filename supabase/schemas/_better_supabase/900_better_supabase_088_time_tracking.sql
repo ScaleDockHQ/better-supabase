@@ -1,6 +1,6 @@
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:d812704b7116faa7c869fdfd128c25b0623dcc9994863546f9fc886d1b962155
+-- @bsb-hash sha256:1cdb214ef117b2acfa7c2293a0c787909ab016563e0299f7dcb52c3313faf0b7
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -27,7 +27,7 @@ create table "better_supabase"."time_entries" (
   check ("ended_at" is null or "ended_at" > "started_at"),
   check (("subject_type" is null) = ("subject_id" is null)),
   -- A running entry reaches to infinity, so this also allows one running timer per user.
-  constraint "time_entries_no_overlap" exclude using gist (
+  constraint "time_entries_no_overlap_excl" exclude using gist (
     "tenant_id" with =,
     "user_id" with =,
     tstzrange("started_at", coalesce("ended_at", 'infinity'::timestamptz)) with &&

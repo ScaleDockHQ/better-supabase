@@ -266,7 +266,7 @@ create table if not exists ${p.bookings} (
   ${b("cancelReason")} text,
   check (${b("blocked")} @> ${b("during")}),
   check ((${b("status")} = 'hold') = (${b("holdExpiresAt")} is not null)),
-  constraint ${ctx.naming.rename("bookings_no_overlap")} exclude using gist (
+  constraint ${ctx.naming.rename("bookings_no_overlap_excl")} exclude using gist (
     ${b("resource")} with =,
     ${b("seat")} with =,
     ${b("blocked")} with &&

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:5d4a7669c778449b1faa631338a1d06c7fafd552f47584b73e983e2b4f195a8e
+-- @bsb-hash sha256:031ec36a3e2df39eb4158efc5210b9865a4f8f97130fa05a033bbfe70278e9e6
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -47,7 +47,7 @@ create table "better_supabase"."flag_overrides" (
   "variant" text not null,
   "created_at" timestamptz not null default now(),
   constraint flag_overrides_target check (num_nonnulls("workspace_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
-  constraint flag_overrides_unique unique nulls not distinct ("flag_key", "workspace_id", "user_id", "context", "context_key")
+  constraint flag_overrides_key unique nulls not distinct ("flag_key", "workspace_id", "user_id", "context", "context_key")
 );
 create index flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
 alter table "better_supabase"."flag_overrides" enable row level security;
@@ -64,7 +64,7 @@ create table "better_supabase"."flag_revisions" (
   "message" text check (length("message") <= 500),
   "changed_by" uuid references auth.users (id) on delete set null,
   "changed_at" timestamptz not null default now(),
-  constraint flag_revisions_unique unique ("flag_key", "revision")
+  constraint flag_revisions_key unique ("flag_key", "revision")
 );
 create index flag_revisions_changed_by_idx on "better_supabase"."flag_revisions" ("changed_by");
 alter table "better_supabase"."flag_revisions" enable row level security;
@@ -561,7 +561,7 @@ begin
   end if;
   insert into "better_supabase"."flag_overrides" ("flag_key", "workspace_id", "user_id", "context", "context_key", "variant")
   values (set_flag_override.key, set_flag_override.tenant, set_flag_override.member, set_flag_override.context, set_flag_override.context_key, set_flag_override.variant)
-  on conflict on constraint flag_overrides_unique do update set "variant" = excluded."variant";
+  on conflict on constraint flag_overrides_key do update set "variant" = excluded."variant";
   null;
   return true;
 end;

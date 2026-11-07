@@ -24,6 +24,6 @@ $$;
 
 revoke execute on function rbac.bump_override_authz_versions() from authenticated, anon, public;
 
-create trigger permission_overrides_bump_authz_versions
+create trigger bsb_permission_overrides_bump_authz_versions
   after insert or update or delete on better_supabase.permission_overrides
   for each row execute function rbac.bump_override_authz_versions();

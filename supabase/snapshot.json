@@ -241923,8 +241923,8 @@
         "schema": "better_supabase",
         "name": "set_flag_override",
         "language": "plpgsql",
-        "definition": "\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('flags.manage'), false))) then\n    raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';\n  end if;\n  if num_nonnulls(tenant, member, context) <> 1 or (context is null) <> (context_key is null) then\n    raise exception 'Pass one target: a tenant, a member, or a context with its key' using errcode = '22023', hint = 'FLAGS_OVERRIDE_TARGET';\n  end if;\n  if variant is null then\n    delete from \"better_supabase\".\"flag_overrides\" v\n    where v.\"flag_key\" = set_flag_override.key\n      and v.\"organization_id\" is not distinct from set_flag_override.tenant\n      and v.\"user_id\" is not distinct from set_flag_override.member\n      and v.\"context\" is not distinct from set_flag_override.context\n      and v.\"context_key\" is not distinct from set_flag_override.context_key;\n    if not found then\n      return false;\n    end if;\n    perform \"better_supabase\".emit_event('flag.override_changed', jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key), 'flags/' || set_flag_override.key, (set_flag_override.tenant)::text, null, 'better-supabase/flags');\n  perform better_supabase.audit_event(\n    event_type => 'flag.override_changed',\n    category => 'configuration',\n    target_type => 'flag',\n    record_id => set_flag_override.key,\n    tenant => (set_flag_override.tenant)::uuid,\n    metadata => jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key)\n  );\n    return true;\n  end if;\n  insert into \"better_supabase\".\"flag_overrides\" (\"flag_key\", \"organization_id\", \"user_id\", \"context\", \"context_key\", \"variant\")\n  values (set_flag_override.key, set_flag_override.tenant, set_flag_override.member, set_flag_override.context, set_flag_override.context_key, set_flag_override.variant)\n  on conflict on constraint flag_overrides_unique do update set \"variant\" = excluded.\"variant\";\n  perform \"better_supabase\".emit_event('flag.override_changed', jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key), 'flags/' || set_flag_override.key, (set_flag_override.tenant)::text, null, 'better-supabase/flags');\n  perform better_supabase.audit_event(\n    event_type => 'flag.override_changed',\n    category => 'configuration',\n    target_type => 'flag',\n    record_id => set_flag_override.key,\n    tenant => (set_flag_override.tenant)::uuid,\n    metadata => jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key)\n  );\n  return true;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.set_flag_override(key text, variant text, tenant uuid DEFAULT NULL::uuid, member uuid DEFAULT NULL::uuid, context text DEFAULT NULL::text, context_key text DEFAULT NULL::text)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('flags.manage'), false))) then\n    raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';\n  end if;\n  if num_nonnulls(tenant, member, context) <> 1 or (context is null) <> (context_key is null) then\n    raise exception 'Pass one target: a tenant, a member, or a context with its key' using errcode = '22023', hint = 'FLAGS_OVERRIDE_TARGET';\n  end if;\n  if variant is null then\n    delete from \"better_supabase\".\"flag_overrides\" v\n    where v.\"flag_key\" = set_flag_override.key\n      and v.\"organization_id\" is not distinct from set_flag_override.tenant\n      and v.\"user_id\" is not distinct from set_flag_override.member\n      and v.\"context\" is not distinct from set_flag_override.context\n      and v.\"context_key\" is not distinct from set_flag_override.context_key;\n    if not found then\n      return false;\n    end if;\n    perform \"better_supabase\".emit_event('flag.override_changed', jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key), 'flags/' || set_flag_override.key, (set_flag_override.tenant)::text, null, 'better-supabase/flags');\n  perform better_supabase.audit_event(\n    event_type => 'flag.override_changed',\n    category => 'configuration',\n    target_type => 'flag',\n    record_id => set_flag_override.key,\n    tenant => (set_flag_override.tenant)::uuid,\n    metadata => jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key)\n  );\n    return true;\n  end if;\n  insert into \"better_supabase\".\"flag_overrides\" (\"flag_key\", \"organization_id\", \"user_id\", \"context\", \"context_key\", \"variant\")\n  values (set_flag_override.key, set_flag_override.tenant, set_flag_override.member, set_flag_override.context, set_flag_override.context_key, set_flag_override.variant)\n  on conflict on constraint flag_overrides_unique do update set \"variant\" = excluded.\"variant\";\n  perform \"better_supabase\".emit_event('flag.override_changed', jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key), 'flags/' || set_flag_override.key, (set_flag_override.tenant)::text, null, 'better-supabase/flags');\n  perform better_supabase.audit_event(\n    event_type => 'flag.override_changed',\n    category => 'configuration',\n    target_type => 'flag',\n    record_id => set_flag_override.key,\n    tenant => (set_flag_override.tenant)::uuid,\n    metadata => jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key)\n  );\n  return true;\nend;\n$function$\n",
+        "definition": "\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('flags.manage'), false))) then\n    raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';\n  end if;\n  if num_nonnulls(tenant, member, context) <> 1 or (context is null) <> (context_key is null) then\n    raise exception 'Pass one target: a tenant, a member, or a context with its key' using errcode = '22023', hint = 'FLAGS_OVERRIDE_TARGET';\n  end if;\n  if variant is null then\n    delete from \"better_supabase\".\"flag_overrides\" v\n    where v.\"flag_key\" = set_flag_override.key\n      and v.\"organization_id\" is not distinct from set_flag_override.tenant\n      and v.\"user_id\" is not distinct from set_flag_override.member\n      and v.\"context\" is not distinct from set_flag_override.context\n      and v.\"context_key\" is not distinct from set_flag_override.context_key;\n    if not found then\n      return false;\n    end if;\n    perform \"better_supabase\".emit_event('flag.override_changed', jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key), 'flags/' || set_flag_override.key, (set_flag_override.tenant)::text, null, 'better-supabase/flags');\n  perform better_supabase.audit_event(\n    event_type => 'flag.override_changed',\n    category => 'configuration',\n    target_type => 'flag',\n    record_id => set_flag_override.key,\n    tenant => (set_flag_override.tenant)::uuid,\n    metadata => jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key)\n  );\n    return true;\n  end if;\n  insert into \"better_supabase\".\"flag_overrides\" (\"flag_key\", \"organization_id\", \"user_id\", \"context\", \"context_key\", \"variant\")\n  values (set_flag_override.key, set_flag_override.tenant, set_flag_override.member, set_flag_override.context, set_flag_override.context_key, set_flag_override.variant)\n  on conflict on constraint flag_overrides_key do update set \"variant\" = excluded.\"variant\";\n  perform \"better_supabase\".emit_event('flag.override_changed', jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key), 'flags/' || set_flag_override.key, (set_flag_override.tenant)::text, null, 'better-supabase/flags');\n  perform better_supabase.audit_event(\n    event_type => 'flag.override_changed',\n    category => 'configuration',\n    target_type => 'flag',\n    record_id => set_flag_override.key,\n    tenant => (set_flag_override.tenant)::uuid,\n    metadata => jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key)\n  );\n  return true;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.set_flag_override(key text, variant text, tenant uuid DEFAULT NULL::uuid, member uuid DEFAULT NULL::uuid, context text DEFAULT NULL::text, context_key text DEFAULT NULL::text)\n RETURNS boolean\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\nbegin\n  if not (better_supabase.actor_may_write()) then\n    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';\n  end if;\n  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (select coalesce(better_supabase.is_platform('flags.manage'), false))) then\n    raise exception 'Not allowed to manage feature flags' using errcode = '42501', hint = 'FLAGS_FORBIDDEN';\n  end if;\n  if num_nonnulls(tenant, member, context) <> 1 or (context is null) <> (context_key is null) then\n    raise exception 'Pass one target: a tenant, a member, or a context with its key' using errcode = '22023', hint = 'FLAGS_OVERRIDE_TARGET';\n  end if;\n  if variant is null then\n    delete from \"better_supabase\".\"flag_overrides\" v\n    where v.\"flag_key\" = set_flag_override.key\n      and v.\"organization_id\" is not distinct from set_flag_override.tenant\n      and v.\"user_id\" is not distinct from set_flag_override.member\n      and v.\"context\" is not distinct from set_flag_override.context\n      and v.\"context_key\" is not distinct from set_flag_override.context_key;\n    if not found then\n      return false;\n    end if;\n    perform \"better_supabase\".emit_event('flag.override_changed', jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key), 'flags/' || set_flag_override.key, (set_flag_override.tenant)::text, null, 'better-supabase/flags');\n  perform better_supabase.audit_event(\n    event_type => 'flag.override_changed',\n    category => 'configuration',\n    target_type => 'flag',\n    record_id => set_flag_override.key,\n    tenant => (set_flag_override.tenant)::uuid,\n    metadata => jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key)\n  );\n    return true;\n  end if;\n  insert into \"better_supabase\".\"flag_overrides\" (\"flag_key\", \"organization_id\", \"user_id\", \"context\", \"context_key\", \"variant\")\n  values (set_flag_override.key, set_flag_override.tenant, set_flag_override.member, set_flag_override.context, set_flag_override.context_key, set_flag_override.variant)\n  on conflict on constraint flag_overrides_key do update set \"variant\" = excluded.\"variant\";\n  perform \"better_supabase\".emit_event('flag.override_changed', jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key), 'flags/' || set_flag_override.key, (set_flag_override.tenant)::text, null, 'better-supabase/flags');\n  perform better_supabase.audit_event(\n    event_type => 'flag.override_changed',\n    category => 'configuration',\n    target_type => 'flag',\n    record_id => set_flag_override.key,\n    tenant => (set_flag_override.tenant)::uuid,\n    metadata => jsonb_build_object('key', set_flag_override.key, 'variant', set_flag_override.variant, 'organizationId', set_flag_override.tenant::text, 'userId', set_flag_override.member, 'context', set_flag_override.context, 'contextKey', set_flag_override.context_key)\n  );\n  return true;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -284808,7 +284808,7 @@
             "predicate": "(status = 'hold'::text)"
           },
           {
-            "name": "bookings_no_overlap",
+            "name": "bookings_no_overlap_excl",
             "columns": [
               "resource_id",
               "seat",
@@ -284952,16 +284952,6 @@
         ],
         "triggers": [
           {
-            "name": "bookings_engagement",
-            "timing": "after",
-            "events": [
-              "insert",
-              "update"
-            ],
-            "level": "row",
-            "function": "better_supabase.bsb_booking_engagement"
-          },
-          {
             "name": "bsb_audit",
             "timing": "after",
             "events": [
@@ -284976,7 +284966,17 @@
             ]
           },
           {
-            "name": "passes_credit_refund",
+            "name": "bsb_bookings_engagement",
+            "timing": "after",
+            "events": [
+              "insert",
+              "update"
+            ],
+            "level": "row",
+            "function": "better_supabase.bsb_booking_engagement"
+          },
+          {
+            "name": "bsb_passes_credit_refund",
             "timing": "after",
             "events": [
               "update"
@@ -285279,7 +285279,7 @@
         ],
         "triggers": [
           {
-            "name": "calendar_attendees_auto_decline",
+            "name": "bsb_calendar_attendees_auto_decline",
             "timing": "before",
             "events": [
               "insert",
@@ -285652,6 +285652,16 @@
             ]
           },
           {
+            "name": "bsb_calendar_events_auto_decline",
+            "timing": "after",
+            "events": [
+              "insert",
+              "update"
+            ],
+            "level": "row",
+            "function": "better_supabase.calendar_block_auto_decline"
+          },
+          {
             "name": "bsb_search_calendar_event_index",
             "timing": "after",
             "events": [
@@ -285665,16 +285675,6 @@
               "calendar_event",
               "id"
             ]
-          },
-          {
-            "name": "calendar_events_auto_decline",
-            "timing": "after",
-            "events": [
-              "insert",
-              "update"
-            ],
-            "level": "row",
-            "function": "better_supabase.calendar_block_auto_decline"
           }
         ],
         "grants": [
@@ -304130,7 +304130,7 @@
         ],
         "uniques": [
           {
-            "name": "flag_overrides_unique",
+            "name": "flag_overrides_key",
             "columns": [
               "flag_key",
               "organization_id",
@@ -304168,18 +304168,7 @@
         ],
         "indexes": [
           {
-            "name": "flag_overrides_pkey",
-            "columns": [
-              "id"
-            ],
-            "unique": true,
-            "primary": true,
-            "partial": false,
-            "method": "btree",
-            "predicate": null
-          },
-          {
-            "name": "flag_overrides_unique",
+            "name": "flag_overrides_key",
             "columns": [
               "flag_key",
               "organization_id",
@@ -304189,6 +304178,17 @@
             ],
             "unique": true,
             "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "flag_overrides_pkey",
+            "columns": [
+              "id"
+            ],
+            "unique": true,
+            "primary": true,
             "partial": false,
             "method": "btree",
             "predicate": null
@@ -304232,7 +304232,7 @@
         ],
         "uniques": [
           {
-            "name": "flag_revisions_unique",
+            "name": "flag_revisions_key",
             "columns": [
               "flag_key",
               "revision"
@@ -304273,24 +304273,24 @@
             "predicate": null
           },
           {
-            "name": "flag_revisions_pkey",
-            "columns": [
-              "id"
-            ],
-            "unique": true,
-            "primary": true,
-            "partial": false,
-            "method": "btree",
-            "predicate": null
-          },
-          {
-            "name": "flag_revisions_unique",
+            "name": "flag_revisions_key",
             "columns": [
               "flag_key",
               "revision"
             ],
             "unique": true,
             "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "flag_revisions_pkey",
+            "columns": [
+              "id"
+            ],
+            "unique": true,
+            "primary": true,
             "partial": false,
             "method": "btree",
             "predicate": null
@@ -307343,7 +307343,7 @@
         ],
         "triggers": [
           {
-            "name": "inbox_conversation_events_broadcast",
+            "name": "bsb_inbox_conversation_events_broadcast",
             "timing": "after",
             "events": [
               "insert"
@@ -307583,6 +307583,17 @@
         ],
         "triggers": [
           {
+            "name": "bsb_conversations_broadcast",
+            "timing": "after",
+            "events": [
+              "insert",
+              "update"
+            ],
+            "level": "row",
+            "function": "better_supabase.inbox_conversation_broadcast",
+            "source": "\ndeclare\n  v_payload jsonb := jsonb_build_object('conversation_id', new.\"id\");\nbegin\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(v_payload, 'conversation', 'messages:' || new.\"id\"::text, true);\n    perform realtime.send(v_payload, 'conversation', 'inbox:org:' || new.\"tenant_id\"::text, true);\n  end if;\n  return null;\nend;\n"
+          },
+          {
             "name": "bsb_updated_at",
             "timing": "before",
             "events": [
@@ -307593,17 +307604,6 @@
             "args": [
               "updated_at"
             ]
-          },
-          {
-            "name": "conversations_broadcast",
-            "timing": "after",
-            "events": [
-              "insert",
-              "update"
-            ],
-            "level": "row",
-            "function": "better_supabase.inbox_conversation_broadcast",
-            "source": "\ndeclare\n  v_payload jsonb := jsonb_build_object('conversation_id', new.\"id\");\nbegin\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(v_payload, 'conversation', 'messages:' || new.\"id\"::text, true);\n    perform realtime.send(v_payload, 'conversation', 'inbox:org:' || new.\"tenant_id\"::text, true);\n  end if;\n  return null;\nend;\n"
           }
         ],
         "grants": [
@@ -308136,6 +308136,17 @@
         ],
         "triggers": [
           {
+            "name": "bsb_inbox_message_deliveries_broadcast",
+            "timing": "after",
+            "events": [
+              "insert",
+              "update"
+            ],
+            "level": "row",
+            "function": "better_supabase.inbox_delivery_broadcast",
+            "source": "\nbegin\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(\n      jsonb_build_object('conversation_id', d.\"conversation_id\", 'message_id', new.\"message_id\", 'status', new.\"status\"),\n      'delivery',\n      'inbox:org:' || new.\"tenant_id\"::text,\n      true\n    )\n    from \"better_supabase\".\"inbox_message_details\" d where d.\"message_id\" = new.\"message_id\";\n  end if;\n  return null;\nend;\n"
+          },
+          {
             "name": "bsb_updated_at",
             "timing": "before",
             "events": [
@@ -308146,17 +308157,6 @@
             "args": [
               "updated_at"
             ]
-          },
-          {
-            "name": "inbox_message_deliveries_broadcast",
-            "timing": "after",
-            "events": [
-              "insert",
-              "update"
-            ],
-            "level": "row",
-            "function": "better_supabase.inbox_delivery_broadcast",
-            "source": "\nbegin\n  if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null then\n    perform realtime.send(\n      jsonb_build_object('conversation_id', d.\"conversation_id\", 'message_id', new.\"message_id\", 'status', new.\"status\"),\n      'delivery',\n      'inbox:org:' || new.\"tenant_id\"::text,\n      true\n    )\n    from \"better_supabase\".\"inbox_message_details\" d where d.\"message_id\" = new.\"message_id\";\n  end if;\n  return null;\nend;\n"
           }
         ],
         "grants": [
@@ -331367,7 +331367,7 @@
             ]
           },
           {
-            "name": "permission_overrides_bump_authz_versions",
+            "name": "bsb_permission_overrides_bump_authz_versions",
             "timing": "after",
             "events": [
               "insert",
@@ -340354,7 +340354,7 @@
         ],
         "indexes": [
           {
-            "name": "bsb_rate_limit_rules_scope_global",
+            "name": "bsb_rate_limit_rules_scope_global_key",
             "columns": [
               "scope"
             ],
@@ -340365,7 +340365,7 @@
             "predicate": "(organization_id IS NULL)"
           },
           {
-            "name": "bsb_rate_limit_rules_scope_org",
+            "name": "bsb_rate_limit_rules_scope_org_key",
             "columns": [
               "scope",
               "organization_id"
@@ -346178,7 +346178,7 @@
         ],
         "indexes": [
           {
-            "name": "shift_assignments_no_overlap",
+            "name": "shift_assignments_no_overlap_excl",
             "columns": [
               "tenant_id",
               "user_id"
@@ -356105,7 +356105,7 @@
             "predicate": "(employee_id IS NOT NULL)"
           },
           {
-            "name": "time_entries_no_overlap",
+            "name": "time_entries_no_overlap_excl",
             "columns": [
               "tenant_id",
               "user_id"

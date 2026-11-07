@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:c491f86ea95541d5feadf06773ff39d311fcc9c655478814c3b171b7bc498f77
+-- @bsb-hash sha256:ce4a96f66c93fa5848f22e3a127aa9e0d2e8d60c99c483f3683d584592cbd2b4
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2132,7 +2132,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_conversation_broadcast"() from public, anon, authenticated;
-create trigger conversations_broadcast after insert or update on "better_supabase"."inbox_conversations"
+create trigger bsb_conversations_broadcast after insert or update on "better_supabase"."inbox_conversations"
   for each row execute function "better_supabase"."inbox_conversation_broadcast"();
 
 -- A timeline event (assignment, status, hand-off, note) pings the staff topic
@@ -2154,7 +2154,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_event_broadcast"() from public, anon, authenticated;
-create trigger "inbox_conversation_events_broadcast" after insert on "better_supabase"."inbox_conversation_events"
+create trigger "bsb_inbox_conversation_events_broadcast" after insert on "better_supabase"."inbox_conversation_events"
   for each row execute function "better_supabase"."inbox_event_broadcast"();
 
 create or replace function "better_supabase"."inbox_delivery_broadcast"()
@@ -2177,7 +2177,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_delivery_broadcast"() from public, anon, authenticated;
-create trigger "inbox_message_deliveries_broadcast" after insert or update of "status" on "better_supabase"."inbox_message_deliveries"
+create trigger "bsb_inbox_message_deliveries_broadcast" after insert or update of "status" on "better_supabase"."inbox_message_deliveries"
   for each row execute function "better_supabase"."inbox_delivery_broadcast"();
 
 -- Staff join inbox:org:<tenant>. A conversation's own topic, with typing
@@ -2380,7 +2380,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:8d4ee6b4bff2652ac30a0812f5d4007f35699978f780f76b664d6b57ecc35243
+-- @bsb-hash sha256:9aeb3b832a40fb2b23ba9733242a2c09ce8d10a92cc82c58e1ec28ba71136da5
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4643,7 +4643,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_conversation_broadcast"() from public, anon, authenticated;
-create trigger conversations_broadcast after insert or update on "better_supabase"."inbox_conversations"
+create trigger bsb_conversations_broadcast after insert or update on "better_supabase"."inbox_conversations"
   for each row execute function "better_supabase"."inbox_conversation_broadcast"();
 
 -- A timeline event (assignment, status, hand-off, note) pings the staff topic
@@ -4665,7 +4665,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_event_broadcast"() from public, anon, authenticated;
-create trigger "inbox_conversation_events_broadcast" after insert on "better_supabase"."inbox_conversation_events"
+create trigger "bsb_inbox_conversation_events_broadcast" after insert on "better_supabase"."inbox_conversation_events"
   for each row execute function "better_supabase"."inbox_event_broadcast"();
 
 create or replace function "better_supabase"."inbox_delivery_broadcast"()
@@ -4688,7 +4688,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_delivery_broadcast"() from public, anon, authenticated;
-create trigger "inbox_message_deliveries_broadcast" after insert or update of "status" on "better_supabase"."inbox_message_deliveries"
+create trigger "bsb_inbox_message_deliveries_broadcast" after insert or update of "status" on "better_supabase"."inbox_message_deliveries"
   for each row execute function "better_supabase"."inbox_delivery_broadcast"();
 
 -- Staff join inbox:org:<tenant>. A conversation's own topic, with typing
@@ -4898,7 +4898,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:4477cd7b78da55ef5867b38e91fd9a59f861993916a60662cb238eccf6aaf801
+-- @bsb-hash sha256:48b2d8431d2c28f7e1a8cbd821c8291ca8b3bd62a1c8f1d52ec54f251128b828
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7034,7 +7034,7 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."inbox_conversation_broadcast"() from public, anon, authenticated;
-create trigger conversations_broadcast after insert or update on "app_private"."inbox_conversations"
+create trigger bsb_conversations_broadcast after insert or update on "app_private"."inbox_conversations"
   for each row execute function "app_private"."inbox_conversation_broadcast"();
 
 -- A timeline event (assignment, status, hand-off, note) pings the staff topic
@@ -7056,7 +7056,7 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."inbox_event_broadcast"() from public, anon, authenticated;
-create trigger "inbox_conversation_events_broadcast" after insert on "app_private"."inbox_conversation_events"
+create trigger "bsb_inbox_conversation_events_broadcast" after insert on "app_private"."inbox_conversation_events"
   for each row execute function "app_private"."inbox_event_broadcast"();
 
 create or replace function "app_private"."inbox_delivery_broadcast"()
@@ -7079,7 +7079,7 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."inbox_delivery_broadcast"() from public, anon, authenticated;
-create trigger "inbox_message_deliveries_broadcast" after insert or update of "status" on "app_private"."inbox_message_deliveries"
+create trigger "bsb_inbox_message_deliveries_broadcast" after insert or update of "status" on "app_private"."inbox_message_deliveries"
   for each row execute function "app_private"."inbox_delivery_broadcast"();
 
 -- Staff join inbox:org:<tenant>. A conversation's own topic, with typing
@@ -7282,7 +7282,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:899ba1a87f42131d2265f66db2f547736fc171f2de4620a7abf4a5863fa728c1
+-- @bsb-hash sha256:9e82027b166b276ce0858d2736132f997ded361f37e50cad0bd16d5c953aa24a
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9413,7 +9413,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_conversation_broadcast"() from public, anon, authenticated;
-create trigger conversations_broadcast after insert or update on "better_supabase"."inbox_conversations"
+create trigger bsb_conversations_broadcast after insert or update on "better_supabase"."inbox_conversations"
   for each row execute function "better_supabase"."inbox_conversation_broadcast"();
 
 -- A timeline event (assignment, status, hand-off, note) pings the staff topic
@@ -9435,7 +9435,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_event_broadcast"() from public, anon, authenticated;
-create trigger "inbox_conversation_events_broadcast" after insert on "better_supabase"."inbox_conversation_events"
+create trigger "bsb_inbox_conversation_events_broadcast" after insert on "better_supabase"."inbox_conversation_events"
   for each row execute function "better_supabase"."inbox_event_broadcast"();
 
 create or replace function "better_supabase"."inbox_delivery_broadcast"()
@@ -9458,7 +9458,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_delivery_broadcast"() from public, anon, authenticated;
-create trigger "inbox_message_deliveries_broadcast" after insert or update of "status" on "better_supabase"."inbox_message_deliveries"
+create trigger "bsb_inbox_message_deliveries_broadcast" after insert or update of "status" on "better_supabase"."inbox_message_deliveries"
   for each row execute function "better_supabase"."inbox_delivery_broadcast"();
 
 -- Staff join inbox:org:<tenant>. A conversation's own topic, with typing
@@ -10083,7 +10083,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:3e996fa7c4f3578d29df0fdfae91efb1ebee2c611e2e5a3655d39466efe86624
+-- @bsb-hash sha256:91ae927046eeb3ac5d8319db994cb8e6b91b15f1119150c995cabc835ef3cd37
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12221,7 +12221,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_event_broadcast"() from public, anon, authenticated;
-create trigger bsb_inbox_conversation_events_broadcast after insert on "better_supabase"."inbox_conversation_events"
+create trigger "bsb_inbox_conversation_events_broadcast" after insert on "better_supabase"."inbox_conversation_events"
   for each row execute function "better_supabase"."inbox_event_broadcast"();
 
 create or replace function "better_supabase"."inbox_delivery_broadcast"()
@@ -12244,7 +12244,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_delivery_broadcast"() from public, anon, authenticated;
-create trigger bsb_inbox_message_deliveries_broadcast after insert or update of "status" on "better_supabase"."inbox_message_deliveries"
+create trigger "bsb_inbox_message_deliveries_broadcast" after insert or update of "status" on "better_supabase"."inbox_message_deliveries"
   for each row execute function "better_supabase"."inbox_delivery_broadcast"();
 
 -- Staff join inbox:org:<tenant>. A conversation's own topic, with typing
@@ -12447,7 +12447,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:d41a8d21cdfc991d046ccc25a6e4adb514bfa2978d748a95b20d0198533d0997
+-- @bsb-hash sha256:77f5ff0528c4bc7efc80a9e54e83082c1c0a256162f5dbcb66c101a3021e7df0
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14578,7 +14578,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_conversation_broadcast"() from public, anon, authenticated;
-create trigger conversations_broadcast after insert or update on "better_supabase"."inbox_conversations"
+create trigger bsb_conversations_broadcast after insert or update on "better_supabase"."inbox_conversations"
   for each row execute function "better_supabase"."inbox_conversation_broadcast"();
 
 -- A timeline event (assignment, status, hand-off, note) pings the staff topic
@@ -14600,7 +14600,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_event_broadcast"() from public, anon, authenticated;
-create trigger "inbox_conversation_events_broadcast" after insert on "better_supabase"."inbox_conversation_events"
+create trigger "bsb_inbox_conversation_events_broadcast" after insert on "better_supabase"."inbox_conversation_events"
   for each row execute function "better_supabase"."inbox_event_broadcast"();
 
 create or replace function "better_supabase"."inbox_delivery_broadcast"()
@@ -14623,7 +14623,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."inbox_delivery_broadcast"() from public, anon, authenticated;
-create trigger "inbox_message_deliveries_broadcast" after insert or update of "status" on "better_supabase"."inbox_message_deliveries"
+create trigger "bsb_inbox_message_deliveries_broadcast" after insert or update of "status" on "better_supabase"."inbox_message_deliveries"
   for each row execute function "better_supabase"."inbox_delivery_broadcast"();
 
 -- Staff join inbox:org:<tenant>. A conversation's own topic, with typing

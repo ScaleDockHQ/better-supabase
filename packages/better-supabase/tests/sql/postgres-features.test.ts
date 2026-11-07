@@ -43,7 +43,7 @@ describe("ensureExclusion", () => {
   it("adds the constraint once, behind btree_gist", () => {
     const sql = ensureExclusion(
       '"app"."leases"',
-      "leases_no_overlap",
+      "leases_no_overlap_excl",
       [
         { expression: '"unit_id"', operator: "=" },
         { expression: "daterange(a, b)", operator: "&&" },
@@ -103,7 +103,7 @@ describe("noOverlap", () => {
   it("keeps a calendar's opaque timed events apart", () => {
     const sql = render("calendar", { noOverlap: true });
 
-    expect(sql).toContain("calendar_events_no_overlap");
+    expect(sql).toContain("calendar_events_no_overlap_excl");
     expect(sql).toContain("tstzrange(");
     expect(render("calendar", {})).not.toContain("exclude using gist");
   });
@@ -111,7 +111,7 @@ describe("noOverlap", () => {
   it("keeps a holder's active passes of a kind apart", () => {
     const sql = render("passes", { noOverlap: true });
 
-    expect(sql).toContain("passes_no_overlap");
+    expect(sql).toContain("passes_no_overlap_excl");
     expect(render("passes", {})).not.toContain("exclude using gist");
   });
 });

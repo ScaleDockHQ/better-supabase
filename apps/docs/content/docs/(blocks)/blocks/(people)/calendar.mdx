@@ -113,7 +113,7 @@ yourself.
 
 ## No overlapping events
 
-`noOverlap: true` adds the `calendar_events_no_overlap` exclusion constraint
+`noOverlap: true` adds the `calendar_events_no_overlap_excl` exclusion constraint
 (`btree_gist`). Two timed, opaque, non-recurring, non-cancelled events on the
 same calendar can't cover the same time range. It is off by default because
 existing data may already overlap.

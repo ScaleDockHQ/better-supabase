@@ -105,7 +105,7 @@ describe("passes credits option", () => {
     expect(sql).not.toContain("pass_credit_entries");
     expect(sql).toContain(`"better_supabase"."ledger_post"(`);
     expect(sql).toContain("'pass-credit:' || ");
-    expect(sql).toContain(`"passes_credit_refund"`);
+    expect(sql).toContain(`"bsb_passes_credit_refund"`);
 
     expect(sql).toContain(
       `after update of "status" on "better_supabase"."bookings"`,

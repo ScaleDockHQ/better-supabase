@@ -1,6 +1,6 @@
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:3afb198a1eca4682d771b81553a6410713f1573df0c27a6d16d60fc9846d905c
+-- @bsb-hash sha256:41ed3da3866cf57845512dc478c0581bd998860d77b4a8566f364066c561c1d2
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -609,7 +609,7 @@ begin
 end;
 $$;
 revoke all on function "better_supabase"."refund_pass_credit"() from public, anon, authenticated;
-create trigger "passes_credit_refund"
+create trigger "bsb_passes_credit_refund"
 after update of "status" on "better_supabase"."bookings"
 for each row execute function "better_supabase"."refund_pass_credit"();
 

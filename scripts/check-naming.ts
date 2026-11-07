@@ -14,14 +14,17 @@ interface Rename {
   readonly to: string;
   readonly kind:
     | "column"
+    | "constraint"
     | "env"
     | "event"
     | "function"
     | "hint"
+    | "index"
     | "policy"
     | "sqlFunction"
     | "subpath"
     | "table"
+    | "trigger"
     | "type";
   readonly since: string;
 }
@@ -54,6 +57,7 @@ const SKIPPED = new Set([
   ".git",
   "coverage",
   ".source",
+  ".temp",
 ]);
 
 const TEXT = /\.(?:ts|tsx|mts|md|mdx|json|jsonc|yml|yaml|toml|sql|example)$/;

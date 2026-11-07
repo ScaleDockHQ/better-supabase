@@ -23,7 +23,7 @@ select extensions.cmp_ok(
     join pg_catalog.pg_class c on c.oid = t.tgrelid
     join pg_catalog.pg_namespace s on s.oid = c.relnamespace
     where s.nspname = 'better_supabase' and not t.tgisinternal and t.tgname !~ '^bsb_'),
-  '<=', 8::bigint,
+  '<=', 0::bigint,
   'better_supabase triggers are named bsb_*'
 );
 
@@ -37,9 +37,9 @@ select extensions.cmp_ok(
 );
 
 select extensions.cmp_ok(
-  (select count(*) from pg_catalog.pg_indexes where schemaname = 'better_supabase' and indexname !~ '(_idx|_key|_pkey)$'),
-  '<=', 7::bigint,
-  'index names end in _idx, _key or _pkey'
+  (select count(*) from pg_catalog.pg_indexes where schemaname = 'better_supabase' and indexname !~ '(_idx|_key|_pkey|_excl)$'),
+  '<=', 0::bigint,
+  'index names end in _idx, _key, _pkey or _excl'
 );
 
 select extensions.cmp_ok(

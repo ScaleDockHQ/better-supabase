@@ -381,6 +381,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0268: Close the parties and documents gaps of the base layer.
 - 0269: Close the fields and work gaps of the base layer.
 - 0270: Close the platform and runtime gaps of the base layer.
+- 0271: Name every generated trigger bsb_*, and end unique and exclusion names in `_key` and `_excl`.
 
 ## Pre-release pins
 
