@@ -6,6 +6,7 @@ import type { ActionHandle } from "better-supabase/react";
 import { useAction } from "better-supabase/react";
 import { SearchIcon, SearchXIcon, TriangleAlertIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
+import { useQueryState } from "nuqs";
 import { useDeferredValue, useState } from "react";
 
 import {
@@ -41,6 +42,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { searchParam } from "@/lib/url-filters";
 import { useErrorMessage } from "@/lib/use-error-message";
 import { cn } from "@/lib/utils";
 
@@ -150,7 +152,7 @@ export function EmployeeTable({
   canViewSensitive: boolean;
 }) {
   const t = useExtracted("people");
-  const [query, setQuery] = useState("");
+  const [query, setQuery] = useQueryState("q", searchParam);
   const deferred = useDeferredValue(query.trim().toLowerCase());
   const [selected, setSelected] = useState<DirectoryEmployee | null>(null);
   const read = useAction(getPrivateDetails);
@@ -182,7 +184,7 @@ export function EmployeeTable({
           type="search"
           value={query}
           onChange={(event) => {
-            setQuery(event.target.value);
+            void setQuery(event.target.value);
           }}
           placeholder={t("Search by name, title or email")}
           aria-label={t("Search employees")}
@@ -204,7 +206,7 @@ export function EmployeeTable({
             <Button
               variant="outline"
               onClick={() => {
-                setQuery("");
+                void setQuery("");
               }}
             >
               {t("Clear search")}

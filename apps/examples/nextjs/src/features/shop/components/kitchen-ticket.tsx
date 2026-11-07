@@ -19,9 +19,9 @@ import {
 } from "@/components/ui/card";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type { TicketView } from "../kitchen-queries";
+import type { TicketView } from "../shop-queries";
 
-import { bumpTicket, setLineState } from "../kitchen-actions";
+import { bumpTicket, setLineState } from "../shop-actions";
 import {
   nextPreparationState,
   preparationBadgeVariant,

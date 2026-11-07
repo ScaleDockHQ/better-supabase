@@ -7,7 +7,7 @@ import * as v from "valibot";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
-import { teamsTag } from "./teams-queries";
+import { teamsTag } from "./teams-cache";
 
 const Id = v.pipe(v.string(), v.uuid());
 const Name = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(80));

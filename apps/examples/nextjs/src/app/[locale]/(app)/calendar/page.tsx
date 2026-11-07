@@ -25,7 +25,9 @@ export default function CalendarPage({
         description={t("Your organization's events by month.")}
       />
       <Suspense fallback={<CalendarViewSkeleton />}>
-        <CalendarView searchParams={searchParams} />
+        {searchParams.then((query) => (
+          <CalendarView query={query} />
+        ))}
       </Suspense>
       <Suspense fallback={<RemindersListSkeleton />}>
         <RemindersList />

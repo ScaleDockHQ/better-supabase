@@ -433,16 +433,6 @@ msgid "Customer conversations from the Help widget and chat channels, kept live 
 msgstr "Klantgesprekken uit de Help-widget en chatkanalen, live bijgewerkt via Realtime."
 
 #: src/app/[locale]/(app)/inspections/page.tsx
-msgctxt "inspections.Sl9G4R"
-msgid "Pick an inspection"
-msgstr "Kies een inspectie"
-
-#: src/app/[locale]/(app)/inspections/page.tsx
-msgctxt "inspections.1cJBOV"
-msgid "Open an inspection in the programme to see its team, checklist and findings."
-msgstr "Open een inspectie in het programma om het team, de checklist en de bevindingen te zien."
-
-#: src/app/[locale]/(app)/inspections/page.tsx
 msgctxt "inspections.PcgHMz"
 msgid "Audits and inspections"
 msgstr "Audits en inspecties"
@@ -937,26 +927,6 @@ msgctxt "workflows.F42bEw"
 msgid "Schedules"
 msgstr "Planningen"
 
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.5Wwopw"
-msgid "Pricing"
-msgstr "Prijzen"
-
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.BzkPrB"
-msgid "One plan per organization, billed monthly."
-msgstr "Eén abonnement per organisatie, maandelijks gefactureerd."
-
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.I32k58"
-msgid "Upgrade and save"
-msgstr "Upgrade en bespaar"
-
-#: src/app/[locale]/(auth)/pricing/[code]/page.tsx
-msgctxt "pricing.RbnSLQ"
-msgid "The pricing-banner flag is on for your plan."
-msgstr "De pricing-banner-flag staat aan voor je abonnement."
-
 #: src/app/[locale]/islands/page.tsx
 msgctxt "islands.a8EoBn"
 msgid "Islands"
@@ -1405,6 +1375,18 @@ msgctxt "acknowledgements.5vDqi-"
 msgid "Due {date}"
 msgstr "Uiterlijk {date}"
 
+#: src/features/ai-providers/components/ai-provider-section.tsx
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders._3yfCs"
+msgid "AI providers"
+msgstr "AI-providers"
+
+#: src/features/ai-providers/components/ai-provider-section.tsx
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.ItEK0n"
+msgid "The organization's own provider keys, used instead of the app's key for the assistant."
+msgstr "De eigen providersleutels van de organisatie, die de assistent gebruikt in plaats van de sleutel van de app."
+
 #: src/features/ai-providers/components/ai-provider-settings.tsx
 msgctxt "aiProviders.or3Lzc"
 msgid "Key saved"
@@ -1504,16 +1486,6 @@ msgstr "Ingeschakeld"
 msgctxt "aiProviders.tthToS"
 msgid "Disabled"
 msgstr "Uitgeschakeld"
-
-#: src/features/ai-providers/components/ai-provider-settings.tsx
-msgctxt "aiProviders._3yfCs"
-msgid "AI providers"
-msgstr "AI-providers"
-
-#: src/features/ai-providers/components/ai-provider-settings.tsx
-msgctxt "aiProviders.ItEK0n"
-msgid "The organization's own provider keys, used instead of the app's key for the assistant."
-msgstr "De eigen providersleutels van de organisatie, die de assistent gebruikt in plaats van de sleutel van de app."
 
 #: src/features/ai-providers/components/ai-provider-settings.tsx
 msgctxt "aiProviders.y1rlCZ"
@@ -8238,6 +8210,26 @@ msgctxt "flags.OvzONl"
 msgid "Off"
 msgstr "Uit"
 
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.5Wwopw"
+msgid "Pricing"
+msgstr "Prijzen"
+
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.BzkPrB"
+msgid "One plan per organization, billed monthly."
+msgstr "Eén abonnement per organisatie, maandelijks gefactureerd."
+
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.I32k58"
+msgid "Upgrade and save"
+msgstr "Upgrade en bespaar"
+
+#: src/features/flags/components/pricing-card.tsx
+msgctxt "pricing.RbnSLQ"
+msgid "The pricing-banner flag is on for your plan."
+msgstr "De pricing-banner-flag staat aan voor je abonnement."
+
 #: src/features/forms/components/create-form-dialog.tsx
 msgctxt "forms.xeWtMD"
 msgid "{title} created"
@@ -9248,6 +9240,16 @@ msgctxt "inspections.BADGBv"
 msgid "Read the inspections guide"
 msgstr "Lees de handleiding voor inspecties"
 
+#: src/features/inspections/components/inspection-run-section.tsx
+msgctxt "inspections.Sl9G4R"
+msgid "Pick an inspection"
+msgstr "Kies een inspectie"
+
+#: src/features/inspections/components/inspection-run-section.tsx
+msgctxt "inspections.1cJBOV"
+msgid "Open an inspection in the programme to see its team, checklist and findings."
+msgstr "Open een inspectie in het programma om het team, de checklist en de bevindingen te zien."
+
 #: src/features/inspections/components/inspection-run.tsx
 msgctxt "inspections.ab2qRi"
 msgid "Case raised"
@@ -9318,6 +9320,18 @@ msgctxt "inspections.PjaypS"
 msgid "Close inspection"
 msgstr "Inspectie sluiten"
 
+#: src/features/integrations/components/integration-section.tsx
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.6cBDhe"
+msgid "Integrations"
+msgstr "Integraties"
+
+#: src/features/integrations/components/integration-section.tsx
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.7lMzB0"
+msgid "Your own accounts the app may use on your behalf, such as the mailbox mail sync reads."
+msgstr "Je eigen accounts die de app namens jou mag gebruiken, zoals de mailbox die de mailsynchronisatie leest."
+
 #: src/features/integrations/components/integration-settings.tsx
 msgctxt "integrations.IvjoDS"
 msgid "Connected"
@@ -9387,16 +9401,6 @@ msgstr "{name} is niet verbonden"
 msgctxt "integrations.o1qevE"
 msgid "Consent was declined or expired. Try connecting again."
 msgstr "De toestemming is geweigerd of verlopen. Probeer opnieuw te verbinden."
-
-#: src/features/integrations/components/integration-settings.tsx
-msgctxt "integrations.6cBDhe"
-msgid "Integrations"
-msgstr "Integraties"
-
-#: src/features/integrations/components/integration-settings.tsx
-msgctxt "integrations.7lMzB0"
-msgid "Your own accounts the app may use on your behalf, such as the mailbox mail sync reads."
-msgstr "Je eigen accounts die de app namens jou mag gebruiken, zoals de mailbox die de mailsynchronisatie leest."
 
 #: src/features/integrations/components/integration-settings.tsx
 msgctxt "integrations.vDGz5L"

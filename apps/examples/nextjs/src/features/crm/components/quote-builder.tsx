@@ -36,13 +36,8 @@ import { QuoteStatusBadge } from "./quote-status-badge";
  * quote with changes requested) is editable; the status decides what comes
  * next: send, record the customer's answer, or revise.
  */
-export async function QuoteBuilder({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const [{ id }, t, locale, permissions] = await Promise.all([
-    params,
+export async function QuoteBuilder({ id }: { id: string }) {
+  const [t, locale, permissions] = await Promise.all([
     getExtracted("crm"),
     getLocale(),
     getPermissions(),

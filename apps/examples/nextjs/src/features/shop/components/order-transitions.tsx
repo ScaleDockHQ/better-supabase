@@ -14,8 +14,8 @@ import { Button } from "@/components/ui/button";
 import { useRouter } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { sendToKitchen } from "../kitchen-actions";
 import {
+  sendToKitchen,
   cancelOrder,
   deliverFulfillment,
   fulfillOrder,

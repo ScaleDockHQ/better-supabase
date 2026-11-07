@@ -35,7 +35,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
@@ -255,17 +254,3 @@ export function InspectionRun({
   );
 }
 // #endregion recipe:inspection-run
-
-export function InspectionRunSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-48" />
-        <Skeleton className="h-4 w-32" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-32" />
-      </FramePanel>
-    </Frame>
-  );
-}

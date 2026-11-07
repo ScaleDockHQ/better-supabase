@@ -1,11 +1,10 @@
 import { Suspense } from "react";
 
+import { SCOPE_COUNT, scopeVariant } from "@/features/bench/bench-cache";
 import {
   ScopeIsland,
   ScopeIslandSkeleton,
-} from "@/features/bench/scope-island";
-import { SCOPE_COUNT, scopeVariant } from "@/features/bench/scope-queries";
-import { bsb } from "@/lib/supabase/server";
+} from "@/features/bench/components/scope-island";
 
 /**
  * Twelve private cache scopes under one page. `?variant=session` parks the
@@ -25,23 +24,10 @@ export default function ScopesBenchPage({
       <ul className="flex flex-col gap-2">
         {Array.from({ length: SCOPE_COUNT }, (_, index) => (
           <Suspense key={index} fallback={<ScopeIslandSkeleton />}>
-            <Scope index={index} variant={variant} />
+            <ScopeIsland index={index} variant={variant} />
           </Suspense>
         ))}
       </ul>
     </main>
   );
-}
-
-async function Scope({
-  index,
-  variant,
-}: {
-  index: number;
-  variant: Promise<"plain" | "session">;
-}) {
-  const session =
-    (await variant) === "session" ? await bsb.sessionHandle() : undefined;
-
-  return <ScopeIsland index={index} session={session} />;
 }

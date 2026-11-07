@@ -6,12 +6,7 @@ import { getBuilderDetail } from "../builder-queries";
 import { WorkflowCanvas } from "./workflow-canvas";
 
 /** Render inside `<Suspense>`: reads the `definition` param. */
-export async function BuilderEditor({
-  params,
-}: {
-  params: Promise<{ definition: string }>;
-}) {
-  const { definition } = await params;
+export async function BuilderEditor({ definition }: { definition: string }) {
   const detail = await getBuilderDetail(definition);
 
   if (detail === null) {

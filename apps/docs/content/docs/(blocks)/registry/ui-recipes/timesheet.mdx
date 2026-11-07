@@ -20,16 +20,15 @@ npx shadcn add badge button card empty skeleton table
  * `?week=YYYY-MM-DD` picks the week.
  */
 export async function Timesheet({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, format, query, permissions] = await Promise.all([
+  const [t, format, permissions] = await Promise.all([
     getExtracted("people"),
     getFormatter(),
-    searchParams,
     getPermissions(),
-    connection(),
+    io(),
   ]);
 
   if (!can(permissions, "time_tracking.track")) {

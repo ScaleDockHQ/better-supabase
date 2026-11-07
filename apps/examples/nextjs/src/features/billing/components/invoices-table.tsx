@@ -41,7 +41,7 @@ import {
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 
-import { getInvoices } from "../invoice-queries";
+import { getInvoices } from "../billing-queries";
 import {
   CreateDraftInvoiceDialog,
   IssueInvoiceButton,

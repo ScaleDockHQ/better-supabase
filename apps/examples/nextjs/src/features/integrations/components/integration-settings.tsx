@@ -41,7 +41,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -57,12 +56,12 @@ import type {
   IntegrationRow,
   IntegrationsRead,
   IntegrationStatus,
-} from "../integration-queries";
+} from "../integrations-queries";
 
 import {
   connectIntegration,
   disconnectIntegration,
-} from "../integration-actions";
+} from "../integrations-actions";
 
 const DOCS_URL = "https://vercel.com/docs/connect";
 
@@ -315,27 +314,4 @@ export function IntegrationSettings({ read }: { read: IntegrationsRead }) {
   );
 }
 
-const SKELETON_ROWS = ["first", "second"];
-
 /** Keeps the card's title in the static shell, so the tab commits it at once. */
-export function IntegrationSettingsSkeleton() {
-  const t = useExtracted("integrations");
-
-  return (
-    <Card aria-busy="true">
-      <CardHeader>
-        <CardTitle>{t("Integrations")}</CardTitle>
-        <CardDescription>
-          {t(
-            "Your own accounts the app may use on your behalf, such as the mailbox mail sync reads.",
-          )}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {SKELETON_ROWS.map((row) => (
-          <Skeleton key={row} className="h-11 w-full" />
-        ))}
-      </CardContent>
-    </Card>
-  );
-}

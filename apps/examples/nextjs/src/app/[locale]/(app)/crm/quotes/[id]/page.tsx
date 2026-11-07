@@ -29,7 +29,9 @@ export default function QuotePage({
         {t("All quotes")}
       </Link>
       <Suspense fallback={<QuoteBuilderSkeleton />}>
-        <QuoteBuilder params={params} />
+        {params.then(({ id }) => (
+          <QuoteBuilder id={id} />
+        ))}
       </Suspense>
     </>
   );

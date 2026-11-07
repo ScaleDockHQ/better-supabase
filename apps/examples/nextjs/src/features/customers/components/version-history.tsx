@@ -53,15 +53,15 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
-import { snapshotCustomerVersions } from "@/features/customers/customer-record-actions";
+import { snapshotCustomerVersions } from "@/features/customers/customers-actions";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type { Loaded, VersionRow } from "../customer-record-queries";
+import type { Loaded, VersionRow } from "../customers-queries";
 
 import {
   compareCustomerVersions,
   restoreCustomerVersion,
-} from "../customer-record-actions";
+} from "../customers-actions";
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 
 // #region recipe:version-history

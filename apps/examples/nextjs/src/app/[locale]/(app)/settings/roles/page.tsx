@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 
 import {
-  RolesSection,
   RolesSectionSkeleton,
+  RolesSection,
 } from "@/features/roles/components/roles-section";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 

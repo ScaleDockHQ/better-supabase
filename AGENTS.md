@@ -387,6 +387,13 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0290: CLI contract 3 follows the Vercel CLI design guidelines.
 - 0291: Memoize the adoption scan on disk, watch with `dev`, and purge the cache with `cache purge`.
 - 0292: Give each first-party generator a subpath and declare its library as a peer.
+- 0310: Check the example app's feature-sliced RSC architecture in `pnpm verify`.
+- 0311: Keep tags in pure `<domain>-cache.ts` files built on `tagFor`.
+- 0312: Use `cacheLife("max")` where every write calls `updateTag`.
+- 0313: Prefetch record rows and gate their heavy body behind `navigation()`.
+- 0314: Mark key pages `instant` and lock each loading sequence in a test.
+- 0315: Keep interaction state in `useOptimistic`, the URL and the action state.
+- 0316: Record the Part 11 library work as specs.
 
 ## Pre-release pins
 

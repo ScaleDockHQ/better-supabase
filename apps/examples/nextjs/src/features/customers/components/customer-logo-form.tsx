@@ -16,7 +16,7 @@ import {
 import { Input } from "@/components/ui/input";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { uploadCustomerLogo } from "../customer-actions";
+import { uploadCustomerLogo } from "../customers-actions";
 
 export function CustomerLogoForm({ customerId }: { customerId: string }) {
   const t = useExtracted("customers");

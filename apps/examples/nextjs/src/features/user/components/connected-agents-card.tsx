@@ -15,7 +15,7 @@ import {
 } from "@/components/ui/card";
 import { useSupabase } from "@/lib/hooks";
 
-import type { AuthRead, Grant } from "../security-queries";
+import type { AuthRead, Grant } from "../user-queries";
 
 import { sessionChanged } from "../user-actions";
 

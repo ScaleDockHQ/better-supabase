@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { PageHeader } from "@/components/page-header";
 import {
   ProductionOrderBoardSection,
-  ProductionOrderBoardSkeleton,
+  ProductionOrderBoardSectionSkeleton,
 } from "@/features/manufacturing/components/production-order-sections";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
@@ -19,7 +19,7 @@ export default function ManufacturingPage() {
           "Production orders from draft to done, consuming components from stock and receiving the output at its cost.",
         )}
       />
-      <Suspense fallback={<ProductionOrderBoardSkeleton />}>
+      <Suspense fallback={<ProductionOrderBoardSectionSkeleton />}>
         <PermissionGate permission="manufacturing.read">
           <ProductionOrderBoardSection />
         </PermissionGate>

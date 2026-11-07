@@ -10,7 +10,9 @@ export default function InvitePage({
 }: PageProps<"/[locale]/invite/[token]">) {
   return (
     <Suspense fallback={<InvitationCardSkeleton />}>
-      <InvitationCard params={params} />
+      {params.then(({ token }) => (
+        <InvitationCard token={token} />
+      ))}
     </Suspense>
   );
 }

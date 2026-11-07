@@ -30,7 +30,7 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
 
-import { getKitchen } from "../kitchen-queries";
+import { getKitchen } from "../shop-queries";
 import { KitchenLive } from "./kitchen-live";
 import { KitchenTicket } from "./kitchen-ticket";
 
@@ -49,14 +49,11 @@ async function retry() {
  * page refreshes when a line changes anywhere in the kitchen.
  */
 export async function KitchenDisplay({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [params, permissions] = await Promise.all([
-    searchParams,
-    getPermissions(),
-  ]);
+  const permissions = await getPermissions();
 
   if (!can(permissions, "orders.read") && !can(permissions, "orders.prepare")) {
     forbidden();
@@ -66,9 +63,7 @@ export async function KitchenDisplay({
     can(permissions, "orders.prepare") || can(permissions, "orders.manage");
 
   const [kitchen, t] = await Promise.all([
-    getKitchen(
-      v.is(StationParam, params["station"]) ? params["station"] : null,
-    ),
+    getKitchen(v.is(StationParam, query["station"]) ? query["station"] : null),
     getExtracted("shop"),
   ]);
 

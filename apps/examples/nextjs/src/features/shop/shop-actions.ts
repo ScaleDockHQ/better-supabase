@@ -2,9 +2,12 @@
 
 import { dbError, err, ok } from "better-supabase";
 import { ADJUST_REASONS } from "better-supabase/blocks/inventory";
+import { PREPARATION_STATES } from "better-supabase/blocks/orders";
 import { money, parseMoney } from "better-supabase/commerce";
 import * as v from "valibot";
 
+import { getPermissions } from "@/features/user/permission-snapshot";
+import { can } from "@/features/user/user-permissions";
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";
 
@@ -463,5 +466,84 @@ export const createPromotionCode = bsb.action(
     }
 
     return ok(code);
+  },
+);
+
+async function canPrepare(): Promise<boolean> {
+  const permissions = await getPermissions();
+
+  return (
+    can(permissions, "orders.prepare") || can(permissions, "orders.manage")
+  );
+}
+
+/** Sends a paid order's lines to their stations as queued tickets. */
+export const sendToKitchen = bsb.action(
+  {
+    input: v.object({ orderId: Id }),
+    requireTenant: true,
+    authorize: canPrepare,
+  },
+  async ({ orderId }, { supabase, auth }) => {
+    const sent = await shopOrders(supabase).kitchen.send({ orderId });
+
+    if (!sent.ok) {
+      return sent;
+    }
+
+    await refreshCaller(auth);
+
+    return ok(sent.data);
+  },
+);
+
+/**
+ * Moves an order's lines up to a state, at one station or at every station.
+ * Lines already further along stay where they are.
+ */
+export const bumpTicket = bsb.action(
+  {
+    input: v.object({
+      orderId: Id,
+      state: v.picklist(PREPARATION_STATES),
+      stationId: v.nullable(Id),
+    }),
+    requireTenant: true,
+    authorize: canPrepare,
+  },
+  async ({ orderId, state, stationId }, { supabase, auth }) => {
+    const bumped = await shopOrders(supabase).kitchen.bump({
+      orderId,
+      state,
+      stationId: stationId ?? undefined,
+    });
+
+    if (!bumped.ok) {
+      return bumped;
+    }
+
+    await refreshCaller(auth);
+
+    return ok(bumped.data);
+  },
+);
+
+/** Sets one line's state, forward or back. */
+export const setLineState = bsb.action(
+  {
+    input: v.object({ lineId: Id, state: v.picklist(PREPARATION_STATES) }),
+    requireTenant: true,
+    authorize: canPrepare,
+  },
+  async ({ lineId, state }, { supabase, auth }) => {
+    const line = await shopOrders(supabase).kitchen.setState({ lineId, state });
+
+    if (!line.ok) {
+      return line;
+    }
+
+    await refreshCaller(auth);
+
+    return ok(line.data.state);
   },
 );

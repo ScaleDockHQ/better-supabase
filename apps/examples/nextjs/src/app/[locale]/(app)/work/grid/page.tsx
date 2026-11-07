@@ -35,7 +35,9 @@ export default function WorkGridPage({
         }
       />
       <Suspense fallback={<WorkGridSkeleton />}>
-        <WorkGrid searchParams={searchParams} />
+        {searchParams.then((query) => (
+          <WorkGrid query={query} />
+        ))}
       </Suspense>
     </>
   );

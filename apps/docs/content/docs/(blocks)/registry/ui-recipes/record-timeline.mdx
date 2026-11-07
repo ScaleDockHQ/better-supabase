@@ -16,6 +16,7 @@ npx shadcn add button card
 ```tsx title="apps/examples/nextjs/src/features/projects/components/task-timeline.tsx"
 const UNASSIGNED = "";
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /**
  * Tasks as bars from `startsOn` to `dueOn`, one lane per assignee, over a
  * four-week window that lives in the URL (`?from=YYYY-MM-DD`).

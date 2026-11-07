@@ -117,6 +117,7 @@ export async function CourseList() {
               <CardTitle>
                 <Link
                   href={`/courses/${course.id}`}
+                  prefetch
                   className="transition-colors hover:text-primary"
                 >
                   {course.title}

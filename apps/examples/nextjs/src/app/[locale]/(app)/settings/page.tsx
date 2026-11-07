@@ -1,8 +1,9 @@
+import { useLocale } from "next-intl";
+
 import { redirect } from "@/i18n/navigation";
 
-export default async function SettingsIndex({
-  params,
-}: PageProps<"/[locale]/settings">) {
-  const { locale } = await params;
+export default function SettingsIndex() {
+  const locale = useLocale();
+
   redirect({ href: "/settings/profile", locale });
 }

@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/select";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { setCustomerOwnerTeam } from "../customer-actions";
+import { setCustomerOwnerTeam } from "../customers-actions";
 
 const NO_TEAM = "none";
 

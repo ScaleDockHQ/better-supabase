@@ -199,7 +199,7 @@ export async function PayablesAgingSection() {
   );
 }
 
-export function PayablesAgingSkeleton() {
+export function PayablesAgingSectionSkeleton() {
   return (
     <div className="flex flex-col gap-6" aria-busy="true">
       <div className="grid gap-4 md:grid-cols-3">

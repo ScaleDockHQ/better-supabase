@@ -19,7 +19,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 
-import type { Loaded, TimelineRow } from "../customer-record-queries";
+import type { Loaded, TimelineRow } from "../customers-queries";
 
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 

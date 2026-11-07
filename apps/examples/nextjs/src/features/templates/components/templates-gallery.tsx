@@ -41,6 +41,7 @@ async function retry() {
   refresh();
 }
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /** The New template button, for members who may manage templates. */
 export async function TemplateManagerActions() {
   const permissions = await getPermissions();

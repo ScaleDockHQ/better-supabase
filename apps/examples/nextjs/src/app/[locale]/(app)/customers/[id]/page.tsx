@@ -10,6 +10,10 @@ import {
 import { ConnectivityFallback } from "@/features/offline/components/connectivity-fallback";
 import { Link } from "@/i18n/navigation";
 
+// A navigation here shows the back link and the customer head at once; the
+// side sections wait for `navigation()` (tests/loading-sequences.spec.ts).
+export const instant = true;
+
 /** The back link is the static shell; the customer streams in. */
 export default function CustomerPage({
   params,
@@ -36,7 +40,9 @@ export default function CustomerPage({
           </ConnectivityFallback>
         }
       >
-        <CustomerDetail params={params} />
+        {params.then(({ id }) => (
+          <CustomerDetail id={id} />
+        ))}
       </Suspense>
     </>
   );

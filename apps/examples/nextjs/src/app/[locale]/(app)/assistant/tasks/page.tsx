@@ -2,8 +2,10 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import { AiTaskQueueSkeleton } from "@/features/ai-tasks/components/ai-task-queue";
-import { AiTaskSection } from "@/features/ai-tasks/components/ai-task-section";
+import {
+  AiTaskSectionSkeleton,
+  AiTaskSection,
+} from "@/features/ai-tasks/components/ai-task-section";
 
 export default function AiTasksPage() {
   const t = useExtracted("aiTasks");
@@ -16,7 +18,7 @@ export default function AiTasksPage() {
           "Prompts on the ai-schedules block that the assistant runs on a schedule.",
         )}
       />
-      <Suspense fallback={<AiTaskQueueSkeleton />}>
+      <Suspense fallback={<AiTaskSectionSkeleton />}>
         <AiTaskSection />
       </Suspense>
     </>

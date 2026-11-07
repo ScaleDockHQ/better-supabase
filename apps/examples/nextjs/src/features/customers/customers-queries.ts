@@ -4,10 +4,91 @@ import type { RecordBindingResult } from "better-supabase/records";
 import { toDbError } from "better-supabase";
 import { unstable_rethrow } from "next/navigation";
 import { Temporal } from "temporal-polyfill";
+import * as v from "valibot";
 
+import { customerList } from "@/lib/lists";
 import { bsb } from "@/lib/supabase/server";
 
 import { customerPage } from "./customer-record";
+
+/**
+ * The first page of the caller's customers plus the count per status.
+ * `bsb.cached()` queries with the user's token, so RLS decides the rows; the
+ * private cache keeps them in this browser only, for as long as the session
+ * view may be reused. The page doesn't read `searchParams`, so it stays in the
+ * instant App Shell; filtered pages go through `/api/customers/list`.
+ */
+export async function getCustomers() {
+  "use cache: private";
+  const { db } = await bsb.cached({ tables: ["customers", "notes"] });
+
+  const page = await customerList
+    .run(db, customerList.defaults, {
+      select: ["id", "name", "status", "logoPath"],
+      // Counted and maxed in the database, in the same request.
+      include: {
+        _count: { notes: true },
+        _max: { notes: { createdAt: true } },
+      },
+    })
+    .orThrow();
+
+  // Public bucket: the URL is built locally, and `next/image` resizes it
+  // through Storage (see `src/image-loader.ts`).
+  const storage = db.$buckets.logos;
+
+  return {
+    ...page,
+    items: page.items.map((customer) => ({
+      ...customer,
+      logoUrl: customer.logoPath
+        ? storage.publicUrl(customer.logoPath, { transform: "square" }).data
+        : null,
+    })),
+  };
+}
+
+/** One customer with its notes; `null` when RLS hides it or it is gone. */
+export async function getCustomer(id: string) {
+  "use cache: private";
+  const { db } = await bsb.cached({ tables: ["customers", "notes"], id });
+
+  const customer = await db.customers
+    .get(
+      { id },
+      {
+        select: [
+          "id",
+          "name",
+          "status",
+          "logoPath",
+          "ownerTeamId",
+          "createdAt",
+        ],
+        include: {
+          notes: {
+            select: ["id", "body", "kind", "createdAt"],
+            orderBy: { createdAt: "desc" },
+            limit: 5,
+          },
+        },
+        optional: true,
+      },
+    )
+    .orThrow();
+
+  if (!customer) {
+    return null;
+  }
+
+  return {
+    ...customer,
+    logoUrl: customer.logoPath
+      ? db.$buckets.logos.publicUrl(customer.logoPath, { transform: "square" })
+          .data
+      : null,
+  };
+}
 
 /**
  * What a card on the customer page renders: the rows, or a failed read. The
@@ -256,5 +337,56 @@ export async function getTimeline(
       at: epoch(entry.at),
       actor: entry.actor ?? null,
     })),
+  };
+}
+
+const Row = v.object({ name: v.string(), status: v.string() });
+
+export interface SharedCustomer {
+  readonly name: string;
+  readonly status: string;
+  /** ISO 8601. */
+  readonly expiresAt: string | null;
+}
+
+/**
+ * The customer a share link points to, for a visitor without a session.
+ * `resolve` checks the token's hash, revocation and expiry; only then does the
+ * service role read the two columns the page shows.
+ */
+export async function getSharedCustomer(
+  token: string,
+): Promise<SharedCustomer | null> {
+  "use cache: private";
+  const { db } = await bsb.cached();
+
+  const link = await db.shareLinks.resolve({ token }).orThrow();
+
+  if (link?.subject.type !== "customer") {
+    return null;
+  }
+
+  const { data, error } = await bsb
+    .admin()
+    .$client.from("customers")
+    .select("name, status")
+    .eq("id", link.subject.id)
+    .eq("organization_id", link.organizationId)
+    .maybeSingle();
+
+  if (error) {
+    throw new Error(error.message);
+  }
+
+  if (!data) {
+    return null;
+  }
+
+  const row = v.parse(Row, data);
+
+  return {
+    name: row.name,
+    status: row.status,
+    expiresAt: link.expiresAt?.toString() ?? null,
   };
 }

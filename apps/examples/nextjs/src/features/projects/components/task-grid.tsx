@@ -68,13 +68,13 @@ import type {
   TaskViewOption,
 } from "../project-types";
 
+import { TASK_STATUSES, taskSearch } from "../project-types";
 import {
   deleteTaskView,
   runTaskBulkAction,
   saveTaskView,
   setTaskField,
-} from "../project-actions";
-import { TASK_STATUSES, taskSearch } from "../project-types";
+} from "../projects-actions";
 import { useStatusLabel } from "../use-task-labels";
 import { TaskStatusBadge } from "./task-status-badge";
 
@@ -522,6 +522,7 @@ function TitleCell({ row }: GridCell) {
   return (
     <Link
       href={`/projects/${row.original.projectId}`}
+      prefetch
       className="font-medium hover:underline"
     >
       {row.original.title}

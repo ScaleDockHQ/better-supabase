@@ -34,13 +34,8 @@ import { TeamStatusActions } from "./team-status-actions";
  * owns. The members come from the teams block, the customers from an app view
  * over the app's own table. A team of another organization is a 404.
  */
-export async function TeamDetail({
-  params,
-}: {
-  params: Promise<{ teamId: string }>;
-}) {
-  const [{ teamId }, session, permissions] = await Promise.all([
-    params,
+export async function TeamDetail({ teamId }: { teamId: string }) {
+  const [session, permissions] = await Promise.all([
     getSession(),
     getPermissions(),
   ]);

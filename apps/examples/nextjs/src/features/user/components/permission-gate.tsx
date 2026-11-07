@@ -16,6 +16,7 @@ import type { Permission } from "../user-permissions";
 import { getPermissions } from "../permission-snapshot";
 import { can } from "../user-permissions";
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /**
  * Renders `children` only when the session has `permission`. UI only: the data
  * behind it is still protected by RLS and by each Server Action. The keys come

@@ -21,7 +21,9 @@ export default function HiringPage({
         description={t("Openings and their candidates by interview stage.")}
       />
       <Suspense fallback={<HiringBoardSkeleton />}>
-        <HiringBoard searchParams={searchParams} />
+        {searchParams.then((query) => (
+          <HiringBoard query={query} />
+        ))}
       </Suspense>
     </>
   );

@@ -1,8 +1,8 @@
 import type { Metadata, Viewport } from "next";
 
 import { ThemeProvider } from "@wrksz/themes/next";
-import { NextIntlClientProvider } from "next-intl";
-import { getExtracted, getLocale } from "next-intl/server";
+import { NextIntlClientProvider, useLocale } from "next-intl";
+import { getExtracted } from "next-intl/server";
 
 import { Toaster } from "@/components/ui/sonner";
 import { ServiceWorkerRegistrar } from "@/features/offline/components/service-worker-registrar";
@@ -41,10 +41,8 @@ export const viewport: Viewport = {
  * and the shell stays static. The theme provider never reads the theme cookie
  * on the server: its inline script sets the class before paint.
  */
-export default async function LocaleLayout({
-  children,
-}: LayoutProps<"/[locale]">) {
-  const locale = await getLocale();
+export default function LocaleLayout({ children }: LayoutProps<"/[locale]">) {
+  const locale = useLocale();
 
   return (
     <html

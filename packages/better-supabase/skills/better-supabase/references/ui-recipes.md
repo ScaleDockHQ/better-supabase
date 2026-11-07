@@ -791,7 +791,7 @@ npx shadcn add @better-supabase/use-comments
 import type { SubmitEvent } from "react";
 
 import { useExtracted, useFormatter } from "next-intl";
-import { useId, useState } from "react";
+import { useId, useOptimistic, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -799,6 +799,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useComments } from "@/hooks/use-comments";
 import { useErrorMessage } from "@/lib/use-error-message";
+
+interface Row {
+  readonly id: string;
+  readonly authorId: string | null;
+  readonly body: string;
+  readonly at: number;
+  readonly pending: boolean;
+}
 
 /**
  * A record's comments, oldest first, through the browser client. `subject` is
@@ -819,13 +827,36 @@ export function CommentThread({
   const errorMessage = useErrorMessage();
   const fieldId = useId();
   const [body, setBody] = useState("");
-  const [pending, setPending] = useState(false);
+  const [pending, startTransition] = useTransition();
 
   const { comments, error, add } = useComments({ subject });
 
-  const visible = comments?.filter((comment) => !comment.deletedAt);
+  const rows: readonly Row[] | undefined = comments
+    ?.filter((comment) => !comment.deletedAt)
+    .map((comment) => ({
+      id: comment.id,
+      authorId: comment.authorId ?? null,
+      body: comment.body,
+      at: (comment.sentAt ?? comment.createdAt).epochMilliseconds,
+      pending: false,
+    }));
 
-  const submit = async (event: SubmitEvent<HTMLFormElement>) => {
+  // The comment shows at once and settles when the server's list arrives.
+  const [visible, addPending] = useOptimistic(
+    rows,
+    (list, text: string): readonly Row[] => [
+      ...(list ?? []),
+      {
+        id: `pending-${text}`,
+        authorId: null,
+        body: text,
+        at: 0,
+        pending: true,
+      },
+    ],
+  );
+
+  const submit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = body.trim();
 
@@ -833,44 +864,58 @@ export function CommentThread({
       return;
     }
 
-    setPending(true);
+    startTransition(async () => {
+      addPending(text);
 
-    if ((await add({ body: text })).ok) {
-      setBody("");
-    }
-
-    setPending(false);
+      if ((await add({ body: text })).ok) {
+        setBody("");
+      }
+    });
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       {visible === undefined ? (
         <Skeleton className="h-16" />
       ) : visible.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("No comments yet.")}</p>
       ) : (
-        <ol className="space-y-4" data-testid="comments">
+        <ol className="flex flex-col gap-4" data-testid="comments">
           {visible.map((comment) => (
-            <li key={comment.id} className="space-y-1">
-              <p className="text-sm">
-                <span className="font-medium">
-                  {(comment.authorId && authors[comment.authorId]) ??
-                    t("Someone")}
-                </span>{" "}
-                <span className="text-xs text-muted-foreground">
-                  {format.dateTime(
-                    (comment.sentAt ?? comment.createdAt).epochMilliseconds,
-                    { dateStyle: "medium", timeStyle: "short" },
-                  )}
-                </span>
+            <li
+              key={comment.id}
+              className="flex flex-col gap-1"
+              aria-busy={comment.pending ? true : undefined}
+            >
+              {comment.pending ? null : (
+                <p className="text-sm">
+                  <span className="font-medium">
+                    {(comment.authorId && authors[comment.authorId]) ??
+                      t("Someone")}
+                  </span>{" "}
+                  <span className="text-xs text-muted-foreground">
+                    {format.dateTime(comment.at, {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </span>
+                </p>
+              )}
+              <p
+                className={
+                  comment.pending
+                    ? "text-sm whitespace-pre-wrap text-muted-foreground"
+                    : "text-sm whitespace-pre-wrap"
+                }
+              >
+                {comment.body}
               </p>
-              <p className="text-sm whitespace-pre-wrap">{comment.body}</p>
             </li>
           ))}
         </ol>
       )}
       {canComment ? (
-        <form onSubmit={(event) => void submit(event)} className="space-y-3">
+        <form onSubmit={submit} className="flex flex-col gap-3">
           <Field data-invalid={error ? true : undefined}>
             <FieldLabel htmlFor={`${fieldId}-comment-body`} className="sr-only">
               {t("Comment")}
@@ -2194,6 +2239,7 @@ import { useTable } from "@tanstack/react-table";
 import { DbException } from "better-supabase";
 import { UserMinusIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
+import { useQueryState } from "nuqs";
 import { createContext, use, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import * as v from "valibot";
@@ -2237,6 +2283,7 @@ import { Link } from "@/i18n/navigation";
 import { Role } from "@/lib/claims";
 import { initials } from "@/lib/initials";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
+import { searchParam } from "@/lib/url-filters";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 async function loadOrganizationMembers(): Promise<readonly Member[]> {
@@ -2442,7 +2489,7 @@ export function MemberTable({
   const t = useExtracted("members");
   const roleLabel = useRoleLabel();
   const errorMessage = useErrorMessage();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useQueryState("q", searchParam);
 
   const [roleFilter, setRoleFilter] = useState<Role | typeof ALL_ROLES>(
     ALL_ROLES,
@@ -2542,7 +2589,7 @@ export function MemberTable({
   });
 
   const clearFilters = () => {
-    setSearch("");
+    void setSearch("");
     setRoleFilter(ALL_ROLES);
   };
 
@@ -2557,7 +2604,7 @@ export function MemberTable({
             placeholder={t("Search members")}
             aria-label={t("Search members")}
             onChange={(event) => {
-              setSearch(event.target.value);
+              void setSearch(event.target.value);
             }}
           />
           <Select
@@ -3091,7 +3138,7 @@ import { useApiKeys } from "@/hooks/use-api-keys";
 import { apiKeysConfig } from "@/lib/supabase/blocks/slices";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { apiKeyCreated } from "../api-key-actions";
+import { apiKeyCreated } from "../api-keys-actions";
 import { CreateApiKeyDialog } from "./create-api-key-dialog";
 
 /**
@@ -4084,7 +4131,7 @@ import {
 } from "@/components/ui/input-otp";
 import { useSupabase } from "@/lib/hooks";
 
-import type { AuthRead } from "../security-queries";
+import type { AuthRead } from "../user-queries";
 
 import { sessionChanged } from "../user-actions";
 
@@ -6713,7 +6760,7 @@ export function WorkflowRuns({ tenant }: { tenant: string | null }) {
   );
 }
 
-export function WorkflowRunsSkeleton() {
+function WorkflowRunsSkeleton() {
   return (
     <div className="space-y-2" aria-busy="true">
       {Array.from({ length: 4 }, (_, index) => (
@@ -6874,6 +6921,7 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 
 import { getSession } from "../user-queries";
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /**
  * Shown during a support session (`bsb.startSupport`): staff see the app as the
  * user, and the audit log records who acted. Render inside `<Suspense>`.
@@ -6946,7 +6994,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -6958,9 +7005,9 @@ import {
 import { useRouter } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type { AiTaskRow, AiTasksRead } from "../ai-task-queries";
+import type { AiTaskRow, AiTasksRead } from "../ai-tasks-queries";
 
-import { scheduleSampleTask, setAiTaskEnabled } from "../ai-task-actions";
+import { scheduleSampleTask, setAiTaskEnabled } from "../ai-tasks-actions";
 
 function RunStatusBadge({ status }: { status: AiTaskRunStatus | undefined }) {
   const t = useExtracted("aiTasks");
@@ -7192,24 +7239,6 @@ export function AiTaskQueue({ read }: { read: AiTasksRead }) {
     </Card>
   );
 }
-
-const SKELETON_ROWS = ["first", "second", "third"];
-
-export function AiTaskQueueSkeleton() {
-  return (
-    <Card aria-busy="true">
-      <CardHeader>
-        <Skeleton className="h-5 w-40" />
-        <Skeleton className="h-4 w-72" />
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {SKELETON_ROWS.map((row) => (
-          <Skeleton key={row} className="h-11 w-full" />
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
 ```
 
 ## AI provider settings
@@ -7293,7 +7322,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -7306,10 +7334,10 @@ import { useRouter } from "@/i18n/navigation";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Provider } from "../ai-provider-options";
-import type { ProviderKeyRow, ProviderKeysRead } from "../ai-provider-queries";
+import type { ProviderKeyRow, ProviderKeysRead } from "../ai-providers-queries";
 
-import { addProviderKey, removeProviderKey } from "../ai-provider-actions";
 import { PROVIDERS } from "../ai-provider-options";
+import { addProviderKey, removeProviderKey } from "../ai-providers-actions";
 
 const PROVIDER_LABELS = {
   anthropic: "Anthropic",
@@ -7647,30 +7675,7 @@ export function AiProviderSettings({ read }: { read: ProviderKeysRead }) {
   );
 }
 
-const SKELETON_ROWS = ["first", "second"];
-
 /** Keeps the card's title in the static shell, so the tab commits it at once. */
-export function AiProviderSettingsSkeleton() {
-  const t = useExtracted("aiProviders");
-
-  return (
-    <Card aria-busy="true">
-      <CardHeader>
-        <CardTitle>{t("AI providers")}</CardTitle>
-        <CardDescription>
-          {t(
-            "The organization's own provider keys, used instead of the app's key for the assistant.",
-          )}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {SKELETON_ROWS.map((row) => (
-          <Skeleton key={row} className="h-11 w-full" />
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
 ```
 
 ## Push opt-in
@@ -9426,7 +9431,7 @@ function ValueControl({
   }
 }
 
-export function RuleBuilderSkeleton() {
+function RuleBuilderSkeleton() {
   return (
     <Card aria-busy="true">
       <CardHeader>
@@ -10764,7 +10769,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 
 import type { DocumentRegisterView, DocumentRow } from "../drive-queries";
 
@@ -10962,20 +10966,6 @@ export function DocumentRegister({ state }: { state: DocumentRegisterView }) {
         ) : (
           <DocumentGrid documents={state.documents} />
         )}
-      </FramePanel>
-    </Frame>
-  );
-}
-
-export function DocumentRegisterSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-36" />
-        <Skeleton className="h-4 w-80" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-48" />
       </FramePanel>
     </Frame>
   );
@@ -12068,13 +12058,8 @@ npx shadcn add badge card empty skeleton
  * Render inside `<Suspense>`: a company or a person with its details, its
  * people (for a company) and the activity timeline.
  */
-export async function ContactDetail({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const [{ id }, t, permissions] = await Promise.all([
-    params,
+export async function ContactDetail({ id }: { id: string }) {
+  const [t, permissions] = await Promise.all([
     getExtracted("crm"),
     getPermissions(),
   ]);
@@ -12673,13 +12658,8 @@ npx shadcn add card skeleton table
  * quote with changes requested) is editable; the status decides what comes
  * next: send, record the customer's answer, or revise.
  */
-export async function QuoteBuilder({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const [{ id }, t, locale, permissions] = await Promise.all([
-    params,
+export async function QuoteBuilder({ id }: { id: string }) {
+  const [t, locale, permissions] = await Promise.all([
     getExtracted("crm"),
     getLocale(),
     getPermissions(),
@@ -14354,13 +14334,12 @@ npx shadcn add alert badge button card empty skeleton table
  * them.
  */
 export async function CustomFieldsEditor({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, params, permissions] = await Promise.all([
+  const [t, permissions] = await Promise.all([
     getExtracted("custom-fields"),
-    searchParams,
     getPermissions(),
   ]);
 
@@ -14368,7 +14347,7 @@ export async function CustomFieldsEditor({
     forbidden();
   }
 
-  const parsed = v.safeParse(FieldEntitySchema, params["entity"]);
+  const parsed = v.safeParse(FieldEntitySchema, query["entity"]);
   const entity = parsed.success ? parsed.output : "customer";
   const fields = await getFields(entity);
 
@@ -15452,7 +15431,7 @@ const STATUS_VARIANT = {
  * published shifts; planners with `shifts.write` also the drafts.
  */
 export async function RosterBoard() {
-  await connection();
+  await io();
   const today = Temporal.Now.plainDateISO("UTC");
   const monday = today.subtract({ days: today.dayOfWeek - 1 });
 
@@ -15640,7 +15619,7 @@ const DOSE_VARIANT = {
 export async function MedicationChart({
   clientId,
 }: { clientId?: string } = {}) {
-  await connection();
+  await io();
 
   const [state, t, format] = await Promise.all([
     getCustomerChart(clientId),
@@ -15835,7 +15814,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 
 import type {
   CarePlanActionRow,
@@ -16175,20 +16153,6 @@ export function CarePlanEditor({ state }: { state: Loaded<CarePlanState> }) {
     </Frame>
   );
 }
-
-export function CarePlanEditorSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-40" />
-        <Skeleton className="h-4 w-72" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-56" />
-      </FramePanel>
-    </Frame>
-  );
-}
 ```
 
 ## Care plan evaluations
@@ -16243,7 +16207,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 
 import type {
   CarePlanEvaluationRow,
@@ -16412,20 +16375,6 @@ export function CarePlanEvaluations({
     </Frame>
   );
 }
-
-export function CarePlanEvaluationsSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-4 w-80" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-40" />
-      </FramePanel>
-    </Frame>
-  );
-}
 ```
 
 ## Hiring board
@@ -16445,13 +16394,12 @@ npx shadcn add badge button card empty skeleton
  * to another open stage, moves it. `?job=` picks the opening.
  */
 export async function HiringBoard({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, query, permissions] = await Promise.all([
+  const [t, permissions] = await Promise.all([
     getExtracted("people"),
-    searchParams,
     getPermissions(),
   ]);
 
@@ -16598,16 +16546,15 @@ npx shadcn add badge button card empty skeleton table
  * `?week=YYYY-MM-DD` picks the week.
  */
 export async function Timesheet({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, format, query, permissions] = await Promise.all([
+  const [t, format, permissions] = await Promise.all([
     getExtracted("people"),
     getFormatter(),
-    searchParams,
     getPermissions(),
-    connection(),
+    io(),
   ]);
 
   if (!can(permissions, "time_tracking.track")) {
@@ -16811,16 +16758,15 @@ npx shadcn add alert badge button card dialog empty field input skeleton table
  * week.
  */
 export async function DispatchBoard({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, format, query, permissions] = await Promise.all([
+  const [t, format, permissions] = await Promise.all([
     getExtracted("field"),
     getFormatter(),
-    searchParams,
     getPermissions(),
-    connection(),
+    io(),
   ]);
 
   if (!can(permissions, "dispatch.read")) {
@@ -17028,16 +16974,15 @@ npx shadcn add alert badge button card empty skeleton
  * with the button that moves it on. `?day=YYYY-MM-DD` picks the day.
  */
 export async function TechnicianDay({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, format, query, permissions] = await Promise.all([
+  const [t, format, permissions] = await Promise.all([
     getExtracted("field"),
     getFormatter(),
-    searchParams,
     getPermissions(),
-    connection(),
+    io(),
   ]);
 
   if (!can(permissions, "dispatch.work")) {
@@ -17168,16 +17113,15 @@ npx shadcn add alert badge button card dialog empty field input skeleton table
  * picks the shipment.
  */
 export async function ShipmentTracking({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [t, format, query, permissions] = await Promise.all([
+  const [t, format, permissions] = await Promise.all([
     getExtracted("field"),
     getFormatter(),
-    searchParams,
     getPermissions(),
-    connection(),
+    io(),
   ]);
 
   if (!can(permissions, "shipments.read")) {
@@ -17898,12 +17842,8 @@ async function retry() {
  * Render inside `<Suspense>`: a placed order, or the caller's draft (an open
  * cart) with the same id, with its lines, totals and next steps.
  */
-export async function OrderDetail({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const [{ id }, permissions] = await Promise.all([params, getPermissions()]);
+export async function OrderDetail({ id }: { id: string }) {
+  const permissions = await getPermissions();
 
   if (!can(permissions, "orders.read")) {
     forbidden();
@@ -18231,14 +18171,11 @@ npx shadcn add alert badge button card empty skeleton
  * page refreshes when a line changes anywhere in the kitchen.
  */
 export async function KitchenDisplay({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [params, permissions] = await Promise.all([
-    searchParams,
-    getPermissions(),
-  ]);
+  const permissions = await getPermissions();
 
   if (!can(permissions, "orders.read") && !can(permissions, "orders.prepare")) {
     forbidden();
@@ -18248,9 +18185,7 @@ export async function KitchenDisplay({
     can(permissions, "orders.prepare") || can(permissions, "orders.manage");
 
   const [kitchen, t] = await Promise.all([
-    getKitchen(
-      v.is(StationParam, params["station"]) ? params["station"] : null,
-    ),
+    getKitchen(v.is(StationParam, query["station"]) ? query["station"] : null),
     getExtracted("shop"),
   ]);
 
@@ -18688,9 +18623,9 @@ npx shadcn add badge button card empty skeleton
 
 ```tsx title="apps/examples/nextjs/src/features/calendar/components/calendar-view.tsx"
 export async function CalendarView({
-  searchParams,
+  query,
 }: {
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  query: Record<string, string | string[] | undefined>;
 }) {
   const permissions = await getPermissions();
 
@@ -18698,11 +18633,10 @@ export async function CalendarView({
     forbidden();
   }
 
-  const [t, format, query] = await Promise.all([
+  const [t, format] = await Promise.all([
     getExtracted("calendar"),
     getFormatter(),
-    searchParams,
-    connection(),
+    io(),
   ]);
 
   const canWrite = can(permissions, "calendar.write");
@@ -18901,15 +18835,13 @@ npx shadcn add button card empty skeleton
 ```tsx title="apps/examples/nextjs/src/features/bookings/components/booking-page.tsx"
 /** The public page of a booking link: open slots for a week, then a form. */
 export async function BookingPage({
-  params,
-  searchParams,
+  token,
+  query,
 }: {
-  params: Promise<{ token: string }>;
-  searchParams: Promise<Record<string, string | string[] | undefined>>;
+  token: string;
+  query: Record<string, string | string[] | undefined>;
 }) {
-  const [{ token }, query, t, format] = await Promise.all([
-    params,
-    searchParams,
+  const [t, format] = await Promise.all([
     getExtracted("bookings"),
     getFormatter(),
   ]);
@@ -19109,7 +19041,7 @@ export async function RemindersList() {
     getExtracted("calendar"),
     getFormatter(),
     settle(loadUpcomingReminders),
-    connection(),
+    io(),
   ]);
 
   if (!can(permissions, "reminders.manage")) {
@@ -20084,13 +20016,7 @@ function answerText(
 }
 
 /** Render inside `<Suspense>`: a form's builder, preview and responses. */
-export async function FormBuilder({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const { id } = await params;
-
+export async function FormBuilder({ id }: { id: string }) {
   const [view, t, format] = await Promise.all([
     getForm(id),
     getExtracted("forms"),
@@ -20500,13 +20426,7 @@ const kindIcons = {
  * Render inside `<Suspense>`: a course's modules, lessons and the caller's
  * progress.
  */
-export async function CourseOutline({
-  params,
-}: {
-  params: Promise<{ courseId: string }>;
-}) {
-  const { courseId } = await params;
-
+export async function CourseOutline({ courseId }: { courseId: string }) {
   const [view, t] = await Promise.all([
     getOutline(courseId),
     getExtracted("courses"),
@@ -20771,12 +20691,12 @@ async function retry() {
 
 /** Render inside `<Suspense>`: one lesson's content, or its quiz. */
 export async function LessonPlayer({
-  params,
+  courseId,
+  lessonId,
 }: {
-  params: Promise<{ courseId: string; lessonId: string }>;
+  courseId: string;
+  lessonId: string;
 }) {
-  const { courseId, lessonId } = await params;
-
   const [view, t] = await Promise.all([
     getLesson(lessonId),
     getExtracted("courses"),
@@ -21590,6 +21510,7 @@ async function retry() {
   refresh();
 }
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /** The New template button, for members who may manage templates. */
 export async function TemplateManagerActions() {
   const permissions = await getPermissions();
@@ -24256,13 +24177,8 @@ function OverallAlert({
  * component with its uptime, then the public incidents with their updates.
  * Anyone can open it; the incidents block returns only fields marked public.
  */
-export async function StatusPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const [{ slug }, t, format] = await Promise.all([
-    params,
+export async function StatusPage({ slug }: { slug: string }) {
+  const [t, format] = await Promise.all([
     getExtracted("status"),
     getFormatter(),
   ]);
@@ -25568,6 +25484,7 @@ function TitleCell({ row }: GridCell) {
   return (
     <Link
       href={`/projects/${row.original.projectId}`}
+      prefetch
       className="font-medium hover:underline"
     >
       {row.original.title}
@@ -25940,13 +25857,8 @@ npx shadcn add badge card skeleton
  * tasks through the `project_id` reference, and the comments and tags that
  * reach it because `projects` is a subject.
  */
-export async function ProjectPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const [{ id }, session, permissions] = await Promise.all([
-    params,
+export async function ProjectPage({ id }: { id: string }) {
+  const [session, permissions] = await Promise.all([
     getSession(),
     getPermissions(),
   ]);
@@ -26302,6 +26214,7 @@ npx shadcn add badge button card
 ```tsx title="apps/examples/nextjs/src/features/projects/components/task-calendar.tsx"
 const SHOWN_PER_DAY = 3;
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /**
  * Tasks on a month grid by their due date. The month lives in the URL
  * (`?month=YYYY-MM`), so the arrows are links and the page stays a server
@@ -26473,6 +26386,7 @@ npx shadcn add button card
 ```tsx title="apps/examples/nextjs/src/features/projects/components/task-timeline.tsx"
 const UNASSIGNED = "";
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /**
  * Tasks as bars from `startsOn` to `dueOn`, one lane per assignee, over a
  * four-week window that lives in the URL (`?from=YYYY-MM-DD`).
@@ -26594,6 +26508,7 @@ const BAR = {
   done: "bg-primary/25",
 } as const satisfies Record<TaskStatus, string>;
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /**
  * One row per task under its project, with a bar from `startsOn` to `dueOn`.
  * Tasks without dates stay in the list with an empty track, so the plan shows
@@ -27233,7 +27148,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 
 import type { BandTone, Loaded, RiskRow } from "../risks-queries";
 
@@ -27429,20 +27343,6 @@ export function RiskRegister({ state }: { state: Loaded<readonly RiskRow[]> }) {
         ) : (
           <RiskGrid risks={state.data} />
         )}
-      </FramePanel>
-    </Frame>
-  );
-}
-
-export function RiskRegisterSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-4 w-80" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-48" />
       </FramePanel>
     </Frame>
   );
@@ -28144,7 +28044,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 
 import type { InspectionRow, Loaded } from "../inspections-queries";
@@ -28333,20 +28232,6 @@ export function InspectionProgramCalendar({
         ) : (
           <CalendarGrid inspections={state.data} />
         )}
-      </FramePanel>
-    </Frame>
-  );
-}
-
-export function InspectionProgramCalendarSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-36" />
-        <Skeleton className="h-4 w-80" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-48" />
       </FramePanel>
     </Frame>
   );
@@ -28622,7 +28507,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 
 import type { Loaded, MeetingRow } from "../meetings-queries";
@@ -28788,20 +28672,6 @@ export function MeetingAgenda({
         ) : (
           <AgendaGrid meetings={state.data} />
         )}
-      </FramePanel>
-    </Frame>
-  );
-}
-
-export function MeetingAgendaSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-36" />
-        <Skeleton className="h-4 w-80" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-48" />
       </FramePanel>
     </Frame>
   );

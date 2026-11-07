@@ -149,7 +149,7 @@ export async function LegalEntityListSection() {
   );
 }
 
-export function LegalEntityListSkeleton() {
+export function LegalEntityListSectionSkeleton() {
   return (
     <Frame spacing="sm" aria-busy="true">
       <FrameHeader className="gap-1">

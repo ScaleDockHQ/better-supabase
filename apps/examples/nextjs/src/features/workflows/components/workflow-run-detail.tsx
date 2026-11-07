@@ -5,7 +5,6 @@ import type { WorkflowRun } from "better-supabase/blocks/workflows";
 import { useAction } from "better-supabase/react";
 import { CheckIcon, CircleStopIcon, XIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { use } from "react";
 import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
@@ -30,12 +29,7 @@ import {
 import { cancelRun, decideApproval } from "../workflows-actions";
 
 /** Render inside `<Suspense>`: reads the `run` param. */
-export function WorkflowRunDetail({
-  params,
-}: {
-  params: Promise<{ run: string }>;
-}) {
-  const { run: id } = use(params);
+export function WorkflowRunDetail({ run: id }: { run: string }) {
   const { run, refresh } = useWorkflowRun(id, { schema: "api" });
 
   if (run === undefined) {

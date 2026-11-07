@@ -1,6 +1,6 @@
 import { BellIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
-import { connection } from "next/server";
+import { io } from "next/cache";
 import { Temporal } from "temporal-polyfill";
 
 import {
@@ -39,7 +39,7 @@ export async function RemindersList() {
     getExtracted("calendar"),
     getFormatter(),
     settle(loadUpcomingReminders),
-    connection(),
+    io(),
   ]);
 
   if (!can(permissions, "reminders.manage")) {

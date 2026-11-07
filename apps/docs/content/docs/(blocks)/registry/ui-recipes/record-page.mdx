@@ -19,13 +19,8 @@ npx shadcn add badge card skeleton
  * tasks through the `project_id` reference, and the comments and tags that
  * reach it because `projects` is a subject.
  */
-export async function ProjectPage({
-  params,
-}: {
-  params: Promise<{ id: string }>;
-}) {
-  const [{ id }, session, permissions] = await Promise.all([
-    params,
+export async function ProjectPage({ id }: { id: string }) {
+  const [session, permissions] = await Promise.all([
     getSession(),
     getPermissions(),
   ]);

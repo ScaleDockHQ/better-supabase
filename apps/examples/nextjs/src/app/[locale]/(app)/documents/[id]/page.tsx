@@ -4,7 +4,7 @@ import { Suspense } from "react";
 
 import { buttonVariants } from "@/components/ui/button";
 import {
-  DocumentEditorSkeleton,
+  DocumentEditorViewSkeleton,
   DocumentEditorView,
 } from "@/features/documents/components/document-editor-view";
 import { PermissionGate } from "@/features/user/components/permission-gate";
@@ -29,9 +29,11 @@ export default function DocumentPage({
         <ArrowLeftIcon />
         {t("All documents")}
       </Link>
-      <Suspense fallback={<DocumentEditorSkeleton />}>
+      <Suspense fallback={<DocumentEditorViewSkeleton />}>
         <PermissionGate permission="documents.read">
-          <DocumentEditorView params={params} />
+          {params.then(({ id }) => (
+            <DocumentEditorView id={id} />
+          ))}
         </PermissionGate>
       </Suspense>
     </>

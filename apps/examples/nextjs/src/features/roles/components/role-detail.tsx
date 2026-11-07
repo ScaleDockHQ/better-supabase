@@ -24,13 +24,8 @@ import { RoleName } from "./role-name";
  * owner role stays read-only, and a caller changes only roles they could assign
  * and keys they hold, the rules `set_permission_override` applies.
  */
-export async function RoleDetail({
-  params,
-}: {
-  params: Promise<{ roleId: string }>;
-}) {
-  const [{ roleId }, roles, held, t] = await Promise.all([
-    params,
+export async function RoleDetail({ roleId }: { roleId: string }) {
+  const [roles, held, t] = await Promise.all([
     getRoles(),
     getPermissions(),
     getExtracted("roles"),

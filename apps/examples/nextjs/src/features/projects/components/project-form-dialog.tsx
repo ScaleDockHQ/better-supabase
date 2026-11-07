@@ -21,7 +21,7 @@ import { Field, FieldError, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { createProject } from "../project-actions";
+import { createProject } from "../projects-actions";
 
 /** Creates a project by name, so the first task has somewhere to go. */
 export function ProjectFormDialog({

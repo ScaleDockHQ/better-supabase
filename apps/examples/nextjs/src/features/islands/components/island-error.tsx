@@ -11,6 +11,7 @@ import { Button } from "@/components/ui/button";
 
 import { retryIslands } from "../islands-actions";
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /** The inline error of one island, with a Retry that reads it again. */
 export async function IslandError({ title }: { title: string }) {
   const t = await getExtracted("islands");

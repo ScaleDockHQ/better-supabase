@@ -26,6 +26,7 @@ import { weeksOf } from "../task-dates";
 // #region recipe:record-calendar
 const SHOWN_PER_DAY = 3;
 
+// skeleton: renders from props and translations, so nothing of its own suspends
 /**
  * Tasks on a month grid by their due date. The month lives in the URL
  * (`?month=YYYY-MM`), so the arrows are links and the page stays a server

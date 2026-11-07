@@ -27,11 +27,11 @@ import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { ProjectHistoryField, ProjectVersion } from "../project-types";
 
+import { PROJECT_HISTORY_FIELDS } from "../project-types";
 import {
   restoreProjectFields,
   snapshotProjectVersions,
-} from "../project-actions";
-import { PROJECT_HISTORY_FIELDS } from "../project-types";
+} from "../projects-actions";
 
 // #region recipe:record-history
 

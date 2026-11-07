@@ -27,7 +27,7 @@ import { Input } from "@/components/ui/input";
 import { SHOP_CURRENCY } from "@/features/shop/shop-currency";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import { createDraftInvoice, issueInvoice } from "../invoice-actions";
+import { createDraftInvoice, issueInvoice } from "../billing-actions";
 
 /** Creates a draft invoice with one line. */
 export function CreateDraftInvoiceDialog({

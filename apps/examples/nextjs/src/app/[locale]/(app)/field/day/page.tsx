@@ -21,7 +21,9 @@ export default function MyDayPage({
         description={t("Your stops for the day and the next step of each.")}
       />
       <Suspense fallback={<TechnicianDaySkeleton />}>
-        <TechnicianDay searchParams={searchParams} />
+        {searchParams.then((query) => (
+          <TechnicianDay query={query} />
+        ))}
       </Suspense>
     </>
   );

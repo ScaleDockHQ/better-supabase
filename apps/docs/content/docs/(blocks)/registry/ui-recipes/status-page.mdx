@@ -116,13 +116,8 @@ function OverallAlert({
  * component with its uptime, then the public incidents with their updates.
  * Anyone can open it; the incidents block returns only fields marked public.
  */
-export async function StatusPage({
-  params,
-}: {
-  params: Promise<{ slug: string }>;
-}) {
-  const [{ slug }, t, format] = await Promise.all([
-    params,
+export async function StatusPage({ slug }: { slug: string }) {
+  const [t, format] = await Promise.all([
     getExtracted("status"),
     getFormatter(),
   ]);

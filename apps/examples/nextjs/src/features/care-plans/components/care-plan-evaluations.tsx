@@ -40,7 +40,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 
 import type {
   CarePlanEvaluationRow,
@@ -210,17 +209,4 @@ export function CarePlanEvaluations({
   );
 }
 
-export function CarePlanEvaluationsSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-4 w-80" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-40" />
-      </FramePanel>
-    </Frame>
-  );
-}
 // #endregion recipe:care-plan-evaluations

@@ -4,6 +4,8 @@ import "server-only";
 
 import { bsb } from "@/lib/supabase/server";
 
+import type { IslandScope } from "./islands-cache";
+
 export const ISLAND_TABLES = [
   "customers",
   "notes",
@@ -16,9 +18,6 @@ export type IslandTable = (typeof ISLAND_TABLES)[number];
 
 /** What `public.island_counts` returns through `bootstrap_islands`. */
 export type IslandCounts = Readonly<Record<IslandTable, number>>;
-
-/** `?scope=remote` reads through `"use cache: remote"`; the default is private. */
-export type IslandScope = "private" | "remote";
 
 /** The ten islands' data as plain values, safe across a cache boundary. */
 export interface Islands {
@@ -78,10 +77,6 @@ const getRemoteIslands = bsb.remote(async (key): Promise<Islands> => {
 
 export function getIslandsIn(scope: IslandScope): Promise<Islands> {
   return scope === "remote" ? getRemoteIslands() : getIslands();
-}
-
-export function islandScope(value: string | string[] | undefined): IslandScope {
-  return value === "remote" ? "remote" : "private";
 }
 
 function islandsFrom(

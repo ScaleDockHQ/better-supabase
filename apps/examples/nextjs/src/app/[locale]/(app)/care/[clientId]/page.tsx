@@ -3,8 +3,10 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { buttonVariants } from "@/components/ui/button";
-import { ClientHeadingSkeleton } from "@/features/care/components/care-sections";
-import { ClientDossier } from "@/features/care/components/client-dossier";
+import {
+  ClientDossier,
+  ClientDossierSkeleton,
+} from "@/features/care/components/client-dossier";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 import { Link } from "@/i18n/navigation";
 
@@ -27,9 +29,11 @@ export default function ClientPage({
         <ArrowLeftIcon />
         {t("All clients")}
       </Link>
-      <Suspense fallback={<ClientHeadingSkeleton />}>
+      <Suspense fallback={<ClientDossierSkeleton />}>
         <PermissionGate permission="customers.read">
-          <ClientDossier params={params} />
+          {params.then(({ clientId }) => (
+            <ClientDossier clientId={clientId} />
+          ))}
         </PermissionGate>
       </Suspense>
     </div>
