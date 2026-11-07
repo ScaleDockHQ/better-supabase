@@ -10,6 +10,7 @@ export {
   type PartyListOptions,
   type PartyPage,
   type Person,
+  type PersonMode,
   type PersonIdentity,
   type PersonIdentityInput,
   type PersonInput,

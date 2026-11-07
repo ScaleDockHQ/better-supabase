@@ -216,6 +216,8 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
       "quantity",
       "unitAmount",
       "periods",
+      "unit",
+      "discountKind",
       "discountBps",
       "taxRateBps",
       "taxCode",
@@ -230,7 +232,7 @@ export function quoteFunctions(ctx: BlockSqlContext, n: QuoteNames): string {
     );
 
     const value = (column: string): string =>
-      column === "productType"
+      column === "productType" || column === "discountKind"
         ? ctx.cast("versionLines", column, `ql.${l(column)}::text`)
         : `ql.${l(column)}`;
 

@@ -123,6 +123,9 @@ const NAMES: BlockSqlNames = {
         domain: "domain",
         website: "website",
         vatId: "vat_id",
+        legalName: "legal_name",
+        registrationId: "registration_id",
+        phone: "phone",
         lifecycle: "lifecycle",
         owner: "owner_user_id",
         address: "address",
@@ -133,7 +136,16 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["vatId", "owner", "address", "createdBy", ...ROLE_OPTIONAL],
+      optional: [
+        "vatId",
+        "legalName",
+        "registrationId",
+        "phone",
+        "owner",
+        "address",
+        "createdBy",
+        ...ROLE_OPTIONAL,
+      ],
       typed: ["lifecycle"],
     },
     people: {
@@ -147,6 +159,7 @@ const NAMES: BlockSqlNames = {
         email: "email",
         phone: "phone",
         title: "title",
+        mode: "mode",
         lifecycle: "lifecycle",
         owner: "owner_user_id",
         user: "user_id",
@@ -159,7 +172,13 @@ const NAMES: BlockSqlNames = {
         createdAt: "created_at",
         updatedAt: "updated_at",
       },
-      optional: ["avatarUrl", "metadata", "createdBy", ...ROLE_OPTIONAL],
+      optional: [
+        "mode",
+        "avatarUrl",
+        "metadata",
+        "createdBy",
+        ...ROLE_OPTIONAL,
+      ],
       typed: ["lifecycle"],
     },
     links: {
@@ -309,7 +328,7 @@ create table if not exists ${t("companies")} (
   ${co("tenant")} ${ctx.idType} not null,
   ${co("name")} text not null check (length(${co("name")}) between 1 and 300),
   ${co("domain")} text check (${co("domain")} = lower(${co("domain")}) and ${co("domain")} ~ '^[a-z0-9.-]+\\.[a-z]{2,}$'),
-  ${co("website")} text,${column("companies", "vatId", (name) => `${name} text`)}
+  ${co("website")} text,${column("companies", "vatId", (name) => `${name} text`)}${column("companies", "legalName", (name) => `${name} text constraint ${ctx.naming.rename("bsb_companies_legal_name")} check (length(${name}) between 1 and 300)`)}${column("companies", "registrationId", (name) => `${name} text constraint ${ctx.naming.rename("bsb_companies_registration_id")} check (length(${name}) between 1 and 100)`)}${column("companies", "phone", (name) => `${name} text`)}
   ${co("lifecycle")} text not null,${column("companies", "owner", (name) => `${name} uuid`)}${column("companies", "address", (name) => `${name} jsonb check (${name} is null or jsonb_typeof(${name}) = 'object')`)}${roleColumns(ctx, "companies")}
   ${co("mergedInto")} uuid references ${t("companies")} (${co("id")}),
   ${co("archivedAt")} timestamptz,${column("companies", "createdBy", (name) => `${name} uuid`)}
@@ -329,7 +348,7 @@ create table if not exists ${t("people")} (
   ${pe("name")} text not null check (length(${pe("name")}) between 1 and 300),
   ${pe("email")} text check (${pe("email")} = lower(${pe("email")}) and ${pe("email")} ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   ${pe("phone")} text,
-  ${pe("title")} text,
+  ${pe("title")} text,${column("people", "mode", (name) => `${name} text not null default 'external' constraint ${ctx.naming.rename("bsb_people_mode")} check (${name} in ('external', 'tenant') and (${name} = 'external' or ${pe("user")} is not null))`)}
   ${pe("lifecycle")} text not null,
   ${pe("owner")} uuid,
   ${pe("user")} uuid,${column("people", "avatarUrl", (name) => `${name} text`)}${column("people", "metadata", (name) => `${name} jsonb not null default '{}'::jsonb check (jsonb_typeof(${name}) = 'object')`)}${roleColumns(ctx, "people")}

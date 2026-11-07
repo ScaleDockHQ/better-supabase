@@ -80,7 +80,7 @@ describe("purchase bills in invoices", () => {
     const sql = sqlOf([...names, "outbox"], "invoices");
 
     expect(sql).toContain("\"direction\" text not null default 'sales'");
-    expect(sql).toContain('"tenant_id", "direction", "kind", "number"');
+    expect(sql).toContain('"tenant_id", "direction", "kind", "identifier"');
     expect(sql).toContain('"better_supabase"."purchase_bill_match"(');
     expect(sql).toContain("INVOICE_MATCH_FAILED");
     expect(sql).toContain("'invoice.match_checked'");

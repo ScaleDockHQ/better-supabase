@@ -234,6 +234,8 @@ const NAMES: BlockSqlNames = {
         quantity: "quantity",
         unitAmount: "unit_amount",
         periods: "periods",
+        unit: "unit",
+        discountKind: "discount_kind",
         discountBps: "discount_bps",
         taxRateBps: "tax_rate_bps",
         taxCode: "tax_code",
@@ -245,6 +247,8 @@ const NAMES: BlockSqlNames = {
       },
       optional: [
         "periods",
+        "unit",
+        "discountKind",
         "discountBps",
         "taxRateBps",
         "taxCode",
@@ -254,7 +258,7 @@ const NAMES: BlockSqlNames = {
         "productType",
         "productId",
       ],
-      typed: ["productType"],
+      typed: ["productType", "discountKind"],
     },
     taxLines: {
       name: "quote_tax_lines",
@@ -398,7 +402,7 @@ create table if not exists ${t("versionLines")} (
   ${vl("position")} integer not null,
   ${vl("description")} text not null,
   ${vl("quantity")} numeric(18, 4) not null,
-  ${vl("unitAmount")} bigint not null,${vlColumn("periods", "integer not null default 1")}${vlColumn("discountBps", "integer not null default 0")}${vlColumn("taxRateBps", "integer not null default 0")}${vlColumn("taxCode", "text")}${vlColumn("section", "text")}${vlColumn("optional", "boolean not null default false")}${vlColumn("selected", "boolean not null default true")}${vlColumn("productType", "text")}${vlColumn("productId", "text")}
+  ${vl("unitAmount")} bigint not null,${vlColumn("periods", `integer default 1 check (${vl("periods")} > 0)`)}${vlColumn("unit", "text")}${vlColumn("discountKind", "text")}${vlColumn("discountBps", "integer not null default 0")}${vlColumn("taxRateBps", "integer not null default 0")}${vlColumn("taxCode", "text")}${vlColumn("section", "text")}${vlColumn("optional", "boolean not null default false")}${vlColumn("selected", "boolean not null default true")}${vlColumn("productType", "text")}${vlColumn("productId", "text")}
   unique (${vl("version")}, ${vl("position")})
 );
 ${lockModuleTable(ctx, "versionLines", { read: true })}

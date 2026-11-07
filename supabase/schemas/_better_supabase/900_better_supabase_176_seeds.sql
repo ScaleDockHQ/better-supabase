@@ -1,6 +1,6 @@
 -- better-supabase module: seeds
 -- @bsb-block seeds@1 managed
--- @bsb-hash sha256:154cbca065a28bb6ef181bf5b7df02a48738b78aa32501aed26ad6c19fa3e8e7
+-- @bsb-hash sha256:4189b6bdfc5c610b01952940207d989210d945a5d4947122629ea5f9bd9af76d
 -- seed_tenant_defaults(tenant, variants, locale) applies the defaults every installed block declares, in install order. The organizations block calls it when an organization is created.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22,6 +22,7 @@ begin
   perform "better_supabase"."seed_risks_defaults"(p_tenant, p_variants ->> 'risks', p_locale);
   perform "better_supabase"."seed_tax_defaults"(p_tenant, p_variants ->> 'tax', p_locale);
   perform "better_supabase"."seed_accounting_defaults"(p_tenant, p_variants ->> 'accounting', p_locale);
+  perform "better_supabase"."seed_document_templates_defaults"(p_tenant, p_variants ->> 'document-templates', p_locale);
 end;
 $$;
 revoke execute on function "better_supabase".seed_tenant_defaults(uuid, jsonb, text) from public, anon, authenticated;

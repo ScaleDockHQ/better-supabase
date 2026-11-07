@@ -83,14 +83,14 @@ const SHARED: AnyBlocksConfig = {
   quotes: {
     options: {
       extraColumns: { vat_regime: "text not null default 'standard'" },
-      lineExtraColumns: { line_type: "text", unit: "text" },
+      lineExtraColumns: { line_type: "text", uom: "text" },
     },
   },
   invoices: {
     columns: { invoices: OPT_IN },
     options: {
       extraColumns: { vat_regime: "text not null default 'standard'" },
-      lineExtraColumns: { line_type: "text", unit: "text" },
+      lineExtraColumns: { line_type: "text", uom: "text" },
     },
   },
 };
@@ -98,7 +98,7 @@ const SHARED: AnyBlocksConfig = {
 const accepted = (
   attrs: string,
 ): string => `v_quote := (better_supabase.create_quote('${TENANT}', '${attrs}'::jsonb,
-    '[{"description": "Work", "quantity": 2, "unitAmount": "5000", "taxRateBps": 2100, "fields": {"line_type": "labor", "unit": "hour"}}]'::jsonb) ->> 'id')::uuid;
+    '[{"description": "Work", "quantity": 2, "unitAmount": "5000", "taxRateBps": 2100, "fields": {"line_type": "labor", "uom": "hour"}}]'::jsonb) ->> 'id')::uuid;
   perform better_supabase.send_quote(v_quote);
   perform better_supabase.decide_quote(v_quote, 'accepted', null, 'Ann');`;
 
@@ -116,7 +116,7 @@ begin
   v_invoice := better_supabase.invoice_from_quote(v_quote, null);
   if (v_invoice ->> 'discount_bps')::integer <> 1000 or v_invoice ->> 'vat_regime' <> 'reverse_charge'
     or jsonb_array_length(v_invoice -> 'lines') <> 1
-    or v_invoice -> 'lines' -> 0 -> 'fields' <> '{"line_type": "labor", "unit": "hour"}'::jsonb
+    or v_invoice -> 'lines' -> 0 -> 'fields' <> '{"line_type": "labor", "uom": "hour"}'::jsonb
     or (v_invoice ->> 'total')::bigint <> (select total from better_supabase.quotes where id = v_quote) then
     raise exception 'final %', v_invoice;
   end if;

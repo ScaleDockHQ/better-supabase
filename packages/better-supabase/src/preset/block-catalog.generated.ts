@@ -4760,6 +4760,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
       ],
       "integrates": [
         "invoices",
+        "inventory",
+        "catalog",
         "quotes",
         "orders",
         "shipments",

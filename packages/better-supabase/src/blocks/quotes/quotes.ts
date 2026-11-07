@@ -93,6 +93,12 @@ export interface QuoteLine extends Line {
   readonly selected: boolean;
   /** The periods a subscription line runs; its amount counts each. */
   readonly periods?: number;
+  /** A subscription line with no end: it runs until cancelled. */
+  readonly openEnded?: true;
+  /** What one unit of the line is, such as `hour` or `day`. */
+  readonly unit?: string;
+  /** How the line's discount is given: a percentage or a fixed amount. */
+  readonly discountKind?: "percentage" | "fixed";
   /**
    * The line's id in the latest published version (`options.versionLines`); a
    * decision's `selected` may name it.
@@ -267,8 +273,10 @@ export type QuoteLineInput = (LineInput | CatalogLineInput) & {
   readonly optional?: boolean;
   /** Defaults to `true` for a required line and `false` for an optional one. */
   readonly selected?: boolean;
-  /** The periods a subscription line runs; default 1. */
-  readonly periods?: number;
+  /** The periods a subscription line runs; default 1, `null` for no end. */
+  readonly periods?: number | null;
+  readonly unit?: string;
+  readonly discountKind?: "percentage" | "fixed";
 };
 
 /** Who acted, for the state machine's history. */
@@ -489,6 +497,12 @@ function quoteLineOf(value: unknown, currency: string): QuoteLine {
     periods:
       typeof row["periods"] === "number" && row["periods"] !== 1
         ? row["periods"]
+        : undefined,
+    openEnded: "periods" in row && row["periods"] === null ? true : undefined,
+    unit: optionalText(row["unit"]),
+    discountKind:
+      row["discountKind"] === "percentage" || row["discountKind"] === "fixed"
+        ? row["discountKind"]
         : undefined,
     versionLineId: optionalText(row["versionLineId"]),
   });

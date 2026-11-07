@@ -159,7 +159,7 @@ const BLOCKS: AnyBlocksConfig = {
       totals: "app",
       workingCopy: true,
       extraColumns: { create_order_on_accept: "boolean" },
-      lineExtraColumns: { pricing_mode: "text", discount_kind: "text" },
+      lineExtraColumns: { pricing_mode: "text" },
     },
   },
   invoices: {
@@ -249,7 +249,7 @@ begin
     <> 'hourly:3:none' then
     raise exception 'moved %', (select jsonb_agg(l) from public.quote_lines l);
   end if;
-  perform better_supabase.set_quote_lines(v_id, '[{"description": "Hours", "quantity": 3, "unitAmount": "5000", "fields": {"pricing_mode": "hourly", "discount_kind": "percent"}}]'::jsonb);
+  perform better_supabase.set_quote_lines(v_id, '[{"description": "Hours", "quantity": 3, "unitAmount": "5000", "discountKind": "percent", "fields": {"pricing_mode": "hourly"}}]'::jsonb);
   perform better_supabase.set_quote_lines(v_id, '[{"description": "Hours", "quantity": 2, "unitAmount": "5000", "fields": {"pricing_mode": "hourly"}},
     {"description": "Extra", "quantity": 1, "unitAmount": "100"}]'::jsonb);
   if (select string_agg(pricing_mode || ':' || discount_kind, ',' order by position) from public.quote_lines where quote_id = v_id)

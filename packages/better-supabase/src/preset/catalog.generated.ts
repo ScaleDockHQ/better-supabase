@@ -3943,6 +3943,9 @@ export const PRESET_CATALOG: PresetCatalog = {
               "domain": "domain",
               "website": "website",
               "vatId": "vat_id",
+              "legalName": "legal_name",
+              "registrationId": "registration_id",
+              "phone": "phone",
               "lifecycle": "lifecycle",
               "owner": "owner_user_id",
               "address": "address",
@@ -3970,6 +3973,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "email": "email",
               "phone": "phone",
               "title": "title",
+              "mode": "mode",
               "lifecycle": "lifecycle",
               "owner": "owner_user_id",
               "user": "user_id",
@@ -6485,6 +6489,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "status": "status",
               "fromAddress": "from_address",
               "toAddress": "to_address",
+              "direction": "direction",
               "fromLocation": "from_location_id",
               "subjectType": "subject_type",
               "subjectId": "subject_id",
@@ -10505,6 +10510,8 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "integrates": [
         "invoices",
+        "inventory",
+        "catalog",
         "quotes",
         "orders",
         "shipments",
@@ -10521,6 +10528,9 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "imports"
       ],
+      "seeds": {
+        "variants": []
+      },
       "entities": {
         "specs": {
           "document_template": {
@@ -18572,6 +18582,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "ShipmentCreatedEventData"
+        },
+        {
+          "name": "ShipmentDirection"
         },
         {
           "name": "ShipmentInput",
@@ -31441,6 +31454,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "PersonInput"
+        },
+        {
+          "name": "PersonMode"
         }
       ],
       "entitySchemas": {
@@ -31470,6 +31486,21 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "nullable": true
               },
               "vatId": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "legalName": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "registrationId": {
+                "kind": "string",
+                "optional": true,
+                "nullable": true
+              },
+              "phone": {
                 "kind": "string",
                 "optional": true,
                 "nullable": true
@@ -31552,6 +31583,24 @@ export const PRESET_CATALOG: PresetCatalog = {
                   ]
                 },
                 "vatId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "legalName": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "registrationId": {
+                  "type": [
+                    "string",
+                    "null"
+                  ]
+                },
+                "phone": {
                   "type": [
                     "string",
                     "null"
@@ -31738,6 +31787,14 @@ export const PRESET_CATALOG: PresetCatalog = {
                 "optional": true,
                 "nullable": true
               },
+              "mode": {
+                "kind": "enum",
+                "values": [
+                  "external",
+                  "tenant"
+                ],
+                "optional": true
+              },
               "lifecycle": {
                 "kind": "string",
                 "optional": true
@@ -31819,6 +31876,13 @@ export const PRESET_CATALOG: PresetCatalog = {
                   "type": [
                     "string",
                     "null"
+                  ]
+                },
+                "mode": {
+                  "type": "string",
+                  "enum": [
+                    "external",
+                    "tenant"
                   ]
                 },
                 "lifecycle": {

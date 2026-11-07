@@ -5854,7 +5854,6 @@
                 },
                 "default": ["stripe", "order"]
               },
-              "uniqueNumber": {},
               "linePositionKey": {
                 "type": "boolean",
                 "default": true

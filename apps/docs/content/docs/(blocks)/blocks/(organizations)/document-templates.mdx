@@ -109,6 +109,8 @@ await db.documentTemplates
   .orThrow();
 ```
 
+A new organization gets a `letterhead` text block in the languages that have one (`nl`, `de` and `fr`): the entity's name, register number, tax number and bank account on one line, printed with `{{texts.letterhead}}`. It is a seed, so `upgrade` writes no rows: `seed_tenant_defaults` adds it when an organization is created, and running it again changes nothing. Change the text with `saveTextBlock`.
+
 ## Which template a document gets
 
 `resolveTemplate` and `render` pick the first template that exists, in this
@@ -192,7 +194,10 @@ type has these keys, and most add more:
 | `shipping`      | orders and delivery notes: carrier, tracking, address                |
 
 Dunning letters add `document.level` and `document.textKey`, and statements add
-the open invoices as lines. A key the source does not have is null. Amounts
+the open invoices as lines. A `purchase_order` document (with the inventory and
+catalog blocks) takes the supplier as `buyer`, the ordered quantities at their
+unit cost as `lines`, and the order's ship-to address as `shipping`; it has no
+tax lines, and its number is `PO-` and the first eight characters of the order id. A key the source does not have is null. Amounts
 are minor units as text, so a `bigint` never loses precision.
 
 `contract(type)` reads the variable paths and types from the database, and

@@ -170,7 +170,7 @@
     "security-definer-functions": 78
   },
   "document-templates": {
-    "security-definer-functions": 55,
+    "security-definer-functions": 61,
     "row-triggers": 6
   },
   "documents": {
@@ -492,7 +492,7 @@
     "security-definer-functions": 91
   },
   "shipments": {
-    "security-definer-functions": 69,
+    "security-definer-functions": 75,
     "row-triggers": 6
   },
   "signatures": {

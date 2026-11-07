@@ -14,23 +14,23 @@ commit that adds it. "Open" has a reason.
 | `incoming`                                  | Exists: placing a purchase order adds it, receiving removes it                      |
 | serial pick helper                          | Done (ADR 0267): `pick_serials`                                                     |
 | reorder fields                              | Done (ADR 0267): `reorder_quantity`                                                 |
-| purchase order document                     | Open: needs a purchase order source in the documents block                          |
+| purchase order document                     | Done (ADR 0268): the `purchase_order` document type                                 |
 | locale tax seed                             | Exists: `tax` seeds per locale (`nl`, `de`, `fr`)                                   |
 
 ## Parties and documents
 
-| Item                                   | State                                                                                 |
-| -------------------------------------- | ------------------------------------------------------------------------------------- |
-| Person modes, company fields           | Open                                                                                  |
-| Rate units                             | Open: rates are minor units per hour only                                             |
-| Open-ended `subscription_periods`      | Open                                                                                  |
-| Section lines                          | Exists on quotes; optional lines open                                                 |
-| Discount cast                          | Open                                                                                  |
-| Numbering scope                        | Exists: `scope` and `period` on sequences; `uniqueNumber` still an option on invoices |
-| Orders from a quote, kitchen off       | Exists: orders confirm from an accepted quote, `kitchen` defaults to false            |
-| Shipment direction                     | Lines carry `direction`; the shipment header has none (open)                          |
-| Webhook endpoint CRUD                  | Exists: create, update, list, delete                                                  |
-| Letterheads as a locale data migration | Open                                                                                  |
+| Item                                   | State                                                                      |
+| -------------------------------------- | -------------------------------------------------------------------------- |
+| Person modes, company fields           | Done (ADR 0268): `people.mode`, `legal_name`, `registration_id`, `phone`   |
+| Rate units                             | Done (ADR 0268): `unit` on document lines; time rates stay per hour        |
+| Open-ended `subscription_periods`      | Done (ADR 0268): `periods` null                                            |
+| Section and optional lines             | Exists on quotes (`section`, `optional`, `selected`)                       |
+| Discount cast                          | Done (ADR 0268): `discount_kind`, typed over an app enum                   |
+| Numbering scope                        | Done (ADR 0268): `uniqueNumber` removed, invoices unique by identifier     |
+| Orders from a quote, kitchen off       | Exists: orders confirm from an accepted quote, `kitchen` defaults to false |
+| Shipment direction                     | Done (ADR 0268): `shipments.direction`, `set_shipment_direction`           |
+| Webhook endpoint CRUD                  | Exists: create, update, list, delete                                       |
+| Letterheads as a locale data migration | Done (ADR 0268): the `letterhead` seed of document-templates               |
 
 ## Fields and work
 

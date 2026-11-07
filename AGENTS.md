@@ -378,6 +378,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0265: Read tables in every framework's hooks, name AppDb, and keep Insert and Update written out.
 - 0266: Copy mutation rows on first read.
 - 0267: Inventory gets a reorder quantity, a serial pick and composite keys.
+- 0268: Close the parties and documents gaps of the base layer.
 
 ## Pre-release pins
 

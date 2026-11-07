@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:d0642ad78a2c69ecf99d82fc269ee210546855996067e0e4404736fe25f843ed
+-- @bsb-hash sha256:63c3fa450841deeeabfd02504e8cf7737b0d3209289ab7ead197f517a8ad573b
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -59,7 +59,7 @@ create table "better_supabase"."invoices" (
   "subtotal" bigint not null default 0,
   "tax_total" bigint not null default 0,
   "total" bigint not null default 0,
-  unique ("tenant_id", "direction", "kind", "number"),
+  unique ("tenant_id", "direction", "kind", "identifier"),
   check (("kind" = 'credit_note') = ("original_id" is not null)),
   check ("status" <> 'draft' or "number" is null),
   check ("status" in ('draft', 'void') or "number" is not null),

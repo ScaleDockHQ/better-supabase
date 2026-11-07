@@ -104,6 +104,8 @@ fails, the block voids the label it just bought. A shipment without a
 The [shipments binding](/docs/repository/record-bindings) lists a record's shipments on
 its page, with `create` and `cancel` writes.
 
+A shipment has a `direction`: `outbound` (default) leaves your organization and `inbound` comes to it, as a supplier's delivery does. `setDirection({ id, direction })` changes it while the shipment is a draft (`SHIPMENT_SHIPPED` after that, `SHIPMENT_DIRECTION_INVALID` for another value). The direction of each line stays on the line. It is a base column, so an app column of the same name goes: delete it and run `better-supabase upgrade`.
+
 ## Shipment lines
 
 With the [inventory block](/docs/blocks/inventory), a shipment carries stock.

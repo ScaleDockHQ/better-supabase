@@ -226,6 +226,29 @@ describe("createShipments", () => {
     expect(shipment?.fields).toEqual({ dock: "4" });
   });
 
+  it("reads a shipment's direction and sets it on a draft", async () => {
+    const inbound = { ...DRAFT, direction: "inbound" };
+
+    const fake = fakeTransport({
+      get_shipment: inbound,
+      set_shipment_direction: inbound,
+    });
+
+    const shipments = createShipments({ transport: fake.transport });
+
+    expect((await shipments.get("s1").orThrow())?.direction).toBe("inbound");
+
+    const changed = await shipments
+      .setDirection({ id: "s1", direction: "inbound" })
+      .orThrow();
+
+    expect(changed.direction).toBe("inbound");
+    expect(fake.calls.at(-1)).toEqual([
+      "set_shipment_direction",
+      { shipment_id: "s1", direction: "inbound" },
+    ]);
+  });
+
   it("returns null for a shipment it can't read", async () => {
     const shipments = createShipments({
       transport: fakeTransport({ get_shipment: null }).transport,

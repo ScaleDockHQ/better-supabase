@@ -86,6 +86,57 @@ describe("parties block", () => {
     });
   });
 
+  it("reads a company's legal name, register number and phone and a person's mode", async () => {
+    const t = transport({
+      save_company: () => ({
+        ...COMPANY,
+        legal_name: "Acme Holding B.V.",
+        registration_id: "12345678",
+        phone: "+31 10 555 0100",
+      }),
+      save_person: () => ({ ...PERSON, mode: "tenant", user_id: "u9" }),
+    });
+
+    const parties = createContacts({ transport: t });
+
+    const company = await parties
+      .saveCompany({
+        organizationId: "o",
+        input: { name: "Acme", legalName: "Acme Holding B.V." },
+      })
+      .orThrow();
+
+    const person = await parties
+      .savePerson({
+        organizationId: "o",
+        input: { name: "Ada", mode: "tenant", userId: "u9" },
+      })
+      .orThrow();
+
+    expect(company).toMatchObject({
+      legalName: "Acme Holding B.V.",
+      registrationId: "12345678",
+      phone: "+31 10 555 0100",
+    });
+    expect(company.fields).toEqual({ segment: "smb" });
+    expect(person).toMatchObject({ mode: "tenant", userId: "u9" });
+    expect(t.calls[1]?.[1]).toEqual({
+      tenant: "o",
+      person: null,
+      attrs: { name: "Ada", mode: "tenant", userId: "u9" },
+    });
+  });
+
+  it("leaves out a mode it does not know", async () => {
+    const t = transport({ save_person: () => ({ ...PERSON, mode: "guest" }) });
+
+    const person = await createContacts({ transport: t })
+      .savePerson({ organizationId: "o", input: { name: "Ada" } })
+      .orThrow();
+
+    expect(person).not.toHaveProperty("mode");
+  });
+
   it("pages people by name and reads a company's people", async () => {
     const t = transport({
       list_people: () => [PERSON, { ...PERSON, id: "p2", name: "Bob" }],

@@ -93,6 +93,9 @@ const FIELDS: Readonly<Record<Kind, readonly Field[]>> = {
     { key: "domain", column: "domain", value: lower },
     { key: "website", column: "website", value: text },
     { key: "vatId", column: "vatId", value: text },
+    { key: "legalName", column: "legalName", value: text },
+    { key: "registrationId", column: "registrationId", value: text },
+    { key: "phone", column: "phone", value: text },
     { key: "lifecycle", column: "lifecycle", value: text },
     { key: "ownerId", column: "owner", value: uuid },
     ...TERMS,
@@ -102,6 +105,7 @@ const FIELDS: Readonly<Record<Kind, readonly Field[]>> = {
     { key: "email", column: "email", value: lower },
     { key: "phone", column: "phone", value: text },
     { key: "title", column: "title", value: text },
+    { key: "mode", column: "mode", value: lower },
     { key: "lifecycle", column: "lifecycle", value: text },
     { key: "ownerId", column: "owner", value: uuid },
     { key: "userId", column: "user", value: uuid },
@@ -148,6 +152,24 @@ function unsupported(ctx: BlockSqlContext, kind: Kind, attrs: string): string {
   end if;`,
     )
     .join("");
+}
+
+/**
+ * PL/pgSQL that refuses a person mode other than `external` (outside the
+ * organization) or `tenant` (a member, so a user is needed).
+ */
+function modeCheck(ctx: BlockSqlContext, kind: Kind, attrs: string): string {
+  if (kind !== "person" || !ctx.has("people", "mode")) {
+    return "";
+  }
+
+  return `
+  if ${attrs} ? 'mode' and coalesce(lower(trim(${attrs} ->> 'mode')), '') not in ('external', 'tenant') then
+    ${fail("PARTY_MODE_INVALID", "a person is external or tenant", "22023")}
+  end if;
+  if v_created and lower(trim(${attrs} ->> 'mode')) = 'tenant' and nullif(${attrs} ->> 'userId', '') is null then
+    ${fail("PARTY_MODE_INVALID", "a tenant person needs a userId", "22023")}
+  end if;`;
 }
 
 const guard = (
@@ -197,11 +219,17 @@ function saveFunction(
 
   const insertValues = [
     `${fnName}.tenant`,
-    ...fields.map((field) =>
-      field.key === "lifecycle"
-        ? lifecycle(`coalesce(${field.value(arg(field.key))}, (${stages})[1])`)
-        : field.value(arg(field.key)),
-    ),
+    ...fields.map((field) => {
+      if (field.key === "lifecycle") {
+        return lifecycle(
+          `coalesce(${field.value(arg(field.key))}, (${stages})[1])`,
+        );
+      }
+
+      return field.key === "mode"
+        ? `coalesce(${field.value(arg(field.key))}, 'external')`
+        : field.value(arg(field.key));
+    }),
     ...(address ? [`${fnName}.attrs -> 'address'`] : []),
     ...(exists("createdBy") ? ["auth.uid()"] : []),
     ...extras.map((extra) => extraValue(extra.ident)),
@@ -210,7 +238,7 @@ function saveFunction(
   const updates = [
     ...fields.map(
       (field) =>
-        `${col(field.column)} = case when ${has(field.key)} then ${field.key === "name" || field.key === "lifecycle" ? `coalesce(${field.key === "lifecycle" ? lifecycle(field.value(arg(field.key))) : field.value(arg(field.key))}, x.${col(field.column)})` : field.value(arg(field.key))} else x.${col(field.column)} end`,
+        `${col(field.column)} = case when ${has(field.key)} then ${field.key === "name" || field.key === "lifecycle" || field.key === "mode" ? `coalesce(${field.key === "lifecycle" ? lifecycle(field.value(arg(field.key))) : field.value(arg(field.key))}, x.${col(field.column)})` : field.value(arg(field.key))} else x.${col(field.column)} end`,
     ),
     ...(address
       ? [
@@ -256,7 +284,7 @@ begin
   end if;${unsupported(ctx, kind, `${fnName}.attrs`)}
   if ${has("lifecycle")} and not (${arg("lifecycle")} = any (${stages})) then
     ${fail("PARTY_LIFECYCLE_INVALID", "unknown lifecycle stage", "22023")}
-  end if;${termsChecks(ctx, spec.table, `${fnName}.attrs`, `${fnName}.tenant`)}
+  end if;${modeCheck(ctx, kind, `${fnName}.attrs`)}${termsChecks(ctx, spec.table, `${fnName}.attrs`, `${fnName}.tenant`)}
   ${ctx.hook(`before_${spec.hook}_save`, [
     [ctx.idType, `${fnName}.tenant`],
     ["uuid", `${fnName}.${kind}`],
@@ -379,7 +407,12 @@ function mergeFunction(
     clear: [kind === "company" ? "domain" : "email"],
     fill: [
       ...fieldsOf(ctx, kind)
-        .filter((field) => field.key !== "name" && field.key !== "lifecycle")
+        .filter(
+          (field) =>
+            field.key !== "name" &&
+            field.key !== "lifecycle" &&
+            field.key !== "mode",
+        )
         .map((field) => field.column),
       ...(ctx.has(spec.table, "supplierStatus") ? ["supplierStatus"] : []),
     ],

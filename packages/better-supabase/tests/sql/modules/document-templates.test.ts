@@ -55,6 +55,8 @@ describe("document variables over the installed modules", () => {
     "quotes",
     "orders",
     "shipments",
+    "catalog",
+    "inventory",
   ];
 
   const full = (on: readonly string[]): string =>
@@ -73,6 +75,7 @@ describe("document variables over the installed modules", () => {
       "quote",
       "order",
       "delivery_note",
+      "purchase_order",
       "dunning_letter",
       "statement",
     ]) {

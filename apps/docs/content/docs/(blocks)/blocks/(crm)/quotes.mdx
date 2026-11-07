@@ -210,6 +210,8 @@ With `pricesIncludeTax`, unit amounts are gross and the tax is counted out of th
 
 A subscription line counts its `periods` (default 1): `{ description: "Hosting", quantity: 2, periods: 12, unitAmount }` adds quantity times periods times the unit amount, and `invoices.fromQuote` copies it as that quantity.
 
+Three more line keys are base columns: `periods: null` is a subscription line with no end (it counts one period in the totals, and the line reads `openEnded: true`), `unit` says what one unit is (`hour`, `month`), and `discountKind` (`percentage` or `fixed`) says how the line's discount is given. Over your own lines table, `discountKind` takes the table's enum type and a key a line leaves out takes the column's default. A line that leaves out `unit` or `discountKind` on an update keeps the value it had. Delete an app column with one of these names from the block's own table and run `better-supabase upgrade`.
+
 The database spreads the document discount over the tax rates in proportion to each rate's amount, then computes the tax per rate. `quote.taxLines` holds the result, one line per tax rate and tax code, with its `net`, `tax`, `gross` and its share of the `discount`. These lines add up exactly to `subtotal`, `taxTotal` and `total`, so an invoice can show the tax breakdown a VAT invoice needs. `pricing.depositDue` is `depositBps` of the total.
 
 ### Totals your app keeps

@@ -204,7 +204,6 @@ const NAMES: BlockSqlNames = {
     "lineRates",
     "totals",
     "providerPaymentMethods",
-    "uniqueNumber",
     "linePositionKey",
     "paymentsAfterWriteOff",
     "depositKind",
@@ -374,14 +373,15 @@ function tables(ctx: BlockSqlContext, n: InvoiceNames): string {
   const company = invoiceParty(ctx, "company");
   const contact = invoiceParty(ctx, "contact");
   const origin = invoiceParty(ctx, "origin");
-  const uniqueNumber = invoiceUniqueNumber(ctx);
 
-  // Sales invoices and purchase bills are numbered apart.
+  // Sales invoices and purchase bills are numbered apart, and so is each kind.
+  // The identifier carries the period a numbering series restarts in, so it is
+  // unique where the number alone is not.
   const numberKey = [
     "tenant",
     ...(ctx.has("invoices", "direction") ? ["direction"] : []),
     "kind",
-    ...(uniqueNumber === false ? [] : [uniqueNumber]),
+    ctx.has("invoices", "identifier") ? "identifier" : "number",
   ];
 
   const ch = (column: string): string => c("charges", column);
@@ -474,11 +474,12 @@ create table if not exists ${t("invoices")} (
   ${i("createdAt")} timestamptz not null default now(),
   ${i("updatedAt")} timestamptz not null default now(),
   ${totalColumnsSql(ctx, "invoices")},
-${uniqueNumber === false ? "" : `  unique (${numberKey.map(i).join(", ")}),\n`}  check ((${i("kind")} = 'credit_note') = (${i("original")} is not null)),
+  unique (${numberKey.map(i).join(", ")}),
+  check ((${i("kind")} = 'credit_note') = (${i("original")} is not null)),
   check (${i("status")} <> 'draft' or ${i("number")} is null),
   check (${invoiceTemplatesOn(ctx) ? `${i("template")} is not null or ` : ""}${i("status")} in ('draft', 'void') or ${i("number")} is not null)${company === "pair" ? `,\n  check ((${i("companyType")} is null) = (${i("companyId")} is null))` : ""}${invoiceTemplatesOn(ctx) && ctx.flag("requireParty", false) && ctx.has("invoices", "companyId") ? `,\n  check (${i("template")} is not null or ${i("companyId")} is not null)` : ""}
 );
-${added === "" ? "" : `${added.slice(1)}\n`}create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin === undefined ? "" : index("invoices_origin_idx", origin === "pair" ? ["originType", "originId"] : ["originId"])}${index("invoices_original_idx", ["original"])}${company === undefined ? "" : index("invoices_company_idx", company === "pair" ? ["companyType", "companyId"] : ["companyId"])}${searchColumnSql(ctx, "invoices", ["identifier", "title", "note", "supplierReference"])}${ctx.has("invoices", "purchaseOrder") ? index("invoices_purchase_order_idx", ["purchaseOrder"]) : ""}${uniqueNumber === false ? "" : appUniqueIndex(ctx, "invoices", numberKey)}
+${added === "" ? "" : `${added.slice(1)}\n`}create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin === undefined ? "" : index("invoices_origin_idx", origin === "pair" ? ["originType", "originId"] : ["originId"])}${index("invoices_original_idx", ["original"])}${company === undefined ? "" : index("invoices_company_idx", company === "pair" ? ["companyType", "companyId"] : ["companyId"])}${searchColumnSql(ctx, "invoices", ["identifier", "title", "note", "supplierReference"])}${ctx.has("invoices", "purchaseOrder") ? index("invoices_purchase_order_idx", ["purchaseOrder"]) : ""}${appUniqueIndex(ctx, "invoices", numberKey)}
 ${lockModuleTable(ctx, "invoices", { read: true })}${invoiceTemplatesOn(ctx) ? `\n${templateGuardSql({ fn: ctx.fn("invoice_template_guard"), trigger: ctx.trigger("invoice_template"), table: t("invoices"), column: ctx.colName("invoices", "template"), hint: "INVOICE_TEMPLATE_IMMUTABLE" })}\n${triggerGrant(`${ctx.fn("invoice_template_guard")}()`)}` : ""}
 ${renderPolicy(
   makePolicy({
@@ -512,24 +513,6 @@ ${renderPolicy(
 )}
 ${charges}${dunningTableSql(ctx, n.read)}${dunningRunTablesSql(ctx, t("invoices"), i("id"), n.read)}${allocationTableSql(ctx, t("invoices"), i("id"), n.read)}${lineSourcesTableSql(ctx, t("invoices"), i("id"), n.read)}${approvalTablesSql(ctx, t("invoices"), i("id"), n.read)}${eDeliveryTablesSql(ctx, t("invoices"), i("id"), n.read)}
 `;
-}
-
-/**
- * `options.uniqueNumber`: the column that is unique per tenant and kind, or
- * `false` when the app keeps numbers unique itself.
- */
-function invoiceUniqueNumber(
-  ctx: BlockSqlContext,
-): "number" | "identifier" | false {
-  const value = ctx.option("uniqueNumber") ?? "number";
-
-  if (value !== "number" && value !== "identifier" && value !== false) {
-    throw new TypeError(
-      'blocks.invoices.options.uniqueNumber must be "number", "identifier" or false',
-    );
-  }
-
-  return value;
 }
 
 /** `options.totals`: who keeps an invoice's totals. */
