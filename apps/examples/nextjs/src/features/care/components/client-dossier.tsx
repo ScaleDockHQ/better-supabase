@@ -1,4 +1,5 @@
 import { getExtracted } from "next-intl/server";
+import { navigation } from "next/cache";
 import { Suspense } from "react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -31,10 +32,14 @@ import {
 } from "./care-sections";
 
 async function PlanEditor({ clientId }: { clientId: string }) {
+  await navigation();
+
   return <CarePlanEditor state={await getCarePlan(clientId)} />;
 }
 
 async function PlanEvaluations({ clientId }: { clientId: string }) {
+  await navigation();
+
   return <CarePlanEvaluations state={await getCarePlan(clientId)} />;
 }
 

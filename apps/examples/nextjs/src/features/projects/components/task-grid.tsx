@@ -522,6 +522,7 @@ function TitleCell({ row }: GridCell) {
   return (
     <Link
       href={`/projects/${row.original.projectId}`}
+      prefetch
       className="font-medium hover:underline"
     >
       {row.original.title}

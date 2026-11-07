@@ -115,6 +115,7 @@ export async function FormList() {
                   <div className="flex flex-col gap-1">
                     <Link
                       href={`/forms/${form.id}`}
+                      prefetch
                       className="font-medium transition-colors hover:text-primary"
                     >
                       {form.title}

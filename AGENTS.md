@@ -385,6 +385,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0310: Check the example app's feature-sliced RSC architecture in `pnpm verify`.
 - 0311: Keep tags in pure `<domain>-cache.ts` files built on `tagFor`.
 - 0312: Use `cacheLife("max")` where every write calls `updateTag`.
+- 0313: Prefetch record rows and gate their heavy body behind `navigation()`.
 
 ## Pre-release pins
 
