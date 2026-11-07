@@ -1111,8 +1111,10 @@ updates and deletes are not in the audit log. Register it with
 skips the block schemas and the app's tables that blocks run over; list other tables in
 `blocks.audit.options.exempt` as `{ table, reason }` entries, where `table` is
 a `schema.table` glob (`*` matches any run of characters) and `reason` says why
-its changes need no audit entry. A bare glob string still works, but doctor
-reports it as an error and asks for the reason. Doctor only checks tables in `schemas`, and
+its changes need no audit entry. `{ class: "no-tenant-column", reason }` leaves
+out every table that has no tenant column, which the audit helpers can't
+register. A bare glob string still works, but doctor reports it as an error and
+asks for the reason. Doctor only checks tables in `schemas`, and
 a partition counts through its parent.
 
 ```ts title="better-supabase.config.ts"

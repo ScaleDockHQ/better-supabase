@@ -4,6 +4,7 @@ import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
+import type { AuditSqlOptions } from "../../../src/blocks/audit/options.ts";
 import type { AdvisorSource, Lint } from "../../../src/cli/doctor/advisors.ts";
 import type { DoctorContext, TextFile } from "../../../src/cli/doctor/rules.ts";
 import type {
@@ -3557,6 +3558,52 @@ describe("tables without an audit trigger (BS315)", () => {
       ),
     ).toEqual([]);
     expect(await run("BS315", context(base))).toEqual([]);
+  });
+
+  it("skips the tables without a tenant column when the exempt list names that class", async () => {
+    const untenanted = snapshot((tables) => {
+      const names = tables.filter((entry) => entry.schema === "public");
+
+      for (const entry of names) {
+        entry.columns = entry.columns.filter(
+          (column) => column.name !== "organization_id",
+        );
+      }
+    });
+
+    const config = (exempt: NonNullable<AuditSqlOptions["exempt"]>) => ({
+      blocks: { audit: { options: { exempt } } },
+    });
+
+    expect(
+      await run(
+        "BS315",
+        context(
+          untenanted,
+          {},
+          config([
+            { class: "no-tenant-column", reason: "no tenant to audit by" },
+          ]),
+        ),
+      ),
+    ).toEqual([]);
+
+    const unexplained = await run(
+      "BS315",
+      context(
+        untenanted,
+        {},
+        config([{ class: "no-tenant-column", reason: " " }]),
+      ),
+    );
+
+    expect(unexplained.map((finding) => finding.target)).toEqual([
+      "blocks.audit.options.exempt:class no-tenant-column",
+    ]);
+    expect(
+      (await run("BS315", context(untenanted, {}, { blocks: ["audit"] })))
+        .length,
+    ).toBeGreaterThan(0);
   });
 
   it("asks for a reason when an exemption is a bare glob", async () => {

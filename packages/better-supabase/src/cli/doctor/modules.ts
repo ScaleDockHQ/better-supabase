@@ -876,7 +876,7 @@ export const MODULE_RULES: readonly Rule[] = [
     severity: "error",
     title: "Table without an audit trigger",
     description:
-      "The `audit` module is in `blocks`, and a table in `schemas` has no `bsb_audit` trigger (or another trigger that calls `audit_row_change()`), so its changes are not in the audit log. The module's own schemas and the tables SQL modules adopt are skipped; `blocks.audit.options.exempt` lists more, as `{ table, reason }` entries where `table` is a `schema.table` glob such as `public.*_archive`; a bare glob string still works but gets a finding that asks for the reason. Both findings are errors. Partitions are covered by their parent.",
+      "The `audit` module is in `blocks`, and a table in `schemas` has no `bsb_audit` trigger (or another trigger that calls `audit_row_change()`), so its changes are not in the audit log. The module's own schemas and the tables SQL modules adopt are skipped; `blocks.audit.options.exempt` lists more, as `{ table, reason }` entries where `table` is a `schema.table` glob such as `public.*_archive`, or `{ class: 'no-tenant-column', reason }` for the tables without a tenant column; a bare glob string still works but gets a finding that asks for the reason. Both findings are errors. Partitions are covered by their parent.",
     check: unauditedTables,
   },
   {

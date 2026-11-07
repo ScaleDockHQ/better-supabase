@@ -1,5 +1,6 @@
 import type { DoctorContext, FindingInput } from "./rules.ts";
 
+import { tenantNameOf } from "../../config/index.ts";
 import { catalogOf, qualified, tableObject } from "./shared.ts";
 
 const escapeRegExp = (value: string): string =>
@@ -8,9 +9,15 @@ const escapeRegExp = (value: string): string =>
 export interface Exemption {
   readonly glob: string;
   readonly reason: string | undefined;
+  /** `{ class: "no-tenant-column" }`: every table without the tenant column. */
+  readonly noTenantColumn?: true;
 }
 
-/** `exempt` entries: a glob, or `{ table, reason }` where `table` is a glob. */
+/**
+ * `exempt` entries: a glob, `{ table, reason }` where `table` is a glob, or `{
+ * class: "no-tenant-column", reason }` for the tables that have no tenant
+ * column to audit by.
+ */
 function exemptions(value: unknown): Exemption[] {
   const entries: unknown[] = Array.isArray(value) ? value : [];
 
@@ -19,17 +26,26 @@ function exemptions(value: unknown): Exemption[] {
       return [{ glob: entry, reason: undefined }];
     }
 
-    if (
-      typeof entry === "object" &&
-      entry !== null &&
-      "table" in entry &&
-      typeof entry.table === "string"
-    ) {
-      const reason =
-        "reason" in entry && typeof entry.reason === "string"
-          ? entry.reason.trim()
-          : "";
+    if (typeof entry !== "object" || entry === null) {
+      return [];
+    }
 
+    const reason =
+      "reason" in entry && typeof entry.reason === "string"
+        ? entry.reason.trim()
+        : "";
+
+    if ("class" in entry && entry.class === "no-tenant-column") {
+      return [
+        {
+          glob: "class no-tenant-column",
+          reason: reason === "" ? undefined : reason,
+          noTenantColumn: true,
+        },
+      ];
+    }
+
+    if ("table" in entry && typeof entry.table === "string") {
       return [
         { glob: entry.table, reason: reason === "" ? undefined : reason },
       ];
@@ -93,7 +109,15 @@ export function unauditedTables(context: DoctorContext): FindingInput[] {
     context.config.blocks["audit"]?.options?.["exempt"],
   );
 
-  const exempt = globs(entries.map((entry) => entry.glob));
+  const exempt = globs(
+    entries.filter((entry) => !entry.noTenantColumn).map((entry) => entry.glob),
+  );
+
+  const tenantColumn =
+    context.config.sql.tenantColumn ??
+    `${tenantNameOf(context.config.blocks) ?? "organization"}_id`;
+
+  const skipsUntenanted = entries.some((entry) => entry.noTenantColumn);
   const owned = moduleOwned(context);
 
   const unaudited = catalogOf(context)
@@ -105,6 +129,10 @@ export function unauditedTables(context: DoctorContext): FindingInput[] {
         !owned.schemas.has(table.schema) &&
         !owned.tables.has(qualified(table)) &&
         !exempt.some((pattern) => pattern.test(qualified(table))) &&
+        !(
+          skipsUntenanted &&
+          !table.columns.some((column) => column.name === tenantColumn)
+        ) &&
         !table.triggers.some(
           (trigger) =>
             /^bsb?_audit/.test(trigger.name) ||
@@ -120,7 +148,9 @@ export function unauditedTables(context: DoctorContext): FindingInput[] {
   const unexplained = entries
     .filter((entry) => entry.reason === undefined)
     .map((entry) => ({
-      message: `blocks.audit.options.exempt lists ${entry.glob} without a reason. Write it as { table: '${entry.glob}', reason: 'why its changes need no audit entry' } so a reviewer can tell an intended gap from a forgotten table.`,
+      message: entry.noTenantColumn
+        ? "blocks.audit.options.exempt lists the no-tenant-column class without a reason. Write it as { class: 'no-tenant-column', reason: 'why tables without a tenant need no audit entry' }."
+        : `blocks.audit.options.exempt lists ${entry.glob} without a reason. Write it as { table: '${entry.glob}', reason: 'why its changes need no audit entry' } so a reviewer can tell an intended gap from a forgotten table.`,
       target: `blocks.audit.options.exempt:${entry.glob}`,
     }));
 
