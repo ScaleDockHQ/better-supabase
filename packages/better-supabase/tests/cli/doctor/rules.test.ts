@@ -4701,6 +4701,77 @@ describe("pg-delta packages (BS239)", () => {
   });
 });
 
+describe("columns entries the render refuses (BS379)", () => {
+  const withView = snapshot((tables) => {
+    const template = tables.find((entry) => entry.kind === "table")!;
+
+    tables.push({
+      ...structuredClone(template),
+      schema: "public",
+      name: "organization_memberships",
+      kind: "view",
+      rls: false,
+      forceRls: false,
+      insertable: true,
+      updatable: true,
+      policies: [],
+      triggers: [],
+      foreignKeys: [],
+      columns: ["organization_id", "user_id", "role", "created_at"].map(
+        (name) => ({ ...structuredClone(template.columns[0]!), name }),
+      ),
+    });
+  });
+
+  it("reports a null for a column the view lacks and names the codemod", async () => {
+    const findings = await run(
+      "BS379",
+      context(
+        withView,
+        {},
+        {
+          blocks: {
+            memberships: {
+              tables: { memberships: "public.organization_memberships" },
+              columns: { memberships: { updatedAt: null, role: "role" } },
+            },
+          },
+        },
+      ),
+    );
+
+    expect(findings).toEqual([
+      expect.objectContaining({
+        severity: "error",
+        target: "blocks.memberships.columns.memberships.updatedAt",
+        message: expect.stringContaining("codemod config"),
+      }),
+    ]);
+  });
+
+  it("reports a tenant entry that repeats sql.tenantColumn", async () => {
+    const findings = await run(
+      "BS379",
+      context(
+        base,
+        {},
+        {
+          database: { sql: { tenantColumn: "org_id" } },
+          blocks: { tags: { columns: { tags: { tenant: "org_id" } } } },
+        },
+      ),
+    );
+
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "blocks.tags.columns.tags.tenant",
+    ]);
+  });
+
+  it("passes a project without either", async () => {
+    expect(await run("BS379", context(base))).toEqual([]);
+  });
+});
+
 describe("block writes through a view Postgres can't update (BS349)", () => {
   const VIEW = "organization_memberships";
 

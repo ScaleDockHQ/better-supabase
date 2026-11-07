@@ -6,7 +6,7 @@ import type {
 } from "./context.ts";
 import type { BlockContributions } from "./contributions.ts";
 import type { BlockSqlLayout, BlockSql } from "./module-types.ts";
-import type { ViewColumns } from "./view-columns.ts";
+import type { RedundantNull, ViewColumns } from "./view-columns.ts";
 
 import { installedBlockSubjects } from "../config/block-subjects.ts";
 import { createModuleContext } from "./context.ts";
@@ -150,11 +150,34 @@ export function withProviderDefaults(
   return viewColumnsOf(layout).modules;
 }
 
+/** The `null` entries a render refuses for the layout's views. */
+export function redundantNulls(
+  layout: BlockSqlLayout,
+): readonly RedundantNull[] {
+  return viewColumnsOf(layout, true).redundant;
+}
+
 /**
  * The provider defaults, then the optional columns the app's views lack mapped
  * to `null`, with the required columns they lack.
  */
-export function viewColumnsOf(layout: BlockSqlLayout): ViewColumns {
+export function viewColumnsOf(
+  layout: BlockSqlLayout,
+  collect = false,
+): ViewColumns {
+  const found = viewColumnsFrom(layout);
+  const [first] = found.redundant;
+
+  if (first !== undefined && !collect) {
+    throw new TypeError(
+      `blocks.${first.block}.columns.${first.logical}.${first.column}: maps to null, but ${first.view} has no "${first.name}" column, so the block leaves it out already. Remove the entry.`,
+    );
+  }
+
+  return found;
+}
+
+function viewColumnsFrom(layout: BlockSqlLayout): ViewColumns {
   return viewColumns(
     layout,
     withProviderPlatformRoles(

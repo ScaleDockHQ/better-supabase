@@ -13,7 +13,20 @@ export interface MissingViewColumn {
   readonly column: string;
 }
 
+/** A `null` column entry for an optional column its view lacks anyway. */
+export interface RedundantNull {
+  readonly block: string;
+  readonly logical: string;
+  readonly column: string;
+  /** The view, as `schema.view`. */
+  readonly view: string;
+  /** The column the view would need, as the block names it by default. */
+  readonly name: string;
+}
+
 export interface ViewColumns {
+  /** The `null` entries a render refuses, which the config codemod removes. */
+  readonly redundant: readonly RedundantNull[];
   /** `modules` with the optional columns the views lack mapped to `null`. */
   readonly modules: AnyBlocksConfig | undefined;
   /** The required columns the views lack. */
@@ -47,7 +60,7 @@ export function viewColumns(
     views === undefined ||
     Object.keys(views).length === 0
   ) {
-    return { modules, missing: [] };
+    return { modules, missing: [], redundant: [] };
   }
 
   const known = cache.get(layout)?.get(modules);
@@ -58,6 +71,7 @@ export function viewColumns(
 
   const out: Record<string, AnyBlocksConfig[string]> = { ...modules };
   const missing: MissingViewColumn[] = [];
+  const redundant: RedundantNull[] = [];
 
   for (const [block, config] of Object.entries(modules)) {
     const names = namesOf(block);
@@ -116,9 +130,7 @@ export function viewColumns(
           const bare = spec.columns[column]!;
 
           if (optional && !has.includes(bare)) {
-            throw new TypeError(
-              `blocks.${block}.columns.${logical}.${column}: maps to null, but ${view} has no "${bare}" column, so the block leaves it out already. Remove the entry.`,
-            );
+            redundant.push({ block, logical, column, view, name: bare });
           }
 
           continue;
@@ -162,6 +174,7 @@ export function viewColumns(
       ? out
       : modules,
     missing,
+    redundant,
   };
 
   const byModules = cache.get(layout) ?? new WeakMap<object, ViewColumns>();

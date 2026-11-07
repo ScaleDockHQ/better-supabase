@@ -261,7 +261,7 @@ export async function appColumnsFor(
  * `ownTables`, `ownViews`, `ownColumns`, `ownUpdatedAtTriggers` and
  * `ownPolicies`: the database's tables and views, then the app's files.
  */
-async function ownLayout(
+export async function ownLayout(
   config: ResolvedConfig,
 ): Promise<
   Pick<

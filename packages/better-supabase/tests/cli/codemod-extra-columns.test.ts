@@ -71,6 +71,12 @@ describe("withoutOptionKeys", () => {
 `);
   });
 
+  it("drops several properties, last first", () => {
+    const text = `a: { extraColumns: { x: "text" }, calendarExtraColumns: { y: "text" }, keep: 1 }`;
+
+    expect(withoutOptionKeys(text, keys)).toBe("a: { keep: 1 }");
+  });
+
   it("handles an only property and an inline one", () => {
     expect(
       withoutOptionKeys(

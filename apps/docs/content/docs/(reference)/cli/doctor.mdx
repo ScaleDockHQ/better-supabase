@@ -1777,6 +1777,15 @@ direction of BS376: a table, view, type or function in `supabase/schemas` that n
 migration creates is a change the sync has not turned into a migration yet. Run
 `supabase db schema declarative sync` and review the migration.
 
+### BS379
+
+**Error: a columns entry the render refuses.** `blocks.<name>.columns.<table>.<column>`
+is `null` for an optional column the view the block runs over lacks anyway, or
+`columns.<table>.tenant` repeats `sql.tenantColumn`. The block already leaves out
+a column its view lacks, and `sql.tenantColumn` fills every tenant column, so the
+entry says nothing. Run `better-supabase codemod config` to remove the entries.
+A `null` for a column the view has, or for a table you own, is fine.
+
 `better-supabase upgrade --check` runs the checks of BS369 to BS375 that apply to
 the installed block files (a helper two files define, an object two block files
 declare, `transaction=false`, a top-level `insert` and duplicate policies) and

@@ -23,12 +23,14 @@ import {
   excludedColumns,
   moduleLayout,
   moduleSource,
+  redundantNulls,
   SECRET_COLUMNS,
   sameTenantColumn,
   sameTenantTrigger,
   SQL_MODULES,
   writtenValues,
 } from "../../sql/index.ts";
+import { tenantEntries } from "../codemod-config.ts";
 import { notNullTag } from "../gen/model-functions.ts";
 import { configFor } from "../gen/shared.ts";
 import { isRecord } from "../guards.ts";
@@ -344,6 +346,37 @@ export const ADOPTION_RULES: readonly Rule[] = [
           message: `blocks.${view.module}.tables.${view.logical} is the view ${view.view}, which Postgres can't write through, and the block's TypeScript API writes ${view.logical} rows. Those calls fail; write the rows to the table under the view, add instead of triggers, or map ${view.logical} to a table.`,
           target: view.view,
         }));
+    },
+  },
+  {
+    code: "BS379",
+    severity: "error",
+    title: "A columns entry the render refuses",
+    description:
+      "`blocks.<name>.columns.<table>.<column>` is `null` for an optional column the view the block runs over lacks anyway, or `columns.<table>.tenant` repeats `sql.tenantColumn`. The block leaves out a column its view lacks, and `sql.tenantColumn` fills every tenant column, so the entry says nothing and the render refuses it. Run `better-supabase codemod config` to remove the entries. A `null` for a column the view has, or for a table you own, is fine.",
+    check: (context) => {
+      const views = appViewsOf(context);
+
+      const nulls =
+        Object.keys(views.ownViews).length === 0
+          ? []
+          : redundantNulls({
+              modules: context.config.blocks,
+              ownTables: appTablesOf(context),
+              ...views,
+            }).map((entry) => ({
+              block: entry.block,
+              table: entry.logical,
+              column: entry.column,
+              why: `${entry.view} has no "${entry.name}" column, so the block leaves it out already`,
+            }));
+
+      return [...nulls, ...tenantEntries(context.config)].map(
+        (entry): FindingInput => ({
+          message: `blocks.${entry.block}.columns.${entry.table}.${entry.column}: ${entry.why}. Run \`better-supabase codemod config\` to remove it.`,
+          target: `blocks.${entry.block}.columns.${entry.table}.${entry.column}`,
+        }),
+      );
     },
   },
   {

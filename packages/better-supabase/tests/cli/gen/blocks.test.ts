@@ -821,3 +821,16 @@ describe("blocks.client.ts", () => {
     expect(emitBlockConfigModule(config)).toBeUndefined();
   });
 });
+
+describe("columns from the app's schema files", () => {
+  it("types a block's fields with the columns app files add to its table", () => {
+    const config = resolveConfig({ blocks: ["memberships", "tags"] }, "/p");
+
+    expect(
+      blockConfigEntries(config, undefined, {
+        "better_supabase.tags": [{ name: "region", type: "text not null" }],
+      })["tags"]?.columns,
+    ).toEqual({ region: "text not null" });
+    expect(blockConfigEntries(config)["tags"]?.columns).toBeUndefined();
+  });
+});

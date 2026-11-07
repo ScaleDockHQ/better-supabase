@@ -664,6 +664,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [FILES],
       },
       {
+        name: "config",
+        description:
+          "Remove the columns entries the render refuses: a null for a column the view lacks and a tenant that repeats sql.tenantColumn",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
         name: "read-many",
         description:
           "List Promise.all groups of repository reads that db.$many or a read set can load in one round trip",

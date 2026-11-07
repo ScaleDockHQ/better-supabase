@@ -11,7 +11,7 @@ export {
   legacyOptionTarget,
 } from "./legacy-options.ts";
 
-export { moduleContext } from "./module-context.ts";
+export { moduleContext, redundantNulls } from "./module-context.ts";
 
 export { isBlockSqlIdType, moduleIdType, MODULE_ID_TYPES } from "./context.ts";
 

@@ -9,6 +9,7 @@ import type { ResolvedConfig } from "../config/index.ts";
 import type { PlannedFile } from "./core/files.ts";
 
 import { codeRanges } from "./code-ranges.ts";
+import { configCodemod } from "./codemod-config.ts";
 import { extraColumnsCodemod } from "./codemod-extra-columns.ts";
 import { namingCodemod } from "./codemod-naming.ts";
 import { reportReadMany } from "./codemod-read-many.ts";
@@ -67,6 +68,7 @@ export interface ReviewLine {
 export const CODEMODS: Readonly<Record<string, Codemod>> = {
   naming: namingCodemod(),
   "extra-columns": extraColumnsCodemod(),
+  config: configCodemod(),
   "read-many": {
     name: "read-many",
     description: "List Promise.all groups of reads that db.$many can load",

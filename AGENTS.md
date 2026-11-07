@@ -371,6 +371,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0258: Refuse null entries the catalog already implies.
 - 0259: Exempt a class of tables from audit coverage.
 - 0260: Default a block's permission to the resource key the provider lists.
+- 0261: Remove refused config entries with a codemod, and report them in doctor.
 
 ## Pre-release pins
 

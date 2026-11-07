@@ -330,13 +330,18 @@ export function extraColumnsCodemod(): Codemod {
 
       // The codemod only needs the table names, so a project whose
       // authorization provider doesn't load yet still gets its columns moved.
-      const layout = await layoutFor(cleaned, {}, config.blockNames).catch(
-        (): BlockSqlLayout => ({
-          modules: cleaned.blocks,
-          instances: cleaned.instances,
-          subjects: cleaned.subjects,
-        }),
-      );
+      let layout: BlockSqlLayout = {
+        modules: cleaned.blocks,
+        instances: cleaned.instances,
+        subjects: cleaned.subjects,
+      };
+
+      try {
+        layout = await layoutFor(cleaned, {}, config.blockNames);
+      } catch {
+        // The codemod only needs the table names, so a project whose
+        // authorization provider doesn't load yet still gets its columns moved.
+      }
 
       const modules = layout.modules;
 
