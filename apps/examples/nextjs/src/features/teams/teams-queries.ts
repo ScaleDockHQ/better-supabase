@@ -2,7 +2,7 @@ import "server-only";
 import type { Team } from "better-supabase/blocks/teams";
 
 import { tenantOf } from "better-supabase/next";
-import { cacheTag } from "next/cache";
+import { cacheLife, cacheTag } from "next/cache";
 
 import { bsb } from "@/lib/supabase/server";
 
@@ -24,6 +24,9 @@ export async function getTeams(): Promise<readonly Team[]> {
     return [];
   }
 
+  // Every write to the teams calls updateTag(teamsTag), so the entry never
+  // needs to expire on a timer.
+  cacheLife("max");
   cacheTag(teamsTag(tenant));
 
   return db.teams.list(tenant).orThrow();

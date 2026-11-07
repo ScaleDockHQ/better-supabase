@@ -31,6 +31,8 @@ export interface PlanOption {
  */
 export async function getPlans(): Promise<readonly PlanOption[]> {
   "use cache";
+  // Not "max": the plans change in the seed and the Stripe dashboard, outside
+  // the app's actions, so no updateTag fires for them.
   cacheLife("hours");
   bsb.tag(PLANS_TABLE);
 
