@@ -88,6 +88,34 @@ describe("number sequences", () => {
     ).toContain('new."org_id"');
   });
 
+  it("infers the number column and the table from the entity's subject", () => {
+    const render = (entity: Record<string, unknown>, subjects = {}): string =>
+      renderBlocks(["numbering"], {
+        modules: { numbering: { options: { entities: { invoice: entity } } } },
+        subjects,
+      })
+        .filter((file) => file.module === "numbering")
+        .map((file) => file.contents)
+        .join("\n");
+
+    const explicit = render({
+      period: "none",
+      format: "{n}",
+      table: "public.invoices",
+      column: "number",
+    });
+
+    expect(
+      render({ period: "none", format: "{n}", table: "public.invoices" }),
+    ).toBe(explicit);
+    expect(
+      render(
+        { period: "none", format: "{n}", column: "number" },
+        { invoice: { table: "invoices" } },
+      ),
+    ).toBe(explicit);
+  });
+
   it("refuses a predicate that is not an expression", () => {
     expect(() =>
       sqlOf({
@@ -270,9 +298,9 @@ describe("number sequences", () => {
       /column must be/,
     ],
     [
-      "a table without a column",
-      { invoice: { period: "year", format: "{n}", table: "public.invoices" } },
-      /both table and column/,
+      "a column without a table or a subject of the same name",
+      { invoice: { period: "year", format: "{n}", column: "number" } },
+      /column needs a table/,
     ],
     [
       "a tenant column that is not a name",
