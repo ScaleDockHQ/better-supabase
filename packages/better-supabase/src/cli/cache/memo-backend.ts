@@ -1,9 +1,12 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-import { clearMemo, setMemoBackend } from "../../sql/index.ts";
+import type { DiskParseStore } from "./parse-store.ts";
+
+import { clearMemo, setMemoBackend, setParseStore } from "../../sql/index.ts";
 import { generatorHash } from "../sql/generator-hash.ts";
 import { VERSION } from "../version.ts";
+import { createDiskParseStore } from "./parse-store.ts";
 import { cacheEnabled, cacheRoot } from "./store.ts";
 
 /** Results kept per namespace, newest last, so the file stays small. */
@@ -92,6 +95,9 @@ function diskBackend(folder: string, salt: string) {
   };
 }
 
+let active: DiskParseStore | undefined;
+let registered = false;
+
 /**
  * Points the generator's `memoized` calls at the project's cache folder, or at
  * nothing when this run has no cache. Call it once the config is known.
@@ -99,9 +105,25 @@ function diskBackend(folder: string, salt: string) {
 export async function installMemo(root: string): Promise<void> {
   clearMemo();
 
-  setMemoBackend(
-    cacheEnabled()
-      ? diskBackend(cacheRoot(root), `${VERSION}:${await generatorHash()}`)
-      : undefined,
-  );
+  if (!cacheEnabled()) {
+    setMemoBackend(undefined);
+    setParseStore(undefined);
+    active = undefined;
+
+    return;
+  }
+
+  const salt = `${VERSION}:${await generatorHash()}`;
+  setMemoBackend(diskBackend(cacheRoot(root), salt));
+  const parse = createDiskParseStore(cacheRoot(root), salt);
+  setParseStore(parse);
+  active = parse;
+
+  // The store writes once, when the process ends, instead of once per file.
+  if (!registered) {
+    registered = true;
+    process.once("exit", () => {
+      active?.flush();
+    });
+  }
 }

@@ -24,7 +24,9 @@ export {
   duplicatePolicies,
   ownerOf,
   parseDeclared,
+  setParseStore,
   type Declaration,
+  type ParseStore,
   type SchemaModel,
 } from "./pipeline/model.ts";
 

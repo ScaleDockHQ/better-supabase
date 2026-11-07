@@ -13,11 +13,13 @@ a fresh result, never a stale one.
 | -------------------- | --------------------------------------------------------------------------------------------- |
 | `render-blocks.json` | The files `upgrade`, `doctor` and `gen` render for the blocks, one entry overwritten in place |
 | `memo/<name>.json`   | Results the renderer derives from the config, such as the columns each block writes as text   |
+| `parse/files.json`   | What each SQL file declares, by content hash, so a run parses only the files that changed     |
 | The catalog snapshot | The schema `gen` read from the database, reused while the catalog fingerprint is unchanged    |
 | The downloaded lints | The pinned `splinter.sql` that `doctor` checks against its hash                               |
 
 Each file holds one result, or the last few, and is overwritten in place, so
-the folder stays small. A cached file whose `@bsb-hash` line no longer matches
+the folder stays small (`parse/files.json` keeps the 4096 entries a run used most
+recently). A cached file whose `@bsb-hash` line no longer matches
 its body is dropped.
 
 ## purge
