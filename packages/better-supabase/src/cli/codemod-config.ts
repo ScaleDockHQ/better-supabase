@@ -6,6 +6,36 @@ import { redundantNulls } from "../sql/index.ts";
 import { codeRanges } from "./code-ranges.ts";
 import { ownLayout } from "./sql-layout.ts";
 
+/**
+ * The config options the `config` codemod never edits (ADR 0324): each states a
+ * choice the schema can't imply, such as a remap, a reserved slug, a bound or
+ * an exemption. The codemod only removes `columns` entries, so a test keeps
+ * this list in step with what it leaves alone, in both config shapes.
+ */
+export const PROTECTED_OPTIONS: readonly string[] = [
+  "names",
+  "functions",
+  "permissions",
+  "reservedSlugs",
+  "slugPattern",
+  "slugMinLength",
+  "slugMaxLength",
+  "onAccept",
+  "previewColumns",
+  "roles",
+  "restricted",
+  "ipHeader",
+  "staffClaim",
+  "subjectColumns",
+  "exempt",
+  "attachments",
+  "api",
+  "ownTablePolicies",
+  "tenantColumn",
+  "powersync",
+  "sources",
+];
+
 /** A `blocks.<block>.columns.<table>.<column>` entry the render refuses. */
 export interface ColumnEntry {
   readonly block: string;
