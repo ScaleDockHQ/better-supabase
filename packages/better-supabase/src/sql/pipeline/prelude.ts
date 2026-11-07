@@ -131,10 +131,20 @@ export function preludeFile(
     entities: [],
   });
 
+  const sql = preludeSql(layout, installed, schemaFiles);
+
   return {
     module: PRELUDE_MODULE,
     kind: "schema",
     path: `${dir}/${prefix}_000_${PRELUDE_MODULE}.sql`,
-    contents: `${header}\n\n${preludeSql(layout, installed, schemaFiles)}\n`,
+    // A migration repeats the prelude, so its table can already exist.
+    contents: `${header}\n\n${
+      layout.rerunnable === true
+        ? sql.replace(
+            "create table better_supabase.blocks (",
+            "create table if not exists better_supabase.blocks (",
+          )
+        : sql
+    }\n`,
   };
 }

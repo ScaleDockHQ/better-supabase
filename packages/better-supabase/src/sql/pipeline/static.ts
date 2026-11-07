@@ -533,12 +533,12 @@ const CREATE_POLICY = new RegExp(
 );
 
 const CREATE_TRIGGER = new RegExp(
-  String.raw`^create\s+(?:constraint\s+)?trigger\s+(${NAME})\b[\s\S]*?\bon\s+(${TABLE_NAME})`,
+  String.raw`^create\s+(?:constraint\s+)?trigger\s+(${NAME})(?![\w$])[\s\S]*?\bon\s+(${TABLE_NAME})`,
   "i",
 );
 
 const ADD_CONSTRAINT = new RegExp(
-  String.raw`^alter\s+table\s+(?:only\s+)?(${TABLE_NAME})\s+add\s+constraint\s+(${NAME})\b`,
+  String.raw`^alter\s+table\s+(?:only\s+)?(${TABLE_NAME})\s+add\s+constraint\s+(${NAME})(?![\w$])`,
   "i",
 );
 

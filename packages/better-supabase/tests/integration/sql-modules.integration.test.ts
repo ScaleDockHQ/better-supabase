@@ -170,8 +170,28 @@ async function installSchemaModules(pool: Pool): Promise<void> {
     // which can't hold the seed's team members; `pnpm supabase:reset` brings
     // them back.
     await client.query("delete from better_supabase.team_members");
+    await client.query("delete from better_supabase.invitations");
+    // The render creates these policies inside do blocks, which a rerun can't
+    // drop first.
+    await client.query(`do $$
+declare
+  p record;
+begin
+  for p in select schemaname, tablename, policyname from pg_policies
+    where (schemaname, tablename) in (('realtime', 'messages'), ('storage', 'objects'))
+      and left(policyname, 4) = 'bsb_'
+  loop
+    execute format('drop policy %I on %I.%I', p.policyname, p.schemaname, p.tablename);
+  end loop;
+end;
+$$`);
 
-    for (const file of renderBlocks(names)) {
+    // The stack already holds the declarative schemas, so the render has to
+    // be rerunnable.
+    for (const file of renderBlocks(names, {
+      rerunnable: true,
+      modules: { audit: { options: { readPolicy: true } } },
+    })) {
       if (file.kind !== "test") {
         await client.query(file.contents);
       }

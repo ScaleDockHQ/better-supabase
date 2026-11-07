@@ -270,12 +270,12 @@ function moduleFiles(
 
   // The migrations workflow repeats every statement in each migration; the
   // others read the files as declarative DDL.
+  // A rerun renames first, so the drop before each re-created policy and
+  // constraint names the object the statement creates.
   const settled = (sql: string): string =>
-    bsbNames(
-      layout.rerunnable === true
-        ? rerunnableDdl(sql)
-        : staticDdl(sql, appTableSet(ctx)),
-    );
+    layout.rerunnable === true
+      ? rerunnableDdl(bsbNames(sql))
+      : bsbNames(staticDdl(sql, appTableSet(ctx)));
 
   const file = (
     kind: BlockSqlFile["kind"],
