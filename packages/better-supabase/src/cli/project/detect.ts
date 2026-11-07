@@ -3,6 +3,9 @@ import { existsSync } from "node:fs";
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
 
+import type { FrameworkBinding } from "../../plugins/index.ts";
+
+import { frameworkRegistry } from "../../plugins/index.ts";
 import { shellQuote } from "../core/shell.ts";
 import { isRecord } from "../guards.ts";
 import { findSupabaseRoot } from "../supabase-toml.ts";
@@ -21,6 +24,11 @@ export interface Project {
   readonly root: string;
   readonly name: string | undefined;
   readonly frameworks: readonly Framework[];
+  /**
+   * The data hooks framework `package.json` shows (`react`, `vue` or a
+   * registered binding), or `undefined`.
+   */
+  readonly hooksFramework: string | undefined;
   readonly packageManager: PackageManager;
   /** Installed dependencies (all kinds) to version ranges. */
   readonly dependencies: Readonly<Record<string, string>>;
@@ -90,7 +98,10 @@ function packageManager(root: string, declared: unknown): PackageManager {
   return existsSync(join(root, "package-lock.json")) ? "npm" : "pnpm";
 }
 
-export async function detectProject(root: string): Promise<Project> {
+export async function detectProject(
+  root: string,
+  bindings: readonly FrameworkBinding[] = [],
+): Promise<Project> {
   const pkg = (await readJson(join(root, "package.json"))) ?? {};
   const dependencies: Record<string, string> = {};
 
@@ -112,6 +123,7 @@ export async function detectProject(root: string): Promise<Project> {
     frameworks: FRAMEWORK_PACKAGES.filter(
       ([, name]) => name in dependencies,
     ).map(([framework]) => framework),
+    hooksFramework: frameworkRegistry(bindings).detect(dependencies)?.name,
     packageManager: packageManager(root, pkg["packageManager"]),
     dependencies,
     srcDir: existsSync(join(root, "src")) ? "src" : ".",

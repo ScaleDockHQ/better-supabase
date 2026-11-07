@@ -18,6 +18,10 @@ import {
 } from "../../../src/cli/gen/render.ts";
 import { runGen } from "../../../src/cli/gen/run.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
+import {
+  defineGenerator,
+  relativeImport,
+} from "../../../src/generators/kit.ts";
 import { snapshotFixture as fixture } from "../fixtures/library.ts";
 
 const src = resolve(import.meta.dirname, "../../../src");
@@ -65,12 +69,13 @@ describe("gen", () => {
   it("runs configured generators with root-relative import paths", async () => {
     const seen: string[] = [];
 
-    const tables: Generator = {
+    const tables: Generator = defineGenerator({
       name: "tables",
+      version: "1.0.0",
       generate: (input) => {
         seen.push(
-          input.importPath("src/db/tables.ts", "src/db/generated.ts"),
-          input.output,
+          relativeImport("src/db/tables.ts", "src/db/generated.ts"),
+          input.config.output,
         );
 
         return [
@@ -80,7 +85,7 @@ describe("gen", () => {
           },
         ];
       },
-    };
+    });
 
     const config = configure({ gen: { generators: [tables] } });
     const files = await renderFiles(config, snapshot);
@@ -91,15 +96,17 @@ describe("gen", () => {
       "src/db/generated.meta.d.ts",
       "src/db/tables.ts",
     ]);
-    expect(seen).toEqual(["./generated.ts", join(root, "src/db/generated.ts")]);
+    expect(seen).toEqual(["./generated.ts", "src/db/generated.ts"]);
     expect(files[4]!.contents).toContain("customers\n");
   });
 
   it("refuses generator files outside the root or on another file's path, naming the generator", async () => {
-    const writing = (name: string, path: string): Generator => ({
-      name,
-      generate: () => [{ path, contents: "" }],
-    });
+    const writing = (name: string, path: string): Generator =>
+      defineGenerator({
+        name,
+        version: "1.0.0",
+        generate: () => [{ path, contents: "" }],
+      });
 
     const failing = async (...generators: Generator[]) =>
       renderFiles(configure({ gen: { generators } }), snapshot).then(
@@ -120,12 +127,15 @@ describe("gen", () => {
       await failing(writing("a", "src/x.ts"), writing("b", "./src/x.ts")),
     ).toBe('generator "b" wrote ./src/x.ts, which generator "a" also writes');
     expect(
-      await failing({
-        name: "broken",
-        generate: () => {
-          throw new Error("no tables");
-        },
-      }),
+      await failing(
+        defineGenerator({
+          name: "broken",
+          version: "1.0.0",
+          generate: () => {
+            throw new Error("no tables");
+          },
+        }),
+      ),
     ).toBe('generator "broken" failed: no tables');
   });
 
@@ -293,7 +303,8 @@ describe("gen", () => {
         json: { "customers.metadata": { type: "{ tier: string }" } },
         generators: [
           {
-            apiVersion: 1,
+            apiVersion: 2,
+            version: "1.0.0",
             name: "spy",
             generate: (input) => {
               model = input.model;
@@ -324,13 +335,33 @@ describe("gen", () => {
 
   it("refuses a generator that targets an unknown API version", () => {
     const future = {
-      apiVersion: 2,
+      apiVersion: 3,
       name: "future",
+      version: "1.0.0",
       generate: () => [],
     } as unknown as Generator;
 
     expect(() => configure({ gen: { generators: [future] } })).toThrow(
-      'generator "future" targets generator API 2',
+      'generator "future" targets generator API 3',
+    );
+  });
+
+  it("refuses two generators that provide the validators", async () => {
+    const validators = (name: string): Generator =>
+      defineGenerator({
+        name,
+        version: "1.0.0",
+        provides: ["validators"],
+        generate: () => [{ path: `src/db/${name}.ts`, contents: "" }],
+      });
+
+    await expect(
+      renderFiles(
+        configure({ gen: { generators: [validators("a"), validators("b")] } }),
+        snapshot,
+      ),
+    ).rejects.toThrow(
+      'generators "a" and "b" both provide "validators"; configure one of them',
     );
   });
 
@@ -362,10 +393,11 @@ describe("gen", () => {
   });
 
   it("removes files an earlier gen wrote and this one doesn't, and reports them with --check", async () => {
-    const extra: Generator = {
+    const extra: Generator = defineGenerator({
       name: "extra",
+      version: "1.0.0",
       generate: () => [{ path: "src/db/extra.ts", contents: "x\n" }],
-    };
+    });
 
     await runGen({
       config: configure({ gen: { generators: [extra] } }),

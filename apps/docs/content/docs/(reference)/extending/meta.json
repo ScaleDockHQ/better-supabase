@@ -6,6 +6,8 @@
     "blocks",
     "composite-blocks",
     "interfaces",
+    "generators",
+    "frameworks",
     "authorizers",
     "authorization-providers",
     "document-formats",

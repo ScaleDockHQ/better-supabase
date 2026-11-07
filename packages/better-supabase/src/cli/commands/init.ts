@@ -22,6 +22,7 @@ import type { Now } from "../sql/migrations.ts";
 import type { TemplateContext, TemplateFile } from "../templates.ts";
 
 import { groupConfig, resolveConfig } from "../../config/index.ts";
+import { frameworkRegistry } from "../../plugins/index.ts";
 import {
   conventionConfig,
   designConfig,
@@ -412,11 +413,11 @@ async function runInit(
 
   const root = resolve(config.root, target.dir);
   const inPackage = target.dir !== ".";
-  const workspaceProject = await detectProject(config.root);
+  const workspaceProject = await detectProject(config.root, config.frameworks);
 
   const project: Project = inPackage
     ? {
-        ...(await detectProject(root)),
+        ...(await detectProject(root, config.frameworks)),
         packageManager: workspaceProject.packageManager,
       }
     : workspaceProject;
@@ -483,6 +484,16 @@ async function runInit(
     ...(contentMapper ? { contentMapper } : {}),
   };
 
+  const hooksBinding = frameworkRegistry(config.frameworks).detect(
+    project.dependencies,
+  );
+
+  // A framework no adapter selects can't be derived when the config resolves.
+  const hooksKey =
+    hooksBinding !== undefined && hooksBinding.integrations === undefined
+      ? { hooks: hooksBinding.name }
+      : {};
+
   const migrationSince =
     (await latestMigrationVersion(root)) ??
     (await latestMigrationVersion(config.root));
@@ -504,11 +515,13 @@ async function runInit(
               ...(keys.blocks === undefined ? {} : { blocks: keys.blocks }),
               provider: conventions.access === "provider",
               ...mapperKey,
+              ...hooksKey,
               ...since,
             }
           : {
               provider: conventions.access === "provider",
               ...mapperKey,
+              ...hooksKey,
               ...since,
             },
       ),

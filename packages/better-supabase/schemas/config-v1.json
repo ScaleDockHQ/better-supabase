@@ -2827,8 +2827,16 @@
         "hooks": {
           "anyOf": [
             {
-              "enum": ["react", "vue", "svelte", "solid"],
-              "type": "string"
+              "anyOf": [
+                {
+                  "enum": ["react", "svelte", "vue", "solid"],
+                  "type": "string"
+                },
+                {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9-]*$"
+                }
+              ]
             },
             {
               "const": false
@@ -2837,8 +2845,16 @@
               "type": "object",
               "properties": {
                 "framework": {
-                  "enum": ["react", "vue", "svelte", "solid"],
-                  "type": "string"
+                  "anyOf": [
+                    {
+                      "enum": ["react", "svelte", "vue", "solid"],
+                      "type": "string"
+                    },
+                    {
+                      "type": "string",
+                      "pattern": "^[a-z][a-z0-9-]*$"
+                    }
+                  ]
                 },
                 "select": {
                   "type": "object",
@@ -3009,6 +3025,12 @@
             "type": "object"
           },
           "description": "Generator plugins. Only available in better-supabase.config.ts."
+        },
+        "frameworks": {
+          "type": "array",
+          "items": {
+            "type": "object"
+          }
         },
         "readSets": {
           "type": "array",

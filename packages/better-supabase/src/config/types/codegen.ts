@@ -1,7 +1,6 @@
 import type { FieldSpec } from "../../core/table-json-schema.ts";
 import type { Casing, SchemaMeta } from "../../schema/types.ts";
 import type { GeneratorMetadata, SnapshotExtras } from ".././snapshot.ts";
-import type { ResolvedConfig } from "./config.ts";
 
 export type { Casing };
 
@@ -141,13 +140,41 @@ export interface GeneratedFile {
   /** Path relative to the project root. */
   readonly path: string;
   readonly contents: string;
-  /**
-   * The file exports `validators` (`TableValidators`): `gen` imports them into
-   * the generated schema and installs `validation`, so writes are checked.
-   */
-  readonly validators?: boolean;
 }
 
+/**
+ * What a generator can provide to `gen` beyond its files. `validators` means
+ * the file exports `validators` (`TableValidators`): `gen` imports them into
+ * the generated schema and installs `validation`, so writes are checked. Two
+ * generators that provide the same capability are a configuration error.
+ */
+export type GeneratorCapability = "validators";
+
+/**
+ * The part of the config a generator may read: plain data, with no function and
+ * no provider object, so the input survives `structuredClone`.
+ */
+export interface GeneratorConfigView {
+  /** The main generated module, relative to the project root. */
+  readonly output: string;
+  /** `database.types.ts`, relative to the project root. */
+  readonly databaseTypesOutput: string;
+  readonly casing: Casing;
+  /** `gen.json` overrides by `schema.table.column` or `table.column`. */
+  readonly json: Readonly<Record<string, unknown>>;
+}
+
+/** Module specifiers the generated files import, as data. */
+export interface GeneratorImports {
+  /** Where files import `better-supabase` runtime helpers from. */
+  readonly runtime: string;
+}
+
+/**
+ * What a generator receives at `apiVersion: 2`. Everything in it is plain,
+ * frozen data that `structuredClone` copies, so a generator can run on a worker
+ * thread and its output can be cached on a hash of the input.
+ */
 export interface GeneratorInput {
   readonly meta: SchemaMeta;
   /**
@@ -157,16 +184,8 @@ export interface GeneratorInput {
   readonly introspection: GeneratorMetadata;
   /** Constraints, indexes, policies, triggers and grants typegen leaves out. */
   readonly extras: SnapshotExtras;
-  readonly config: ResolvedConfig;
-  /** Absolute path of the main generated module. */
-  readonly output: string;
-  /** Import path from `from` (a generated file) to `to`, with extension. */
-  readonly importPath: (from: string, to: string) => string;
-  /**
-   * Where generated files import `better-supabase` runtime helpers from.
-   * Defaults to `better-supabase`.
-   */
-  readonly runtimeImport?: string;
+  readonly config: GeneratorConfigView;
+  readonly imports: GeneratorImports;
   /**
    * The tables and enums `gen` emits, with the TypeScript type it wrote for
    * each column (after `json` overrides, codecs and enum unions). Frozen.
@@ -303,13 +322,33 @@ export interface GeneratorModel {
 }
 
 /**
- * Codegen extension point. First-party generators: `zod()`, `valibot()`,
- * `jsonSchema()`, `standardSchema()`. Prove custom ones with `testGenerator`.
+ * Codegen extension point at `apiVersion: 2`. A generator is plain data plus
+ * `generate`, so `gen` can cache its files and run it off the main thread.
+ * Build one with `defineGenerator` from `better-supabase/generators`, and prove
+ * it with `testGeneratorPlugin` from `better-supabase/testing`.
  */
 export interface Generator {
-  /** The generator contract it targets. `gen` refuses versions it doesn't know. */
-  readonly apiVersion?: 1;
+  /** The generator contract it targets. `gen` refuses any other version. */
+  readonly apiVersion: 2;
   readonly name: string;
+  /** The generator's own version; part of its cache key. */
+  readonly version: string;
+  /**
+   * The options it was built with, as JSON-serializable data. Part of its cache
+   * key, so two instances with different options never share an entry.
+   */
+  readonly options?: unknown;
+  /**
+   * `generate` depends only on its input and `options`, so `gen` may cache its
+   * files. A generator without it runs on every pass and is never cached.
+   */
+  readonly pure?: boolean;
+  /**
+   * `generate` uses no closure from the config file, so it may run on a worker
+   * thread when the generator is given as a module (`generatorModule`).
+   */
+  readonly workerSafe?: boolean;
+  readonly provides?: readonly GeneratorCapability[];
   generate(
     input: GeneratorInput,
   ): readonly GeneratedFile[] | Promise<readonly GeneratedFile[]>;

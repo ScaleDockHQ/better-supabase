@@ -1,0 +1,19 @@
+{
+  "name": "@better-supabase/validation-plugins",
+  "private": true,
+  "description": "A generator and a framework binding written outside the library with only the public kit: cached, run on a worker thread, and detected.",
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "better-supabase": "workspace:*",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

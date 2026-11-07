@@ -1,3 +1,4 @@
+import type { FrameworkRegistry } from "../plugins/frameworks.ts";
 import type { ExpandedConfig } from "../preset/config.ts";
 import type { AuthorizationProvider } from "./authorization.ts";
 import type { AnyBlocksConfig, BlockConfig } from "./blocks.ts";
@@ -6,6 +7,7 @@ import type { Generator } from "./types/codegen.ts";
 import type {
   BetterSupabaseConfig,
   FlatConfig,
+  HooksFramework,
   ResolvedConfig,
   ResolvedExtensions,
 } from "./types/config.ts";
@@ -21,6 +23,7 @@ import type { AppTablesInput } from "./types/groups.ts";
 
 import { DEFAULT_CLAIMS } from "../core/claims.ts";
 import { tenantNames } from "../core/entity-naming.ts";
+import { frameworkRegistry } from "../plugins/frameworks.ts";
 import { expandFlatPreset, expandPreset } from "../preset/config.ts";
 import { appTablesOf, withAppTableSubjects } from "./app-tables.ts";
 import { providerApiProblem } from "./authorization.ts";
@@ -284,16 +287,71 @@ function extensionsOf(
   };
 }
 
+/** The generator contract this release runs. */
+const GENERATOR_API = 2;
+
+/**
+ * What is wrong with a generator's declaration, or `undefined`. A v1 generator
+ * gets the change that broke it: version 2 hands `generate` plain data and
+ * wants `version`, so `gen` can cache the files.
+ */
+export function generatorProblem(generator: Generator): string | undefined {
+  const declared: unknown = generator;
+
+  if (typeof declared !== "object" || declared === null) {
+    return "a generator is an object: { apiVersion: 2, name, version, generate }";
+  }
+
+  const name =
+    "name" in declared && typeof declared.name === "string"
+      ? declared.name
+      : "(unnamed)";
+
+  const api = "apiVersion" in declared ? declared.apiVersion : undefined;
+
+  if (api !== GENERATOR_API) {
+    return `generator "${name}" targets generator API ${api === undefined ? "1" : String(api)}; this better-supabase runs ${GENERATOR_API}. API 2 passes \`generate\` plain data (\`config\` is a view, \`imports.runtime\` replaces \`runtimeImport\`, \`importPath\` is \`relativeImport\` in better-supabase/generators) and replaces the \`validators\` flag with \`provides: ["validators"]\`. Build it with defineGenerator, or use a release of the generator for API ${GENERATOR_API}.`;
+  }
+
+  if (!("version" in declared) || typeof declared.version !== "string") {
+    return `generator "${name}" needs a \`version\` string; it is part of the cache key`;
+  }
+
+  return undefined;
+}
+
+/**
+ * The `gen.hooks` framework: the name the config gives, or the binding the
+ * `integrations` select, or `false`. A name nothing registers is an error.
+ */
+function hooksOf(
+  config: FlatConfig,
+  frameworks: FrameworkRegistry,
+): HooksFramework | false {
+  const named =
+    typeof config.hooks === "object" ? config.hooks.framework : config.hooks;
+
+  if (named === undefined) {
+    return frameworks.forIntegrations(config.integrations ?? [])?.name ?? false;
+  }
+
+  if (named !== false && frameworks.get(named) === undefined) {
+    throw new TypeError(
+      `gen.hooks names framework "${named}", which nothing registers; the registered frameworks are ${frameworks.names.join(", ")}. Register one with \`frameworks: [defineFramework({ ... })]\`.`,
+    );
+  }
+
+  return named;
+}
+
 function generatorsOf(
   generators: readonly Generator[] | undefined,
 ): readonly Generator[] {
   for (const generator of generators ?? []) {
-    const version: unknown = generator.apiVersion;
+    const problem = generatorProblem(generator);
 
-    if (version !== undefined && version !== 1) {
-      throw new TypeError(
-        `generator "${generator.name}" targets generator API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the generator for API 1.`,
-      );
+    if (problem !== undefined) {
+      throw new TypeError(problem);
     }
   }
 
@@ -327,6 +385,7 @@ export function resolveConfig(
   root: string,
 ): ResolvedConfig {
   const config = expandFlatPreset(flattenConfig(input));
+  const frameworks = frameworkRegistry(config.frameworks);
   const output = config.output ?? CONFIG_DEFAULTS.output;
   const tenantName = tenantNameOf(config.blocks);
   const appTables = appTablesOf(config.appTables, tenantName);
@@ -348,15 +407,8 @@ export function resolveConfig(
     postgrestVersion:
       config.postgrestVersion ?? CONFIG_DEFAULTS.postgrestVersion,
     recordTypes: config.recordTypes ?? true,
-    hooks:
-      (typeof config.hooks === "object"
-        ? config.hooks.framework
-        : config.hooks) ??
-      ((config.integrations ?? []).some((name) =>
-        ["next", "react", "expo"].includes(name),
-      )
-        ? "react"
-        : false),
+    hooks: hooksOf(config, frameworks),
+    frameworks: frameworks.bindings,
     ...(typeof config.hooks === "object" && config.hooks.select !== undefined
       ? { hooksSelect: config.hooks.select }
       : {}),

@@ -1,3 +1,4 @@
+import type { FrameworkBinding } from "../../plugins/frameworks.ts";
 import type { PresetName } from "../../preset/presets.ts";
 import type { PresetSpec } from "../../preset/spec.ts";
 import type { Casing } from "../../schema/types.ts";
@@ -41,8 +42,16 @@ import type {
   SpecsConfig,
 } from "./tooling.ts";
 
-/** The frameworks `gen.hooks` writes data hooks for. */
+/** The frameworks `gen.hooks` writes data hooks for without registration. */
 export type DataHooksFramework = "react" | "vue" | "svelte" | "solid";
+
+/**
+ * A built-in framework, or the name of a binding registered with `frameworks`.
+ * `resolveConfig` refuses a name nothing registers.
+ */
+export type HooksFramework =
+  | DataHooksFramework
+  | (string & Record<never, never>);
 
 /**
  * A function `hooks.ts` wraps each table's select in, as `scoped((db: AppDb) =>
@@ -56,7 +65,7 @@ export interface DataHooksSelect {
 /** `gen.hooks` with options. */
 export interface DataHooksConfig {
   /** Defaults as `gen.hooks` does without options. */
-  readonly framework?: DataHooksFramework;
+  readonly framework?: HooksFramework;
   readonly select?: DataHooksSelect;
 }
 
@@ -95,7 +104,13 @@ export interface FlatConfig {
    * and to `false` otherwise. The object form also wraps each table's select in
    * a function of the app's (`select`).
    */
-  readonly hooks?: DataHooksFramework | DataHooksConfig | false;
+  readonly hooks?: HooksFramework | DataHooksConfig | false;
+  /**
+   * Framework bindings of your own, built with `defineFramework` from
+   * `better-supabase/plugins`. `gen.hooks` takes a registered name, and `init`
+   * detects the framework from its `detect` packages.
+   */
+  readonly frameworks?: readonly FrameworkBinding[];
   /** Types for jsonb columns, keyed by `table.column`. */
   readonly json?: Readonly<Record<string, JsonTypeConfig>>;
   readonly codecs?: CodecsConfig;
@@ -228,7 +243,9 @@ export interface ResolvedConfig {
   readonly databaseTypesOutput: string;
   readonly postgrestVersion: string;
   readonly recordTypes: boolean;
-  readonly hooks: DataHooksFramework | false;
+  readonly hooks: HooksFramework | false;
+  /** Every registered binding: the built-in ones, then `frameworks`. */
+  readonly frameworks: readonly FrameworkBinding[];
   /** `gen.hooks.select`. */
   readonly hooksSelect?: DataHooksSelect;
   readonly json: Readonly<Record<string, JsonTypeConfig>>;

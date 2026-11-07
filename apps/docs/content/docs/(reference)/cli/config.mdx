@@ -11,7 +11,8 @@ repository root works when the CLI runs from a package. `--config` overrides
 the search. TypeScript configs load natively on Node 24.
 
 ```ts title="better-supabase.config.ts"
-import { defineConfig, zod } from "better-supabase/config";
+import { defineConfig } from "better-supabase/config";
+import { zod } from "better-supabase/generators/zod";
 import { CustomerMetadata } from "./src/types.ts";
 
 export default defineConfig({
@@ -245,12 +246,16 @@ Side effects: None.
 
 ## Custom generators
 
-```ts
-import type { Generator } from "better-supabase/config";
+A generator is a plugin at `apiVersion: 2`. Build it with `defineGenerator` from
+[`better-supabase/generators`](/docs/extending/generators):
 
-export const tableList: Generator = {
-  apiVersion: 1,
+```ts
+import { defineGenerator } from "better-supabase/generators";
+
+export const tableList = defineGenerator({
   name: "table-list",
+  version: "1.0.0",
+  pure: true,
   generate: ({ model }) => [
     {
       path: "src/lib/tables.json",
@@ -262,23 +267,27 @@ export const tableList: Generator = {
       ),
     },
   ],
-};
+});
 ```
 
 A generator receives the schema metadata (`meta`), the typegen introspection,
-the resolved config, an `importPath` helper and `model`: the tables and enums
-`gen` emitted, with the TypeScript type it wrote for each column after `json`
-overrides, codecs and enum unions. `model` is frozen. The generator returns
-files, and `gen --check` covers them too.
+`config` (the output paths, the casing and the `json` overrides, as plain data),
+`imports.runtime` and `model`: the tables and enums `gen` emitted, with the
+TypeScript type it wrote for each column after `json` overrides, codecs and enum
+unions. Everything in the input is frozen data that `structuredClone` copies. The
+generator returns files, and `gen --check` covers them too.
 
-`apiVersion: 1` names the generator contract it targets. `gen` refuses a
-generator that declares a version it doesn't know, so a generator written for
-a later contract fails with a message instead of misreading its input.
-Leaving it out means version 1.
+`gen` refuses a generator that targets another `apiVersion`, and the message
+names what changed from version 1: `config` is a view instead of the resolved
+config, `imports.runtime` replaces `runtimeImport`, `relativeImport` replaces
+`importPath`, and `provides: ["validators"]` replaces the `validators` flag on a
+file. A `pure` generator's files are cached in
+`node_modules/.cache/better-supabase/generators` under its name, version, options
+and input, so a second `gen` with the same schema doesn't run it again.
 
 `gen` records the files it wrote in
 `node_modules/.cache/better-supabase/gen-manifest.json`. When a later run no
 longer writes one of them (you removed a generator or changed `output`), it
 deletes the file and lists it as removed, and `gen --check` reports it as no
 longer generated. Files that no earlier run wrote are never touched. Prove a
-generator with [`testGenerator`](/docs/extending/conformance).
+generator with [`testGeneratorPlugin`](/docs/extending/conformance).

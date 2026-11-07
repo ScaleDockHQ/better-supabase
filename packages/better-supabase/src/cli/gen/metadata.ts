@@ -9,12 +9,10 @@ import type { Snapshot } from "../introspect/types.ts";
 import type { Paint } from "../style.ts";
 import type { Rendered } from "./render.ts";
 
-import {
-  jsonSchema,
-  standardSchema,
-  valibot,
-  zod,
-} from "../../config/index.ts";
+import { jsonSchema } from "../../generators/json-schema/index.ts";
+import { standardSchema } from "../../generators/standard-schema/index.ts";
+import { valibot } from "../../generators/valibot/index.ts";
+import { zod } from "../../generators/zod/index.ts";
 import { CliError, errorText } from "../core/errors.ts";
 import { readStdin } from "../core/io.ts";
 import { fromMetadata } from "../introspect/from-metadata.ts";

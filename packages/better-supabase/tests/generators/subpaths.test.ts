@@ -16,15 +16,26 @@ describe("better-supabase/generators/*", () => {
     ["standard-schema", standardSchema.standardSchema],
     ["factories", factories.factories],
     ["nuqs", nuqs.nuqs],
-  ])(
-    "%s is the generator better-supabase/config also exports",
-    (name, make) => {
-      expect(make().name).toBe(name);
-      expect(Object.values(config)).toContain(make);
-    },
-  );
+  ])("%s is a generator at apiVersion 2", (name, make) => {
+    expect(make().name).toBe(name);
+    expect(make().apiVersion).toBe(2);
+  });
+
+  it("better-supabase/config no longer exports the generators", () => {
+    for (const name of [
+      "zod",
+      "valibot",
+      "jsonSchema",
+      "standardSchema",
+      "factories",
+      "nuqs",
+      "toJsonSchema",
+    ]) {
+      expect(config).not.toHaveProperty(name);
+    }
+  });
 
   it("exports toJsonSchema next to jsonSchema", () => {
-    expect(jsonSchema.toJsonSchema).toBe(config.toJsonSchema);
+    expect(typeof jsonSchema.toJsonSchema).toBe("function");
   });
 });

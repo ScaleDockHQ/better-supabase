@@ -364,6 +364,16 @@
       "types": "./dist/generators/nuqs/index.d.ts",
       "default": "./dist/generators/nuqs/index.js"
     },
+    "./generators": {
+      "@better-supabase/source": "./src/generators/index.ts",
+      "types": "./dist/generators/index.d.ts",
+      "default": "./dist/generators/index.js"
+    },
+    "./plugins": {
+      "@better-supabase/source": "./src/plugins/index.ts",
+      "types": "./dist/plugins/index.d.ts",
+      "default": "./dist/plugins/index.js"
+    },
     "./events": {
       "@better-supabase/source": "./src/events/index.ts",
       "types": "./dist/events/index.d.ts",
@@ -1708,6 +1718,14 @@
       "./generators/nuqs": {
         "types": "./dist/generators/nuqs/index.d.ts",
         "default": "./dist/generators/nuqs/index.js"
+      },
+      "./generators": {
+        "types": "./dist/generators/index.d.ts",
+        "default": "./dist/generators/index.js"
+      },
+      "./plugins": {
+        "types": "./dist/plugins/index.d.ts",
+        "default": "./dist/plugins/index.js"
       },
       "./events": {
         "types": "./dist/events/index.d.ts",

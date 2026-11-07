@@ -3,6 +3,7 @@ import { posix } from "node:path";
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 import type { TableModuleInfo } from "./tables.ts";
 
+import { BUILT_IN_FRAMEWORKS, hooksSubpathOf } from "../../plugins/index.ts";
 import { byCodePoint } from "../compare.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import { importGroup, pureExport, sortImports } from "./layout.ts";
@@ -39,7 +40,9 @@ export function hookNames(property: string): {
  * `undefined` with `hooks: false`.
  */
 export function emitHooks(
-  config: Pick<ResolvedConfig, "hooks" | "hooksSelect" | "output">,
+  config: Pick<ResolvedConfig, "hooks" | "hooksSelect" | "output"> & {
+    readonly frameworks?: ResolvedConfig["frameworks"];
+  },
   tables: readonly string[],
   options: {
     readonly runtimeImport?: string;
@@ -62,7 +65,17 @@ export function emitHooks(
   const wrap = (fn: string): string =>
     select === undefined ? fn : `${select.export}(${fn})`;
 
-  const hooksImport = `import { defineListHook, defineOneHook } from ${q(runtimeSubpath(runtime, config.hooks))};`;
+  const binding = (config.frameworks ?? BUILT_IN_FRAMEWORKS).find(
+    (candidate) => candidate.name === config.hooks,
+  );
+
+  if (binding === undefined) {
+    throw new Error(
+      `hooks framework "${config.hooks}" is not registered; \`resolveConfig\` checks it`,
+    );
+  }
+
+  const hooksImport = `import { defineListHook, defineOneHook } from ${q(binding.hooksModule ?? runtimeSubpath(runtime, hooksSubpathOf(binding)))};`;
 
   const selectImport =
     select && `import { ${select.export} } from ${q(select.module)};`;
@@ -82,7 +95,7 @@ export function emitHooks(
     contents: [
       GENERATED_HEADER,
       "/* oxlint-disable no-inline-comments, typescript/no-empty-interface -- the PURE annotations sit inline, and AppDb only names a type. */",
-      ...(config.hooks === "react" ? ['"use client";'] : []),
+      ...(binding.hooksDirective === undefined ? [] : [binding.hooksDirective]),
       "",
       `import type { DbOf } from ${q(runtime)};`,
       "",

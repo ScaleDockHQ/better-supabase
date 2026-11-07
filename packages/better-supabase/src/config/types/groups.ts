@@ -1,3 +1,4 @@
+import type { FrameworkBinding } from "../../plugins/frameworks.ts";
 import type { PresetName } from "../../preset/presets.ts";
 import type { PresetSpec } from "../../preset/spec.ts";
 import type { Casing } from "../../schema/types.ts";
@@ -15,7 +16,7 @@ import type {
   SourceConfig,
   TableConfig,
 } from "./codegen.ts";
-import type { DataHooksConfig, DataHooksFramework } from "./config.ts";
+import type { DataHooksConfig, HooksFramework } from "./config.ts";
 import type {
   BucketConfig,
   RealtimeConfig,
@@ -193,7 +194,7 @@ export interface GenGroupConfig extends GenConfig {
    * and to `false` otherwise. The object form also wraps each table's select in
    * a function of the app's (`select`).
    */
-  readonly hooks?: DataHooksFramework | DataHooksConfig | false;
+  readonly hooks?: HooksFramework | DataHooksConfig | false;
   /** Overrides per generated table, keyed by `table` or `schema.table`. */
   readonly tables?: Readonly<Record<string, TableConfig>>;
   /** Types for jsonb columns, keyed by `table.column`. */
@@ -214,6 +215,8 @@ export interface GenGroupConfig extends GenConfig {
   /** Function results `gen` may type as not null, keyed by function name. */
   readonly functions?: Readonly<Record<string, FunctionConfig>>;
   readonly generators?: readonly Generator[];
+  /** Framework bindings of your own (`defineFramework`). */
+  readonly frameworks?: readonly FrameworkBinding[];
   /**
    * Modules that export `defineReadSet` results, compiled to functions in the
    * `read-sets` block.

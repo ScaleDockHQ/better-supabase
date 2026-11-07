@@ -400,6 +400,9 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0314: Mark key pages `instant` and lock each loading sequence in a test.
 - 0315: Keep interaction state in `useOptimistic`, the URL and the action state.
 - 0316: Record the Part 11 library work as specs.
+- 0330: Run generators as plugins at apiVersion 2, with a public kit.
+- 0331: Move the generators out of better-supabase/config.
+- 0332: Register framework bindings with defineFramework.
 
 ## Pre-release pins
 

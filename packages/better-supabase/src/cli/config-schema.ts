@@ -8,6 +8,7 @@ import type {
   Generator,
   TopicTriggerValueConfig,
 } from "../config/index.ts";
+import type { FrameworkBinding } from "../plugins/index.ts";
 import type { ParityPaths } from "./type-parity.ts";
 
 import {
@@ -20,6 +21,7 @@ import {
   providerApiProblem,
   SKILLS_AGENTS,
 } from "../config/index.ts";
+import { frameworkProblem } from "../plugins/index.ts";
 import { CONVENTION_FIELDS } from "../preset/index.ts";
 import { SCOPE_ID_TYPES, scopeProblems } from "../sql/index.ts";
 import * as blockSchemas from "./block-config-schema.ts";
@@ -71,6 +73,11 @@ const isGenerator = (value: unknown): value is Generator =>
 const generator = v.custom<Generator>(
   isGenerator,
   "must be a generator: { name, generate(input) }",
+);
+
+const framework = v.custom<FrameworkBinding>(
+  (value) => frameworkProblem(value) === undefined,
+  "must be a framework binding built with defineFramework",
 );
 
 /**
@@ -631,6 +638,7 @@ const FLAT = {
   ),
   readSets: v.optional(strings),
   generators: v.optional(v.array(generator)),
+  frameworks: v.optional(v.array(framework)),
   organization: v.optional(
     v.strictObject({
       column: v.optional(v.string()),
@@ -982,6 +990,7 @@ const ENTRIES = {
         "storagePaths",
         "functions",
         "generators",
+        "frameworks",
         "readSets",
       ]),
     }),
@@ -1127,6 +1136,8 @@ export interface ConfigSchemas {
   readonly triggerValue: v.GenericSchema;
   /** Checked by a function, so the renderer writes its JSON Schema. */
   readonly generator: v.GenericSchema;
+  /** A framework binding, checked by a function as `generator` is. */
+  readonly framework: v.GenericSchema;
   /** A `/create` design, rendered into `schemas/design-v1.json`. */
   readonly design: v.GenericSchema;
 }
@@ -1139,6 +1150,7 @@ const SCHEMAS = {
   privilege,
   triggerValue,
   generator,
+  framework,
   design: DesignSchema,
 } satisfies InStep<ConfigSchemas, ConfigDrift>;
 

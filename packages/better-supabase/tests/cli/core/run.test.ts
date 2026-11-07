@@ -505,7 +505,7 @@ describe("run", () => {
   it("watches: retries a failed regeneration without a schema change, reporting the error once", async () => {
     await writeFile(
       join(dir, "better-supabase.config.mjs"),
-      `export default { gen: { generators: [{ name: "flaky", generate() {
+      `export default { gen: { generators: [{ apiVersion: 2, version: "1.0.0", name: "flaky", generate() {
   globalThis.flakyGeneratorRuns = (globalThis.flakyGeneratorRuns ?? 0) + 1;
   if (globalThis.flakyGeneratorRuns < 3) throw new Error("flaky failed");
   return [];

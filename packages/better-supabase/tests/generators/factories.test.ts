@@ -98,7 +98,7 @@ describe("factories generator", () => {
 
     const input = {
       config: { output: "/app/src/db.ts" },
-      importPath: () => "./db.ts",
+      imports: { runtime: "better-supabase" },
       introspection: {
         tables: [{ schema: "app", name: "work_items" }],
         columns: [],
