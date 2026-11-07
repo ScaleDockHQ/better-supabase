@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:3427bfeca77b076ee3235399c2c5db3772891873c91a884399fa7a6fe245769b
+-- @bsb-hash sha256:1677b0338a5416f69ee2218bb67cd45372ae72d3cbc5a6d3f15ebee8409aaf15
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,6 @@ create table "better_supabase"."job_openings" (
   "updated_at" timestamptz not null default now()
 );
 create index jobs_tenant_status_idx on "better_supabase"."job_openings" ("tenant_id", "status");
-alter table "better_supabase"."job_openings" add column "app_note" text;
 alter table "better_supabase"."job_openings" enable row level security;
 revoke all on "better_supabase"."job_openings" from public, anon, authenticated;
 grant select on "better_supabase"."job_openings" to authenticated;

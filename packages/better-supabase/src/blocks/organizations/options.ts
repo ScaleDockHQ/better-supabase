@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -8,7 +8,6 @@ export type OrganizationsSqlOptions = {
   readonly attributes?: readonly string[];
   readonly auditCategory?: unknown;
   readonly deleteMode?: string;
-  readonly extraColumns?: ExtraColumns;
   readonly formerOwnerRole?: string;
   readonly ownerInvariant?: boolean;
   readonly ownerRole?: string;
@@ -25,7 +24,6 @@ export const organizationsSqlOptions: BlockOptionsSchema<OrganizationsSqlOptions
     attributes: option.strings({ default: [] }),
     auditCategory: option.unknown(),
     deleteMode: option.string({ default: "hard" }),
-    extraColumns: option.extraColumns(),
     formerOwnerRole: option.string({ default: "admin" }),
     ownerInvariant: option.boolean({ default: true }),
     ownerRole: option.string({ default: "owner" }),
@@ -71,7 +69,6 @@ export type InvitationsSqlOptions = {
   readonly tokenBytes?: number;
   readonly tokenStorage?: string;
   readonly validFor?: string;
-  readonly extraColumns?: ExtraColumns;
   /** The role `create_invitation` and `invite_member` use when none is named. */
   readonly defaultRole?: string;
   /** Extra roles and teams an invitation grants on accept. */
@@ -88,7 +85,6 @@ export const invitationsSqlOptions: BlockOptionsSchema<InvitationsSqlOptions> =
     tokenBytes: option.number({ default: 24 }),
     tokenStorage: option.string({ default: "sha256" }),
     validFor: option.string({ default: "7 days" }),
-    extraColumns: option.extraColumns(),
     defaultRole: option.string({ default: "member" }),
     onAccept: option.unknown<{
       readonly roles?: boolean;

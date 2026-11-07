@@ -14,7 +14,6 @@ import { sqlString } from "../../core/template.ts";
 import { asColumnType } from "../column-type.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   fail,
   insertExtraColumns,
@@ -97,14 +96,7 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: ["before_application_hire", "after_application_hire"],
-  options: [
-    "candidate",
-    "extraColumns",
-    "applicationExtraColumns",
-    "stages",
-    "scorecardKey",
-    "hiringManager",
-  ],
+  options: ["candidate", "stages", "scorecardKey", "hiringManager"],
   tables: {
     jobs: {
       name: "job_openings",
@@ -476,7 +468,7 @@ create table if not exists ${t("jobs")} (
   ${j("createdAt")} timestamptz not null default now(),
   ${j("updatedAt")} timestamptz not null default now()
 );
-create index if not exists jobs_tenant_status_idx on ${t("jobs")} (${j("tenant")}, ${j("status")});${addExtraColumns(t("jobs"), extras)}
+create index if not exists jobs_tenant_status_idx on ${t("jobs")} (${j("tenant")}, ${j("status")});
 ${lockModuleTable(ctx, "jobs", { read: true })}
 ${renderPolicy(makePolicy({ table: t("jobs"), name: "jobs_read", command: "select", roles: ["authenticated"], using: ctx.scope.check(j("tenant"), read) }), { target: t("jobs") })}
 
@@ -493,7 +485,7 @@ create table if not exists ${t("applications")} (
   unique (${a("job")}, ${fixedCandidate ? "" : `${a("candidateType")}, `}${a("candidateId")})
 );
 create index if not exists ${ctx.naming.rename("applications_board_idx")} on ${t("applications")} (${pipelined ? a("pipeline") : a("job")}, ${a("stage")}, ${a("rank")});
-create index if not exists ${ctx.naming.rename("applications_candidate_idx")} on ${t("applications")} (${fixedCandidate ? "" : `${a("candidateType")}, `}${a("candidateId")});${addExtraColumns(t("applications"), appExtras)}
+create index if not exists ${ctx.naming.rename("applications_candidate_idx")} on ${t("applications")} (${fixedCandidate ? "" : `${a("candidateType")}, `}${a("candidateId")});
 ${lockModuleTable(ctx, "applications", { read: true })}
 ${renderPolicy(makePolicy({ table: t("applications"), name: ctx.naming.rename("applications_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(a("tenant"), read) }), { target: t("applications") })}
 
@@ -1070,5 +1062,5 @@ export const HIRING: BlockSqlDefinition = {
 
 /** `applicationExtraColumns`: the app's own columns on applications. */
 function applicationExtras(ctx: BlockSqlContext): readonly ExtraColumn[] {
-  return ctx.extraColumns("applications", [], "applicationExtraColumns");
+  return ctx.extraColumns("applications", []);
 }

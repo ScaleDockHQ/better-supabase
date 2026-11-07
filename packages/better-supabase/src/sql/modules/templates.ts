@@ -3,7 +3,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   fail,
   schemaPreamble,
@@ -332,7 +331,7 @@ ${column("templates", "isDefault", () => "boolean not null default false")}${col
     () => `,
   constraint ${ctx.naming.rename("templates_system_check")} check ((${ct("scope")} = 'system') = (${ct("tenant")} is null))`,
   )}
-);${addExtraColumns(t, extras)}${brands.ddl}
+);${brands.ddl}
 ${also("templates", "key", () => `create unique index if not exists ${brands.index("key")} on ${t} (${brands.keyColumns}, ${ct("key")}) nulls not distinct where ${ct("key")} is not null;\n`)}${also("templates", "isDefault", () => `create unique index if not exists ${brands.index("default")} on ${t} (${brands.keyColumns}, ${ct("type")}, ${ct("language")}) nulls not distinct where ${ct("isDefault")};\n`)}create index if not exists ${ctx.naming.rename("templates_type_idx")} on ${t} (${ct("tenant")}, ${ct("type")});
 ${also("templates", "forkedFrom", () => `create index if not exists ${ctx.naming.rename("templates_forked_from_idx")} on ${t} (${ct("forkedFrom")}) where ${ct("forkedFrom")} is not null;\n`)}${also("templates", "createdBy", () => `create index if not exists ${ctx.naming.rename("templates_created_by_idx")} on ${t} (${ct("createdBy")});\n`)}${lockModuleTable(ctx, "templates", { read: true })}
 ${renderPolicy(makePolicy({ table: t, name: ctx.naming.rename("templates_read"), command: "select", roles: ["authenticated"], using: readable }), { target: t })}
@@ -373,7 +372,7 @@ ${workflows?.ddl ?? ""}
 -- Creates a template (template_id null) or renames it and replaces its
 -- settings. tenant null saves a system template, which only the service
 -- role may; a tenant's needs templates.manage there.
--- fields: the extra columns (blocks.templates.options.extraColumns) to set.
+-- fields: the extra columns (columns your schema files add) to set.
 ${extra.drop(fn("save_template"), `uuid, ${id}, text, text, text, jsonb`)}
 create or replace function ${fn("save_template")}(template_id uuid, tenant ${id}, type text, name text, language text, settings jsonb${extra.param})
 returns jsonb

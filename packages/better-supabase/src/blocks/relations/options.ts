@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -27,11 +27,9 @@ export interface RelationKindOptions {
 /** `blocks.relations.options`. */
 export type RelationsSqlOptions = {
   readonly kinds?: Readonly<Record<string, RelationKindOptions>>;
-  readonly extraColumns?: ExtraColumns;
 };
 
 export const relationsSqlOptions: BlockOptionsSchema<RelationsSqlOptions> =
   blockOptions<RelationsSqlOptions>({
     kinds: option.unknown<Readonly<Record<string, RelationKindOptions>>>(),
-    extraColumns: option.extraColumns(),
   });

@@ -242,6 +242,12 @@ export interface Extra {
   readonly modules: readonly string[];
   readonly config?: BlocksConfig;
   readonly subjects?: SubjectsConfig;
+  /** SQL an app schema file holds, run after the block files. */
+  readonly appSql?: readonly string[];
+  /** The columns that SQL adds to block tables, by `schema.table`. */
+  readonly appColumns?: Readonly<
+    Record<string, readonly { readonly name: string; readonly type: string }[]>
+  >;
 }
 
 /**
@@ -333,8 +339,16 @@ export async function withCentraKit(
         layout.subjects = extra.subjects;
       }
 
+      if (extra.appColumns) {
+        layout.appColumns = extra.appColumns;
+      }
+
       for (const file of renderBlocks(extra.modules, layout)) {
         await client.query(file.contents);
+      }
+
+      for (const sql of extra.appSql ?? []) {
+        await client.query(sql);
       }
     }
 

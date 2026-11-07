@@ -12,12 +12,7 @@ import type { CollectionNames } from "./collections-functions.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import {
-  addExtraColumns,
-  extraFieldsArg,
-  lockTable,
-  schemaPreamble,
-} from "../shared.ts";
+import { extraFieldsArg, lockTable, schemaPreamble } from "../shared.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { subjectCascades } from "../subjects.ts";
 import {
@@ -85,7 +80,7 @@ const NAMES: BlockSqlNames = {
     "before_collection_add",
     "after_collection_add",
   ],
-  options: ["extraColumns"],
+  options: [],
   tables: {
     collections: {
       name: "subject_collections",
@@ -196,7 +191,7 @@ create table if not exists ${t("collections")} (
   check (${co("scope")} <> 'team' or ${co("team")} is not null)
 );
 create index if not exists ${ctx.naming.rename("subject_collections_tenant_type_idx")} on ${t("collections")} (${co("tenant")}, ${co("subjectType")}, lower(${co("name")}));
-create index if not exists ${ctx.naming.rename("subject_collections_owner_idx")} on ${t("collections")} (${co("owner")}) where ${co("owner")} is not null;${addExtraColumns(t("collections"), collectionExtras(ctx))}
+create index if not exists ${ctx.naming.rename("subject_collections_owner_idx")} on ${t("collections")} (${co("owner")}) where ${co("owner")} is not null;
 ${lockTable(t("collections"), { read: true })}
 
 create table if not exists ${t("entries")} (

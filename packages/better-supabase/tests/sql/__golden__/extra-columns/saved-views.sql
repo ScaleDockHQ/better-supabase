@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:57dc859b5832f514ba896e58a3e766fcd150a8c220a6def233a825b64885bc50
+-- @bsb-hash sha256:a9037fb6b6224296a3970f1a4cc4d87f7bc89931f1be15bad0dfe65bd30a09f1
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,7 +26,6 @@ create table "better_supabase"."saved_views" (
 create index "saved_views_list_idx" on "better_supabase"."saved_views" ("tenant_id", "list");
 create index "saved_views_owner_idx" on "better_supabase"."saved_views" ("owner_id") where "owner_id" is not null;
 create unique index "saved_views_default_idx" on "better_supabase"."saved_views" ("tenant_id", "list", "scope", (coalesce(case "scope" when 'user' then "owner_id"::text when 'team' then "team_id" end, ''))) where "is_default";
-alter table "better_supabase"."saved_views" add column "app_note" text;
 alter table "better_supabase"."saved_views" enable row level security;
 revoke all on "better_supabase"."saved_views" from public, anon, authenticated;
 grant select on "better_supabase"."saved_views" to authenticated;

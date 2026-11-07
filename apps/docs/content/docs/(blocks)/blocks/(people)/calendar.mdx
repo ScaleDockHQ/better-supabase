@@ -781,15 +781,14 @@ it; their source is licensed per user, so copy them into your app from
 
 ## Your own fields
 
-`blocks.calendar.options.extraColumns` adds columns to the `calendar_events` table,
+Columns you add to `calendar_events` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createCalendar` a Standard Schema
 for them as `fields`: `upsert` and the occurrence edits take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and `events` return them
 parsed. A column the module already uses is refused. See
 [your own fields](/docs/extending/blocks#your-own-fields).
 
-`blocks.calendar.options.calendarExtraColumns` does the same for the
-calendars table: `createCalendar(organizationId, name, { fields })` writes
+A column you add to the calendars table does the same: `createCalendar(organizationId, name, { fields })` writes
 them (one that is `not null` without a `default` inside the insert), and
 `listCalendars` returns them under `fields`.
 

@@ -131,9 +131,9 @@ the `better-supabase-auth` skill.
 - Write a block's tables through its client, never with
   `.from("<block table>").insert()` or another supabase-js write: that skips
   the block's events, hooks and checks, and doctor warns BS351. Your own
-  columns on a block table go in the method's `fields` (the block's
-  `extraColumns` option lists them, `<table>ExtraColumns` for its other
-  tables); they are written in the same
+  columns on a block table go in the method's `fields` (add them with
+  `alter table ... add column` in your own schema file, or list the columns of
+  a table you create in its comment as `@bsb fields a, b`); they are written in the same
   insert or update, so a `not null` column or a check across columns holds.
 - A column of yours named like a secret (`access_token`, `client_secret`)
   next to `field-encryption` or `credentials` is BS352: set `encrypted: true`

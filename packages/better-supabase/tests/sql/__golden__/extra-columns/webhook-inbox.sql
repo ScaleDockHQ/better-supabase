@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:625cf324660a08f378cb40c1d3df80c696b91c078436a39be6d5f87c6a66bb4a
+-- @bsb-hash sha256:0019980f2d4acaeea95460600256a9127c08077f9f62e63abf45d680296bdca6
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -57,7 +57,6 @@ alter table better_supabase.webhook_inbox enable row level security;
 revoke all on better_supabase.webhook_inbox from public, anon, authenticated;
 grant all on better_supabase.webhook_inbox to service_role;
 
-alter table better_supabase.webhook_inbox add column "app_note" text;
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.
 

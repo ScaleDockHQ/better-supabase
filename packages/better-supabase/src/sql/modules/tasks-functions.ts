@@ -37,8 +37,8 @@ export interface WorkItemNames {
   readonly maxAssignees: number;
   readonly service: string;
   /**
-   * `options.extraColumns`: create writes them from attrs.fields, update by
-   * name.
+   * The columns your schema files add: create writes them from attrs.fields,
+   * update by name.
    */
   readonly extras: readonly ExtraColumn[];
   /**

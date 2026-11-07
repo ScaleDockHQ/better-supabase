@@ -35,7 +35,7 @@ const NO_HOOKS: readonly string[] = [];
 /** Blocks with calls that skip `blockCall`. */
 const NO_BLOCK_CALL: readonly string[] = [];
 
-/** Blocks with managed tables that take no `extraColumns` or `fields`. */
+/** Blocks with managed tables that take no `fields`. */
 const NO_FIELDS: readonly string[] = [
   // Assignments and read receipts point at the app's record, which carries
   // the app's data.
@@ -75,9 +75,6 @@ const NO_FIELDS: readonly string[] = [
   "channels",
   // Rules and alerts are fixed records; app data goes on the medication orders.
   "clinical-decision-support",
-  // Comments are messages, so app columns go on blocks.messaging.options.extraColumns;
-  // a comment task only links a message to a work item.
-  "comments",
   // Plans, entries and statements are fixed records the accrual functions write.
   "commissions",
   // A consent row is evidence of one decision; app data lives on the subject.
@@ -470,7 +467,7 @@ describe("the block contract", () => {
     ).toEqual(NO_BLOCK_CALL);
   });
 
-  it("takes fields and extraColumns on managed tables", () => {
+  it("takes fields on managed tables", () => {
     expect(
       failing(withCreator, (block) =>
         block.sql.every((module) => {
@@ -480,10 +477,7 @@ describe("the block contract", () => {
             return true;
           }
 
-          return (
-            (names?.options ?? []).includes("extraColumns") &&
-            sourcesOf(block).includes("blockFields(")
-          );
+          return sourcesOf(block).includes("blockFields(");
         }),
       ),
     ).toEqual(NO_FIELDS);

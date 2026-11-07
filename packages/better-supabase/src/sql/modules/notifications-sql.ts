@@ -37,7 +37,7 @@ export interface NotifyNames {
   /** Whether `member_can` answers for users other than the caller. */
   readonly answersForOthers: boolean;
   /**
-   * `options.extraColumns` of the events table, written from
+   * The columns your schema files add of the events table, written from
    * `notification.fields`.
    */
   readonly extras: readonly ExtraColumn[];

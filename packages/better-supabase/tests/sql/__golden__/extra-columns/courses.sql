@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:ede5bfd1596b4dbeb2026ead6ff5dc6ea643a58f8a83b443cf5cad27e666db65
+-- @bsb-hash sha256:a28b67c4dc9d4006e2def5a5b4d8e40a515ff755a382359d8b74302032b42cf2
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22,7 +22,6 @@ create table "better_supabase"."courses" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
-alter table "better_supabase"."courses" add column "app_note" text;
 
 create table "better_supabase"."course_modules" (
   "id" uuid primary key default gen_random_uuid(),

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:4803b1eb86a2b4746c6c6250007c266dbdb9081517e92abc3a4abd81e732667d
+-- @bsb-hash sha256:d0642ad78a2c69ecf99d82fc269ee210546855996067e0e4404736fe25f843ed
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -69,7 +69,6 @@ create index invoices_tenant_status_idx on "better_supabase"."invoices" ("tenant
 create index invoices_origin_idx on "better_supabase"."invoices" ("origin_type", "origin_id");
 create index invoices_original_idx on "better_supabase"."invoices" ("original_id");
 create index invoices_company_idx on "better_supabase"."invoices" ("company_type", "company_id");
-alter table "better_supabase"."invoices" add column "app_note" text;
 create index invoices_purchase_order_idx on "better_supabase"."invoices" ("purchase_order_id");
 alter table "better_supabase"."invoices" enable row level security;
 revoke all on "better_supabase"."invoices" from public, anon, authenticated;
@@ -1291,7 +1290,7 @@ grant execute on function "better_supabase"."reverse_invoice_payment"(uuid, text
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
--- charge's extra columns (options.chargeExtraColumns). actor: who added it,
+-- charge's extra columns (columns your schema files add). actor: who added it,
 -- for the state machine's history.
 create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
 returns jsonb

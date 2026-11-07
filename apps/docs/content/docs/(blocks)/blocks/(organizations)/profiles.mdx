@@ -40,7 +40,7 @@ the user has no upload.
 update it like their name, and the [notifications](/docs/blocks/notifications)
 block renders email and push deliveries in it. Over your own profiles table,
 map `columns: { locale: "language" }` to an existing column; an app that
-already declares a `locale` in `extraColumns` keeps that column, and
+already adds a `locale` column keeps that column, and
 notifications reads it.
 
 Your `locale` column may be an enum or a domain, such as
@@ -116,8 +116,8 @@ import { useProfiles } from "@/lib/supabase/hooks";
 const rows = useProfiles({ limit: 50 });
 ```
 
-Pass a Standard Schema as `fields` to type your own columns (from
-`extraColumns`, or any column of an adopted table): `mine()` parses the row
+Pass a Standard Schema as `fields` to type your own columns (a column you add,
+or any column of an adopted table): `mine()` parses the row
 with it and `updateMine` validates the columns it sets. `hooks` refuses,
 rewrites or observes `mine` and `updateMine`. In SQL,
 `before_profile_update(attrs jsonb, user_id uuid)` runs before every update
@@ -154,23 +154,22 @@ blocks: {
 
 `blocks.profiles.options`:
 
-| Option              | Default                                               | What it does                                                                                                     |
-| ------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
-| `metadata`          | the keys in the table above                           | metadata key to column name; replaces the defaults                                                               |
-| `splitName`         | `true`                                                | fills first and last name from a full name                                                                       |
-| `username`          | `true`                                                | allocates a username on sign-up                                                                                  |
-| `usernameFrom`      | `["user_name", "preferred_username", "username"]`     | metadata keys tried before the email, or `{ names, separator }` and `{ columns, separator }` entries (see below) |
-| `usernameMinLength` | `3`                                                   | shorter names become `user`                                                                                      |
-| `usernameMaxLength` | `32`                                                  | the longest name, suffix included                                                                                |
-| `reservedUsernames` | `admin`, `api`, `support`, `www` and more             | names nobody gets; allocation adds a suffix                                                                      |
-| `extraColumns`      | none                                                  | column name to SQL type on a managed table, such as `{ timezone: "text not null default 'UTC'" }`                |
-| `updatable`         | name, avatar, username, onboarding and `extraColumns` | the columns users can update                                                                                     |
-| `avatarSource`      | `"url"`                                               | `"path"` makes the author of a comment or upload carry `avatarPath` (the Storage path) instead of `avatarUrl`    |
-| `columnGrants`      | `true` when managed                                   | revokes `update` and grants it on `updatable` only                                                               |
-| `serviceColumns`    | see above                                             | the columns only the service changes; `[]` drops the guard. `updated_at` is never guarded                        |
-| `readPolicy`        | `self`                                                | `members` also shows profiles of people in the same organizations (needs `tenant`); see below                    |
-| `syncTrigger`       | `true`                                                | `false` leaves sign-up to your own trigger, which calls `sync_profile`                                           |
-| `mirrorEmail`       | `true`                                                | keeps `email` equal to `auth.users.email`                                                                        |
+| Option              | Default                                             | What it does                                                                                                     |
+| ------------------- | --------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------- |
+| `metadata`          | the keys in the table above                         | metadata key to column name; replaces the defaults                                                               |
+| `splitName`         | `true`                                              | fills first and last name from a full name                                                                       |
+| `username`          | `true`                                              | allocates a username on sign-up                                                                                  |
+| `usernameFrom`      | `["user_name", "preferred_username", "username"]`   | metadata keys tried before the email, or `{ names, separator }` and `{ columns, separator }` entries (see below) |
+| `usernameMinLength` | `3`                                                 | shorter names become `user`                                                                                      |
+| `usernameMaxLength` | `32`                                                | the longest name, suffix included                                                                                |
+| `reservedUsernames` | `admin`, `api`, `support`, `www` and more           | names nobody gets; allocation adds a suffix                                                                      |
+| `updatable`         | name, avatar, username, onboarding and your columns | the columns users can update                                                                                     |
+| `avatarSource`      | `"url"`                                             | `"path"` makes the author of a comment or upload carry `avatarPath` (the Storage path) instead of `avatarUrl`    |
+| `columnGrants`      | `true` when managed                                 | revokes `update` and grants it on `updatable` only                                                               |
+| `serviceColumns`    | see above                                           | the columns only the service changes; `[]` drops the guard. `updated_at` is never guarded                        |
+| `readPolicy`        | `self`                                              | `members` also shows profiles of people in the same organizations (needs `tenant`); see below                    |
+| `syncTrigger`       | `true`                                              | `false` leaves sign-up to your own trigger, which calls `sync_profile`                                           |
+| `mirrorEmail`       | `true`                                              | keeps `email` equal to `auth.users.email`                                                                        |
 
 An entry of `usernameFrom` can join several metadata keys when all of them
 are set, so a "first_last" convention is a setting:

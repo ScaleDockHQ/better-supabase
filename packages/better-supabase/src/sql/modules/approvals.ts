@@ -7,7 +7,6 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -176,15 +175,6 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   const policies = approvalPolicies(ctx);
   validateRuns(ctx, policies);
   validateApprovers(ctx, policies, tenantPoliciesOn(ctx));
-
-  if (
-    ctx.option("policyExtraColumns") !== undefined &&
-    !tenantPoliciesOn(ctx)
-  ) {
-    throw new TypeError(
-      "blocks.approvals.options.policyExtraColumns needs blocks.approvals.options.tenantPolicies",
-    );
-  }
 
   if (tenantPoliciesOn(ctx) && !has("policy")) {
     throw new TypeError(
@@ -716,7 +706,7 @@ ${indent}end if;`;
   ${c("createdAt")} timestamptz not null default now()
 );${has("fingerprint") ? `\nalter table ${requests} add column if not exists ${c("fingerprint")} text check (${c("fingerprint")} is null or ${c("fingerprint")} ~ '^[0-9a-f]{64}$');` : ""}${has("consumedAt") ? `\nalter table ${requests} add column if not exists ${c("consumedAt")} timestamptz;` : ""}
 ${tenantless ? `alter table ${requests} alter column ${c("tenant")} drop not null;\n` : ""}create unique index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_pending_idx`)} on ${requests} (${c("subjectType")}, ${c("subjectId")}, ${c("action")}) where ${c("status")} = 'pending';
-create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_idx`)} on ${requests} (${c("tenant")}, ${c("status")}, ${c("createdAt")} desc);${addExtraColumns(requests, extras)}
+create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_idx`)} on ${requests} (${c("tenant")}, ${c("status")}, ${c("createdAt")} desc);
 ${lockModuleTable(ctx, "requests", { read: true })}
 ${renderPolicy(makePolicy({ table: requests, name: ctx.naming.rename("approval_requests_read"), command: "select", roles: ["authenticated"], using: `${linked.length === 0 ? ctx.scope.check(c("tenant"), read) : `(${ctx.scope.check(c("tenant"), read)} and not ${linkedRow(c("subjectType"))})`} or ${c("requestedBy")} = (select auth.uid())` }), { target: requests })}
 

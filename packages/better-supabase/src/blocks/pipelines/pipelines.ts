@@ -72,7 +72,10 @@ export interface Pipeline<F extends object = Record<never, never>> {
   readonly isDefault: boolean;
   /** Its active stages in board order. Empty on the result of `upsert`. */
   readonly stages: readonly PipelineStage[];
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
 }
 
@@ -85,8 +88,8 @@ export interface PipelineInput<F extends object = Record<never, never>> {
   readonly scopeId?: string;
   readonly isDefault?: boolean;
   /**
-   * Values for the app's extra columns (`options.extraColumns`); left out keeps
-   * the stored ones.
+   * Values for the app's extra columns (the columns the app's schema files
+   * add); left out keeps the stored ones.
    */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
@@ -253,9 +256,8 @@ export interface PipelinesOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the extra columns of the pipelines table
-   * (`blocks.pipelines.options.extraColumns`): writes are validated, reads
-   * parsed.
+   * A Standard Schema for the extra columns of the pipelines table (columns the
+   * app's schema files add to the table): writes are validated, reads parsed.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

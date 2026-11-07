@@ -44,8 +44,6 @@ export const CALENDAR_NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_calendar_event_save", "after_calendar_event_save"],
   options: [
-    "extraColumns",
-    "calendarExtraColumns",
     "access",
     "accessFunctions",
     "userFeed",

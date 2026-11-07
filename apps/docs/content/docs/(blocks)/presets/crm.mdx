@@ -18,7 +18,7 @@ in `better_supabase.pipeline_stages`, and every stage change in
 `better_supabase.pipeline_stage_history`. The deals table takes no writes
 from the Data API: create and edit deals through the block's functions
 (`create_deal`, `update_deals`, `close_deal`), which check `deals.write` and
-the deal team. Add your own deal columns with `blocks.deals.options.extraColumns`
+the deal team. Add your own deal columns with `alter table ... add column` in your own schema files
 ([your own fields](/docs/blocks/deals#your-own-fields)).
 
 ## Config

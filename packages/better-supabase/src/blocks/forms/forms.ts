@@ -41,9 +41,9 @@ export interface FormsOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the forms' extra columns
-   * (`blocks.forms.options.extraColumns`), keyed by column name. It types and
-   * parses `fields` on reads and validates them on `create` and `update`.
+   * A Standard Schema for the forms' extra columns (columns the app's schema
+   * files add to the table), keyed by column name. It types and parses `fields`
+   * on reads and validates them on `create` and `update`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */
@@ -75,7 +75,10 @@ export interface Form<F extends object = Record<never, never>> {
   readonly createdBy?: string;
   readonly createdAt: Temporal.Instant;
   readonly updatedAt: Temporal.Instant;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: Readonly<Record<string, unknown>> & F;
 }
 

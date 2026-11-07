@@ -9,7 +9,6 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
-  addExtraColumns,
   ensureCheck,
   extraFieldsArg,
   extraFieldsJson,
@@ -70,7 +69,7 @@ const KEY_KEYS: readonly string[] = [
 const NAMES: BlockSqlNames = {
   entities: { api_key: { table: "keys", singular: "api_key", primary: true } },
   events: EVENTS,
-  options: ["scopes", "kinds", "touchInterval", "prefix", "extraColumns"],
+  options: ["scopes", "kinds", "touchInterval", "prefix"],
   tables: {
     keys: {
       name: "api_keys",
@@ -370,7 +369,7 @@ ${index("rotatedFrom", "api_keys_rotated_from_idx")}${index("createdBy", "api_ke
 alter table ${t} add column if not exists ${c("kind")} text;
 ${kindCheck}`
       : ""
-  }${addExtraColumns(t, extras)}
+  }
 ${lockTable(t)}
 
 -- Creates a key. TypeScript generates the public id and the secret and sends

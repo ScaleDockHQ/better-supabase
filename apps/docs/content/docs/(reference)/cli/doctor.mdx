@@ -1381,7 +1381,7 @@ table and swap the names in a maintenance window, or turn the option off.
 ### BS336
 
 **Warning: flag past its expiry.** The flags table has an `expires_at` column
-(`blocks.flags.options.extraColumns`), and a flag on the live database that
+(a column your schema files add to the flags table), and a flag on the live database that
 isn't archived has an `expires_at` in the past. A release flag that outlives
 its rollout keeps a dead branch in the code. Remove its checks, then archive
 the flag (`flags.upsert(key, { archived: true })`), or move `expires_at` when
@@ -1774,15 +1774,6 @@ object by name.
 direction of BS376: a table, view, type or function in `supabase/schemas` that no
 migration creates is a change the sync has not turned into a migration yet. Run
 `supabase db schema declarative sync` and review the migration.
-
-### BS378
-
-**Warning: a block option the declarative layer replaced.**
-`blocks.<name>.options.extraColumns` and the `*ExtraColumns` options add a
-column to a block's table from the config. Your own schema file owns that
-column: write `alter table ... add column` in the file that already alters the
-table, or in `<table>.ext.sql`, and run `better-supabase codemod extra-columns`
-to move the columns and drop the options.
 
 `better-supabase upgrade --check` runs the checks of BS369 to BS375 that apply to
 the installed block files (a helper two files define, an object two block files

@@ -9,7 +9,7 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
+import { extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { shiftAssignmentFunctions } from "./shifts-assignments.ts";
@@ -88,7 +88,7 @@ const NAMES: BlockSqlNames = {
     "before_shift_assignment_create",
     "after_shift_assignment_create",
   ],
-  options: ["minRestHours", "qualificationCheck", "timeZone", "extraColumns"],
+  options: ["minRestHours", "qualificationCheck", "timeZone"],
   tables: {
     templates: {
       name: "shift_templates",
@@ -209,7 +209,6 @@ function tables(ctx: BlockSqlContext): string {
   const read = ctx.permission("read", permissions.read);
   const write = ctx.permission("write", permissions.write);
   const manage = ctx.permission("manage", permissions.manage);
-  const extras = ctx.extraColumns("shifts", SHIFT_RESERVED);
 
   const teams = ctx.of("teams");
   const team = teamType(ctx);
@@ -322,7 +321,7 @@ create table if not exists ${shifts} (
   check (${s("endsAt")} - ${s("startsAt")} <= interval '24 hours'),
   unique (${s("tenant")}, ${s("id")}),
   foreign key (${s("tenant")}, ${s("template")}) references ${templates} (${t("tenant")}, ${t("id")}) on delete set null (${s("template")})
-);${addExtraColumns(shifts, extras)}${appKey("shifts", "tenant_id", `${s("tenant")}, ${s("id")}`)}
+);${appKey("shifts", "tenant_id", `${s("tenant")}, ${s("id")}`)}
 create index if not exists ${name("shifts", "tenant_idx")} on ${shifts} (${s("tenant")}, ${s("startsAt")});
 create index if not exists ${name("shifts", "template_idx")} on ${shifts} (${s("tenant")}, ${s("template")}) where ${s("template")} is not null;
 create index if not exists ${name("shifts", "team_idx")} on ${shifts} (${s("team")}) where ${s("team")} is not null;${locationIndex("shifts")}

@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 import type { BlockSqlLayout } from "../../../src/sql/module-types.ts";
 
-import { renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 const sqlOf = (layout: Parameters<typeof renderBlocks>[1] = {}): string =>
   renderBlocks(["tags"], layout)

@@ -26,7 +26,10 @@ export interface AttachmentQueueRouteOptions {
    * `{organization_id}/attachments/{id}`.
    */
   readonly path?: string;
-  /** `blocks.attachments.options.extraColumns` a `PUT` sends too. */
+  /**
+   * Columns of the attachments table your schema files add, which a `PUT` sends
+   * too.
+   */
   readonly extraColumns?: readonly string[];
 }
 

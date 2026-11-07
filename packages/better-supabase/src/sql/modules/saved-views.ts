@@ -13,7 +13,6 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { RANK_KEY_PATTERN, rankAfter } from "../rank-sql.ts";
 import { declareRead } from "../reads.ts";
 import {
-  addExtraColumns,
   columnsObject,
   extraFieldsArg,
   extraFieldsJson,
@@ -89,7 +88,7 @@ const NAMES: BlockSqlNames = {
     ),
   ],
   hooks: ["before_view_save", "after_view_save"],
-  options: ["extraColumns"],
+  options: [],
   tables: {
     views: {
       name: "saved_views",
@@ -133,8 +132,8 @@ const textList = (values: readonly string[]): string =>
   values.map((value) => `'${value}'`).join(", ");
 
 /**
- * `options.extraColumns`, added to a managed views table. The preference keys
- * `list_views` returns next to them are reserved.
+ * The columns your schema files add, added to a managed views table. The
+ * preference keys `list_views` returns next to them are reserved.
  */
 const extrasOf = (ctx: BlockSqlContext) =>
   ctx.extraColumns("views", ["ownerId", "teamId", "updatedAt", "preferences"]);
@@ -198,7 +197,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
 );
 create index if not exists ${index("list")} on ${views} (${tenant}, ${list});
 create index if not exists ${index("owner")} on ${views} (${owner}) where ${owner} is not null;
-create unique index if not exists ${index("default")} on ${views} (${tenant}, ${list}, ${scope}, (${slot})) where ${isDefault};${addExtraColumns(views, extras)}
+create unique index if not exists ${index("default")} on ${views} (${tenant}, ${list}, ${scope}, (${slot})) where ${isDefault};
 ${lockTable(views, { read: true })}
 `
     : "";

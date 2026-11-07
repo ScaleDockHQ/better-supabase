@@ -838,7 +838,7 @@ function build(ctx: BlockSqlContext): string {
 -- Dispatch: work orders at asset locations, scheduled into technicians'
 -- slots on a board, worked through a status lifecycle, with day routes and
 -- the parts each job used.
-${dispatchTables(ctx, extras)}${functions(ctx, extras)}${workOrderMerges(ctx)}`;
+${dispatchTables(ctx)}${functions(ctx, extras)}${workOrderMerges(ctx)}`;
 }
 
 export const DISPATCH: BlockSqlDefinition = {

@@ -14,7 +14,6 @@ import { sqlString } from "../../core/template.ts";
 import { uniqueContributions } from "../contributions.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   columnsObject,
   extraFieldsArg,
   extraFieldsJson,
@@ -82,7 +81,7 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: ["before_relation_link", "after_relation_link"],
-  options: ["kinds", "extraColumns"],
+  options: ["kinds"],
   tables: {
     relations: {
       name: "relations",
@@ -366,8 +365,8 @@ function subjectTables(list: readonly (readonly [string, Subject])[]): string {
 }
 
 /**
- * `options.extraColumns`, added to a managed relations table. The keys
- * `relations_of` returns next to them are reserved.
+ * The columns your schema files add, added to a managed relations table. The
+ * keys `relations_of` returns next to them are reserved.
  */
 const extrasOf = (ctx: BlockSqlContext) =>
   ctx.extraColumns("relations", [
@@ -428,7 +427,7 @@ function build(ctx: BlockSqlContext): string {
   unique (${tenant}, ${kind}, ${sourceType}, ${sourceId}, ${targetType}, ${targetId}),
   check (not (${sourceType} = ${targetType} and ${sourceId} = ${targetId}))
 );
-create index if not exists ${ctx.naming.rename("relations_target_idx")} on ${relations} (${tenant}, ${targetType}, ${targetId}, ${kind});${addExtraColumns(relations, extras)}
+create index if not exists ${ctx.naming.rename("relations_target_idx")} on ${relations} (${tenant}, ${targetType}, ${targetId}, ${kind});
 ${lockTable(relations, { read: true })}
 `
     : "";

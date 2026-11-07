@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:9bd279af0cd7e97205d3112a32b3348df44035d5463039aea383fea4961d4ecb
+-- @bsb-hash sha256:b3c5357ac2cdde24ce862d664a5db82f42be1f5edef2ba851c1a2f4e4f43a977
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -33,7 +33,6 @@ create table "better_supabase"."products" (
   unique ("tenant_id", "slug")
 );
 create index products_status_idx on "better_supabase"."products" ("tenant_id", "status");
-alter table "better_supabase"."products" add column "app_note" text;
 alter table "better_supabase"."products" enable row level security;
 revoke all on "better_supabase"."products" from public, anon, authenticated;
 grant select on "better_supabase"."products" to authenticated;
@@ -652,7 +651,7 @@ grant execute on function "better_supabase"."delete_product"(uuid) to authentica
 -- Creates a variant (variant null) or updates one. option_values holds one
 -- option value id per product option; no two variants share a combination.
 -- On an update a null argument keeps the column and clear names the columns
--- to empty. fields: the extra columns (options.variantExtraColumns) to set.
+-- to empty. fields: the extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
@@ -1369,7 +1368,7 @@ grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, ti
 
 -- Creates a category (category null) or updates one, under parent (null
 -- for the top level). A new category goes after its siblings. fields: the
--- extra columns (options.categoryExtraColumns) to set.
+-- extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
 returns jsonb

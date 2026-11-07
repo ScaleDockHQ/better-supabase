@@ -169,7 +169,7 @@ hook instead; it is granted to `supabase_auth_admin`.
 
 ## Your own columns
 
-Add columns to the waitlist entry, such as a company from the sign-up form, table with `blocks.waitlist.options.extraColumns`
+Add columns to the waitlist entry, such as a company from the sign-up form, table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `join` (only for a new address) validates and writes them, and `entries`, `approve` and `reject` return them parsed under
 `fields`. The block also takes `hooks` around its methods; see

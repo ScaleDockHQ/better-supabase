@@ -10,7 +10,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import {
-  addExtraColumns,
   extraFieldsJson,
   fail,
   insertExtraColumns,
@@ -41,7 +40,7 @@ const EVENTS: BlockSqlEvents<FlagsEvents> = {
 const NAMES: BlockSqlNames = {
   entities: { flag: { table: "flags", singular: "flag", primary: true } },
   events: EVENTS,
-  options: ["contexts", "extraColumns"],
+  options: ["contexts"],
   tables: {
     flags: {
       name: "flags",
@@ -364,7 +363,7 @@ create table if not exists ${flags} (
   ${f("enabled")} boolean not null default true,${optional("archived", () => "boolean not null default false")}
   ${f("rules")} jsonb not null default '[]'::jsonb check (jsonb_typeof(${f("rules")}) = 'array'),${optional("rolloutPercentage", (name) => `numeric(5, 2) not null default 0 check (${name} between 0 and 100)`)}${optional("rolloutVariants", rolloutVariantsColumn)}${optional("rolloutSchedule", rolloutScheduleColumn)}${optional("createdAt", () => "timestamptz not null default now()")}${optional("updatedAt", () => "timestamptz not null default now()")}
   check (${f("variants")} ? ${f("defaultVariant")})
-);${upgradeLifecycle(ctx)}${addExtraColumns(flags, extras)}${
+);${upgradeLifecycle(ctx)}${
     ctx.owns("flags")
       ? ""
       : `\ncreate unique index if not exists ${sqlIdent(`bsb_${ctx.tableName("flags").name}_key_key`)} on ${flags} (${f("key")});`

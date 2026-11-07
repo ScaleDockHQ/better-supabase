@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:df5571eca3bf7a7a49c248b6516c9a667d3975a852b16d496db4fe3645116b52
+-- @bsb-hash sha256:e02f69d9c6016de76f029d704046193d5fac5fb32a7fa58c0a7423a175b9462e
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -117,7 +117,6 @@ create index bookings_tenant_during_idx on "better_supabase"."bookings" using gi
 create index bookings_resource_idx on "better_supabase"."bookings" ("resource_id");
 create index bookings_service_idx on "better_supabase"."bookings" ("service_id");
 create index bookings_hold_idx on "better_supabase"."bookings" ("hold_expires_at") where "status" = 'hold';
-alter table "better_supabase"."bookings" add column "app_note" text;
 alter table "better_supabase"."bookings" enable row level security;
 revoke all on "better_supabase"."bookings" from public, anon, authenticated;
 grant select on "better_supabase"."bookings" to authenticated;

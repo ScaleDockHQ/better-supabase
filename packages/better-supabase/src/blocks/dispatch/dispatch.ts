@@ -42,9 +42,9 @@ export interface DispatchOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the work orders' extra columns
-   * (`blocks.dispatch.options.extraColumns`), keyed by database name. It types
-   * and parses them on reads and validates them on writes.
+   * A Standard Schema for the work orders' extra columns (columns the app's
+   * schema files add to the table), keyed by database name. It types and parses
+   * them on reads and validates them on writes.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

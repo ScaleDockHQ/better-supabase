@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:4e1951d420ae8391e7472134f5e47daee54e2f0ec32231e2a8dd9e1f9e15663d
+-- @bsb-hash sha256:28fcd0963c861a06b7d2428fb545b05f7c016586ede7c0e06516c5184c93ebf5
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -317,7 +317,6 @@ alter table "better_supabase"."attachments" add constraint "bsb_attachments_size
 create unique index attachments_object_idx on "better_supabase"."attachments" ("bucket", "object_path");
 create index attachments_subject_idx on "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id");
 create index attachments_uploaded_by_idx on "better_supabase"."attachments" ("uploaded_by");
-alter table "better_supabase"."attachments" add column "app_note" text;
 create or replace function "better_supabase"."attachment_document_guard"()
 returns trigger
 language plpgsql

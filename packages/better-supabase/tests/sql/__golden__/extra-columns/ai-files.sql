@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:a6ceb1f10ce4188175e49d04275d810e30ed8fd1924ed72e3b02459396d9ce6f
+-- @bsb-hash sha256:2eedd056746de5cf730e594f91761414fcb0519079fce2b548f3c7e909f37403
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -33,7 +33,6 @@ create index ai_files_owner_idx on "better_supabase"."ai_files" ("owner_id");
 create index ai_files_tenant_idx on "better_supabase"."ai_files" ("organization_id");
 create index ai_files_chat_idx on "better_supabase"."ai_files" ("chat_id") where "chat_id" is not null;
 create index ai_files_pending_idx on "better_supabase"."ai_files" ("created_at") where "status" = 'pending';
-alter table "better_supabase"."ai_files" add column "app_note" text;
 alter table "better_supabase"."ai_files" enable row level security;
 revoke all on "better_supabase"."ai_files" from public, anon, authenticated;
 grant select on "better_supabase"."ai_files" to authenticated;

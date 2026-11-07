@@ -10,7 +10,6 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -49,7 +48,7 @@ const NAMES: BlockSqlNames = {
   entities: { team: { table: "teams", singular: "team", primary: true } },
   events: EVENTS,
   hooks: ["before_team_create", "after_team_create"],
-  options: ["teamIdType", "extraColumns", "patch", "restore"],
+  options: ["teamIdType", "patch", "restore"],
   tables: {
     teams: {
       name: "teams",
@@ -169,7 +168,7 @@ function build(ctx: BlockSqlContext, layout: BlockSqlLayout): string {
   ${createdAt} timestamptz not null default now(),
   ${updatedAt} timestamptz not null default now(),
   unique (${tenant}, ${slug})
-);${addExtraColumns(teams, extras)}
+);
 ${lockTable(teams, { read: true })}
 ${renderPolicy(makePolicy({ table: teams, name: ctx.naming.rename("teams_read"), command: "select", roles: ["authenticated"], using: `${tenant} in (select ${ctx.scope.ids(read)})` }), { target: teams })}
 
@@ -219,7 +218,7 @@ end;
 $$;
 ${userGrant(`${fn("team_ids_of")}(uuid)`)}
 
--- fields: the extra columns (blocks.teams.options.extraColumns) to set.
+-- fields: the extra columns (columns your schema files add) to set.
 ${
   patching
     ? drops(fn("create_team"), `${ctx.idType}, text, text`, [

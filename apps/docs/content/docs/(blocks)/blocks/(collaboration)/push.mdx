@@ -110,16 +110,14 @@ the failed ones in `failed`.
 
 ## Your own fields
 
-`options.extraColumns` adds columns to `push_devices`. `register` writes them from `fields`,
+Columns you add to `push_devices` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)). `register` writes them from `fields`,
 and `tokensFor`'s targets return them in `fields`. Pass a Standard Schema as `fields`
 to type them: writes are validated before they reach the database (a
 `validation` error), and reads are parsed. `hooks` refuses, rewrites or
 observes any method; see [extending blocks](/docs/extending/blocks).
 
-```ts title="better-supabase.config.ts"
-export default defineConfig({
-  blocks: { push: { options: { extraColumns: { app_build: "text" } } } },
-});
+```sql title="supabase/schemas/push_devices.sql"
+alter table "better_supabase"."push_devices" add column "app_build" text;
 ```
 
 ```ts

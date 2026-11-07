@@ -47,7 +47,10 @@ export interface NotificationItem<K extends string = string, D = unknown> {
   readonly resolvedAt: Temporal.Instant | null;
   /** What `resolve` stored for this recipient, e.g. `{ action: "approve" }`. */
   readonly resolution: Readonly<Record<string, unknown>> | null;
-  /** The events table's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The events table's extra columns (the columns the app's schema files add),
+   * by column name.
+   */
   readonly fields: Readonly<Record<string, unknown>>;
 }
 

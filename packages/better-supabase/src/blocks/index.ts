@@ -42,7 +42,6 @@ export {
 
 export type {
   BlockOptionsSchema,
-  ExtraColumns,
   OptionBuilders,
   OptionInput,
   OptionKind,

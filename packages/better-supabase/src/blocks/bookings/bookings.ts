@@ -40,11 +40,11 @@ export interface BookingsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the booking columns the app adds
-   * (`blocks.bookings.options.extraColumns`), keyed by column name. The
-   * customer object of `hold` and `public.hold` carries them; the schema
-   * validates them there, which returns a `validation` error for a bad value,
-   * and types and parses them on every booking read.
+   * A Standard Schema for the booking columns the app adds (columns the app's
+   * schema files add to the table), keyed by column name. The customer object
+   * of `hold` and `public.hold` carries them; the schema validates them there,
+   * which returns a `validation` error for a bad value, and types and parses
+   * them on every booking read.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

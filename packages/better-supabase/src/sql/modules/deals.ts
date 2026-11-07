@@ -18,13 +18,7 @@ import {
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { searchColumnSql } from "../search-column.ts";
-import {
-  addExtraColumns,
-  fail,
-  lockTable,
-  schemaPreamble,
-  triggerGrant,
-} from "../shared.ts";
+import { fail, lockTable, schemaPreamble, triggerGrant } from "../shared.ts";
 import { watchSql } from "../watch-sql.ts";
 import { DEAL_COLUMNS, dealFunctions } from "./deals-functions.ts";
 import { DEAL_READS } from "./deals-reads.ts";
@@ -84,8 +78,6 @@ const NAMES: BlockSqlNames = {
     "priorities",
     "prefix",
     "readAll",
-    "extraColumns",
-    "lineExtraColumns",
     "lineRates",
     "searchColumn",
   ],
@@ -274,7 +266,7 @@ create table if not exists ${t("deals")} (
 create index if not exists ${ctx.naming.rename("deals_pipeline_stage_idx")} on ${t("deals")} (${d("pipeline")}, ${d("stage")}, ${d("rank")});
 create index if not exists ${ctx.naming.rename("deals_tenant_close_idx")} on ${t("deals")} (${d("tenant")}, ${d("closeOn")}) where ${d("outcome")} = 'open';
 create index if not exists ${ctx.naming.rename("deals_owner_idx")} on ${t("deals")} (${d("owner")});
-create index if not exists ${ctx.naming.rename("deals_company_idx")} on ${t("deals")} (${d("companyType")}, ${d("companyId")});${addExtraColumns(t("deals"), n.extras)}${searchColumnSql(ctx, "deals", ["name", "identifier", "note"])}
+create index if not exists ${ctx.naming.rename("deals_company_idx")} on ${t("deals")} (${d("companyType")}, ${d("companyId")});${searchColumnSql(ctx, "deals", ["name", "identifier", "note"])}
 ${lockTable(t("deals"), { read: true })}
 
 create table if not exists ${t("contacts")} (

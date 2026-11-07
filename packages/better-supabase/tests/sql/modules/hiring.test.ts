@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderBlocks } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 const body = (
   module: string,

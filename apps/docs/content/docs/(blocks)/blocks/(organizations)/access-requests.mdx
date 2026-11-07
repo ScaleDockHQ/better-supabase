@@ -150,7 +150,7 @@ An admin page renders `list(organizationId, { status: "pending" })` in a ReUI da
 
 ## Your own fields
 
-`blocks.access-requests.options.extraColumns` adds columns to the `access_requests` table,
+Columns you add to `access_requests` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createAccessRequests` a Standard Schema
 for them as `fields`: `request` take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and every read return them

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:de8e34661f7899f1760daa5dc40e96840f6fae46e08d2cb01c75d05e900e8b33
+-- @bsb-hash sha256:86a750b554f3eb05610812e1e51586bd9a595c8cdfe4dabd7b9a13c5e92fec2f
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -148,7 +148,7 @@ create trigger bsb_time_entry_guard
   for each row execute function "better_supabase"."time_entry_guard"();
 
 -- Starts a timer for the caller, stopping the one that runs. fields: the
--- extra columns (blocks.time-tracking.options.extraColumns) to set.
+-- extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."start_timer"(tenant uuid, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null)
 returns jsonb
@@ -841,7 +841,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:5d56bd5391dabf46987f43b0db1b921b86d8f59d8e640d7ca8e655609d2419e2
+-- @bsb-hash sha256:67855139b1554b33919a3cc3f81266f1bf2aa4576d105fa2301211f08ca0c409
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -988,7 +988,7 @@ create trigger bsb_time_entry_guard
   for each row execute function "better_supabase"."time_entry_guard"();
 
 -- Starts a timer for the caller, stopping the one that runs. fields: the
--- extra columns (blocks.time-tracking.options.extraColumns) to set.
+-- extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."start_timer"(tenant uuid, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null)
 returns jsonb
@@ -1712,7 +1712,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:c7c1aa2172fa0eb9f7bbe97368b0a03e21242331d78901e7bf1fd5453774bedf
+-- @bsb-hash sha256:f2357d4dda32853763716bec92c228dd840095519bc6e83b4dd7c21d3904a37a
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1864,7 +1864,7 @@ create trigger bsb_time_entry_guard
   for each row execute function "app_private"."time_entry_guard"();
 
 -- Starts a timer for the caller, stopping the one that runs. fields: the
--- extra columns (blocks.time-tracking.options.extraColumns) to set.
+-- extra columns (columns your schema files add) to set.
 
 create or replace function "app_private"."start_timer"(tenant uuid, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null)
 returns jsonb
@@ -2557,7 +2557,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:a6f9c608158cc3384aed000318940950456e8c6175f2a61fa6a72a13763774b2
+-- @bsb-hash sha256:1d1ce6b8bd044bd8df56ec0ada74e3487f0c273d7bb4ffe3845274db3936515c
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2704,7 +2704,7 @@ create trigger bsb_time_entry_guard
   for each row execute function "better_supabase"."time_entry_guard"();
 
 -- Starts a timer for the caller, stopping the one that runs. fields: the
--- extra columns (blocks.time-tracking.options.extraColumns) to set.
+-- extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."start_timer"(tenant uuid, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null)
 returns jsonb
@@ -3524,7 +3524,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:bcd76e251067bb7f98648702bcfd77399bd20af8e63f3bee1becd829eb293089
+-- @bsb-hash sha256:3eaeaa3e1a4836e3b53a8959087cf1b71c1d3b3c0316473a48cd6ad45adb60fa
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3653,7 +3653,7 @@ create trigger bsb_time_entry_guard
   for each row execute function "better_supabase"."time_entry_guard"();
 
 -- Starts a timer for the caller, stopping the one that runs. fields: the
--- extra columns (blocks.time-tracking.options.extraColumns) to set.
+-- extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."start_timer"(tenant uuid, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null)
 returns jsonb
@@ -4346,7 +4346,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:18b61d4b0e4f134f3af53d48b1c3fcb3d3fcb4986859c776c199a7d3010560ab
+-- @bsb-hash sha256:a2b7f0489ce85e5517846146b7861117b0100c69c9d2a21670cbbd05b437757d
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4493,7 +4493,7 @@ create trigger bsb_time_entry_guard
   for each row execute function "better_supabase"."time_entry_guard"();
 
 -- Starts a timer for the caller, stopping the one that runs. fields: the
--- extra columns (blocks.time-tracking.options.extraColumns) to set.
+-- extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."start_timer"(tenant uuid, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null)
 returns jsonb

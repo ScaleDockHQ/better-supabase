@@ -14,7 +14,6 @@ import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { declareRead } from "../reads.ts";
 import {
   addCheck,
-  addExtraColumns,
   ownRowPolicies,
   schemaPreamble,
   updatedAt,
@@ -111,7 +110,6 @@ const NAMES: BlockSqlNames = {
     "realtime",
     "topic",
     "updatedEvent",
-    "extraColumns",
   ],
   tables: {
     events: {
@@ -403,7 +401,7 @@ create table if not exists ${n.table("events")} (
       ? `\ncreate index if not exists notification_events_subject_idx on ${n.table("events")} (${c("events", "subjectType")}, ${c("events", "subjectId")});`
       : ""
   }${n.has("events", "actor") ? `\ncreate index if not exists notification_events_actor_idx on ${n.table("events")} (${c("events", "actor")});` : ""}${n.has("events", "createdBy") ? `\ncreate index if not exists notification_events_created_by_idx on ${n.table("events")} (${c("events", "createdBy")});` : ""}
-create index if not exists notification_events_created_at_idx on ${n.table("events")} (${c("events", "createdAt")});${priorityCheck(ctx, n)}${addExtraColumns(n.table("events"), n.extras)}
+create index if not exists notification_events_created_at_idx on ${n.table("events")} (${c("events", "createdAt")});${priorityCheck(ctx, n)}
 alter table ${n.table("events")} enable row level security;
 ${revokeTable(n.table("events"))}
 grant select on ${n.table("events")} to authenticated;

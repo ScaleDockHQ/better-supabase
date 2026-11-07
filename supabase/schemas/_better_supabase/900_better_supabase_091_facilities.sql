@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
 -- @bsb-block facilities@5 managed tasks
--- @bsb-hash sha256:dcfd8ed5c677012eef0e0fcd35886ffde8b2135c3cf937541d75b47053acc6a7
+-- @bsb-hash sha256:a3c24bd74e952df7ffcb955098fb4394c562ac163f3b31facb35ccf724bf2434
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -46,8 +46,6 @@ create index "maintenance_requests_parent_idx" on "better_supabase"."maintenance
 create index "maintenance_requests_project_idx" on "better_supabase"."maintenance_requests" ("project_id");
 create index "maintenance_requests_iteration_idx" on "better_supabase"."maintenance_requests" ("iteration_id");
 create index "maintenance_requests_due_idx" on "better_supabase"."maintenance_requests" ("tenant_id", "due_at") where "closed_at" is null;
-alter table "better_supabase"."maintenance_requests" add column "unit_id" uuid;
-alter table "better_supabase"."maintenance_requests" add column "lease_id" uuid;
 alter table "better_supabase"."maintenance_requests" enable row level security;
 revoke all on "better_supabase"."maintenance_requests" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_requests" to authenticated;

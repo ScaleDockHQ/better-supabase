@@ -201,7 +201,11 @@ describe("codemod extra-columns", () => {
         blocks: {
           memberships: {},
           tags: {
-            options: { extraColumns: { region: "text not null default 'eu'" } },
+            // SAFETY: the option was removed from the types; the codemod reads
+            // the old config form.
+            options: {
+              extraColumns: { region: "text not null default 'eu'" },
+            } as never,
           },
         },
       },

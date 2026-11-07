@@ -66,7 +66,7 @@ export const DISPATCH_NAMES: BlockSqlNames = {
     work_order_part: { table: "parts", singular: "work_order_part" },
   },
   events: EVENTS,
-  options: ["extraColumns", "timeZone", "defaultDuration"],
+  options: ["timeZone", "defaultDuration"],
   tables: {
     workOrders: {
       name: "work_orders",

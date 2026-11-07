@@ -38,9 +38,9 @@ export interface IncidentsOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the incident's extra columns
-   * (`blocks.incidents.options.extraColumns`), keyed by database name. It types
-   * and parses them on reads, and validates them on `open` and `update`.
+   * A Standard Schema for the incident's extra columns (columns the app's
+   * schema files add to the table), keyed by database name. It types and parses
+   * them on reads, and validates them on `open` and `update`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

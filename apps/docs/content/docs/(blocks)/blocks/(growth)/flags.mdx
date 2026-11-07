@@ -246,7 +246,7 @@ Anyone else gets `FLAGS_FORBIDDEN`.
 
 ### Your own fields and hooks
 
-`blocks.flags.options.extraColumns` adds columns to the flags table, such as
+Columns you add to `flags` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):, such as
 an owner or a ticket. `upsert` writes them from `fields`, and `list`, `upsert`
 and `flag_definitions()` return them under `fields`. Pass a Standard Schema
 as `fields` to type them, parse them on reads and validate them on `upsert`,
@@ -274,14 +274,9 @@ await admin.upsert("new_editor", { fields: { owner: "ana@acme.test" } });
 Give every flag an owner and a date by which it should be gone, so release
 flags don't pile up. Add the columns as extra columns:
 
-```ts title="better-supabase.config.ts"
-blocks: {
-  "flags": {
-    options: {
-      extraColumns: { owner: "text", expires_at: "timestamptz" },
-    },
-  },
-},
+```sql title="supabase/schemas/flags.sql"
+alter table "better_supabase"."flags" add column "owner" text;
+alter table "better_supabase"."flags" add column "expires_at" timestamptz;
 ```
 
 With an `expires_at` column, [`better-supabase doctor`](/docs/cli/doctor#bs336)

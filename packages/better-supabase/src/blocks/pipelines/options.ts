@@ -1,10 +1,9 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
 /** `blocks.pipelines.options`. */
 export type PipelinesSqlOptions = {
-  readonly extraColumns?: ExtraColumns;
   /**
    * The table and column that hold an organization's brand; a binding's
    * `brands` then starts an organization of that brand with its own stages.
@@ -17,7 +16,4 @@ export type PipelinesSqlOptions = {
 };
 
 export const pipelinesSqlOptions: BlockOptionsSchema<PipelinesSqlOptions> =
-  blockOptions<PipelinesSqlOptions>({
-    extraColumns: option.extraColumns(),
-    brand: option.unknown(),
-  });
+  blockOptions<PipelinesSqlOptions>({ brand: option.unknown() });

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:920e68a659378de33606096f43fd354784a73a490141ce8e4f49b0f2dcd0a245
+-- @bsb-hash sha256:d22b7ecee2dbd59be96d7b26a867083daf772fdac9aa24312e1bb08e70931944
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -159,7 +159,6 @@ create table "better_supabase"."accounting_entries" (
   check (("source_type" is null) = ("source_id" is null)),
   check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
 );
-alter table "better_supabase"."accounting_entries" add column "app_note" text;
 create unique index "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
 -- A document books once: a second entry for it waits until the first is reversed.
 create unique index "accounting_entries_source_idx" on "better_supabase"."accounting_entries" ("tenant_id", "source_type", "source_id") where "source_type" is not null and "status" <> 'reversed';

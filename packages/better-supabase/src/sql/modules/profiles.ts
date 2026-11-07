@@ -18,7 +18,6 @@ const NAMES: BlockSqlNames = {
   options: [
     "avatarSource",
     "columnGrants",
-    "extraColumns",
     "metadata",
     "mirrorEmail",
     "readPolicy",
@@ -596,9 +595,7 @@ create table if not exists ${t} (
       (logical) =>
         `\nalter table ${t} add column if not exists ${c(logical)} text;`,
     )
-    .join(
-      "",
-    )}${extra.map(([name, type]) => `\nalter table ${t} add column if not exists ${name} ${type};`).join("")}
+    .join("")}
 ${username}
 alter table ${t} enable row level security;
 ${renderPolicy(makePolicy({ table: t, name: "bsb_profiles_read", command: "select", roles: ["authenticated"], using: read }), { target: t })}

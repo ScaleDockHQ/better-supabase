@@ -4,8 +4,8 @@ import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { withBlockSubjects } from "../../../src/config/block-subjects.ts";
 import { adoptedColumnProblems } from "../../../src/sql/adopted-columns.ts";
-import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const ALICE = "22222222-2222-4222-8222-222222222222";

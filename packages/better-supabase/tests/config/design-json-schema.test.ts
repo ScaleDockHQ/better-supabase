@@ -26,7 +26,6 @@ const VALID: readonly unknown[] = [
         unique: [["name"]],
       },
     },
-    extraColumns: { tags: { color: "text not null default 'gray'" } },
     positions: { "app.projects": [10, 20] },
   },
 ];
@@ -43,7 +42,7 @@ const INVALID: readonly unknown[] = [
   { version: 1.5 },
   { positions: { "app.projects": [1] } },
   { positions: { "app.projects": [1, "2"] } },
-  { extraColumns: { tags: { color: 1 } } },
+  { extraColumns: { tags: { color: "text" } } },
   { appTables: { projects: { columns: { name: { type: "money" } } } } },
   { appTables: { projects: { columns: { name: { kind: "text" } } } } },
 ];

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { SQL_MODULES } from "../../src/sql/registry.ts";
 import { renderBlocks } from "../../src/sql/render.ts";
+import { withAppColumns } from "./app-columns.ts";
 
 /**
  * The modules whose managed table takes `options.extraColumns`: the table that
@@ -30,10 +31,14 @@ const MODULES: readonly (readonly [
   ["workflow-editor", "definitions", "fields"],
 ];
 
-const sqlOf = (module: string, extraColumns: unknown): string =>
-  renderBlocks([module], {
-    modules: { [module]: { options: { extraColumns } } },
-  })
+const sqlOf = (
+  module: string,
+  extraColumns: Record<string, string> | undefined,
+): string =>
+  renderBlocks(
+    [module],
+    withAppColumns(module, extraColumns === undefined ? {} : { extraColumns }),
+  )
     .filter((file) => file.module === module)
     .map((file) => file.contents)
     .join("\n");
@@ -50,14 +55,7 @@ describe("extraColumns on managed tables", () => {
         app_rank: "integer not null default 0",
       });
 
-      expect(sql).toMatch(
-        new RegExp(
-          `alter table [^\\n]*"?${name}"? add column "app_note" text;`,
-        ),
-      );
-      expect(sql).toContain(
-        'add column "app_rank" integer not null default 0;',
-      );
+      expect(sql).not.toContain('add column "app_note"');
       expect(sql).toContain(`"app_note" = `);
       expect(sql).toContain('then r."app_note"');
       expect(sql.includes(`'fields', jsonb_build_object('app_note', `)).toBe(
@@ -67,8 +65,8 @@ describe("extraColumns on managed tables", () => {
     },
   );
 
-  it.each(MODULES)("%s refuses a column named fields", (module) => {
-    expect(() => sqlOf(module, { fields: "jsonb" })).toThrow(/fields/);
+  it.each(MODULES)("%s skips a column named fields", (module) => {
+    expect(sqlOf(module, { fields: "jsonb" })).toBe(sqlOf(module, undefined));
   });
 
   it("takes fields on the functions that write a positional row", () => {

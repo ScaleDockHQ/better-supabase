@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:a5cb6b5dec77343b88780772f691019ccc1312adcf4036853b31e89c7ce5036d
+-- @bsb-hash sha256:6ae2f3980850962fea1d1ee7eb0884793df23ad65750f141bc78bd61aabcfe4d
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -646,7 +646,6 @@ create table "better_supabase"."approval_policies" (
   "updated_at" timestamptz not null default now()
 );
 create index "approval_policies_lookup_idx" on "better_supabase"."approval_policies" ("tenant_id", "subject_type", "action");
-alter table "better_supabase"."approval_policies" add column "description" text;
 alter table "better_supabase"."approval_policies" enable row level security;
 revoke all on "better_supabase"."approval_policies" from public, anon, authenticated;
 grant select on "better_supabase"."approval_policies" to authenticated;

@@ -155,7 +155,6 @@ const NAMES: BlockSqlNames = {
     "after_accounting_entry_reverse",
   ],
   options: [
-    "extraColumns",
     "chart",
     "functionalCurrency",
     "fiscalYearStartMonth",

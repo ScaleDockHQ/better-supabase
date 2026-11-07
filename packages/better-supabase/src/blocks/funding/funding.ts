@@ -112,7 +112,10 @@ export interface FundingAward<F extends object = Record<never, never>> {
   readonly reference?: string;
   readonly status: FundingAwardStatus;
   readonly createdBy?: string;
-  /** The award's extra columns (`blocks.funding.options.extraColumns`). */
+  /**
+   * The award's extra columns (columns the app's schema files add to the
+   * table).
+   */
   readonly fields: F;
 }
 
@@ -373,8 +376,8 @@ export interface FundingOptions<
   /** The channel `send` and `poll` use. */
   readonly channel?: FundingClaimChannel;
   /**
-   * A Standard Schema for the award's extra columns
-   * (`blocks.funding.options.extraColumns`), keyed by database name.
+   * A Standard Schema for the award's extra columns (columns the app's schema
+   * files add to the table), keyed by database name.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

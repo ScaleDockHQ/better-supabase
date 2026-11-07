@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:4dfcb96ab0ee77e9513f2c60e23ff1b74c7366dc4b574c346127de59ca8f2a61
+-- @bsb-hash sha256:a471e29fe17dde3737a0249068f1f5c8133df70b7bbac8ee86fd43783388a700
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,7 +38,6 @@ create index api_keys_rotated_from_idx on "better_supabase"."api_keys" ("rotated
 create index api_keys_created_by_idx on "better_supabase"."api_keys" ("created_by");
 -- What a key is for (blocks.api-keys.options.kinds), such as client or export.
 alter table "better_supabase"."api_keys" add column "kind" text;
-alter table "better_supabase"."api_keys" add column "app_note" text;
 alter table "better_supabase"."api_keys" enable row level security;
 revoke all on "better_supabase"."api_keys" from public, anon, authenticated;
 grant all on "better_supabase"."api_keys" to service_role;

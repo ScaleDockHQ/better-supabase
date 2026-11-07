@@ -105,7 +105,7 @@ export function timeCategory(ctx: BlockSqlContext): string | undefined {
 
   if (!extras.some((extra) => extra.name === column)) {
     throw new TypeError(
-      `${WHERE}.timeCategory: "${column}" is not one of blocks.time-tracking.options.extraColumns`,
+      `${WHERE}.timeCategory: "${column}" is not a column your schema files add to the time entries table`,
     );
   }
 

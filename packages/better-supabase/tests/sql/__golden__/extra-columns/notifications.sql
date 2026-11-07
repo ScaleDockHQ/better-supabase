@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:81311c4de2d1c2044e5d929ee954025e1ac36786718a6bb15ef47326f044f463
+-- @bsb-hash sha256:5d9d64412d1f4fa28e79760af0e2aa5d949985eeea2127da1617f11a0f18da59
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,7 +41,6 @@ end;
 $$;
 alter table "better_supabase"."notification_events" add constraint "notification_events_priority_check"
   check ("priority" in ('low', 'normal', 'high', 'urgent'));
-alter table "better_supabase"."notification_events" add column "app_note" text;
 alter table "better_supabase"."notification_events" enable row level security;
 revoke all on "better_supabase"."notification_events" from public, anon, authenticated;
 grant select on "better_supabase"."notification_events" to authenticated;

@@ -105,7 +105,10 @@ export interface Engagement<F extends object = Record<never, never>> {
   readonly markedErrorAt?: Temporal.Instant;
   readonly markedErrorBy?: string;
   readonly markedErrorReason?: string;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: Readonly<Record<string, unknown>> & F;
 }
 
@@ -262,9 +265,9 @@ export interface ActivitiesOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the engagements' extra columns
-   * (`blocks.activities.options.extraColumns`), keyed by column name. It types
-   * and parses `fields` on reads and validates them on writes.
+   * A Standard Schema for the engagements' extra columns (columns the app's
+   * schema files add to the table), keyed by column name. It types and parses
+   * `fields` on reads and validates them on writes.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Activities<FieldsOf<S>>>>;

@@ -4,7 +4,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlString } from "../../core/template.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   lockTable,
   serviceOnly,
@@ -154,7 +153,7 @@ function webhookInboxSql(ctx: BlockSqlContext): string {
       ? `${tenantText(alias)} is not distinct from ${value}`
       : `${value} is null`;
 
-  // The extra columns (options.extraColumns): receive_webhook writes them
+  // The extra columns (columns your schema files add): receive_webhook writes them
   // from fields on a new message, the reads return them under fields.
   const extras = ctx.extraColumns("messages", ["fields"]);
   const extra = extraFieldsArg(extras);
@@ -252,7 +251,7 @@ ${extra.drop("better_supabase.receive_webhook", "text, text, text, jsonb, jsonb,
 drop function if exists better_supabase.claim_webhooks(text, text, integer, interval);
 drop function if exists better_supabase.list_webhooks(text, text, text, integer);`;
 
-  return `${managed ? `${TABLE}${addExtraColumns(t, extras)}` : `\n-- The webhook inbox over an app's table: ${t}.\n-- The app owns its columns, a unique key per source, tenant and message id,\n-- and its indexes.\n`}
+  return `${managed ? TABLE : `\n-- The webhook inbox over an app's table: ${t}.\n-- The app owns its columns, a unique key per source, tenant and message id,\n-- and its indexes.\n`}
 -- The signatures before messages had a tenant, before a source set its
 -- attempts, and before the attempt was the lease token.
 drop function if exists better_supabase.receive_webhook(text, text, text, jsonb, jsonb);
@@ -516,7 +515,7 @@ export const WEBHOOK_INBOX: BlockSqlDefinition = {
   target: "schema",
   modes: ["managed"],
   names: {
-    options: ["extraColumns"],
+    options: [],
     tables: {
       messages: {
         name: "webhook_inbox",
@@ -576,7 +575,7 @@ export const WEBHOOK_INBOX: BlockSqlDefinition = {
     {
       from: 6,
       description:
-        "receive_webhook, claim_webhooks and list_webhooks return jsonb, so the block calls them over any transport; options.extraColumns adds columns to the messages.",
+        "receive_webhook, claim_webhooks and list_webhooks return jsonb, so the block calls them over any transport; the columns your schema files add to the messages table are fields.",
       sql: () => "",
     },
     {

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:fa92d17a421f891c7f894b804d5f955cc24fa36666f20a585a9469431fe058c6
+-- @bsb-hash sha256:763478a3e3297bcdd03d0f8db6d959a11f30b372935a77dadfb33eabd18cc9d7
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1290,7 +1290,7 @@ grant execute on function "better_supabase"."reverse_invoice_payment"(uuid, text
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
--- charge's extra columns (options.chargeExtraColumns). actor: who added it,
+-- charge's extra columns (columns your schema files add). actor: who added it,
 -- for the state machine's history.
 create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
 returns jsonb
@@ -3639,7 +3639,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:44a3881627a6df03f10c6675fb47d9864b4f5fcf15d103225f2d7a2e33066098
+-- @bsb-hash sha256:9ca118174b8cbfa8f3fdc779911c5a67b31f49e38a02e7c5f447e60b43279057
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5043,7 +5043,7 @@ grant execute on function "better_supabase"."reverse_invoice_payment"(uuid, text
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
--- charge's extra columns (options.chargeExtraColumns). actor: who added it,
+-- charge's extra columns (columns your schema files add). actor: who added it,
 -- for the state machine's history.
 create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
 returns jsonb
@@ -8263,7 +8263,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:ef314f42fd4747a1285171d6efa843e7138eddb4274df524b4d423d29aa68e6c
+-- @bsb-hash sha256:98f16d919ccb2fad68802e86a0f211835490757bc761cffb9f4ba395634cdb2b
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9557,7 +9557,7 @@ grant execute on function "app_private"."reverse_invoice_payment"(uuid, text, js
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
--- charge's extra columns (options.chargeExtraColumns). actor: who added it,
+-- charge's extra columns (columns your schema files add). actor: who added it,
 -- for the state machine's history.
 create or replace function "app_private"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
 returns jsonb
@@ -11906,7 +11906,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:24abc2a9930f1def651ed38c767fe07ef7d728c64a47d015f805a9ce93cf76a8
+-- @bsb-hash sha256:5f407249d54aae626a5e771bdc7543f2558eed00ac23644e2b24ffdec19c2f76
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13195,7 +13195,7 @@ grant execute on function "better_supabase"."reverse_invoice_payment"(uuid, text
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
--- charge's extra columns (options.chargeExtraColumns). actor: who added it,
+-- charge's extra columns (columns your schema files add). actor: who added it,
 -- for the state machine's history.
 create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
 returns jsonb
@@ -16007,7 +16007,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:8308bffa7c8bf757e3553b318e513fbbd384a99ce665ac631a3626f7d7edd5ac
+-- @bsb-hash sha256:2f091b76dd951bc302463d0d1d1945e6b4c64bbaad08f4751ec55f69848e7cc7
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17263,7 +17263,7 @@ grant execute on function "better_supabase"."reverse_invoice_payment"(uuid, text
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
--- charge's extra columns (options.chargeExtraColumns). actor: who added it,
+-- charge's extra columns (columns your schema files add). actor: who added it,
 -- for the state machine's history.
 create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
 returns jsonb
@@ -19612,7 +19612,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_098_invoices.sql
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:758e5de1c0efda60c35b026449a37d6998e6363fa47d309207ef95f90f1c93c0
+-- @bsb-hash sha256:c9c94f982fbbb7fea2785cb4603f602cefab978a0367ea57bf87b5708c848a5e
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20901,7 +20901,7 @@ grant execute on function "better_supabase"."reverse_invoice_payment"(uuid, text
 -- Adds a charge on top of an issued invoice's total, such as collection
 -- costs or a late fee, in the invoice's currency. It raises the balance, so
 -- a paid invoice is open again until the charge is paid too. fields: the
--- charge's extra columns (options.chargeExtraColumns). actor: who added it,
+-- charge's extra columns (columns your schema files add). actor: who added it,
 -- for the state machine's history.
 create or replace function "better_supabase"."add_invoice_charge"(invoice uuid, amount bigint, currency text, description text, actor jsonb default null)
 returns jsonb

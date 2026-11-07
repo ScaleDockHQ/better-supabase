@@ -484,7 +484,7 @@ ${userGrant(`${fn("set_product_categories")}(uuid, uuid[])`)}
   return `
 -- Creates a category (category null) or updates one, under parent (null
 -- for the top level). A new category goes after its siblings. fields: the
--- extra columns (options.categoryExtraColumns) to set.
+-- extra columns (columns your schema files add) to set.
 ${extraArg.drop(fn("save_category"), categoryArgs)}
 create or replace function ${fn("save_category")}(tenant ${ctx.idType}, category uuid, parent uuid, name text, slug text, description text${extraArg.param})
 returns jsonb

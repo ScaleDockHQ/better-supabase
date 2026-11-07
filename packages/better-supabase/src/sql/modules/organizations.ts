@@ -5,7 +5,6 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   activeMembership,
-  addExtraColumns,
   addForeignKey,
   columnRef,
   membershipDisabledAt,
@@ -31,7 +30,6 @@ import {
 } from "./organizations-overview.ts";
 import {
   organizationAttributes,
-  organizationExtraColumns,
   organizationReads,
 } from "./organizations-reads.ts";
 import { assignableRole, checkRole, roleValue } from "./organizations-roles.ts";
@@ -50,7 +48,6 @@ const NAMES: BlockSqlNames = {
     "attributes",
     "auditCategory",
     "deleteMode",
-    "extraColumns",
     "formerOwnerRole",
     "ownerInvariant",
     "ownerRole",
@@ -203,7 +200,7 @@ function table(
 create table if not exists ${n.organization} (
   ${idColumn(ctx, n.id)},
   ${c("name")} text not null check (length(btrim(${c("name")})) > 0)${optional("slug", `${slugType} not null`)}${optional("createdBy", "uuid references auth.users (id) on delete set null")}${optional("createdAt", "timestamptz not null default now()")}${optional("disabledAt", "timestamptz")}${optional("deletedAt", "timestamptz")}
-);${addExtraColumns(n.organization, organizationExtraColumns(ctx))}
+);
 ${slugIndex}${ctx.has("organizations", "createdBy") ? `create index if not exists ${ctx.naming.rename("organizations_created_by_idx")} on ${n.organization} (${c("createdBy")});\n` : ""}${ctx.has("organizations", "updatedAt") ? `${updatedAt(n.organization, c("updatedAt"))}\n` : ""}${
     readsOrganizationCustomer(ctx, layout)
       ? `-- The Stripe customer the entitlements module reads (config.entitlements.customer).

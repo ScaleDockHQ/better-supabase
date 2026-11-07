@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:13d23163cd7206a1a6f64b0d87f95c953b90a690dd465f201e3e99ce725026fb
+-- @bsb-hash sha256:6d09fdc2ee9b48af0b8685170f4855d32f7c03f7b613c46811b4e20ed9bef961
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -40,7 +40,6 @@ create table "better_supabase"."shipments" (
   check (("label_cost" is null) = ("currency" is null)),
   check ("status" in ('draft', 'cancelled') or ("carrier" is not null and "tracking_number" is not null))
 );
-alter table "better_supabase"."shipments" add column "app_note" text;
 create index "shipments_tenant_idx" on "better_supabase"."shipments" ("tenant_id", "created_at" desc);
 create index "shipments_status_idx" on "better_supabase"."shipments" ("tenant_id", "status");
 create unique index "shipments_tracking_key" on "better_supabase"."shipments" ("carrier", "tracking_number") where "tracking_number" is not null;

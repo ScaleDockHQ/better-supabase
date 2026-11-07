@@ -66,7 +66,7 @@ const rows = useHiring({ limit: 50 });
 
 ## Your own fields
 
-`blocks.hiring.options.extraColumns` adds columns to the jobs table,
+Columns you add to `jobs` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. `saveJob` writes them from `fields` and returns them under `fields`; a `not null` column without a default goes into the insert that creates the job. Pass a
 [Standard Schema](https://standardschema.dev) as `fields` to type them,
 parse them on reads and validate them on writes; a bad value is a
@@ -87,8 +87,7 @@ await hiring.saveJob(organizationId, {
 });
 ```
 
-`blocks.hiring.options.applicationExtraColumns` does the same for the
-applications table: `apply` writes them from `fields` in the insert that
+A column you add to the applications table does the same: `apply` writes them from `fields` in the insert that
 creates the application, and every application the client returns carries
 them under `fields`:
 

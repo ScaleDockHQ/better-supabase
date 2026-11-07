@@ -47,9 +47,9 @@ export interface LeasesOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the lease's extra columns
-   * (`blocks.leases.options.extraColumns`), keyed by database name. It types
-   * and parses them on reads, and validates them on `create`.
+   * A Standard Schema for the lease's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `create`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

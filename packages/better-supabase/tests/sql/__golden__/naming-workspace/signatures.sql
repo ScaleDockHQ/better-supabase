@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:dcccc854ddd6959e1c15447b553af753974af16d8e2900f62f738ee511f1ac68
+-- @bsb-hash sha256:cb592843553f7c6a7c56930e2587265f3c9326283a35aea0b1535f3fcf57e7e4
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -64,7 +64,7 @@ create policy signatures_read on "better_supabase"."signatures"
 -- retention and delete_version keep it; without one, the record's columns
 -- are snapshotted first. meaning says what signing means, one of
 -- blocks.signatures.options.meanings. fields: the extra columns
--- (blocks.signatures.options.extraColumns) to set.
+-- (columns your schema files add) to set.
 
 create or replace function "better_supabase"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null, meaning text default null)
 returns jsonb

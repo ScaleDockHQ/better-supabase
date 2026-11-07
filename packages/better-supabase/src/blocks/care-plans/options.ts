@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -20,7 +20,6 @@ export type CarePlansSqlOptions = {
    */
   readonly guestRead?: boolean;
   /** Extra columns on the plans table, set through `fields`. */
-  readonly extraColumns?: ExtraColumns;
 };
 
 export const carePlansSqlOptions: BlockOptionsSchema<CarePlansSqlOptions> =
@@ -28,5 +27,4 @@ export const carePlansSqlOptions: BlockOptionsSchema<CarePlansSqlOptions> =
     codeSystems: option.strings(),
     measureKinds: option.strings(),
     guestRead: option.boolean(),
-    extraColumns: option.extraColumns(),
   });

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:5e9651d7a4fd957d33700f3dc8bc718f67d457a1f9f3deaca6e3fd1292750a32
+-- @bsb-hash sha256:18e6cc5005e6f4ad42312c15748486406421af51ba95f0e1c991b25545a1a8be
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,6 @@ create table "better_supabase"."sla_policies" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-alter table "better_supabase"."sla_policies" add column "app_note" text;
 create unique index sla_policies_match_idx on "better_supabase"."sla_policies" ("tenant_id", "subject_type", coalesce("priority", '')) where "archived_at" is null;
 alter table "better_supabase"."sla_policies" enable row level security;
 revoke all on "better_supabase"."sla_policies" from public, anon, authenticated;

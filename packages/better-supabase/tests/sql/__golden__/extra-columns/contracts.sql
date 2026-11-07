@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:82899d7c4ff5aecbe071e3669ab836e68efca85b5395eaaab409eb055977edc1
+-- @bsb-hash sha256:4148370d92a73c11cec055d1d361102a1ed9b021e828d9a912f1d1b5c3507556
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -42,7 +42,6 @@ create table "better_supabase"."contracts" (
   check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
   unique ("tenant_id", "id")
 );
-alter table "better_supabase"."contracts" add column "app_note" text;
 create index "contracts_status_idx" on "better_supabase"."contracts" ("tenant_id", "status", "ends_on");
 create index "contracts_counterparty_idx" on "better_supabase"."contracts" ("tenant_id", "counterparty_type", "counterparty_id") where "counterparty_type" is not null;
 create index "contracts_owner_idx" on "better_supabase"."contracts" ("tenant_id", "owner_id") where "owner_id" is not null;

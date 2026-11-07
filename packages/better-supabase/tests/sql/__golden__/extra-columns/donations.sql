@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:31b01207179957100aafe5bc2cdce5f9a9883d5aaeaab57fb9263552441640b3
+-- @bsb-hash sha256:a8219465cb29c5769947de39a8be32d144bbf97029f5b3861a30d66b115c9a50
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -124,7 +124,6 @@ create table "better_supabase"."donations" (
   foreign key ("tenant_id", "fund_id") references "better_supabase"."donation_funds" ("tenant_id", "id") on delete restrict,
   unique ("pledge_id", "period_start")
 );
-alter table "better_supabase"."donations" add column "app_note" text;
 create index "donations_tenant_idx" on "better_supabase"."donations" ("tenant_id", "received_on" desc);
 create index "donations_donor_idx" on "better_supabase"."donations" ("tenant_id", "donor_type", "donor_id", "received_on");
 create index "donations_fund_idx" on "better_supabase"."donations" ("tenant_id", "fund_id") where "fund_id" is not null;

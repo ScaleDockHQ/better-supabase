@@ -554,21 +554,15 @@ a new pin, never as an edit to a published version. Version 2 adds the AI SDK 7 
 
 ## Your own fields
 
-Every ai-chat table takes extra columns. `extraColumns` adds them to
-`ai_chats`, and the other tables take their own key:
+Every ai-chat table takes extra columns: a column you add to a table with `alter table` in your own schema files is a field of the block.
 
-| Option                                                                                                                                                                                                                                         | Table                  | Write them through                                 |
-| ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ---------------------- | -------------------------------------------------- |
-| `projectExtraColumns`                                                                                                                                                                                                                          | `ai_projects`          | `projects.create(org, input, fields)`, `update`    |
-| `participantExtraColumns`                                                                                                                                                                                                                      | `ai_chat_participants` | `participants.add(chatId, userId, { fields })`     |
-| `messageExtraColumns`                                                                                                                                                                                                                          | `ai_messages`          | `appendUser` and `saveAssistant` with `{ fields }` |
-| `moderationExtraColumns`                                                                                                                                                                                                                       | `ai_moderation_events` | `moderation.record(event, fields)`                 |
-| `runExtraColumns`, `stepExtraColumns`, `approvalExtraColumns`, `policyExtraColumns`, `inputExtraColumns`, `sourceExtraColumns`, `feedbackExtraColumns`, `shareExtraColumns`, `modelExtraColumns`, `sandboxExtraColumns`, `harnessExtraColumns` | the rest               | the service role or your own SQL                   |
+| Option | Table | Write them through |
+| ------ | ----- | ------------------ |
 
 The SQL functions return a row's extra columns under `fields`, and so does
 `participants.list`. A column the table already has is refused.
 
-`blocks.ai-chat.options.extraColumns` adds columns to the `ai_chats` table,
+Columns you add to `ai_chats` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createAiChat` a Standard Schema
 for them as `fields`: `chats.create`, `chats.update` take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and `chats.get`, `chats.list` return them

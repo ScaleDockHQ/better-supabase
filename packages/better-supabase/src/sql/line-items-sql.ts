@@ -7,7 +7,6 @@ import type {
 import { sqlIdent, sqlString } from "../core/template.ts";
 import { asColumnType } from "./column-type.ts";
 import {
-  addExtraColumns,
   extraFieldsJson,
   fail,
   insertExtraColumns,
@@ -320,7 +319,7 @@ export function lineExtraColumns(
   ctx: BlockSqlContext,
   lines = "lines",
 ): readonly ExtraColumn[] {
-  return ctx.extraColumns(lines, LINE_KEYS, "lineExtraColumns");
+  return ctx.extraColumns(lines, LINE_KEYS);
 }
 
 export const lineFieldsJson = (
@@ -537,7 +536,7 @@ ${has("periods") ? `alter table ${t} add column if not exists ${c("periods")} in
         ctx.owns(items.lines) || !positionKey
           ? ""
           : `\ncreate unique index if not exists ${sqlIdent(`bsb_${name}_position_key`)} on ${t} (${c("parent")}, ${c("position")});`
-      }${addExtraColumns(t, extras)}
+      }
 ${lockTable(t, { read: true })}
 drop policy if exists ${sqlIdent(`${name}_read`)} on ${t};
 create policy ${sqlIdent(`${name}_read`)} on ${t} for select to authenticated

@@ -10,7 +10,6 @@ import type { InviteTable } from "./invitations-tables.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   memberAddedRecord,
   organizationMissing,
@@ -105,7 +104,6 @@ const NAMES: BlockSqlNames = {
     "tokenBytes",
     "tokenStorage",
     "validFor",
-    "extraColumns",
     "defaultRole",
     "onAccept",
   ],
@@ -187,7 +185,7 @@ create table if not exists ${t.table} (
 );
 alter table ${t.table} alter column ${c("tenant")} set not null;
 alter table ${t.table} alter column ${c("role")} drop default;
-${add("invitedBy", "uuid references auth.users (id) on delete set null")}${add("createdAt", "timestamptz not null default now()")}${add("acceptedBy", "uuid references auth.users (id) on delete set null")}${add("declinedAt", "timestamptz")}${add("revokedAt", "timestamptz")}${add("prefill", "jsonb not null default '{}'")}${addExtraColumns(t.table, t.extras).trimStart()}${t.extras.length === 0 ? "" : "\n"}${onAcceptColumns(ctx, t)}
+${add("invitedBy", "uuid references auth.users (id) on delete set null")}${add("createdAt", "timestamptz not null default now()")}${add("acceptedBy", "uuid references auth.users (id) on delete set null")}${add("declinedAt", "timestamptz")}${add("revokedAt", "timestamptz")}${add("prefill", "jsonb not null default '{}'")}${onAcceptColumns(ctx, t)}
 drop index if exists ${sqlIdent(ctx.tableName("invitations").schema)}.invitations_open_idx;
 create unique index if not exists invitations_open_email_idx
   on ${t.table} (${c("tenant")}, lower(${c("email")})) where ${where};

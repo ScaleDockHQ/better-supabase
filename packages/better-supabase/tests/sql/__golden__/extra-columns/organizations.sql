@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:38c6f0a3b78a15869bfba8f7316128930b4c2b37ec62fa7e6a89b5763253a71a
+-- @bsb-hash sha256:a8f5e2807411642dfc0c7840460408ec44019cbfe15f7332cbc15990e7c7ac84
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,7 +15,6 @@ create table "better_supabase"."organizations" (
   "disabled_at" timestamptz,
   "deleted_at" timestamptz
 );
-alter table "better_supabase"."organizations" add column "app_note" text;
 create unique index organizations_slug_idx on "better_supabase"."organizations" (lower("slug"::text)) where "deleted_at" is null;
 create index organizations_created_by_idx on "better_supabase"."organizations" ("created_by");
 alter table "better_supabase"."organizations" add column "updated_at" timestamptz not null default now();

@@ -313,7 +313,7 @@ Pass `rowKey` to group rows differently, for example by subject only. The header
 
 ## Your own columns
 
-Add columns to the time entry table with `blocks.time-tracking.options.extraColumns`
+Add columns to the time entry table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `start`, `log` and `update` validates and writes them, and every method that returns an entry return them parsed under
 `fields`. The block also takes `hooks` around its methods; see

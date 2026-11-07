@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { renderBlocks } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 const sqlOf = (module: string, modules: AnyBlocksConfig): string =>
   renderBlocks([module], { modules })

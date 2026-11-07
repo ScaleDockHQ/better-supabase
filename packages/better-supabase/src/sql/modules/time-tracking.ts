@@ -11,7 +11,6 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -113,7 +112,6 @@ const NAMES: BlockSqlNames = {
   options: [
     "policy",
     "timeZone",
-    "extraColumns",
     "approvals",
     "userTimeZone",
     "owner",
@@ -520,7 +518,7 @@ create table if not exists ${entries} (
           ? `
 alter table ${entries} drop constraint if exists ${sqlIdent(`${ctx.tableName("entries").name}_no_overlap`)};`
           : ""
-      }${addExtraColumns(entries, extras)}
+      }
 alter table ${entries} add column if not exists ${e("rateCurrency")} text;
 ${rateChecks(ctx)}
 ${manyTimers ? `drop index if exists ${sqlIdent(ctx.tableName("entries").schema)}.${sqlIdent(`${ctx.tableName("entries").name}_running_idx`)};` : `create unique index if not exists ${sqlIdent(`${ctx.tableName("entries").name}_running_idx`)} on ${entries} (${e("tenant")}, ${eOwner}) where ${e("endedAt")} is null;`}
@@ -630,7 +628,7 @@ create trigger ${ctx.naming.rename("bsb_time_entry_guard")}
   for each row execute function ${fn("time_entry_guard")}();
 
 -- Starts a timer for the caller, stopping the one that runs. fields: the
--- extra columns (blocks.time-tracking.options.extraColumns) to set.
+-- extra columns (columns your schema files add) to set.
 ${dropNumericSignatures(ctx)}
 ${extra.drop(fn("start_timer"), `${ctx.idType}, text, text, boolean, bigint, text, text`)}
 create or replace function ${fn("start_timer")}(tenant ${ctx.idType}, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null${extra.param})

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:61c827a5a88a5e0de15ae495b6892960ae4b5083513a4fbe104dea70c3255b15
+-- @bsb-hash sha256:b463c450aed7e93347ff049d4660fa4b8a2f50a2733dc1076835adcb0100354b
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -69,7 +69,6 @@ create table "better_supabase"."inspections" (
   check ("planned_end" is null or "planned_start" is null or "planned_end" >= "planned_start"),
   foreign key ("tenant_id", "program_id") references "better_supabase"."inspection_programs" ("tenant_id", "id") on delete restrict
 );
-alter table "better_supabase"."inspections" add column "app_note" text;
 create index "inspections_tenant_idx" on "better_supabase"."inspections" ("tenant_id", "status", "planned_start" desc);
 create index "inspections_program_idx" on "better_supabase"."inspections" ("tenant_id", "program_id") where "program_id" is not null;
 create index "inspections_lead_idx" on "better_supabase"."inspections" ("tenant_id", "lead_id") where "lead_id" is not null;

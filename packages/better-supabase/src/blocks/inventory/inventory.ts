@@ -65,9 +65,9 @@ export interface InventoryOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the locations' extra columns
-   * (`blocks.inventory.options.extraColumns`), keyed by column name. It types
-   * and parses `fields` on `saveLocation` and validates the ones it writes.
+   * A Standard Schema for the locations' extra columns (columns the app's
+   * schema files add to the table), keyed by column name. It types and parses
+   * `fields` on `saveLocation` and validates the ones it writes.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around any inventory method. */
@@ -107,8 +107,8 @@ export interface SavedLocation<F extends object = Record<never, never>> {
   readonly code: string;
   readonly active: boolean;
   /**
-   * The app's extra columns (`options.extraColumns`), by column name; absent
-   * without any.
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name; absent without any.
    */
   readonly fields?: Readonly<Record<string, unknown>> & F;
 }

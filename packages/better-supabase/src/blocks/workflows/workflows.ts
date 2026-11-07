@@ -88,7 +88,10 @@ export interface WorkflowRun<F extends object = Record<never, never>> {
   readonly idempotencyKey: string | undefined;
   /** Until when a process holds the run's dispatch lease. */
   readonly dispatchUntil: Temporal.Instant | undefined;
-  /** The extra columns `options.runExtraColumns` adds, by database name. */
+  /**
+   * The extra columns the columns the app's schema files add adds, by database
+   * name.
+   */
   readonly fields: ExtraFields<F>;
 }
 

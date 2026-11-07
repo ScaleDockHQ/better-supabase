@@ -63,8 +63,8 @@ export interface ShipmentsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the shipments' extra columns
-   * (`blocks.shipments.options.extraColumns`), keyed by database name.
+   * A Standard Schema for the shipments' extra columns (columns the app's
+   * schema files add to the table), keyed by database name.
    */
   readonly fields?: S;
   /**

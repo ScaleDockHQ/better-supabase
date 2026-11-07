@@ -45,7 +45,7 @@ const colOrNull = (
 ): string =>
   ctx.has(table, column) ? `${alias}.${ctx.col(table, column)}` : "null";
 
-/** `options.extraColumns`, which the collections table gets. */
+/** The columns your schema files add, which the collections table gets. */
 export const collectionExtras = (
   ctx: BlockSqlContext,
 ): readonly ExtraColumn[] =>

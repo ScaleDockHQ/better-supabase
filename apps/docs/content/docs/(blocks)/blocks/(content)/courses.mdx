@@ -72,9 +72,8 @@ import { useCourses } from "@/lib/supabase/hooks";
 const rows = useCourses({ limit: 50 });
 ```
 
-| Option         | Default | What it does                         |
-| -------------- | ------- | ------------------------------------ |
-| `extraColumns` | none    | Extra columns on the `courses` table |
+| Option | Default | What it does |
+| ------ | ------- | ------------ |
 
 | Table                    | Holds                                                                                      |
 | ------------------------ | ------------------------------------------------------------------------------------------ |
@@ -92,7 +91,7 @@ example `{ course: "training" }`; see [Typed blocks](/docs/blocks/typed-blocks).
 `courseInputSchema` and `courseLessonInputSchema` validate what `upsert` and
 `saveLesson` take.
 
-`blocks.courses.options.extraColumns` adds columns to the `courses` table,
+Columns you add to `courses` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createCourses` a Standard
 Schema for them as `fields`, and `upsert` takes them under `fields`. See
 [your own fields](/docs/extending/blocks#your-own-fields).

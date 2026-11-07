@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:9faf7046307da76e46b457b7e93730a61ce273ae6274111e7d018bafdf3a968e
+-- @bsb-hash sha256:e87428403352a996c42cd040ba042d17397056bef8f8413cd0780ae67479b537
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -60,7 +60,6 @@ create table "better_supabase"."funding_awards" (
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "better_supabase"."funding_products" ("tenant_id", "id")
 );
-alter table "better_supabase"."funding_awards" add column "app_note" text;
 create index "funding_awards_product_idx" on "better_supabase"."funding_awards" ("tenant_id", "product_id");
 create index "funding_awards_subject_idx" on "better_supabase"."funding_awards" ("subject_type", "subject_id");
 create index "funding_awards_funder_idx" on "better_supabase"."funding_awards" ("tenant_id", "funder_id", "status");

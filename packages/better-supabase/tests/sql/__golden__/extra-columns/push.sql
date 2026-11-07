@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_054_push.sql
 -- better-supabase module: push
 -- @bsb-block push@3 managed
--- @bsb-hash sha256:91649da6550ce315233ff409f19fc2efacc3bb6dd3eddb1ee0aee4d748a34cc8
+-- @bsb-hash sha256:95341eb99579b2b7ee69cb5324585dd19474d81bee7523b7af0b62390fddf012
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23,7 +23,6 @@ create table "better_supabase"."push_devices" (
   "last_seen_at" timestamptz not null default now()
 );
 create index push_devices_user_idx on "better_supabase"."push_devices" ("user_id");
-alter table "better_supabase"."push_devices" add column "app_note" text;
 alter table "better_supabase"."push_devices" enable row level security;
 revoke all on "better_supabase"."push_devices" from public, anon, authenticated;
 grant select, delete on "better_supabase"."push_devices" to authenticated;

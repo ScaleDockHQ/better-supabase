@@ -177,13 +177,12 @@ codemod; a new block uses the convention from the start.
   (ADR 0015), declared in `NAMES.hooks` and called with `ctx.hook`. A
   mutating function of a module listed in `tests/sql/block-hooks.test.ts`
   gets both; add a new module there once it supports extension.
-- A managed table that accepts app columns takes `options.extraColumns`
-  through `ctx.extraColumns(table, reserved)`, which refuses names the
-  module uses, and writes them with `addExtraColumns` from `shared.ts`.
+- A managed table that accepts app columns reads the ones app files add
+  through `ctx.extraColumns(table, reserved)`, which skips names the module
+  uses. The module never adds them (ADR 0256, ADR 0257).
   A write that takes them as a separate argument uses `extraFieldsArg`
   from `shared.ts` for it: the parameter is always `fields jsonb default
-  null`, and `drop` goes before the function so turning `extraColumns` on
-  or off never leaves two overloads (`tests/sql/extra-fields-overloads.test.ts`).
+  null`, and `drop` goes before the function so a table with or without app columns never leaves two overloads (`tests/sql/extra-fields-overloads.test.ts`).
 - Every new module installs next to every other one with the default
   config: `sql-modules.integration.test.ts` installs them all into
   `better_supabase`, and the pg-delta round trip diffs them.

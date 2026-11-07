@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:6831ea12ea21d50a3cc91f1298f1afe543e4d351b81b8a10d29a13041fa3164c
+-- @bsb-hash sha256:bee96e3247a1a42a5b556b24aec2f04ede85a7122421d66e1f4406123dd78523
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,6 @@ create table "better_supabase"."signature_requests" (
 );
 -- What signing means (blocks.signatures.options.meanings), such as approved.
 
-alter table "better_supabase"."signature_requests" add column "app_note" text;
 create index "signature_requests_subject_idx" on "better_supabase"."signature_requests" ("tenant_id", "subject_type", "subject_id");
 create index "signature_requests_version_idx" on "better_supabase"."signature_requests" ("version_id");
 create index "signature_requests_signers_idx" on "better_supabase"."signature_requests" using gin ("signers");
@@ -65,7 +64,7 @@ create policy signatures_read on "better_supabase"."signatures"
 -- retention and delete_version keep it; without one, the record's columns
 -- are snapshotted first. meaning says what signing means, one of
 -- blocks.signatures.options.meanings. fields: the extra columns
--- (blocks.signatures.options.extraColumns) to set.
+-- (columns your schema files add) to set.
 
 create or replace function "better_supabase"."create_signature_request"(tenant uuid, subject_type text, subject_id text, signers uuid[], version_id uuid default null, sign_order text default 'parallel', approval_request_id uuid default null, message text default null, meaning text default null, fields jsonb default null)
 returns jsonb

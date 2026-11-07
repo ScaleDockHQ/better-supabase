@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:2578b7aef4210e34b41834df48df78291fe498b63b263853c858f1a5cd57b05a
+-- @bsb-hash sha256:9b36da2df134d7533f76f248fd616777cb65cadc6adad9a20c219b7e86057a27
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,6 @@ create table "better_supabase"."goals" (
   "updated_at" timestamptz not null default now(),
   check ("period_end" >= "period_start")
 );
-alter table "better_supabase"."goals" add column "app_note" text;
 create index "goals_period_idx" on "better_supabase"."goals" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
 alter table "better_supabase"."goals" enable row level security;
 revoke all on "better_supabase"."goals" from public, anon, authenticated;

@@ -80,9 +80,7 @@ export const APPROVALS_NAMES: BlockSqlNames = {
     "platformPolicies",
     "conditions",
     "tenantless",
-    "extraColumns",
     "notifications",
-    "policyExtraColumns",
   ],
   tables: {
     requests: {

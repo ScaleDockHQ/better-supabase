@@ -49,9 +49,9 @@ export interface DonationsOptions<
   /** Charges online gifts and pledge installments. */
   readonly payments?: PaymentProvider;
   /**
-   * A Standard Schema for the gift's extra columns
-   * (`blocks.donations.options.extraColumns`), keyed by database name. It types
-   * and parses them on reads, and validates them on `recordGift` and `give`.
+   * A Standard Schema for the gift's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `recordGift` and `give`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

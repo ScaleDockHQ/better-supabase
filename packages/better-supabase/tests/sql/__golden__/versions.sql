@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:80991bea4a7fe629ad97e8977ce5eecaf75392024527d136b8aea195099fb8ba
+-- @bsb-hash sha256:6dad41951449688719188a7cd5020391727fc0f32bec21a910efeceacf0922d1
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -100,7 +100,7 @@ $$;
 revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) to service_role;
 
--- fields: the extra columns (blocks.versions.options.extraColumns) to set
+-- fields: the extra columns (columns your schema files add) to set
 -- on the version written, or on the latest one when the content is unchanged.
 
 create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null)
@@ -421,7 +421,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:5560808c023cdf07fed56c87e67ed8992921838d15ab5901ade3860b6bebd7ef
+-- @bsb-hash sha256:e1a37f6d69575b1f05f05a6a0cc1409fb65a1577bd335067855e23202add1741
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -523,7 +523,7 @@ $$;
 revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) to service_role;
 
--- fields: the extra columns (blocks.versions.options.extraColumns) to set
+-- fields: the extra columns (columns your schema files add) to set
 -- on the version written, or on the latest one when the content is unchanged.
 
 create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null)
@@ -899,7 +899,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:6df5bd2f670c5168903056edf8e773ee52bf131c7516627979d3b3a0cb5b814d
+-- @bsb-hash sha256:ab0d7b5a3167a55a25b763c29234e34aa9a1de78c6c63e458e11875a592c655a
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1003,7 +1003,7 @@ $$;
 revoke execute on function "app_private"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) from public, anon, authenticated;
 grant execute on function "app_private"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) to service_role;
 
--- fields: the extra columns (blocks.versions.options.extraColumns) to set
+-- fields: the extra columns (columns your schema files add) to set
 -- on the version written, or on the latest one when the content is unchanged.
 
 create or replace function "app_private"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null)
@@ -1324,7 +1324,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:789606cad0fd25a888821dd132bc18bf5824f2ffa5dde79f4bb81a3de998761a
+-- @bsb-hash sha256:4cc3f762ed513a3559861b6bcd42250466efd24480f467a088df9cda87109da3
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1423,7 +1423,7 @@ $$;
 revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) to service_role;
 
--- fields: the extra columns (blocks.versions.options.extraColumns) to set
+-- fields: the extra columns (columns your schema files add) to set
 -- on the version written, or on the latest one when the content is unchanged.
 
 create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null)
@@ -1813,7 +1813,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:ca2ff33fa70bfd6efb22e203dc3f3c5995e2499285702bfb1ba6d8952717e723
+-- @bsb-hash sha256:375bea475685136c608a2001ac5034a8fd47f3c75ca76d7c49e40ebba1db0875
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1909,7 +1909,7 @@ $$;
 revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) to service_role;
 
--- fields: the extra columns (blocks.versions.options.extraColumns) to set
+-- fields: the extra columns (columns your schema files add) to set
 -- on the version written, or on the latest one when the content is unchanged.
 
 create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null)
@@ -2230,7 +2230,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:4eb0e209bfa20847e817e7786fc8deb3d02d29518ca58c6510a68685abd0fcb2
+-- @bsb-hash sha256:f3adb56d045a477cc9f76a0721234fc1432db68f1b3e2378967e9019d9858f93
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2329,7 +2329,7 @@ $$;
 revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) to service_role;
 
--- fields: the extra columns (blocks.versions.options.extraColumns) to set
+-- fields: the extra columns (columns your schema files add) to set
 -- on the version written, or on the latest one when the content is unchanged.
 
 create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null)

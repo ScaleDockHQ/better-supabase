@@ -416,9 +416,9 @@ export interface TasksOptions<
   readonly transport: BlockTransport;
   readonly schema?: string;
   /**
-   * A Standard Schema for the item's extra columns
-   * (`blocks.tasks.options.extraColumns`), keyed by database name. It types and
-   * parses them on reads, and validates them on `create` and `update`.
+   * A Standard Schema for the item's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `create` and `update`.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Tasks<FieldsOf<S>>>>;

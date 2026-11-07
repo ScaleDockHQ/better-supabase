@@ -216,7 +216,7 @@ export function Component(props: { organizationId: string }) {
 
 ## Your own fields
 
-`blocks.announcements.options.extraColumns` adds columns to the `announcements` table,
+Columns you add to `announcements` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createAnnouncements` a Standard Schema
 for them as `fields`: `publish`, `update` take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and `listActive`, `list` return them

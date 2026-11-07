@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:5f8b7de4d0605021dc49c45bec15a605f814441f6c7af19599de4ad4ee7a9013
+-- @bsb-hash sha256:e15a830aa95a477f41a8a434a83a1f5d8297e4a7e1c3ed3449589bff538026f9
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -153,7 +153,6 @@ create table "better_supabase"."production_orders" (
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete restrict
 );
-alter table "better_supabase"."production_orders" add column "app_note" text;
 create index "production_orders_tenant_idx" on "better_supabase"."production_orders" ("tenant_id", "status", "due_on");
 create index "production_orders_version_idx" on "better_supabase"."production_orders" ("tenant_id", "bom_id");
 create index "production_orders_variant_idx" on "better_supabase"."production_orders" ("variant_id", "status");

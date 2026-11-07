@@ -101,7 +101,6 @@ export const MESSAGING_NAMES: BlockSqlNames = {
     "maxBodyLength",
     "editWindow",
     "scheduleQueue",
-    "extraColumns",
     "notify",
   ],
   tables: {

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:621211193ba77f94262720ccd3a2465a0a212cd8be39d4be9c0c15fd3d7d0414
+-- @bsb-hash sha256:cff13d3c922d64042f45eea46431180a718fb6653accc7eea9326e2b31314e97
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,6 @@ create table "better_supabase"."drive_nodes" (
   "updated_at" timestamptz not null default now(),
   check ("external_id" is null or "source" <> 'internal')
 );
-alter table "better_supabase"."drive_nodes" add column "app_note" text;
 create unique index "drive_nodes_sibling_name_idx" on "better_supabase"."drive_nodes" ("tenant_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null and "source" = 'internal';
 create index "drive_nodes_parent_idx" on "better_supabase"."drive_nodes" ("tenant_id", "parent_id", "rank");
 create index "drive_nodes_parent_fk_idx" on "better_supabase"."drive_nodes" ("parent_id") where "parent_id" is not null;

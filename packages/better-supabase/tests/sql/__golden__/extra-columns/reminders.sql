@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:c7d0e94619e52683d5e51922e472dcd327d37a9708f4ff83ab580ad094b3192f
+-- @bsb-hash sha256:e90d3b67a375f3bddd0312f22b90333a151535aa38d1162c9b45bb9c3db40bb2
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,6 @@ create table "better_supabase"."reminders" (
   "offset_minutes" integer not null default 0
 );
 alter table "better_supabase"."reminders" add column "remind_at" timestamptz;
-alter table "better_supabase"."reminders" add column "app_note" text;
 alter table "better_supabase"."reminders" enable row level security;
 revoke all on "better_supabase"."reminders" from public, anon, authenticated;
 grant select on "better_supabase"."reminders" to authenticated;

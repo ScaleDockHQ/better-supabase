@@ -181,7 +181,7 @@ const EVENT_KEYS: readonly string[] = [
   "fields",
 ];
 
-/** `options.extraColumns`, which the events table gets. */
+/** The columns your schema files add, which the events table gets. */
 export const eventExtras = (
   ctx: BlockSqlContext,
 ): ReturnType<BlockSqlContext["extraColumns"]> => {

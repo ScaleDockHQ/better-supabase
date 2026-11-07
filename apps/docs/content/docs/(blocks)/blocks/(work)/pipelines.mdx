@@ -229,16 +229,14 @@ With the [notifications](/docs/blocks/notifications) module installed, the owner
 
 ## Your own fields
 
-`options.extraColumns` adds columns to `pipelines`. `upsert` writes them from `fields`,
+Columns you add to `pipelines` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)). `upsert` writes them from `fields`,
 and `upsert` and `list` return them in `fields`. Pass a Standard Schema as `fields`
 to type them: writes are validated before they reach the database (a
 `validation` error), and reads are parsed. `hooks` refuses, rewrites or
 observes any method; see [extending blocks](/docs/extending/blocks).
 
-```ts title="better-supabase.config.ts"
-export default defineConfig({
-  blocks: { pipelines: { options: { extraColumns: { team: "text" } } } },
-});
+```sql title="supabase/schemas/pipelines.sql"
+alter table "better_supabase"."pipelines" add column "team" text;
 ```
 
 ```ts

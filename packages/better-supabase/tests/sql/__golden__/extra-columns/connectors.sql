@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:7f473fdcc9e4ec45f86147860a72583078d057665cef657908ce97894450f970
+-- @bsb-hash sha256:cc728c070da13a5a064d174abfa753eccfc974ffec17b76c001e2cf83e4b05db
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,6 @@ create table "better_supabase"."connector_servers" (
   "updated_at" timestamptz not null default now(),
   check (("auth_type" = 'header') = ("credential_ref" is not null))
 );
-alter table "better_supabase"."connector_servers" add column "app_note" text;
 create index connector_servers_tenant_idx on "better_supabase"."connector_servers" ("organization_id");
 create index connector_servers_created_by_idx on "better_supabase"."connector_servers" ("created_by");
 alter table "better_supabase"."connector_servers" enable row level security;

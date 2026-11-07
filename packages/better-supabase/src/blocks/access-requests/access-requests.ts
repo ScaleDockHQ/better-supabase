@@ -35,10 +35,10 @@ export interface AccessRequestsOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the request columns the app adds
-   * (`blocks.access-requests.options.extraColumns`), keyed by column name. It
-   * types and parses them on every read, and validates them on `request`, which
-   * returns a `validation` error for a bad value.
+   * A Standard Schema for the request columns the app adds (columns the app's
+   * schema files add to the table), keyed by column name. It types and parses
+   * them on every read, and validates them on `request`, which returns a
+   * `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

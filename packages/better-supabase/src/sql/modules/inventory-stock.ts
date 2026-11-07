@@ -19,8 +19,8 @@ export interface InventoryNames {
   readonly reserve: string;
   readonly purchase: string;
   /**
-   * `options.extraColumns` on the locations table, which `save_location` writes
-   * from `fields`.
+   * The columns your schema files add on the locations table, which
+   * `save_location` writes from `fields`.
    */
   readonly extras: readonly ExtraColumn[];
 }

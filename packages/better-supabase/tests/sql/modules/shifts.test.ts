@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { BlockSqlContext } from "../../../src/sql/context.ts";
 
 import { SHIFTS } from "../../../src/sql/modules/shifts.ts";
-import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
+import { customContracts } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 

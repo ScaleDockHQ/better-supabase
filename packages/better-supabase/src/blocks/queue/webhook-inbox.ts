@@ -127,10 +127,10 @@ export interface WebhookInboxOptions<
    */
   readonly maxBodyBytes?: number;
   /**
-   * A Standard Schema for the message's extra columns
-   * (`blocks.webhook-inbox.options.extraColumns`), keyed by database name. It
-   * validates them on `store`, and types and parses them on `list` and on the
-   * messages `process` hands the handler.
+   * A Standard Schema for the message's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It validates them on
+   * `store`, and types and parses them on `list` and on the messages `process`
+   * hands the handler.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around `store`, `list` and `purge`. */

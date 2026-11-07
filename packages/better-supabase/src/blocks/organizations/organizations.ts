@@ -41,8 +41,8 @@ import { decodeOverview } from "./overview.ts";
 
 /**
  * Organization columns by database name: `name`, `slug`, the columns in
- * `blocks.organizations.options.attributes` and the ones `options.extraColumns`
- * adds. Other keys are ignored.
+ * `blocks.organizations.options.attributes` and the ones the columns the app's
+ * schema files add adds. Other keys are ignored.
  */
 export interface OrganizationAttributes {
   readonly name?: string;
@@ -76,9 +76,8 @@ export interface InviteRequest<
   /** Profile fields to fill in on sign-up. */
   readonly prefill?: Readonly<Record<string, unknown>>;
   /**
-   * Values for the invitations table's extra columns
-   * (`blocks.invitations.options.extraColumns`), checked by
-   * `options.invitationFields`.
+   * Values for the invitations table's extra columns (columns the app's schema
+   * files add to the table), checked by `options.invitationFields`.
    */
   readonly fields?: Partial<I> & Readonly<Record<string, unknown>>;
   /**
@@ -216,15 +215,15 @@ export interface OrganizationsOptions<
   readonly ownerRole?: string;
   /**
    * A Standard Schema for the organization's extra columns
-   * (`options.attributes` and `options.extraColumns`), keyed by database name.
-   * It types and parses them on `mine()`, and validates them on `create` and
-   * `update`, which return a `validation` error for a bad value.
+   * (`options.attributes` and the columns the app's schema files add), keyed by
+   * database name. It types and parses them on `mine()`, and validates them on
+   * `create` and `update`, which return a `validation` error for a bad value.
    */
   readonly fields?: S;
   /**
-   * A Standard Schema for the invitations table's extra columns
-   * (`blocks.invitations.options.extraColumns`). It validates them on `invite`
-   * and parses them on every invitation read.
+   * A Standard Schema for the invitations table's extra columns (columns the
+   * app's schema files add to the table). It validates them on `invite` and
+   * parses them on every invitation read.
    */
   readonly invitationFields?: SI;
   /**

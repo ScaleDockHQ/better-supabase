@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:f1694d9b1a159a112e86ff26f6fbd6fc60f30218c92b546caff5c01ee15b293c
+-- @bsb-hash sha256:4544b3d93bda722491758e0af02542dbe84eb4cea7964a08621fa098c78a1b31
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -70,7 +70,7 @@ $$;
 revoke execute on function "better_supabase"."team_ids_of"(uuid) from public, anon;
 grant execute on function "better_supabase"."team_ids_of"(uuid) to authenticated, service_role;
 
--- fields: the extra columns (blocks.teams.options.extraColumns) to set.
+-- fields: the extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."create_team"(tenant uuid, name text, description text)
 returns jsonb

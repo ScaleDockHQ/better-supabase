@@ -11,7 +11,6 @@ import { sqlIdent } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   raise,
   revokeTable,
   schemaPreamble,
@@ -109,7 +108,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["allowHttp", "trustFirstUse", "sessionTtl", "extraColumns"],
+  options: ["allowHttp", "trustFirstUse", "sessionTtl"],
   tables: {
     servers: {
       name: "connector_servers",
@@ -389,7 +388,7 @@ create table if not exists ${servers} (
   ${v.authType} text not null default 'oauth' check (${v.authType} in ('none', 'oauth', 'header')),
   ${v.credentialRef} jsonb check (${v.credentialRef} is null or (jsonb_typeof(${v.credentialRef}) = 'object' and ${v.credentialRef} ? 'provider')),${line(server("scopes"), `${v.scopes} text[] not null default '{}'`)}${line(server("clientMetadata"), `${v.clientMetadata} jsonb not null default '{}' check (jsonb_typeof(${v.clientMetadata}) = 'object')`)}${line(server("enabled"), `${v.enabled} boolean not null default true`)}${line(server("createdBy"), `${v.createdBy} uuid references auth.users (id) on delete set null`)}${line(server("createdAt"), `${v.createdAt} timestamptz not null default now()`)}${line(server("updatedAt"), `${v.updatedAt} timestamptz not null default now()`)}
   check ((${v.authType} = 'header') = (${v.credentialRef} is not null))
-);${addExtraColumns(servers, extras)}
+);
 create index if not exists ${ctx.naming.rename("connector_servers_tenant_idx")} on ${servers} (${v.tenant});
 ${
   server("createdBy")

@@ -153,7 +153,6 @@ export const NAMES: BlockSqlNames = {
     "roleFunctions",
     "readPolicy",
     "previewPrefix",
-    "extraColumns",
     "maxTextBytes",
     "searchColumn",
     "quota",

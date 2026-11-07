@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:b492d43bc1092b65fb508d2f13ff67ecaa1bd0a6b990fd0e41b443c16396e94a
+-- @bsb-hash sha256:c81ae7f42e4ed6a8a050e17117b4e4cb2565d56978842ab4bf9d9eb11937170f
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -34,7 +34,6 @@ create table "better_supabase"."time_entries" (
     tstzrange("started_at", coalesce("ended_at", 'infinity'::timestamptz)) with &&
   )
 );
-alter table "better_supabase"."time_entries" add column "app_note" text;
 alter table "better_supabase"."time_entries" add constraint "time_entries_rate_currency_check"
   check ("rate_currency" is null or "rate_currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."time_entries" add constraint "time_entries_rate_needs_currency_check"
@@ -149,7 +148,7 @@ create trigger bsb_time_entry_guard
   for each row execute function "better_supabase"."time_entry_guard"();
 
 -- Starts a timer for the caller, stopping the one that runs. fields: the
--- extra columns (blocks.time-tracking.options.extraColumns) to set.
+-- extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."start_timer"(tenant uuid, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null, fields jsonb default null)
 returns jsonb

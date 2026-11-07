@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:42d13c3389bc3276e75e181b1afff3457b06198ced4709024bdb014bb3cb20ce
+-- @bsb-hash sha256:15da92513750ffecbb230ba0662202e751190a3ff607852f3bbaea4b3404ac11
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -32,7 +32,6 @@ create table "better_supabase"."agents" (
   unique ("organization_id", "slug")
 );
 create index agents_owner_idx on "better_supabase"."agents" ("owner_id");
-alter table "better_supabase"."agents" add column "app_note" text;
 create index agents_published_idx on "better_supabase"."agents" ("visibility", "published_at") where "published_at" is not null;
 alter table "better_supabase"."agents" enable row level security;
 revoke all on "better_supabase"."agents" from public, anon, authenticated;

@@ -1,6 +1,6 @@
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:18fc829f1e2bea83571295cd58cbdf1021c1fa034c3f48bf91b7a357a56c7f7e
+-- @bsb-hash sha256:45c8292b399acee416ed1e7e7c2eae2f65bd85503a1024901b5b62daaca039ee
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -27,7 +27,6 @@ create table "better_supabase"."meetings" (
   unique ("tenant_id", "id"),
   check ("ends_at" is null or "ends_at" >= "starts_at")
 );
-alter table "better_supabase"."meetings" add column "room_code" text;
 create index "meetings_tenant_idx" on "better_supabase"."meetings" ("tenant_id", "status", "starts_at" desc);
 alter table "better_supabase"."meetings" enable row level security;
 revoke all on "better_supabase"."meetings" from public, anon, authenticated;

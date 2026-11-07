@@ -23,19 +23,6 @@ import { createTrigger } from "./emit/trigger.ts";
 export const NOTHING = "null;";
 
 /**
- * `alter table ... add column` for each extra column of a managed table that
- * comes from the config; an app file adds its own.
- */
-export const addExtraColumns = (
-  table: string,
-  columns: readonly ExtraColumn[],
-): string =>
-  columns
-    .filter((column) => column.app !== true)
-    .map((column) => `\n${addColumn(table, `${column.ident} ${column.type}`)}`)
-    .join("");
-
-/**
  * A `jsonb` object of `columns` of row `alias`, keyed by column name, so reads
  * return extra columns without exposing the rest of the row.
  */

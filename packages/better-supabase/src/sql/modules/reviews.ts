@@ -9,7 +9,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -54,13 +53,7 @@ const NAMES: BlockSqlNames = {
   entities: { review: { table: "reviews", singular: "review", primary: true } },
   events: EVENTS,
   hooks: ["before_review_submit", "after_review_submit"],
-  options: [
-    "scale",
-    "maxBodyLength",
-    "moderation",
-    "requirePurchase",
-    "extraColumns",
-  ],
+  options: ["scale", "maxBodyLength", "moderation", "requirePurchase"],
   tables: {
     reviews: {
       name: "reviews",
@@ -441,7 +434,7 @@ function build(ctx: BlockSqlContext): string {
   ${r("publishedAt")} timestamptz,
   ${r("createdAt")} timestamptz not null default now(),${optional("updatedAt", () => "timestamptz not null default now()")}
   unique (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("author")})
-);${addExtraColumns(reviews, extras)}
+);
 create index if not exists ${sqlIdent(`${name}_subject_idx`)} on ${reviews} (${r("tenant")}, ${r("subjectType")}, ${r("subjectId")}, ${r("status")}, ${r("createdAt")} desc);
 create index if not exists ${sqlIdent(`${name}_queue_idx`)} on ${reviews} (${r("tenant")}, ${r("status")}, ${r("createdAt")} desc);
 create index if not exists ${sqlIdent(`${name}_author_idx`)} on ${reviews} (${r("author")});${

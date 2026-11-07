@@ -12,7 +12,6 @@ import type { Subject } from "../subjects.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -50,7 +49,7 @@ const EVENTS: BlockSqlEvents<TrashEvents> = {
 const NAMES: BlockSqlNames = {
   events: EVENTS,
   hooks: ["before_trash", "after_trash", "before_untrash", "after_untrash"],
-  options: ["retentionDays", "extraColumns", "deletedAt"],
+  options: ["retentionDays", "deletedAt"],
   tables: {
     items: {
       name: "trash_items",
@@ -430,7 +429,7 @@ function build(ctx: BlockSqlContext): string {
   ${c("trashedAt")} timestamptz not null default now(),
   ${c("purgeAfter")} timestamptz,
   unique (${c("subjectType")}, ${c("subjectId")})
-);${addExtraColumns(items, extras)}
+);
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_tenant_idx`)} on ${items} (${c("tenant")}, ${c("trashedAt")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_batch_idx`)} on ${items} (${c("batch")});
 ${lockTable(items, { read: true })}
@@ -469,7 +468,7 @@ end;
 $$;
 revoke execute on function ${cascade}(${ctx.idType}, text, text, uuid, integer, uuid) from public, anon, authenticated;
 
--- fields: the extra columns (blocks.trash.options.extraColumns) of the
+-- fields: the extra columns (columns your schema files add) of the
 -- subject's trash item.
 ${extra.drop(fn("trash"), `${ctx.idType}, text, text`)}
 create or replace function ${fn("trash")}(tenant ${ctx.idType}, subject_type text, subject_id text${extra.param})

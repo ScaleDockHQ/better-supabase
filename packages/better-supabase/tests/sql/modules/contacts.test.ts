@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import { renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 const sqlOf = (
   options: Record<string, unknown> = {},

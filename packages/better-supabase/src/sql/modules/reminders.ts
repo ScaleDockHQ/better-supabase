@@ -12,7 +12,6 @@ import type { Subject } from "../subjects.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import {
   addCheck,
-  addExtraColumns,
   columnsObject,
   extraFieldsArg,
   fail,
@@ -41,7 +40,7 @@ const NAMES: BlockSqlNames = {
     reminder: { table: "reminders", singular: "reminder", primary: true },
   },
   events: EVENTS,
-  options: ["ruleFormat", "extraColumns"],
+  options: ["ruleFormat"],
   tables: {
     rules: {
       name: "recurrence_rules",
@@ -101,7 +100,7 @@ const NAMES: BlockSqlNames = {
   },
 };
 
-/** `options.extraColumns`, added to a managed reminders table. */
+/** The columns your schema files add, added to a managed reminders table. */
 const extrasOf = (ctx: BlockSqlContext) => ctx.extraColumns("reminders");
 
 const COLUMN = /^[a-z_][a-z0-9_]{0,62}$/;
@@ -254,7 +253,7 @@ create table if not exists ${reminders} (
   ${ctx.col("reminders", "user")} uuid,
   ${ctx.col("reminders", "method")} text not null default 'notification',
   ${ctx.col("reminders", "offsetMinutes")} integer not null default 0
-);${at ? `\nalter table ${reminders} add column if not exists ${remindAt} timestamptz;` : ""}${addExtraColumns(reminders, extras)}
+);${at ? `\nalter table ${reminders} add column if not exists ${remindAt} timestamptz;` : ""}
 ${lockTable(reminders, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("reminders").name}_subject_idx`)} on ${reminders} (${ctx.col("reminders", "subjectType")}, ${ctx.col("reminders", "subjectId")});
 create index if not exists ${sqlIdent(`${ctx.tableName("reminders").name}_tenant_idx`)} on ${reminders} (${ctx.col("reminders", "tenant")});

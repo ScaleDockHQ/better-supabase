@@ -96,9 +96,9 @@ export interface GoalsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the target's extra columns
-   * (`blocks.goals.options.extraColumns`), keyed by database name. It types and
-   * parses them on reads, and validates them on `save`.
+   * A Standard Schema for the target's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `save`.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Goals<FieldsOf<S>>>>;

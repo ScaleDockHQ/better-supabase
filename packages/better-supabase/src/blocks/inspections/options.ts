@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -26,7 +26,6 @@ export type InspectionsSqlOptions = {
    */
   readonly calendar?: string;
   /** Extra columns on the inspections table, set through `fields`. */
-  readonly extraColumns?: ExtraColumns;
 };
 
 export const inspectionsSqlOptions: BlockOptionsSchema<InspectionsSqlOptions> =
@@ -35,5 +34,4 @@ export const inspectionsSqlOptions: BlockOptionsSchema<InspectionsSqlOptions> =
     findingTypes: option.strings(),
     caseFindingTypes: option.strings(),
     calendar: option.string(),
-    extraColumns: option.extraColumns(),
   });

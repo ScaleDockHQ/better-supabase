@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { moduleBody } from "../../../src/sql/render.ts";
+import { moduleBody } from "../app-columns.ts";
 
 const body = (options: Record<string, unknown> = {}) =>
   moduleBody("ai-chat", { modules: { "ai-chat": { options } } })!;

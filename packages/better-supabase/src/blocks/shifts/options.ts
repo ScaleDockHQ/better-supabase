@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -20,7 +20,6 @@ export type ShiftsSqlOptions = {
    */
   readonly timeZone?: string;
   /** Extra columns on the shifts table. */
-  readonly extraColumns?: ExtraColumns;
 };
 
 export const shiftsSqlOptions: BlockOptionsSchema<ShiftsSqlOptions> =
@@ -28,5 +27,4 @@ export const shiftsSqlOptions: BlockOptionsSchema<ShiftsSqlOptions> =
     minRestHours: option.number({ default: 11 }),
     qualificationCheck: option.string<"block" | "warn">({ default: "block" }),
     timeZone: option.string({ default: "UTC" }),
-    extraColumns: option.extraColumns(),
   });

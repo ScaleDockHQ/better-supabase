@@ -163,13 +163,13 @@ interface Column {
 }
 
 /**
- * A Standard Schema for the extra columns of a block table
- * (`blocks.<module>.options.extraColumns`), with no schema library. `gen`
- * writes it into `blocks.generated.ts`, so a block's `fields` type and check
- * the columns the config adds. Text, dates, `int8` and `numeric` are strings,
- * `int2`, `int4` and the floats are numbers, a column with `not null` is a
- * required key and the others may be missing or `null`. Keys the config doesn't
- * list pass through.
+ * A Standard Schema for the extra columns of a block table (the columns your
+ * schema files add), with no schema library. `gen` writes it into
+ * `blocks.generated.ts`, so a block's `fields` type and check the columns the
+ * config adds. Text, dates, `int8` and `numeric` are strings, `int2`, `int4`
+ * and the floats are numbers, a column with `not null` is a required key and
+ * the others may be missing or `null`. Keys the config doesn't list pass
+ * through.
  */
 export function columnsSchema<const C extends Readonly<Record<string, string>>>(
   columns: C,

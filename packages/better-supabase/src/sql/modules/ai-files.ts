@@ -4,7 +4,6 @@ import type { BlockSqlDefinition, BlockSqlUpgrade } from "../module-types.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   raise,
@@ -364,7 +363,7 @@ create unique index if not exists ai_files_object_idx on ${files} (${f.bucket}, 
 create index if not exists ai_files_owner_idx on ${files} (${f.owner});
 create index if not exists ai_files_tenant_idx on ${files} (${f.tenant});
 create index if not exists ai_files_chat_idx on ${files} (${f.chat}) where ${f.chat} is not null;
-create index if not exists ai_files_pending_idx on ${files} (${f.createdAt}) where ${f.status} = 'pending';${addExtraColumns(files, extras)}
+create index if not exists ai_files_pending_idx on ${files} (${f.createdAt}) where ${f.status} = 'pending';
 ${lockModuleTable(ctx, "files", { read: true })}
 drop policy if exists ${tablePolicy("files", "ai_files_read")} on ${files};
 ${renderPolicy(makePolicy({ table: files, name: tablePolicy("files", "ai_files_read"), command: "select", roles: ["authenticated"], using: readable("", f.owner, f.tenant, f.chat) }), { target: files })}

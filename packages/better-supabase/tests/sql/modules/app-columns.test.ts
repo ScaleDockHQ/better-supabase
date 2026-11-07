@@ -29,34 +29,22 @@ describe("columns an app file adds to a block table", () => {
     expect(schemaOf({ appColumns })).toContain("'eu'");
   });
 
-  it("match the same columns an extraColumns option adds, without the add column", () => {
-    const option = renderBlocks(["memberships", "tags"], {
-      modules: {
-        tags: {
-          options: { extraColumns: { region: "text not null default 'eu'" } },
-        },
-      },
-    })
-      .filter((file) => file.kind === "schema" && file.module === "tags")
-      .map((file) => file.contents)
-      .join("\n");
-
-    const strip = (sql: string): string =>
-      sql
-        .split("\n")
-        .filter((line) => !/add column[^;]*"region"/.test(line))
-        .join("\n")
-        .replaceAll(/@bsb-hash.*\n/g, "");
-
-    expect(strip(schemaOf({ appColumns }))).toBe(strip(option));
-  });
-
-  it("are ignored on a table the app creates", () => {
+  it("are fields of a table the app creates when its comment lists them", () => {
     expect(
       schemaOf({
         appColumns,
         ownTables: { "better_supabase.tags": "supabase/schemas/tags.sql" },
       }),
-    ).not.toContain('"region"');
+    ).toContain('"region"');
+  });
+
+  it("skip a column the block already maps", () => {
+    expect(
+      schemaOf({
+        appColumns: {
+          "better_supabase.tags": [{ name: "name", type: "text" }],
+        },
+      }),
+    ).toBe(schemaOf());
   });
 });

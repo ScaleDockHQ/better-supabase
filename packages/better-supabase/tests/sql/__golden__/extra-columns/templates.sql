@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:1271de711e845430efae4cbe241cdbcad8367f2f9f1425c9681295bd4ad68168
+-- @bsb-hash sha256:ec78e8f3ef1cbc06b6f5308813d0e6192894ce6eff7884f8d597c2c4533bf482
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,7 +29,6 @@ create table "better_supabase"."templates" (
   "updated_at" timestamptz not null default now(),
   constraint templates_system_check check (("scope" = 'system') = ("tenant_id" is null))
 );
-alter table "better_supabase"."templates" add column "app_note" text;
 create unique index templates_key_idx on "better_supabase"."templates" ("tenant_id", "key") nulls not distinct where "key" is not null;
 create unique index templates_default_idx on "better_supabase"."templates" ("tenant_id", "type", "language") nulls not distinct where "is_default";
 create index templates_type_idx on "better_supabase"."templates" ("tenant_id", "type");
@@ -94,7 +93,7 @@ create policy template_applications_read on "better_supabase"."template_applicat
 -- Creates a template (template_id null) or renames it and replaces its
 -- settings. tenant null saves a system template, which only the service
 -- role may; a tenant's needs templates.manage there.
--- fields: the extra columns (blocks.templates.options.extraColumns) to set.
+-- fields: the extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb, fields jsonb default null)
 returns jsonb

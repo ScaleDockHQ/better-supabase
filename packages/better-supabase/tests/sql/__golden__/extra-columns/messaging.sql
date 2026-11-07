@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:7d38c9a15271be46cf2e988d3eeab79f3d63436acd6fe0a1b73863728e2d660e
+-- @bsb-hash sha256:943ebf323f52080c36c6b6e03c722dc3cef8fd01c7c6a3a20d4219c36a2cc531
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -117,7 +117,6 @@ create index messaging_messages_author_idx on "better_supabase"."messages" ("aut
 create index messaging_messages_due_idx on "better_supabase"."messages" ("scheduled_for") where "sent_at" is null;
 create index messaging_messages_file_anchor_idx on "better_supabase"."messages" (("anchor" ->> 'attachmentId')) where "anchor" ->> 'kind' = 'file';
 create index messaging_messages_pinned_idx on "better_supabase"."messages" ("conversation_id", "pinned_at" desc) where "pinned_at" is not null;
-alter table "better_supabase"."messages" add column "app_note" text;
 alter table "better_supabase"."messages" enable row level security;
 revoke all on "better_supabase"."messages" from public, anon, authenticated;
 grant select on "better_supabase"."messages" to authenticated;

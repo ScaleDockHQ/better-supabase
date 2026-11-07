@@ -148,7 +148,7 @@ To run over tables you already have, map `tables.links`, `tables.views` and `tab
 
 ## Your own columns
 
-Add columns to the share link table with `blocks.share-links.options.extraColumns`
+Add columns to the share link table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `create` (in its options) validates and writes them, and `create` and `list` return them parsed under
 `fields`. The block also takes `hooks` around its methods; see

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:6ec6fbd119de2df17de50a27a0c27133ff2e2d3bd4a0414f8d337a8fd119de0a
+-- @bsb-hash sha256:3ce54aeae0ccbfeeb39c2a6fa90445a3b98bcb9325b98894f8e868182e38ae94
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -39,7 +39,6 @@ create table "better_supabase"."care_plans" (
   check ("status" = 'draft' or "published_at" is not null),
   check ("status" <> 'archived' or "archived_at" is not null)
 );
-alter table "better_supabase"."care_plans" add column "app_note" text;
 create unique index "care_plans_active_key" on "better_supabase"."care_plans" ("subject_type", "subject_id") where "status" = 'active';
 create index "care_plans_subject_idx" on "better_supabase"."care_plans" ("tenant_id", "subject_type", "subject_id", "version" desc);
 create index "care_plans_review_idx" on "better_supabase"."care_plans" ("review_on") where "status" = 'active';

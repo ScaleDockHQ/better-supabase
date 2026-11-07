@@ -1022,7 +1022,6 @@ const DesignSchema = v.strictObject({
   version: v.optional(v.pipe(v.number(), v.integer(), v.minValue(0))),
   preset: v.optional(PresetSchema),
   appTables: v.optional(designAppTables),
-  extraColumns: v.optional(v.record(v.string(), stringRecord)),
   positions: v.optional(
     v.record(v.string(), v.pipe(v.array(v.number()), v.length(2))),
   ),

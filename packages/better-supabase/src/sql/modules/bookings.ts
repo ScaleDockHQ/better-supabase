@@ -12,7 +12,6 @@ import { sqlIdent } from "../../core/template.ts";
 import { guestOr } from "../guest-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   fail,
   lockTable,
   schemaPreamble,
@@ -75,7 +74,7 @@ const NAMES: BlockSqlNames = {
     "after_booking_confirm",
     "after_booking_cancel",
   ],
-  options: ["extraColumns", "recurring"],
+  options: ["recurring"],
   tables: {
     resources: {
       name: "booking_resources",
@@ -276,7 +275,7 @@ create table if not exists ${p.bookings} (
 create index if not exists ${ctx.naming.rename("bookings_tenant_during_idx")} on ${p.bookings} using gist (${b("tenant")}, ${b("during")});
 create index if not exists ${ctx.naming.rename("bookings_resource_idx")} on ${p.bookings} (${b("resource")});
 create index if not exists ${ctx.naming.rename("bookings_service_idx")} on ${p.bookings} (${b("service")});
-create index if not exists ${ctx.naming.rename("bookings_hold_idx")} on ${p.bookings} (${b("holdExpiresAt")}) where ${b("status")} = 'hold';${addExtraColumns(p.bookings, p.extras)}
+create index if not exists ${ctx.naming.rename("bookings_hold_idx")} on ${p.bookings} (${b("holdExpiresAt")}) where ${b("status")} = 'hold';
 ${lockTable(p.bookings, { read: true })}
 ${renderPolicy(makePolicy({ table: p.bookings, name: ctx.naming.rename("bookings_read"), command: "select", roles: ["authenticated"], using: guestOr(`${ctx.scope.check(b("tenant"), p.read)} or ${b("customerUser")} = (select auth.uid())`, [ctx.scope.guest(b("tenant"), "'booking'", `${b("id")}::text`, "read")]) }), { target: p.bookings })}
 ${recurringOn(ctx) ? seriesTables(p) : ""}`;

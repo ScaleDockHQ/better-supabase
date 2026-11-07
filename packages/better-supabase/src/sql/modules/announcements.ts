@@ -11,7 +11,6 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   fail,
   lockTable,
   raise,
@@ -45,7 +44,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["topic", "event", "extraColumns"],
+  options: ["topic", "event"],
   tables: {
     announcements: {
       name: "announcements",
@@ -228,7 +227,7 @@ create table if not exists ${a} (
 -- the check.
 alter table ${a} drop constraint if exists bsb_announcements_audience;
 alter table ${a} add constraint bsb_announcements_audience check (${ca("audience")} in (${audiences.map(sqlString).join(", ")}));
-create index if not exists ${ctx.naming.rename("announcements_window_idx")} on ${a} (${ca("startsAt")}, ${ca("endsAt")});${has("createdBy") ? `\ncreate index if not exists ${ctx.naming.rename("announcements_created_by_idx")} on ${a} (${ca("createdBy")});` : ""}${addExtraColumns(a, extras)}
+create index if not exists ${ctx.naming.rename("announcements_window_idx")} on ${a} (${ca("startsAt")}, ${ca("endsAt")});${has("createdBy") ? `\ncreate index if not exists ${ctx.naming.rename("announcements_created_by_idx")} on ${a} (${ca("createdBy")});` : ""}
 ${lockTable(a)}
 
 create table if not exists ${d} (

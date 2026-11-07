@@ -224,7 +224,7 @@ and a "Done" tab over `saved(organizationId, { completed: true })`.
 
 ## Your own fields
 
-`blocks.collections.options.extraColumns` adds columns to the `subject_collections` table,
+Columns you add to `subject_collections` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createCollections` a Standard Schema
 for them as `fields`: `create`, `rename` take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and `create`, `rename`, `list` return them

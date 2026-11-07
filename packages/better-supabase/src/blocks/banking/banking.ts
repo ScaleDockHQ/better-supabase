@@ -462,8 +462,8 @@ export interface BankingOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the bank accounts' extra columns
-   * (`blocks.banking.options.extraColumns`), keyed by database name.
+   * A Standard Schema for the bank accounts' extra columns (columns the app's
+   * schema files add to the table), keyed by database name.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Banking<FieldsOf<S>>>>;

@@ -12,7 +12,6 @@ import { isRecord } from "../../core/guards.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsJson,
   fail,
   lockTable,
@@ -90,7 +89,7 @@ const NAMES: BlockSqlNames = {
     "after_form_submission",
     "before_public_form_submission",
   ],
-  options: ["handlers", "publicLimit", "extraColumns"],
+  options: ["handlers", "publicLimit"],
   tables: {
     forms: {
       name: "forms",
@@ -416,7 +415,7 @@ ${handlers.map(([key, name]) => `        when ${sqlString(key)} then v_link := $
   ${f("createdAt")} timestamptz not null default now(),
   ${f("updatedAt")} timestamptz not null default now(),
   unique (${f("tenant")}, ${f("key")})
-);${addExtraColumns(forms, extras)}
+);
 ${lockTable(forms, { read: true })}
 ${renderPolicy(makePolicy({ table: forms, name: ctx.naming.rename("forms_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(f("tenant"), read) }), { target: forms })}
 

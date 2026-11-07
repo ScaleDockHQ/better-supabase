@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:b1c514df18e6740c5c70d312b28e8beefd96d1e1407ce30afa6ceb74be50d5c2
+-- @bsb-hash sha256:8988853398d9b11cb3f5badd37907b6d0dd3924e718e7920c924c51d7e231cee
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -69,7 +69,6 @@ create table "better_supabase"."medication_orders" (
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "medication_id") references "better_supabase"."medications" ("tenant_id", "id")
 );
-alter table "better_supabase"."medication_orders" add column "app_note" text;
 create index "medication_orders_item_idx" on "better_supabase"."medication_orders" ("tenant_id", "medication_id");
 create index "medication_orders_subject_idx" on "better_supabase"."medication_orders" ("subject_type", "subject_id");
 create index "medication_orders_status_idx" on "better_supabase"."medication_orders" ("tenant_id", "status");

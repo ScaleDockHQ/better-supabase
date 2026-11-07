@@ -369,7 +369,7 @@ export function pipelineBindings(
 
 export interface Names {
   readonly fn: (name: string) => string;
-  /** `options.extraColumns` of the pipelines table. */
+  /** The columns your schema files add of the pipelines table. */
   readonly extras: readonly ExtraColumn[];
   readonly read: string;
   readonly manage: string;

@@ -104,10 +104,9 @@ export interface ConnectorsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   /**
-   * A Standard Schema for the server's extra columns
-   * (`blocks.connectors.options.extraColumns`), keyed by database name. It
-   * types and parses them on reads, and validates them on `create` and
-   * `update`.
+   * A Standard Schema for the server's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `create` and `update`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

@@ -299,16 +299,14 @@ export function Component() {
 
 ## Your own fields
 
-`options.extraColumns` adds columns to `saved_views`. `upsert` writes them from `fields`,
+Columns you add to `saved_views` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)). `upsert` writes them from `fields`,
 and `upsert`, `duplicate` and `list` return them in `fields`. Pass a Standard Schema as `fields`
 to type them: writes are validated before they reach the database (a
 `validation` error), and reads are parsed. `hooks` refuses, rewrites or
 observes any method; see [extending blocks](/docs/extending/blocks).
 
-```ts title="better-supabase.config.ts"
-export default defineConfig({
-  blocks: { "saved-views": { options: { extraColumns: { color: "text" } } } },
-});
+```sql title="supabase/schemas/saved_views.sql"
+alter table "better_supabase"."saved_views" add column "color" text;
 ```
 
 ```ts

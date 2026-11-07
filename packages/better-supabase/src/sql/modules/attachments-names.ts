@@ -62,7 +62,6 @@ export const NAMES: BlockSqlNames = {
     "scanBuckets",
     "publicBuckets",
     "offline",
-    "extraColumns",
     "topic",
     "sources",
   ],

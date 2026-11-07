@@ -1,4 +1,4 @@
-import type { ExtraColumn, BlockSqlContext } from "../context.ts";
+import type { BlockSqlContext } from "../context.ts";
 
 import {
   WORK_ORDER_PRIORITIES,
@@ -6,7 +6,7 @@ import {
 } from "../../blocks/dispatch/statuses.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, addForeignKey } from "../shared.ts";
+import { addForeignKey } from "../shared.ts";
 import { locationsOf } from "./inventory-stock.ts";
 import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
@@ -32,10 +32,7 @@ export const linked = (ctx: BlockSqlContext): Linked => ({
 });
 
 /** The dispatch tables, their indexes, policies and links to other blocks. */
-export function dispatchTables(
-  ctx: BlockSqlContext,
-  extras: readonly ExtraColumn[],
-): string {
+export function dispatchTables(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return "";
   }
@@ -167,7 +164,7 @@ create table if not exists ${orders} (
   check ((${w("startsAt")} is null) = (${w("endsAt")} is null)),
   check (${w("endsAt")} is null or ${w("endsAt")} > ${w("startsAt")}),
   check (${w("status")} not in (${list(BUSY)}) or (${w("technician")} is not null and ${w("startsAt")} is not null))
-);${addExtraColumns(orders, extras)}
+);
 create index if not exists ${index("workOrders", "tenant_idx")} on ${orders} (${w("tenant")}, ${w("createdAt")} desc);
 create index if not exists ${index("workOrders", "slot_idx")} on ${orders} (${w("technician")}, ${w("startsAt")}) where ${w("startsAt")} is not null;
 create index if not exists ${index("workOrders", "board_idx")} on ${orders} (${w("tenant")}, ${w("startsAt")}) where ${w("startsAt")} is not null;

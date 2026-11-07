@@ -77,7 +77,7 @@ For drawn signatures, ReUI's Signature Pad (free, MIT) captures the image. Uploa
 
 ## Your own columns
 
-Add columns to the signature request table with `blocks.signatures.options.extraColumns`
+Add columns to the signature request table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `request` validates and writes them, and `request`, `get`, `list`, `decline` and `cancel` return them parsed under
 `fields`. The block also takes `hooks` around its methods; see

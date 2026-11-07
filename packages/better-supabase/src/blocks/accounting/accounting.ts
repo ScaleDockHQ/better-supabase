@@ -51,9 +51,9 @@ export interface AccountingOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the entry's extra columns
-   * (`blocks.accounting.options.extraColumns`), keyed by database name. It
-   * types and parses them on reads, and validates them on `saveEntry`.
+   * A Standard Schema for the entry's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `saveEntry`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

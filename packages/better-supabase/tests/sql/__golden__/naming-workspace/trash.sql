@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:534b8a448a95a257d48b31040e2644fc8d0dc989a066b734370ab0acc5d9ee7a
+-- @bsb-hash sha256:b6f8accbd8619c7410ca4f213de2c3debeb6e846ecd8ff7342313602e4590a21
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -56,7 +56,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."trash_cascade"(uuid, text, text, uuid, integer, uuid) from public, anon, authenticated;
 
--- fields: the extra columns (blocks.trash.options.extraColumns) of the
+-- fields: the extra columns (columns your schema files add) of the
 -- subject's trash item.
 
 create or replace function "better_supabase"."trash"(tenant uuid, subject_type text, subject_id text)

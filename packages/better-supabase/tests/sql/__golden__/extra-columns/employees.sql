@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:51fc9fdb81ef9796ceccaa954354fdc4b30ef51b1026928b7d2f3693694ec98a
+-- @bsb-hash sha256:c17a6a2aaafe9b23607667f3659fcbf207e6a97f0efad918b1c82fbd90f56989
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,7 +38,6 @@ create index employees_account_idx on "better_supabase"."employees" ("user_id") 
 create unique index employees_origin_idx on "better_supabase"."employees" ("tenant_id", "origin_type", "origin_id") where "origin_id" is not null;
 create index employees_tenant_status_idx on "better_supabase"."employees" ("tenant_id", "status");
 create index employees_manager_idx on "better_supabase"."employees" ("manager_id") where "manager_id" is not null;
-alter table "better_supabase"."employees" add column "app_note" text;
 alter table "better_supabase"."employees" enable row level security;
 revoke all on "better_supabase"."employees" from public, anon, authenticated;
 grant select on "better_supabase"."employees" to authenticated;

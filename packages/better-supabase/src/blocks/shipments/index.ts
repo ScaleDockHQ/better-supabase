@@ -85,8 +85,6 @@ export type { BlockTransport, RpcClient } from "../../core/block-transport.ts";
 
 export { shipmentsBlock } from "./manifest.ts";
 
-export { shipmentsSqlOptions, type ShipmentsSqlOptions } from "./options.ts";
-
 export { shipmentsBinding, type ShipmentsWrites } from "./record-binding.ts";
 
 export {

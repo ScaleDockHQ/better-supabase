@@ -36,9 +36,9 @@ export interface QualificationsOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the holding's extra columns
-   * (`blocks.qualifications.options.extraColumns`), keyed by database name. It
-   * types and parses them on reads, and validates them on `grant`.
+   * A Standard Schema for the holding's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `grant`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

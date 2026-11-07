@@ -280,10 +280,9 @@ export interface BuilderOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   /**
-   * A Standard Schema for the definition's extra columns
-   * (`blocks["workflow-editor"].options.extraColumns`), keyed by database name.
-   * It types and parses them on the `definitions` reads, and validates them on
-   * `definitions.upsert`.
+   * A Standard Schema for the definition's extra columns (the columns your
+   * schema files add), keyed by database name. It types and parses them on the
+   * `definitions` reads, and validates them on `definitions.upsert`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around `run`, `test` and the methods of each group. */

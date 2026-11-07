@@ -1,9 +1,9 @@
 import { describe, expect, it } from "vitest";
 
 import { SQL_MODULES } from "../../../src/sql/registry.ts";
-import { renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 const body = (
   modules: readonly string[],
@@ -71,13 +71,6 @@ describe("employees module", () => {
     expect(sql).toContain("array['permanent', 'freelance']::text[]");
     expect(sql).toContain('add column "shoe_size" integer');
     expect(sql).toContain("when 'shoe_size' then");
-    expect(() =>
-      body(["employees"], {
-        modules: {
-          employees: { options: { extraColumns: { depth: "integer" } } },
-        },
-      }),
-    ).toThrow(/depth/);
   });
 
   it("runs over the app's employees table without the optional columns and tables", () => {

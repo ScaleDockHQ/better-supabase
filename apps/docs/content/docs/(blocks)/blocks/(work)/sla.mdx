@@ -138,7 +138,7 @@ The ReUI Support Escalations board shows each ticket's SLA timer and turns it to
 
 ## Your own columns
 
-Add columns to the policy table with `blocks.sla.options.extraColumns`
+Add columns to the policy table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `savePolicy` validates and writes them, and `savePolicy` return them parsed under
 `fields`. The block also takes `hooks` around its methods; see

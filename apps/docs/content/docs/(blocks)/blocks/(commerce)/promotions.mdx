@@ -162,16 +162,14 @@ holding discounts above a threshold until an approver signs off (the
 
 ## Your own fields
 
-`options.extraColumns` adds columns to `promotions`. `savePromotion` writes them from `fields`,
+Columns you add to `promotions` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)). `savePromotion` writes them from `fields`,
 and `savePromotion` return them in `fields`. Pass a Standard Schema as `fields`
 to type them: writes are validated before they reach the database (a
 `validation` error), and reads are parsed. `hooks` refuses, rewrites or
 observes any method; see [extending blocks](/docs/extending/blocks).
 
-```ts title="better-supabase.config.ts"
-export default defineConfig({
-  blocks: { promotions: { options: { extraColumns: { campaign: "text" } } } },
-});
+```sql title="supabase/schemas/promotions.sql"
+alter table "better_supabase"."promotions" add column "campaign" text;
 ```
 
 ```ts

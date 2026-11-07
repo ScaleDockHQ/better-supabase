@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:8012f805d8778cc1b3ff0a9bc0bf900916cf53612861ee93645136a681e6be71
+-- @bsb-hash sha256:606e751c4b8da6d13708c06d3abb1dad82de71bc8f7441d388515eaa49a90041
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23,7 +23,7 @@ grant all on "centrakit"."subject_views" to service_role;
 alter table "centrakit"."subject_user_state" enable row level security;
 grant select on "centrakit"."subject_user_state" to authenticated;
 grant all on "centrakit"."subject_user_state" to service_role;
--- fields: the extra columns (blocks.share-links.options.extraColumns) to set.
+-- fields: the extra columns (columns your schema files add) to set.
 
 -- password: at least 8 characters; resolve_share_link then needs it.
 -- download_allowed: false tells the block that serves the subject not to offer

@@ -39,10 +39,21 @@ export interface AlteredTable {
   readonly line: number;
 }
 
+/** The columns a `create table` statement declares, with their type text. */
+export interface CreatedTable {
+  readonly table: string;
+  readonly definitions: readonly {
+    readonly name: string;
+    readonly type: string;
+  }[];
+}
+
 /** What one file declares, before it is placed in the model. */
 export interface ParsedFile {
   readonly objects: readonly DeclaredObject[];
   readonly alters: readonly AlteredTable[];
+  /** Each `create table`, with its columns. */
+  readonly creates: readonly CreatedTable[];
   /** `comment on table` targets with the text of their `@bsb` tag lines. */
   readonly tags: readonly { readonly table: string; readonly tags: string }[];
   /**
@@ -68,7 +79,7 @@ export interface ParsedFile {
  * Changes whenever `parseDeclared` learns a new statement, so a cache drops old
  * entries.
  */
-const PARSER_VERSION = 3;
+const PARSER_VERSION = 4;
 
 const IDENT = String.raw`${NAME}(?:\s*\.\s*${NAME})?`;
 
@@ -173,6 +184,54 @@ function topLevelParts(body: string): string[] {
   return parts;
 }
 
+const COLUMN_DEFINITION = new RegExp(
+  String.raw`^(?!(?:constraint|primary|unique|foreign|check|exclude|like)\b)(${NAME})\s+([\s\S]+)$`,
+  "i",
+);
+
+/** The columns of a `create table` statement written as `flat`. */
+function createdColumns(
+  flat: string,
+  from: number,
+): readonly { readonly name: string; readonly type: string }[] {
+  const open = flat.indexOf("(", from);
+
+  if (open === -1) {
+    return [];
+  }
+
+  let depth = 0;
+  let quote: string | undefined;
+  let close = flat.length;
+
+  for (let at = open; at < flat.length; at += 1) {
+    const char = flat[at]!;
+
+    if (quote !== undefined) {
+      quote = char === quote ? undefined : quote;
+    } else if (char === "'" || char === '"') {
+      quote = char;
+    } else if (char === "(") {
+      depth += 1;
+    } else if (char === ")") {
+      depth -= 1;
+
+      if (depth === 0) {
+        close = at;
+        break;
+      }
+    }
+  }
+
+  return topLevelParts(flat.slice(open + 1, close)).flatMap((part) => {
+    const column = COLUMN_DEFINITION.exec(part);
+
+    return column === null
+      ? []
+      : [{ name: unquote(column[1]!), type: column[2]!.trim() }];
+  });
+}
+
 const COMMENT_TABLE = rule(
   String.raw`comment\s+on\s+table\s+(${IDENT})\s+is\s+'((?:[^']|'')*)'`,
 );
@@ -216,6 +275,7 @@ function arity(statement: string, open: number): number {
 export function parseDeclared(text: string): ParsedFile {
   const objects: DeclaredObject[] = [];
   const alters: AlteredTable[] = [];
+  const creates: CreatedTable[] = [];
   const tags: { table: string; tags: string }[] = [];
   const doBlocks: number[] = [];
   const inserts: number[] = [];
@@ -308,6 +368,13 @@ export function parseDeclared(text: string): ParsedFile {
           ? flat.indexOf("(", created.match[0].length - 1)
           : -1;
 
+      if (created.entry.kind === "table") {
+        creates.push({
+          table: name,
+          definitions: createdColumns(flat, created.match[0].length),
+        });
+      }
+
       objects.push({
         kind: created.entry.kind,
         name: open === -1 ? name : `${name}/${String(arity(flat, open))}`,
@@ -353,6 +420,7 @@ export function parseDeclared(text: string): ParsedFile {
   return {
     objects,
     alters,
+    creates,
     tags,
     policies,
     doBlocks,
@@ -432,9 +500,20 @@ export interface SchemaModel {
   >;
 }
 
+/** The column names a table comment's `@bsb fields a, b` line lists. */
+function fieldsTagged(tags: string): readonly string[] {
+  const line = /^@bsb\s+fields\s+(.+)$/m.exec(tags)?.[1];
+
+  return line === undefined
+    ? []
+    : line.split(/[\s,]+/).filter((name) => name !== "");
+}
+
 /**
- * The columns the app's own files add to a table (`alter table ... add
- * column`), by `schema.table`, with each column's type text.
+ * The columns the app's own files make fields of a block's table, by
+ * `schema.table`, with each column's type text: the ones an `alter table ...
+ * add column` adds, and the ones a table comment lists as `@bsb fields a, b`
+ * for a table the app creates.
  */
 export function appColumnsOf(
   files: readonly { readonly path: string; readonly text: string }[],
@@ -443,13 +522,34 @@ export function appColumnsOf(
   Record<string, readonly { readonly name: string; readonly type: string }[]>
 > {
   const columns: Record<string, { name: string; type: string }[]> = {};
+  const created = new Map<string, Map<string, string>>();
+  const tagged: { table: string; names: readonly string[] }[] = [];
 
   for (const file of files) {
     if (ownerOf(file.path, file.text).kind !== "app") {
       continue;
     }
 
-    for (const alter of cache.get(file.text).alters) {
+    const parsed = cache.get(file.text);
+
+    for (const table of parsed.creates) {
+      const held = created.get(table.table) ?? new Map<string, string>();
+      created.set(table.table, held);
+
+      for (const definition of table.definitions) {
+        held.set(definition.name, definition.type);
+      }
+    }
+
+    for (const comment of parsed.tags) {
+      const names = fieldsTagged(comment.tags);
+
+      if (names.length > 0) {
+        tagged.push({ table: comment.table, names });
+      }
+    }
+
+    for (const alter of parsed.alters) {
       const list = columns[alter.table] ?? [];
       columns[alter.table] = list;
 
@@ -457,6 +557,19 @@ export function appColumnsOf(
         if (!list.some((held) => held.name === definition.name)) {
           list.push(definition);
         }
+      }
+    }
+  }
+
+  for (const { table, names } of tagged) {
+    const list = columns[table] ?? [];
+    columns[table] = list;
+
+    for (const name of names) {
+      const type = created.get(table)?.get(name);
+
+      if (type !== undefined && !list.some((held) => held.name === name)) {
+        list.push({ name, type });
       }
     }
   }

@@ -9,7 +9,6 @@ import { sqlString, sqlIdent } from "../../core/template.ts";
 import { int8Text } from "../money-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   fail,
   lockTable,
   schemaPreamble,
@@ -29,7 +28,7 @@ const NAMES: BlockSqlNames = {
       primary: true,
     },
   },
-  options: ["extraColumns"],
+  options: [],
   tables: {
     targets: {
       name: "goals",
@@ -166,7 +165,7 @@ ${
   ${c("goal")} bigint not null check (${c("goal")} > 0),
   ${c("actual")} bigint not null default 0,${optional("archivedAt", "timestamptz")}${optional("createdAt", "timestamptz not null default now()")}${optional("updatedAt", "timestamptz not null default now()")}
   check (${c("periodEnd")} >= ${c("periodStart")})
-);${addExtraColumns(t, extras)}
+);
 create index if not exists ${sqlIdent(`${ctx.tableName("targets").name}_period_idx`)} on ${t} (${c("tenant")}, ${c("periodStart")}, ${c("periodEnd")})${has("archivedAt") ? ` where ${c("archivedAt")} is null` : ""};
 ${lockTable(t, { read: true })}
 ${renderPolicy(makePolicy({ table: t, name: sqlIdent(`${ctx.tableName("targets").name}_read`), command: "select", roles: ["authenticated"], using: ctx.scope.check(c("tenant"), read) }), { target: t })}

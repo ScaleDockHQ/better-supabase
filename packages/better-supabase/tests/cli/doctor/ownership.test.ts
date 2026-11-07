@@ -351,20 +351,3 @@ describe("BS376 and BS377", () => {
     ).toEqual([]);
   });
 });
-
-describe("BS378", () => {
-  it("flags an extraColumns option and a prefixed one", () => {
-    const found = run([], {
-      blocks: {
-        tags: { options: { extraColumns: { region: "text" } } },
-        calendar: { options: { calendarExtraColumns: { room: "text" } } },
-        tasks: {},
-      },
-    }).filter((entry) => entry.code === "BS378");
-
-    expect(found.map((entry) => entry.message)).toEqual([
-      expect.stringContaining("blocks.tags.options.extraColumns"),
-      expect.stringContaining("blocks.calendar.options.calendarExtraColumns"),
-    ]);
-  });
-});

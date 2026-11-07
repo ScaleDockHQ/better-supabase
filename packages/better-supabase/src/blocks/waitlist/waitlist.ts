@@ -99,10 +99,10 @@ export interface WaitlistOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the entry's extra columns
-   * (`blocks.waitlist.options.extraColumns`), keyed by database name, such as a
-   * company or a use case from the sign-up form. It types and parses them on
-   * `entries`, `approve` and `reject`, and validates them on `join`.
+   * A Standard Schema for the entry's extra columns (columns the app's schema
+   * files add to the table), keyed by database name, such as a company or a use
+   * case from the sign-up form. It types and parses them on `entries`,
+   * `approve` and `reject`, and validates them on `join`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

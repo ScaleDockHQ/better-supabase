@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:3a6f405694873fe80117405ffdb0a4967aab491e32357a4cdabed01fee9f0a3a
+-- @bsb-hash sha256:24224929eaa781fc192e9dc7399ebf8c077f43a1dfdb700f7027f1c4e648c662
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -44,7 +44,6 @@ alter table "better_supabase"."workflow_definitions" add constraint "workflow_de
 alter table "better_supabase"."workflow_definitions" add constraint "workflow_definitions_subject_types_check"
   check (cardinality("subject_types") <= 50 and array_position("subject_types", null) is null);
 create index workflow_definitions_forked_from_idx on "better_supabase"."workflow_definitions" ("forked_from") where "forked_from" is not null;
-alter table "better_supabase"."workflow_definitions" add column "app_note" text;
 alter table "better_supabase"."workflow_definitions" enable row level security;
 revoke all on "better_supabase"."workflow_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_definitions" to authenticated;
@@ -401,7 +400,7 @@ grant execute on function "better_supabase"."validate_workflow_graph"(jsonb) to 
 -- 'system') has no tenant and only the service role saves it; the scope of
 -- a saved definition never changes.
 
--- fields: the extra columns (blocks["workflow-editor"].options.extraColumns) to set.
+-- fields: the extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."save_workflow_definition"(
   tenant uuid,

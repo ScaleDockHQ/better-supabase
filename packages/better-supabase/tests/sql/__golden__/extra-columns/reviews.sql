@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:94d5a4899e7f00379e655130ca284383f650c66b08639afd0082f7882e8add2b
+-- @bsb-hash sha256:b7c84a089e69ce8b7b99bb13b48ae8f16d10a0f93bb84927cbcbfd976adb1741
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -27,7 +27,6 @@ create table "better_supabase"."reviews" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "subject_type", "subject_id", "author_id")
 );
-alter table "better_supabase"."reviews" add column "app_note" text;
 create index "reviews_subject_idx" on "better_supabase"."reviews" ("tenant_id", "subject_type", "subject_id", "status", "created_at" desc);
 create index "reviews_queue_idx" on "better_supabase"."reviews" ("tenant_id", "status", "created_at" desc);
 create index "reviews_author_idx" on "better_supabase"."reviews" ("author_id");

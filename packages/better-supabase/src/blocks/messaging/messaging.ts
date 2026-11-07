@@ -392,8 +392,8 @@ export interface MessagingOptions<
   /** The module schema, or its API schema. Default `better_supabase`. */
   readonly schema?: string;
   /**
-   * A Standard Schema for the message's extra columns
-   * (`blocks.messaging.options.extraColumns`), keyed by database name.
+   * A Standard Schema for the message's extra columns (columns the app's schema
+   * files add to the table), keyed by database name.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Messaging<FieldsOf<S>>>>;

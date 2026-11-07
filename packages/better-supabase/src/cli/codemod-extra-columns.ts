@@ -1,14 +1,17 @@
 import { dirname, posix, resolve } from "node:path";
 
-import type { BlockSqlFile } from "../sql/index.ts";
+import type { BlockSqlLayout } from "../sql/index.ts";
 import type { Codemod, CodemodProject } from "./codemod.ts";
 import type { PlannedFile } from "./core/files.ts";
 
-import { parseDeclared } from "../sql/index.ts";
+import {
+  LEGACY_OPTION,
+  legacyOptionTarget,
+  moduleContext,
+  parseDeclared,
+} from "../sql/index.ts";
 import { codeRanges } from "./code-ranges.ts";
-import { LEGACY_OPTION } from "./legacy-options.ts";
 import { layoutFor } from "./sql/providers.ts";
-import { renderBlocksCached } from "./sql/render-cache.ts";
 
 /** One `extraColumns` option of a block in the config. */
 export interface ExtraColumnsOption {
@@ -21,8 +24,8 @@ export interface ExtraColumnsOption {
 export interface ExtraColumnsInput {
   /** `blocks.<name>.options`, resolved, by block name. */
   readonly options: Readonly<Record<string, Readonly<Record<string, unknown>>>>;
-  /** The schema files the blocks render with those options. */
-  readonly rendered: readonly BlockSqlFile[];
+  /** The `schema.table` a block's legacy option added its columns to. */
+  readonly tableOf: (block: string, key: string) => string | undefined;
   /** The project's own SQL files (not the ones a block wrote). */
   readonly sql: readonly { readonly path: string; readonly text: string }[];
   /** The folder app schema files live in, for a new `<table>.ext.sql`. */
@@ -58,30 +61,6 @@ export function extraColumnsOptions(
 
 const quoted = (name: string): string => name.replaceAll('"', '""');
 
-/**
- * The `schema.table` that a block's rendered file adds `column` to with `alter
- * table ... add column`, or `undefined`.
- */
-function tableOf(
-  rendered: readonly BlockSqlFile[],
-  block: string,
-  column: string,
-): string | undefined {
-  for (const file of rendered) {
-    if (file.kind !== "schema" || (file.instance ?? file.module) !== block) {
-      continue;
-    }
-
-    for (const alter of parseDeclared(file.contents).alters) {
-      if (alter.columns.includes(column)) {
-        return alter.table;
-      }
-    }
-  }
-
-  return undefined;
-}
-
 /** Whether `text` has an `alter table` statement for `schema.table`. */
 function altersTable(text: string, table: string): boolean {
   const schema = table.slice(0, table.indexOf("."));
@@ -106,6 +85,35 @@ function addColumns(
   return `alter table "${quoted(schema!)}"."${quoted(name!)}"\n${columns
     .map(([column, type]) => `  add column "${quoted(column)}" ${type}`)
     .join(",\n")};\n`;
+}
+
+/**
+ * `text` with `columns` listed as `@bsb fields` in the comment of a table the
+ * app creates: an existing `comment on table` gets the line, a table without
+ * one gets the statement.
+ */
+function taggedFields(
+  text: string,
+  table: string,
+  columns: readonly string[],
+): string {
+  const line = `@bsb fields ${columns.join(", ")}`;
+  const [schema, name] = table.split(".");
+
+  const comment = new RegExp(
+    String.raw`(comment\s+on\s+table\s+(?:"?${schema}"?\s*\.\s*)?"?${name}"?\s+is\s+')((?:[^']|'')*)(')`,
+    "i",
+  );
+
+  if (comment.test(text)) {
+    return text.replace(
+      comment,
+      (_all, head: string, body: string, tail: string) =>
+        `${head}${body === "" ? "" : `${body}\n`}${line}${tail}`,
+    );
+  }
+
+  return `${text.replace(/\n*$/, "\n")}\ncomment on table "${quoted(schema!)}"."${quoted(name!)}" is '${line}';\n`;
 }
 
 /**
@@ -174,11 +182,11 @@ export function extraColumnsFiles(input: ExtraColumnsInput): {
 
   for (const option of options) {
     for (const [column, type] of option.columns) {
-      const table = tableOf(input.rendered, option.block, column);
+      const table = input.tableOf(option.block, option.key);
 
       if (table === undefined) {
         review.push({
-          message: `blocks.${option.block}.options.${option.key}.${column}: no table of the block adds this column, so it stays in the config.`,
+          message: `blocks.${option.block}.options.${option.key}.${column}: this release has no table for the option, so it stays in the config.`,
         });
         continue;
       }
@@ -191,7 +199,32 @@ export function extraColumnsFiles(input: ExtraColumnsInput): {
   const edited = new Map<string, string>();
 
   for (const [table, columns] of byTable) {
-    const owner = input.sql.find((file) => altersTable(file.text, table));
+    // A migration that already ran is never edited.
+    const creator = input.sql.find(
+      (file) =>
+        !/[\\/]migrations[\\/]/.test(file.path) &&
+        parseDeclared(file.text).creates.some((each) => each.table === table),
+    );
+
+    if (creator !== undefined) {
+      const current = edited.get(creator.path) ?? creator.text;
+
+      edited.set(
+        creator.path,
+        taggedFields(
+          current,
+          table,
+          columns.map(([column]) => column),
+        ),
+      );
+      continue;
+    }
+
+    const owner = input.sql.find(
+      (file) =>
+        !/[\\/]migrations[\\/]/.test(file.path) &&
+        altersTable(file.text, table),
+    );
 
     if (owner === undefined) {
       const name = table.split(".").at(-1)!;
@@ -265,15 +298,66 @@ export function extraColumnsCodemod(): Codemod {
         return { files: [], review: [] };
       }
 
-      const rendered = await renderBlocksCached(
-        config,
-        config.blockNames,
-        await layoutFor(config, {}, config.blockNames),
+      const clean = <T extends { readonly options?: object | undefined }>(
+        block: T | undefined,
+      ): T | undefined =>
+        block?.options === undefined
+          ? block
+          : {
+              ...block,
+              options: Object.fromEntries(
+                Object.entries(block.options).filter(
+                  ([key]) => !LEGACY_OPTION.test(key),
+                ),
+              ),
+            };
+
+      const cleaned = {
+        ...config,
+        blocks: Object.fromEntries(
+          Object.entries(config.blocks).map(([name, block]) => [
+            name,
+            clean(block),
+          ]),
+        ),
+        instances: Object.fromEntries(
+          Object.entries(config.instances).map(([name, instance]) => [
+            name,
+            { ...instance, config: clean(instance.config) ?? instance.config },
+          ]),
+        ),
+      };
+
+      // The codemod only needs the table names, so a project whose
+      // authorization provider doesn't load yet still gets its columns moved.
+      const layout = await layoutFor(cleaned, {}, config.blockNames).catch(
+        (): BlockSqlLayout => ({
+          modules: cleaned.blocks,
+          instances: cleaned.instances,
+          subjects: cleaned.subjects,
+        }),
       );
+
+      const modules = layout.modules;
+
+      const tableOf = (block: string, key: string): string | undefined => {
+        const ctx = moduleContext(
+          block,
+          { ...layout, ...(modules === undefined ? {} : { modules }) },
+          config.blockNames,
+        );
+
+        return legacyOptionTarget(
+          block,
+          key,
+          config.blocks[block]?.tables,
+          (logical) => ctx.tableName(logical),
+        )?.table;
+      };
 
       return extraColumnsFiles({
         options,
-        rendered,
+        tableOf,
         sql: project.sql,
         schemasDir: resolve(config.root, schemasDirOf(config.sql.dir)),
         ...(project.configFile === undefined

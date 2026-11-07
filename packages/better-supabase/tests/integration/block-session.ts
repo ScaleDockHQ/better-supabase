@@ -5,7 +5,7 @@ import { Pool } from "pg";
 import type { SqlClient } from "../../src/postgres/executor.ts";
 import type { BlockSqlLayout } from "../../src/sql/module-types.ts";
 
-import { renderBlocks } from "../../src/sql/render.ts";
+import { renderBlocks } from "../sql/app-columns.ts";
 import { stackDbUrl } from "./stack-env.ts";
 
 export const dbUrl: string = stackDbUrl();
@@ -156,7 +156,14 @@ export class BlockSession {
 
     for (const file of renderBlocks(names, layout)) {
       if (file.kind !== "test") {
-        await this.client.query(file.contents);
+        // The stack keeps tables between installs, so a column an app file adds
+        // may exist already.
+        await this.client.query(
+          file.contents.replaceAll(
+            /^(alter table \S+ add column )"/gm,
+            '$1if not exists "',
+          ),
+        );
       }
     }
   }

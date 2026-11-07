@@ -421,7 +421,7 @@ approvals: {
 
 ## Your own fields
 
-`blocks.approvals.options.extraColumns` adds columns to the `approval_requests` table,
+Columns you add to `approval_requests` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createApprovals` a Standard Schema
 for them as `fields`: `request` take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and every request read return them
@@ -435,7 +435,7 @@ const client = createApprovals({
 });
 ```
 
-`blocks.approvals.options.policyExtraColumns` adds columns to `approval_policies` the same way, such as a description. It needs `tenantPolicies`. `savePolicy` writes them from `fields`, where a key left out keeps its value, and `listPolicies` and `savePolicy` return them under `fields`.
+Columns you add to `approval_policies` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)): the same way, such as a description. It needs `tenantPolicies`. `savePolicy` writes them from `fields`, where a key left out keeps its value, and `listPolicies` and `savePolicy` return them under `fields`.
 
 ```ts
 await approvals

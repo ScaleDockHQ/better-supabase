@@ -121,7 +121,6 @@ blocks: {
 | `sources`       | `["google-drive", "onedrive"]`  | The providers a connection can mirror                                                        |
 | `roleFunctions` | none                            | App functions or provider row grants that give the caller's role                             |
 | `readPolicy`    | `true`                          | The block's read policies; `false` leaves them to the app                                    |
-| `extraColumns`  | none                            | Columns on the node table that `fields` reads and writes                                     |
 | `quota`         | none                            | `{ meter }`: a usage meter in bytes that uploads must fit, as [Quotas](#quotas) shows        |
 | `maxTextBytes`  | `1048576`                       | The most extracted text kept per file, in bytes                                              |
 | `control`       | none                            | `{ types, reviewMonths, releaseRole }`: [controlled documents](/docs/blocks/drive-documents) |
@@ -269,7 +268,7 @@ if (sent.passwordRequired) {
 
 A file that came through a request has the `source` `request` and no creator, and `drive_node.created` carries that `source`, so a sink can tell the folder's owner a file arrived. Unlike files mirrored from a connection, request files aren't read-only: the folder's editors rename, move and trash them like any other file. When your node table's `source` column is an enum, add `request` to it.
 
-Pass a [Standard Schema](https://standardschema.dev) for the `extraColumns`
+Pass a [Standard Schema](https://standardschema.dev) for the extra columns
 as `fields` to `createDrive`: every node the client returns has its `fields`
 parsed, and `createFolder` and `upload` validate the ones you set before the
 call (see [extending blocks](/docs/extending/blocks#your-own-fields)).

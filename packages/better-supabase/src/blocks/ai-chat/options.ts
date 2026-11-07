@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 import type { AiChatMessageStorage } from "./records.ts";
 
 import { blockOptions, option } from "../options.ts";
@@ -16,27 +16,11 @@ export type AiChatSqlOptions = {
   /** `false` makes the tenant optional: chats and projects outside a tenant. */
   readonly tenant?: boolean;
   readonly messages?: AiChatMessageStorage;
-  readonly extraColumns?: ExtraColumns;
-  readonly projectExtraColumns?: ExtraColumns;
-  readonly participantExtraColumns?: ExtraColumns;
-  readonly messageExtraColumns?: ExtraColumns;
   /**
    * The function that tells whether a user belongs to a team, such as
    * `public.is_team_member`.
    */
   readonly teamMembership?: string;
-  readonly runExtraColumns?: ExtraColumns;
-  readonly approvalExtraColumns?: ExtraColumns;
-  readonly policyExtraColumns?: ExtraColumns;
-  readonly inputExtraColumns?: ExtraColumns;
-  readonly sourceExtraColumns?: ExtraColumns;
-  readonly feedbackExtraColumns?: ExtraColumns;
-  readonly shareExtraColumns?: ExtraColumns;
-  readonly modelExtraColumns?: ExtraColumns;
-  readonly moderationExtraColumns?: ExtraColumns;
-  readonly stepExtraColumns?: ExtraColumns;
-  readonly sandboxExtraColumns?: ExtraColumns;
-  readonly harnessExtraColumns?: ExtraColumns;
 };
 
 export const aiChatSqlOptions: BlockOptionsSchema<AiChatSqlOptions> =
@@ -52,20 +36,4 @@ export const aiChatSqlOptions: BlockOptionsSchema<AiChatSqlOptions> =
     tenant: option.boolean({ default: true }),
     messages: option.unknown<AiChatMessageStorage>({ client: true }),
     teamMembership: option.string(),
-    extraColumns: option.extraColumns(),
-    projectExtraColumns: option.extraColumns(),
-    participantExtraColumns: option.extraColumns(),
-    messageExtraColumns: option.extraColumns(),
-    runExtraColumns: option.extraColumns(),
-    approvalExtraColumns: option.extraColumns(),
-    policyExtraColumns: option.extraColumns(),
-    inputExtraColumns: option.extraColumns(),
-    sourceExtraColumns: option.extraColumns(),
-    feedbackExtraColumns: option.extraColumns(),
-    shareExtraColumns: option.extraColumns(),
-    modelExtraColumns: option.extraColumns(),
-    moderationExtraColumns: option.extraColumns(),
-    stepExtraColumns: option.extraColumns(),
-    sandboxExtraColumns: option.extraColumns(),
-    harnessExtraColumns: option.extraColumns(),
   });

@@ -90,7 +90,7 @@ a `ToolLoopAgent` with its tools, approvals and knowledge search.
 
 ## Your own fields
 
-`blocks.agents.options.extraColumns` adds columns to the `agents` table,
+Columns you add to `agents` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createAgents` a Standard Schema
 for them as `fields`: `create`, `update` take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and every agent read return them

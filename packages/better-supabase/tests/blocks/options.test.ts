@@ -7,48 +7,41 @@ import {
 } from "../../src/blocks/options.ts";
 
 type Options = {
-  readonly extraColumns?: Readonly<Record<string, string>>;
+  readonly patch?: boolean;
   readonly idType?: "uuid" | "bigint";
 };
 
 const schema = blockOptions<Options>({
-  extraColumns: option.extraColumns(),
+  patch: option.boolean(),
   idType: option.string<"uuid" | "bigint">({ default: "uuid" }),
 });
 
 const validate = (value: unknown) => schema["~standard"].validate(value);
 
-describe("option.extraColumns", () => {
-  it("takes column names mapped to SQL types", () => {
-    expect(
-      validate({ extraColumns: { region: "text", tags: "text[]" } }),
-    ).toEqual({ value: { extraColumns: { region: "text", tags: "text[]" } } });
-    expect(validate({ extraColumns: {} })).toEqual({
-      value: { extraColumns: {} },
-    });
-  });
-
-  it("refuses a list or a type that is not a string", () => {
-    for (const extraColumns of [["region"], { region: 1 }, "region text"]) {
-      expect(validate({ extraColumns })).toEqual({
+describe("removed options", () => {
+  it("names the codemod for an extraColumns option", () => {
+    for (const key of ["extraColumns", "lineExtraColumns"]) {
+      expect(validate({ [key]: { region: "text" } })).toEqual({
         issues: [
           {
-            message:
-              '"extraColumns" must be an object of column names to SQL types',
-            path: ["extraColumns"],
+            message: `Option "${key}" was removed: write the column in your schema files. Run "better-supabase codemod extra-columns" to move it`,
+            path: [key],
           },
         ],
       });
     }
   });
 
-  it("writes an object of strings into the JSON Schema", () => {
+  it("calls any other key unknown", () => {
+    expect(validate({ region: 1 })).toEqual({
+      issues: [{ message: 'Unknown option "region"', path: ["region"] }],
+    });
+  });
+
+  it("writes the option kinds into the JSON Schema", () => {
     expect(optionsJsonSchema(schema)).toMatchObject({
       properties: {
-        extraColumns: {
-          type: "object",
-          additionalProperties: { type: "string" },
-        },
+        patch: { type: "boolean" },
         idType: { type: "string", default: "uuid" },
       },
     });

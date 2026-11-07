@@ -13,7 +13,7 @@ const live = await reachable();
 
 // CentraKit keeps its customers and contacts in its own bigint tables. Deals
 // point at them through config.subjects, and work items carry a customer_id
-// extra column, so adopting the blocks needs no change to those tables.
+// column an app file adds, so adopting the blocks needs no change to those tables.
 const EXTRA: Extra = {
   modules: ["subjects", "rank", "pipelines", "deals", "tasks"],
   config: {
@@ -24,7 +24,10 @@ const EXTRA: Extra = {
         prefix: "OPP-",
       },
     },
-    tasks: { options: { extraColumns: { customer_id: "bigint" } } },
+  },
+  appSql: ["alter table better_supabase.tasks add column customer_id bigint;"],
+  appColumns: {
+    "better_supabase.tasks": [{ name: "customer_id", type: "bigint" }],
   },
   subjects: {
     customer: {

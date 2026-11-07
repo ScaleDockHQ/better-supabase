@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:8d45ea16b3838d61d0dfc78bb9d957d533338a790be0a278d96502a04c9c7d1f
+-- @bsb-hash sha256:e7cd4b479382e470f59026bd6d929af7165eb51f69332008b1057ffbbf9f2b79
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,6 @@ create table "better_supabase"."subject_collections" (
 );
 create index subject_collections_tenant_type_idx on "better_supabase"."subject_collections" ("tenant_id", "subject_type", lower("name"));
 create index subject_collections_owner_idx on "better_supabase"."subject_collections" ("owner_id") where "owner_id" is not null;
-alter table "better_supabase"."subject_collections" add column "app_note" text;
 alter table "better_supabase"."subject_collections" enable row level security;
 revoke all on "better_supabase"."subject_collections" from public, anon, authenticated;
 grant select on "better_supabase"."subject_collections" to authenticated;

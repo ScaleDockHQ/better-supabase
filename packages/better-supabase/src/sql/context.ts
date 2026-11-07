@@ -34,6 +34,7 @@ import {
   instanceArea,
   instanceEntityNames,
 } from "./instance-area.ts";
+import { LEGACY_OPTION } from "./legacy-options.ts";
 import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
@@ -416,15 +417,13 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
   /** A declared module option as configured, for object-shaped options. */
   option(name: string): unknown;
   /**
-   * `options.extraColumns` (column name to SQL type), checked: names are
-   * lower-case identifiers, types are SQL types, and no name shadows one of
-   * `table`'s mapped columns or a key in `reserved`, the stable keys the
-   * module's read functions return next to them.
+   * The columns an app schema file adds to `table`, read as fields. Names that
+   * shadow one of `table`'s mapped columns or a key in `reserved`, the stable
+   * keys the module's read functions return next to them, are skipped.
    */
   extraColumns(
     table: string,
     reserved?: readonly string[],
-    name?: string,
   ): readonly ExtraColumn[];
   /**
    * PL/pgSQL that calls the app's hook function when it exists, with `[type,
@@ -552,8 +551,8 @@ export interface BlockSqlContext extends BlockSqlValueMethods {
 }
 
 /**
- * A column the block reads and writes as a field: one from
- * `options.extraColumns`, or one an app file adds to the table (`app`).
+ * A column the block reads and writes as a field: one from the columns your
+ * schema files add, or one an app file adds to the table (`app`).
  */
 export interface ExtraColumn {
   /** The column name, as reads return it. */
@@ -737,6 +736,12 @@ export function createModuleContext(
     if (key === "subjects") {
       throw new TypeError(
         `${where}.options.subjects moved to ${where}.on. Run \`better-supabase upgrade\` to move it.`,
+      );
+    }
+
+    if (LEGACY_OPTION.test(key)) {
+      throw new TypeError(
+        `${where}.options.${key} was removed: write the column in your schema files. Run \`better-supabase codemod extra-columns\` to move it.`,
       );
     }
 
@@ -1327,11 +1332,8 @@ export function createModuleContext(
 
       return value;
     },
-    extraColumns(table, reserved = [], key = "extraColumns") {
+    extraColumns(table, reserved = []) {
       return resolveExtraColumns({
-        module,
-        at: `${where}.options.${key}`,
-        value: option(key),
         known: names.tables[table],
         table,
         reserved,

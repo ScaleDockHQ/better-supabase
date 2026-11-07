@@ -43,9 +43,9 @@ export interface AiFilesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   /**
-   * A Standard Schema for the file columns the app adds
-   * (`blocks.ai-files.options.extraColumns`), keyed by column name. It types
-   * and parses them on the file reads, and validates them on `files.upload` and
+   * A Standard Schema for the file columns the app adds (columns the app's
+   * schema files add to the table), keyed by column name. It types and parses
+   * them on the file reads, and validates them on `files.upload` and
    * `files.store`, which return a `validation` error for a bad value.
    */
   readonly fields?: S;

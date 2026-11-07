@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:d466553951b82d755a1a659095dcbc4fae47266a45a262fff5a945b0a951eaf0
+-- @bsb-hash sha256:ee5e917e6e1d048ad6665f551313729b00ae95469bd5b6d2c7e5abb458d4cb59
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -62,7 +62,6 @@ create index companies_roles_idx on "better_supabase"."companies" using gin ("ro
 create index companies_supplier_status_idx on "better_supabase"."companies" ("tenant_id", "supplier_status") where "supplier_status" is not null;
 create index companies_customer_terms_id_idx on "better_supabase"."companies" ("customer_terms_id") where "customer_terms_id" is not null;
 create index companies_supplier_terms_id_idx on "better_supabase"."companies" ("supplier_terms_id") where "supplier_terms_id" is not null;
-alter table "better_supabase"."companies" add column "app_note" text;
 alter table "better_supabase"."companies" enable row level security;
 revoke all on "better_supabase"."companies" from public, anon, authenticated;
 grant select on "better_supabase"."companies" to authenticated;

@@ -5,6 +5,14 @@ export {
   renderBlocks,
 } from "./render.ts";
 
+export {
+  LEGACY_OPTION,
+  legacyOptionTables,
+  legacyOptionTarget,
+} from "./legacy-options.ts";
+
+export { moduleContext } from "./module-context.ts";
+
 export { isBlockSqlIdType, moduleIdType, MODULE_ID_TYPES } from "./context.ts";
 
 export { moduleDeprecations, upgradePlan } from "./upgrade.ts";

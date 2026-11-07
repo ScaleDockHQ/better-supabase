@@ -1,44 +1,45 @@
 import { describe, expect, it } from "vitest";
 
 import { writeDesign } from "../../../src/cli/sql/design-edit.ts";
-import { resolveConfig } from "../../../src/config/index.ts";
 
 const source = (body: string): string =>
   `import { defineConfig } from 'better-supabase/config';\n\nexport default defineConfig({\n${body}\n});\n`;
 
 describe("writeDesign", () => {
-  it("merges extra columns over the ones the config has", () => {
-    const config = resolveConfig(
-      { blocks: { tags: { options: { extraColumns: { color: "text" } } } } },
-      "/app",
-    );
-
+  it("writes the design's seeds into a JSON config", () => {
     const edit = writeDesign(
       "better-supabase.config.json",
       '{\n  "blocks": { "tags": {} }\n}\n',
-      { extraColumns: { tags: { weight: "integer" } } },
-      config,
+      { seeds: { locale: "nl", variants: { tax: "nl" } } },
     );
 
     expect(edit.ok && JSON.parse(edit.text)).toEqual({
-      blocks: {
-        tags: {
-          options: { extraColumns: { color: "text", weight: "integer" } },
-        },
+      blocks: { tags: {} },
+      database: {
+        seed: { defaults: { locale: "nl", variants: { tax: "nl" } } },
       },
     });
   });
 
+  it("leaves a config without seeds as it is", () => {
+    const text = '{\n  "blocks": { "tags": {} }\n}\n';
+
+    expect(writeDesign("better-supabase.config.json", text, {})).toEqual({
+      ok: true,
+      text,
+    });
+  });
+
   it("says which key it can't set", () => {
-    const blocks = writeDesign(
+    const seeds = writeDesign(
       "better-supabase.config.ts",
-      source("  blocks: { tags: tagsBlock },"),
-      { extraColumns: { tags: { color: "text" } } },
+      source("  database: databaseConfig,"),
+      { seeds: { locale: "nl" } },
     );
 
-    expect(blocks.ok).toBe(false);
-    expect(!blocks.ok && blocks.reason).toContain(
-      "blocks.tags.options.extraColumns can't be set",
+    expect(seeds.ok).toBe(false);
+    expect(!seeds.ok && seeds.reason).toContain(
+      "database.seed.defaults.locale",
     );
   });
 });

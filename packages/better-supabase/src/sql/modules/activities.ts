@@ -12,7 +12,6 @@ import { guestOr } from "../guest-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { readIfAny } from "../read-if-any.ts";
 import {
-  addExtraColumns,
   extraFieldsJson,
   fail,
   lockTable,
@@ -118,7 +117,7 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: ["before_activity_log", "after_activity_log"],
-  options: ["types", "extraColumns", "recordings", "bookings", ...NOTE_OPTIONS],
+  options: ["types", "recordings", "bookings", ...NOTE_OPTIONS],
   tables: {
     engagements: {
       name: "activities",
@@ -394,7 +393,7 @@ ${
 );
 create index if not exists ${sqlIdent(`${ctx.tableName("engagements").name}_owner_open_idx`)} on ${t("engagements")} (${e("tenant")}, ${e("owner")}, ${e("dueAt")}) where ${e("doneAt")} is null;
 create index if not exists ${sqlIdent(`${ctx.tableName("engagements").name}_tenant_created_idx`)} on ${t("engagements")} (${e("tenant")}, ${e("createdAt")} desc);
-${owned("externalRef") ? `create unique index if not exists ${sqlIdent(`${ctx.tableName("engagements").name}_external_ref_idx`)} on ${t("engagements")} (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null;` : ""}${addExtraColumns(t("engagements"), extras)}${noteColumnsSql(ctx)}
+${owned("externalRef") ? `create unique index if not exists ${sqlIdent(`${ctx.tableName("engagements").name}_external_ref_idx`)} on ${t("engagements")} (${e("tenant")}, ${e("externalRef")}) where ${e("externalRef")} is not null;` : ""}${noteColumnsSql(ctx)}
 ${lockTable(t("engagements"), { read: true })}
 create table if not exists ${t("links")} (
   ${l("tenant")} ${ctx.idType} not null,

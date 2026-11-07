@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:6842ab8b2870d9bb0fe353f9d333fcf57814b9da764d61dec0cde1a84fae596e
+-- @bsb-hash sha256:5e506f1e1efc5559aa5d05763d0ad56b93518972865c44cd1a70d7f749dc1b73
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -76,7 +76,6 @@ create table "better_supabase"."risks" (
   check ("status" <> 'closed' or "closed_at" is not null),
   foreign key ("tenant_id", "matrix_id") references "better_supabase"."risk_matrices" ("tenant_id", "id") on delete restrict
 );
-alter table "better_supabase"."risks" add column "app_note" text;
 create index "risks_tenant_idx" on "better_supabase"."risks" ("tenant_id", "status", "residual_score" desc);
 create index "risks_matrix_idx" on "better_supabase"."risks" ("tenant_id", "matrix_id");
 create index "risks_owner_idx" on "better_supabase"."risks" ("tenant_id", "owner_id") where "owner_id" is not null;

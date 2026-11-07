@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:6c9dda895febb3687330ad2207906d1c8587dbc26a691381447db26902722cc1
+-- @bsb-hash sha256:40c532ee82dfacdb58b1def99daf38e8b0801fbc37ebed677555d4a30dd3dc7f
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,6 @@ create table "better_supabase"."ai_scheduled_tasks" (
 create index ai_scheduled_tasks_due_idx on "better_supabase"."ai_scheduled_tasks" ("next_run_at") where "enabled";
 create index ai_scheduled_tasks_user_idx on "better_supabase"."ai_scheduled_tasks" ("user_id", "organization_id");
 create index ai_scheduled_tasks_agent_idx on "better_supabase"."ai_scheduled_tasks" ("agent_id");
-alter table "better_supabase"."ai_scheduled_tasks" add column "app_note" text;
 alter table "better_supabase"."ai_scheduled_tasks" enable row level security;
 revoke all on "better_supabase"."ai_scheduled_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;

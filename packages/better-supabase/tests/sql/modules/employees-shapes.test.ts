@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const USER = "22222222-2222-4222-8222-222222222222";

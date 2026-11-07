@@ -118,11 +118,10 @@ export interface AiSchedulesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   /**
-   * A Standard Schema for the task columns the app adds
-   * (`blocks["ai-schedules"].options.extraColumns`), keyed by column name. It
-   * types and parses them on `create`, `update`, `pause`, `resume` and `list`,
-   * and validates them on `create` and `update`, which return a `validation`
-   * error for a bad value.
+   * A Standard Schema for the task columns the app adds (the columns your
+   * schema files add), keyed by column name. It types and parses them on
+   * `create`, `update`, `pause`, `resume` and `list`, and validates them on
+   * `create` and `update`, which return a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

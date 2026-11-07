@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:762bdda0aa80b9dffe35159f24aa2d9e4f9ad9860b16561b17c889dc99f7c371
+-- @bsb-hash sha256:0b3838acaa59d403047658a32ae9a69aec3dd74e7ad27cbbc890e1409889c7ce
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -651,7 +651,7 @@ grant execute on function "better_supabase"."delete_product"(uuid) to authentica
 -- Creates a variant (variant null) or updates one. option_values holds one
 -- option value id per product option; no two variants share a combination.
 -- On an update a null argument keeps the column and clear names the columns
--- to empty. fields: the extra columns (options.variantExtraColumns) to set.
+-- to empty. fields: the extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."save_variant"(product uuid, variant uuid, sku text, option_values uuid[], title text, barcode text, weight_grams integer, track_inventory boolean, allow_backorder boolean, clear text[] default null)
 returns jsonb
@@ -1368,7 +1368,7 @@ grant execute on function "better_supabase"."variant_price"(uuid, text, uuid, ti
 
 -- Creates a category (category null) or updates one, under parent (null
 -- for the top level). A new category goes after its siblings. fields: the
--- extra columns (options.categoryExtraColumns) to set.
+-- extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."save_category"(tenant uuid, category uuid, parent uuid, name text, slug text, description text)
 returns jsonb

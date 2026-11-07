@@ -4,7 +4,6 @@ import type { IncidentsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { incidentsEvents } from "./events.ts";
 import { createIncidents } from "./incidents.ts";
-import { incidentsSqlOptions } from "./options.ts";
 import {
   incidentChangesSchema,
   incidentInputSchema,
@@ -21,7 +20,6 @@ export const incidentsBlock: BlockOf<
 > = defineBlock({
   name: "incidents",
   sql: ["incidents"],
-  options: { incidents: incidentsSqlOptions },
   events: incidentsEvents,
   schemas: {
     incident: { input: incidentInputSchema, change: incidentChangesSchema },

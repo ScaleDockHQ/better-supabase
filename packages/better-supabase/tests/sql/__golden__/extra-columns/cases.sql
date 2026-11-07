@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:c321180d4486acb17ec8a8095bf329f09983abf7f3a121953505a05f284cf066
+-- @bsb-hash sha256:e7338eef40a214a1822570947f6218ba530d2a9d9e331a28abb188d65db6d42c
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -84,7 +84,6 @@ create table "better_supabase"."cases" (
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "kind_id") references "better_supabase"."case_kinds" ("tenant_id", "id") on delete restrict
 );
-alter table "better_supabase"."cases" add column "app_note" text;
 create index "cases_status_idx" on "better_supabase"."cases" ("tenant_id", "status");
 create index "cases_kind_stage_idx" on "better_supabase"."cases" ("tenant_id", "kind_id", "stage_id");
 create index "cases_board_idx" on "better_supabase"."cases" ("pipeline_id", "stage_id", "rank");

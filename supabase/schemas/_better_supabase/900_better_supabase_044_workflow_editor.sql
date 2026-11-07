@@ -1,6 +1,6 @@
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:6b332de88c33ff052ffd26abbfd28c03c15f0e57b1815553ccd498180d8ebdfe
+-- @bsb-hash sha256:7886edb9c995e3712c89147487cfa676ea3fe9b85367dbe8911560a345ca6790
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -399,7 +399,7 @@ grant execute on function "better_supabase"."validate_workflow_graph"(jsonb) to 
 -- 'system') has no tenant and only the service role saves it; the scope of
 -- a saved definition never changes.
 
--- fields: the extra columns (blocks["workflow-editor"].options.extraColumns) to set.
+-- fields: the extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."save_workflow_definition"(
   tenant uuid,

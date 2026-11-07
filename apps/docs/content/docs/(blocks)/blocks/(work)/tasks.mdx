@@ -171,7 +171,7 @@ With the [notifications](/docs/blocks/notifications) block installed, `watch(id,
 
 ## Extra columns
 
-`options.extraColumns` adds columns to `tasks`, such as a `customer_id`. Every item a read returns carries them in `fields`.
+Columns you add to `tasks` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):, such as a `customer_id`. Every item a read returns carries them in `fields`.
 
 ## Events
 
@@ -211,7 +211,7 @@ The ReUI Kanban blocks commit a drag through `onValueCommit`: call `rank.move("t
 
 ## Your own columns
 
-Add columns to the work item table with `blocks.tasks.options.extraColumns`
+Add columns to the work item table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `create`, and `update` with the column name as `field` validates and writes them, and every method that returns an item return them parsed under
 `fields`. The block also takes `hooks` around its methods; see

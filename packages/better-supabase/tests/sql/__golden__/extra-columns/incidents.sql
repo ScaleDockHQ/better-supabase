@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:a0f10335223a634c4088139b53dc86ced864279b9ad7173a36486e00e578d0b3
+-- @bsb-hash sha256:090a449a58776c21f53290fe68f1bd69dd6864f85e9680bf9ffa4e5736065ba3
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,7 +75,6 @@ create table "better_supabase"."incidents" (
   check (("status" = 'resolved') = ("resolved_at" is not null)),
   unique ("tenant_id", "id")
 );
-alter table "better_supabase"."incidents" add column "app_note" text;
 create index "incidents_tenant_idx" on "better_supabase"."incidents" ("tenant_id", "started_at" desc);
 create index "incidents_open_idx" on "better_supabase"."incidents" ("tenant_id") where "status" <> 'resolved';
 create index "incidents_commander_idx" on "better_supabase"."incidents" ("tenant_id", "commander_id") where "commander_id" is not null;

@@ -24,6 +24,8 @@ import {
   appTableEventTypes,
   BLOCK_OPTION_SCHEMAS,
   instanceFunctions,
+  legacyOptionTarget,
+  moduleContext,
   resolveBlock,
   resolveBlocks,
   SQL_MODULES,
@@ -215,6 +217,7 @@ export function blockConfigEntries(
     "blocks" | "blockNames" | "instances" | "sql" | "subjects"
   >,
   catalog: PresetCatalog = PRESET_CATALOG,
+  appColumns?: AppColumns,
 ): Readonly<Record<string, GeneratedBlock>> {
   const installed = resolveBlocks(config.blockNames, {
     modules: config.blocks,
@@ -243,7 +246,10 @@ export function blockConfigEntries(
       main !== undefined &&
       (others.length === 0 || others.some((each) => each.name === main))
     ) {
-      entries.push([manifest.name, generatedEntry(config, modules)]);
+      entries.push([
+        manifest.name,
+        generatedEntry(config, modules, undefined, appColumns),
+      ]);
     }
 
     for (const instance of others) {
@@ -262,6 +268,7 @@ export function blockConfigEntries(
         { ...config, blocks: { ...config.blocks, [main]: instance.config } },
         modules,
         instanceFunctions(layout, installed, instance.name),
+        appColumns,
       );
 
       entries.push([
@@ -361,10 +368,67 @@ function employeeStatuses(
   return [...new Set(all)];
 }
 
+/** The columns the app's schema files add to a block's table, by file. */
+export type AppColumns = Readonly<
+  Record<string, readonly { readonly name: string; readonly type: string }[]>
+>;
+
+/**
+ * The app columns of the block's main table that its `fields` take: those no
+ * block column already uses.
+ */
+function appFields(
+  config: Pick<
+    ResolvedConfig,
+    "blocks" | "blockNames" | "instances" | "sql" | "subjects"
+  >,
+  module: string,
+  appColumns: AppColumns | undefined,
+): Readonly<Record<string, string>> {
+  if (appColumns === undefined) {
+    return {};
+  }
+
+  try {
+    const ctx = moduleContext(
+      module,
+      {
+        modules: config.blocks,
+        instances: config.instances,
+        subjects: config.subjects,
+        appColumns,
+      },
+      config.blockNames,
+    );
+
+    const target = legacyOptionTarget(
+      module,
+      "extraColumns",
+      config.blocks[module]?.tables,
+      (logical) => ctx.tableName(logical),
+    );
+
+    return target === undefined
+      ? {}
+      : Object.fromEntries(
+          ctx
+            .extraColumns(target.logical)
+            .map((column) => [column.name, column.type]),
+        );
+  } catch {
+    // The block can't render in this project.
+    return {};
+  }
+}
+
 function generatedEntry(
-  config: Pick<ResolvedConfig, "blocks" | "sql">,
+  config: Pick<
+    ResolvedConfig,
+    "blocks" | "blockNames" | "instances" | "sql" | "subjects"
+  >,
   modules: readonly string[],
   instanceFunctionNames?: Readonly<Record<string, string>>,
+  appColumns?: AppColumns,
 ): GeneratedBlock {
   const resolved = resolveBlock(config.blocks[modules[0] ?? ""]);
   const options: Record<string, unknown> = {};
@@ -376,16 +440,12 @@ function generatedEntry(
     }
 
     const configured = resolveBlock(config.blocks[module]).options;
-    const extra = configured["extraColumns"];
 
-    if (columns === undefined && typeof extra === "object" && extra !== null) {
-      const typed = Object.entries(extra).flatMap(([name, type]) =>
-        typeof type === "string" ? [[name, type] as const] : [],
-      );
+    const extra =
+      columns === undefined ? appFields(config, module, appColumns) : {};
 
-      if (typed.length > 0) {
-        columns = Object.fromEntries(typed);
-      }
+    if (Object.keys(extra).length > 0) {
+      columns = extra;
     }
 
     for (const [key, spec] of Object.entries(
@@ -913,13 +973,16 @@ export function emitBlockConfig(
     | "sql"
     | "subjects"
   >,
-  options: { readonly runtimeImport?: string } = {},
+  options: {
+    readonly runtimeImport?: string;
+    readonly appColumns?: AppColumns;
+  } = {},
 ): GeneratedFile | undefined {
   if (config.blockNames.length === 0) {
     return undefined;
   }
 
-  const entries = blockConfigEntries(config);
+  const entries = blockConfigEntries(config, undefined, options.appColumns);
   const events = appTableEvents(config);
   const runtime = options.runtimeImport ?? "better-supabase";
   const renamed = renamedBlockLines(entries);
@@ -985,7 +1048,10 @@ const MAX_LINES = 995;
  */
 export function emitBlockConfigModule(
   config: Parameters<typeof emitBlockConfig>[0],
-  options: { readonly runtimeImport?: string } = {},
+  options: {
+    readonly runtimeImport?: string;
+    readonly appColumns?: AppColumns;
+  } = {},
 ): GeneratedFile | undefined {
   if (config.blockNames.length === 0) {
     return undefined;
@@ -1002,7 +1068,7 @@ export function emitBlockConfigModule(
     " * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema",
     " * and the options its SQL and TypeScript halves share.",
     " */",
-    `export const blockConfig = ${literal(blockConfigEntries(config), "")} as const satisfies GeneratedBlocks;`,
+    `export const blockConfig = ${literal(blockConfigEntries(config, undefined, options.appColumns), "")} as const satisfies GeneratedBlocks;`,
     ...permissionLines(config),
     "",
   ];
@@ -1034,7 +1100,10 @@ function blockClientPath(config: Pick<ResolvedConfig, "output">): string {
  */
 export function emitClientBlocks(
   config: Parameters<typeof emitBlockConfig>[0],
-  options: { readonly runtimeImport?: string } = {},
+  options: {
+    readonly runtimeImport?: string;
+    readonly appColumns?: AppColumns;
+  } = {},
 ): GeneratedFile | undefined {
   const listed = config.gen.clientBlocks ?? [];
 
@@ -1042,7 +1111,7 @@ export function emitClientBlocks(
     return undefined;
   }
 
-  const entries = blockConfigEntries(config);
+  const entries = blockConfigEntries(config, undefined, options.appColumns);
   const renamed = renamedBlockLines(entries).constants;
   const runtime = options.runtimeImport ?? "better-supabase";
 

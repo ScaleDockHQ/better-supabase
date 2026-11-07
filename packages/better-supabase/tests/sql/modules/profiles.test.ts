@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { resolveBlocks } from "../../../src/sql/registry.ts";
-import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
+import { moduleBody, renderBlocks } from "../app-columns.ts";
 
 const CENTRAKIT: AnyBlocksConfig = {
   profiles: {
@@ -266,15 +266,6 @@ describe("profiles module", () => {
     );
   });
 
-  it("rejects an extra column that shadows a mapped column", () => {
-    expect(() =>
-      body({ profiles: { options: { extraColumns: { email: "text" } } } }),
-    ).toThrow(/extraColumns.email shadows/);
-    expect(() =>
-      body({ profiles: { options: { extraColumns: { Bad: "text" } } } }),
-    ).toThrow(/"Bad" is not a valid column name/);
-  });
-
   it("honours updatable, serviceColumns and turning features off", () => {
     const sql = body({
       profiles: {
@@ -309,11 +300,6 @@ describe("profiles module", () => {
     expect(() =>
       body({ profiles: { options: { readPolicy: "members" } } }),
     ).toThrow(/needs the tenant module/);
-    expect(() =>
-      body({
-        profiles: { options: { extraColumns: { x: "text; drop table y" } } },
-      }),
-    ).toThrow(/extraColumns.x/);
     expect(() =>
       body({ profiles: { options: { metadata: { name: "Bad Column" } } } }),
     ).toThrow(/not a valid column name/);

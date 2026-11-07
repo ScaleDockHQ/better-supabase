@@ -1,6 +1,6 @@
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:a72f4ab7ebab212cdef1d0cc77cab357075bb6ad047f414e30b17509f5d91c99
+-- @bsb-hash sha256:50b54f946c3058105aae30c7a31b81cc613945f63f03b01b86033f12f58a3af2
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -91,7 +91,7 @@ create policy expense_lines_read on "better_supabase"."expense_lines"
     or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
 -- Creates or updates the category with this key and its spend policy. fields:
--- the extra columns (options.categoryExtraColumns) to set.
+-- the extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."save_expense_category"(tenant uuid, key text, name text, currency text default null, limit_amount bigint default null, receipt_over bigint default null)
 returns jsonb

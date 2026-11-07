@@ -170,12 +170,8 @@ const describeConflicts = (preset: Preset): string | undefined => {
     : `The preset can't install: ${conflicts.map((conflict) => `${conflict.block ?? conflict.field ?? ""} (${conflict.reason})`).join("; ")}.`;
 };
 
-/**
- * The design `--preset` carries, checked against the blocks the config gets: an
- * extra column needs its block in the preset or the config.
- */
+/** The design `--preset` carries, checked against the preset it applies to. */
 function designFor(
-  config: ResolvedConfig,
   design: CreateDesign | undefined,
   preset: Preset,
 ): CreateDesign | undefined {
@@ -184,19 +180,6 @@ function designFor(
   }
 
   const resolved = resolvePreset(preset);
-
-  const blocks = new Set([
-    ...config.blockNames,
-    ...resolved.blocks.map((block) => block.name),
-  ]);
-
-  for (const module of Object.keys(design.extraColumns ?? {})) {
-    if (!blocks.has(module)) {
-      throw new TypeError(
-        `design.extraColumns.${module}: neither the preset nor the config installs the ${module} block`,
-      );
-    }
-  }
 
   designConfig(
     resolved,
@@ -328,9 +311,7 @@ export async function runApply(
 
   try {
     design =
-      only === "conventions"
-        ? undefined
-        : designFor(config, read.design, preset);
+      only === "conventions" ? undefined : designFor(read.design, preset);
   } catch (error) {
     throw new CliError(
       "usage",
@@ -359,7 +340,7 @@ export async function runApply(
   }
 
   const withDesign =
-    design === undefined ? edit : writeDesign(file, edit.text, design, config);
+    design === undefined ? edit : writeDesign(file, edit.text, design);
 
   if (!withDesign.ok) {
     return {

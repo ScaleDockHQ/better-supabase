@@ -747,7 +747,7 @@ match a definition on their `bsb.definition` attribute, which
 
 ## Your own columns
 
-Add columns to the workflow definition table with `blocks["workflow-editor"].options.extraColumns`
+Add columns to the workflow definition table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `definitions.upsert` validates and writes them, and `definitions.upsert`, `list`, `get` and `fork` return them parsed under
 `fields`. The block also takes `hooks` around its methods; see

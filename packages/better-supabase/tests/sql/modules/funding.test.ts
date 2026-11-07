@@ -3,7 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { BlockSqlContext } from "../../../src/sql/context.ts";
 
 import { FUNDING } from "../../../src/sql/modules/funding.ts";
-import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
+import { customContracts } from "../../../src/sql/render.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 
@@ -98,7 +99,7 @@ describe("funding module", () => {
       sqlOf(TIME, {
         modules: { funding: { options: { timeCategory: "zzz" } } },
       }),
-    ).toThrow('"zzz" is not one of');
+    ).toThrow('"zzz" is not a column your schema files add');
     expect(() =>
       sqlOf(BASE, {
         modules: { funding: { options: { timeCategory: "category" } } },
@@ -239,13 +240,6 @@ describe("funding module", () => {
       `alter table "better_supabase"."funding_awards" add column "indication" text;`,
     );
     expect(sql).toContain("'fields', jsonb_build_object('indication'");
-    expect(() =>
-      sqlOf(BASE, {
-        modules: {
-          funding: { options: { extraColumns: { product: "text" } } },
-        },
-      }),
-    ).toThrow("product");
     expect(sqlOf()).not.toContain("'fields'");
   });
 

@@ -158,7 +158,7 @@ A bin page renders `list()` in a ReUI data grid, with restore and delete-forever
 
 ## Your own columns
 
-Add columns to the trash item, such as a reason, table with `blocks.trash.options.extraColumns`
+Add columns to the trash item, such as a reason, table with `alter table ... add column` in your own schema files
 (column name to SQL type), then pass a Standard Schema for them as `fields`.
 `trash` (the last argument) validates and writes them, and `list` return them parsed under
 `fields`. The block also takes `hooks` around its methods; see

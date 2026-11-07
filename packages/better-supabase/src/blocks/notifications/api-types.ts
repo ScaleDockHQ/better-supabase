@@ -87,7 +87,10 @@ export interface SendInput<
   readonly watchers?: boolean;
   /** Users left out after the watchers and the audience hook are added. */
   readonly exclude?: readonly string[];
-  /** Values for the events table's extra columns (`options.extraColumns`). */
+  /**
+   * Values for the events table's extra columns (the columns the app's schema
+   * files add).
+   */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
 
@@ -377,9 +380,9 @@ export interface NotificationsOptions<
    */
   readonly types: K;
   /**
-   * A Standard Schema for the events table's extra columns
-   * (`blocks.notifications.options.extraColumns`): `send` validates them, and
-   * `get`, `list` and `page` parse them.
+   * A Standard Schema for the events table's extra columns (columns the app's
+   * schema files add to the table): `send` validates them, and `get`, `list`
+   * and `page` parse them.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the methods, such as a rule on `send`. */

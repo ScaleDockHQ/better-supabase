@@ -14,7 +14,7 @@ import {
   accountingSourcesSql,
 } from "../accounting-sources-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, lockTable, schemaPreamble } from "../shared.ts";
+import { lockTable, schemaPreamble } from "../shared.ts";
 import {
   sourceTemplateColumnSql,
   templateColumnSql,
@@ -190,7 +190,7 @@ const NAMES: BlockSqlNames = {
     ...PROCUREMENT_ENTITIES,
   },
   events: EVENTS,
-  options: ["extraColumns", "receiptInspection", "templates"],
+  options: ["receiptInspection", "templates"],
   hooks: [
     "before_stock_adjust",
     "after_stock_adjust",
@@ -341,7 +341,6 @@ const NAMES: BlockSqlNames = {
 /** Inventory's own locations table, when stock doesn't live at assets'. */
 function ownLocations(
   ctx: BlockSqlContext,
-  names: InventoryNames,
   read: (table: string) => string,
 ): string {
   const t = (name: string): string => ctx.table(name);
@@ -358,7 +357,7 @@ create table if not exists ${t("locations")} (
   ${l("createdAt")} timestamptz not null default now(),
   ${l("updatedAt")} timestamptz not null default now(),
   unique (${l("tenant")}, ${l("code")})
-);${addExtraColumns(t("locations"), names.extras)}
+);
 ${lockTable(t("locations"), { read: true })}
 ${read("locations")}
 `;
@@ -412,7 +411,7 @@ function tables(ctx: BlockSqlContext, names: InventoryNames): string {
     ctx.has("purchaseOrders", "originId") ? `\n  ${po("originId")} text,` : "",
   ].join("");
 
-  return `${loc.shared ? "" : ownLocations(ctx, names, read)}
+  return `${loc.shared ? "" : ownLocations(ctx, read)}
 create table if not exists ${t("levels")} (
   ${lv("tenant")} ${ctx.idType} not null,
   ${lv("variant")} uuid not null references ${variants},

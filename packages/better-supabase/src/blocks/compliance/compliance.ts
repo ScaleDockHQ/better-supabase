@@ -37,9 +37,9 @@ export interface ComplianceOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the control's extra columns
-   * (`blocks.compliance.options.extraColumns`), keyed by database name. It
-   * types and parses them on reads, and validates them on `saveControl`.
+   * A Standard Schema for the control's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `saveControl`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

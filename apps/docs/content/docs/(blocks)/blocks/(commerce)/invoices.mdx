@@ -59,12 +59,12 @@ const rows = useInvoices({ limit: 50 });
 
 ## Your own fields
 
-`options.lineExtraColumns` adds columns to the line table, keyed by column
+Columns you add to `line` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):, keyed by column
 name with their SQL type: each line's `fields` writes them, and lines come back with them under `fields` (untyped,
 since `fields` validates the record's own columns). A line table of yours
 runs the same way; see [line tables](/docs/blocks/own-schemas#line-tables).
 
-`blocks.invoices.options.extraColumns` adds columns to the `invoices` table,
+Columns you add to `invoices` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. `create` writes them from the input by name, and every invoice comes back with them under `fields`. Pass a
 [Standard Schema](https://standardschema.dev) as `fields` to type them,
 parse them on reads and validate them on writes; a bad value is a
@@ -156,7 +156,7 @@ Every invoice a read returns has `balance` and `overdue` (open and past its due 
 
 `charge(invoiceId, { amount, description? })` adds an amount on top of an issued invoice's total, such as collection costs, statutory interest or a late fee, in the invoice's currency. Charges live in the `invoice_charges` table (`tables.charges`, which can be your own table or `null`), raise the balance and the aging, and come back as `charges` and `chargedTotal` on every read. A paid invoice with a new charge is `partially_paid` again until the charge is paid. Each charge records `invoice.charged`. `removeCharge(chargeId)` deletes a charge added by mistake from an issued invoice, settles the balance again and records `invoice.charge_removed`.
 
-Your own charges table can carry columns the block doesn't know, such as a `kind not null` column. List them in `options.chargeExtraColumns` (`{ kind: "text not null" }`) and pass them as `charge(invoiceId, { amount, fields: { kind: "collection" } })`; reads return them under each charge's `fields`.
+Your own charges table can carry columns the block doesn't know, such as a `kind not null` column. Add them to the charges table, then pass them as `charge(invoiceId, { amount, fields: { kind: "collection" } })`; reads return them under each charge's `fields`.
 
 ### Line rates as percentages
 

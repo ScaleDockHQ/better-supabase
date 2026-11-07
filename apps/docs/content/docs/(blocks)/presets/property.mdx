@@ -48,8 +48,7 @@ second run posts nothing new.
 
 Maintenance requests are an instance of the tasks block, which the preset
 writes as `blocks.maintenance` with the work item named
-`maintenance_request`. Add a `unit_id` column with
-`blocks.maintenance.options.extraColumns` to tie each request to a unit. Its
+`maintenance_request`. Add a `unit_id` column to the maintenance requests table in one of your schema files to tie each request to a unit. Its
 client creates a request and moves it through its statuses. A tenant is a guest, never a member:
 invite them and grant their lease, and they comment on it and upload files
 to it through the comments and attachments blocks. The

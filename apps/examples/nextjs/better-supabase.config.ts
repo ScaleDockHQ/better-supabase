@@ -294,8 +294,6 @@ export default defineConfig({
       options: {
         // Organizations tighten these policies with their own (ADR 0119).
         tenantPolicies: true,
-        // A description per organization policy, written through `fields`.
-        policyExtraColumns: { description: "text" },
         policies: {
           // One floor for an action on every subject type that files it.
           "*": { "quote.send": { steps: [], effects: ["money-movement"] } },
@@ -414,10 +412,7 @@ export default defineConfig({
       block: "tasks",
       names: { task: "maintenance_request" },
       tables: { projects: null, iterations: null },
-      options: {
-        prefix: "MR",
-        extraColumns: { unit_id: "uuid", lease_id: "uuid" },
-      },
+      options: { prefix: "MR" },
     },
     "saved-views": { tables: { views: "shared_views" } },
     sla: {},
@@ -489,10 +484,7 @@ export default defineConfig({
     inspections: { options: { calendar: "Audits" } },
     // Meetings with an agenda, minutes, votes on decisions and action items
     // that open as tasks; planned meetings mirror to the "Meetings" calendar.
-    meetings: {
-      options: { calendar: "Meetings", extraColumns: { room_code: "text" } },
-      uses: { tasks: "tasks" },
-    },
+    meetings: { options: { calendar: "Meetings" }, uses: { tasks: "tasks" } },
     // Preventive plans by time or meter that open dispatch work orders with
     // their spare parts, plus meter readings and calibrations.
     maintenance: {},

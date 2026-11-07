@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -8,7 +8,6 @@ export type ApiKeysSqlOptions = {
   readonly kinds?: readonly string[];
   readonly touchInterval?: number;
   readonly prefix?: string;
-  readonly extraColumns?: ExtraColumns;
 };
 
 export const apiKeysSqlOptions: BlockOptionsSchema<ApiKeysSqlOptions> =
@@ -17,5 +16,4 @@ export const apiKeysSqlOptions: BlockOptionsSchema<ApiKeysSqlOptions> =
     kinds: option.strings(),
     touchInterval: option.number({ default: 60 }),
     prefix: option.string({ default: "bs", client: true }),
-    extraColumns: option.extraColumns(),
   });

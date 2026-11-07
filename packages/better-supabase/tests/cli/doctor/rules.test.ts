@@ -5,7 +5,7 @@ import { dirname, join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { AdvisorSource, Lint } from "../../../src/cli/doctor/advisors.ts";
-import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
+import type { DoctorContext, TextFile } from "../../../src/cli/doctor/rules.ts";
 import type {
   Catalog,
   CatalogTable,
@@ -1197,18 +1197,31 @@ describe("audit registrations of dropped tables (BS322)", () => {
 });
 
 describe("flags past their expiry (BS336)", () => {
-  const withExpiry = (extraColumns: Record<string, string>) => ({
-    blocks: { flags: { options: { extraColumns } } },
+  /** The app schema file that adds `columns` to the flags table. */
+  const withExpiry = (columns: Record<string, string>) => ({
+    config: { blocks: ["flags"] },
+    sqlFiles: [
+      {
+        path: "supabase/schemas/flags.sql",
+        text: Object.entries(columns)
+          .map(
+            ([name, type]) =>
+              `alter table "better_supabase"."flags" add column "${name}" ${type};\n`,
+          )
+          .join(""),
+      },
+    ],
   });
 
   const live = (
-    config: Parameters<typeof context>[2],
+    app: { config: Parameters<typeof context>[2]; sqlFiles?: TextFile[] },
     rows: Record<string, unknown>[] | Error,
     queries: string[] = [],
   ): Parameters<typeof run>[1] =>
     context(
       base,
       {
+        ...(app.sqlFiles === undefined ? {} : { sqlFiles: app.sqlFiles }),
         database: {
           describe: "test",
           session: true,
@@ -1221,7 +1234,7 @@ describe("flags past their expiry (BS336)", () => {
           },
         },
       },
-      config,
+      app.config,
     );
 
   it("reports each expired flag with its owner", async () => {
@@ -1270,7 +1283,9 @@ describe("flags past their expiry (BS336)", () => {
     expect(
       await run("BS336", live(withExpiry({ owner: "text" }), rows)),
     ).toEqual([]);
-    expect(await run("BS336", live({ blocks: ["audit"] }, rows))).toEqual([]);
+    expect(
+      await run("BS336", live({ config: { blocks: ["audit"] } }, rows)),
+    ).toEqual([]);
     expect(
       await run(
         "BS336",
@@ -1280,7 +1295,7 @@ describe("flags past their expiry (BS336)", () => {
     expect(
       await run(
         "BS336",
-        context(base, {}, withExpiry({ expires_at: "timestamptz" })),
+        context(base, {}, withExpiry({ expires_at: "timestamptz" }).config),
       ),
     ).toEqual([]);
   });

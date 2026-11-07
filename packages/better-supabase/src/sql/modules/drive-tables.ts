@@ -3,7 +3,7 @@ import type { DriveKit } from "./drive-kit.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { RANK_KEY_PATTERN } from "../rank-sql.ts";
-import { addExtraColumns, ensureCheck, fail, lockTable } from "../shared.ts";
+import { ensureCheck, fail, lockTable } from "../shared.ts";
 import { documentColumnsSql } from "./drive-documents.ts";
 
 /** The drive tables and the triggers that keep paths and drives in step. */
@@ -26,7 +26,6 @@ export function driveTablesSql(kit: DriveKit): string {
     d,
     dg,
     c,
-    extras,
     sourceColumn,
     externalColumn,
     metadataColumn,
@@ -199,7 +198,7 @@ ${lockTable(DG, { read: true })}
   check (${n("externalId")} is null or ${n("source")} <> 'internal')`
       : ""
   }
-);${addExtraColumns(T, extras)}
+);
 create unique index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_sibling_name_idx`)} on ${T} (${n("tenant")}${driveColumn ? `, ${n("drive")}` : ""}, coalesce(${n("parent")}, '00000000-0000-0000-0000-000000000000'::uuid), lower(${n("name")})) where ${n("deletedAt")} is null${sourceColumn ? ` and ${n("source")} = 'internal'` : ""};
 create index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_parent_idx`)} on ${T} (${n("tenant")}${driveColumn ? `, ${n("drive")}` : ""}, ${n("parent")}, ${n("rank")});
 create index if not exists ${sqlIdent(`${ctx.tableName("nodes").name}_parent_fk_idx`)} on ${T} (${n("parent")}) where ${n("parent")} is not null;

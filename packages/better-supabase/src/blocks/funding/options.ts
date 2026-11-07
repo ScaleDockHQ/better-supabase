@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -16,12 +16,10 @@ export type FundingSqlOptions = {
    */
   readonly timeCategory?: string;
   /** Extra columns on the funding awards table. */
-  readonly extraColumns?: ExtraColumns;
 };
 
 export const fundingSqlOptions: BlockOptionsSchema<FundingSqlOptions> =
   blockOptions<FundingSqlOptions>({
     formats: option.strings({ default: [] }),
     timeCategory: option.string(),
-    extraColumns: option.extraColumns(),
   });

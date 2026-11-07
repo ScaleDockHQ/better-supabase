@@ -13,7 +13,6 @@ import { employeeKeyBackfillSql, employeeKeySql } from "../employee-key-sql.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   addForeignKey,
   fail,
   lockTable,
@@ -106,9 +105,6 @@ const NAMES: BlockSqlNames = {
   ],
   options: [
     "employmentTypes",
-    "extraColumns",
-    "privateDetailsExtraColumns",
-    "contractExtraColumns",
     "name",
     "privateDetails",
     "contracts",
@@ -310,7 +306,7 @@ create unique index if not exists ${ctx.naming.rename("employees_user_idx")} on 
 create index if not exists ${ctx.naming.rename("employees_account_idx")} on ${t("employees")} (${e("user")}) where ${e("user")} is not null;
 create unique index if not exists ${ctx.naming.rename("employees_origin_idx")} on ${t("employees")} (${e("tenant")}, ${e("originType")}, ${e("originId")}) where ${e("originId")} is not null;
 create index if not exists ${ctx.naming.rename("employees_tenant_status_idx")} on ${t("employees")} (${e("tenant")}, ${e("status")});
-create index if not exists ${ctx.naming.rename("employees_manager_idx")} on ${t("employees")} (${e("manager")}) where ${e("manager")} is not null;${addExtraColumns(t("employees"), ctx.extraColumns("employees", RESERVED))}
+create index if not exists ${ctx.naming.rename("employees_manager_idx")} on ${t("employees")} (${e("manager")}) where ${e("manager")} is not null;
 ${lockTable(t("employees"), { read: true })}
 ${renderPolicy(makePolicy({ table: t("employees"), name: ctx.naming.rename("employees_read"), command: "select", roles: ["authenticated"], using: `${ctx.scope.check(e("tenant"), n.read)} or ${e("user")} = (select auth.uid())` }), { target: t("employees") })}
 
@@ -336,7 +332,7 @@ ${ctx.has("privateDetails", "address") ? `  ${p("address")} jsonb check (${p("ad
   ${p("anonymizedAt")} timestamptz,
   ${p("updatedAt")} timestamptz not null default now(),
   ${p("updatedBy")} uuid
-);${addExtraColumns(t("privateDetails"), ctx.extraColumns("privateDetails", [], "privateDetailsExtraColumns"))}
+);
 ${ctx.has("privateDetails", "user") ? `create index if not exists ${ctx.naming.rename("employee_private_details_user_idx")} on ${t("privateDetails")} (${p("user")}) where ${p("user")} is not null;\n` : ""}${lockTable(t("privateDetails"), { read: true })}
 ${renderPolicy(
   makePolicy({
@@ -371,7 +367,7 @@ create table if not exists ${t("contracts")} (
   ${k("createdAt")} timestamptz not null default now(),
   check (${k("endsOn")} is null or ${k("endsOn")} >= ${k("startsOn")}),
   check ((${k("salary")} is null) = (${k("currency")} is null))
-);${addExtraColumns(t("contracts"), ctx.extraColumns("contracts", [], "contractExtraColumns"))}
+);
 create index if not exists ${ctx.naming.rename("employee_contracts_employee_idx")} on ${t("contracts")} (${k("employee")}, ${k("startsOn")} desc);
 ${lockTable(t("contracts"), { read: true })}
 ${renderPolicy(

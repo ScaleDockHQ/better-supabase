@@ -252,15 +252,14 @@ which writes `hooks/use-messaging.ts` into the app.
 
 ## Options
 
-| Option          | Default       | What it does                                                |
-| --------------- | ------------- | ----------------------------------------------------------- |
-| `topic`         | `"messages"`  | The Realtime topic prefix                                   |
-| `threadDepth`   | `1`           | `1` keeps threads one level deep; `"unlimited"` nests them  |
-| `maxBodyLength` | `40000`       | The longest body, in characters                             |
-| `editWindow`    | `0`           | Seconds an author may edit a message; `0` for always        |
-| `scheduleQueue` | `"messaging"` | The jobs queue for scheduled messages                       |
-| `extraColumns`  | none          | Extra columns on `messages`, set through `fields` in `send` |
-| `notify`        | `true`        | `false` sends no message notifications                      |
+| Option          | Default       | What it does                                               |
+| --------------- | ------------- | ---------------------------------------------------------- |
+| `topic`         | `"messages"`  | The Realtime topic prefix                                  |
+| `threadDepth`   | `1`           | `1` keeps threads one level deep; `"unlimited"` nests them |
+| `maxBodyLength` | `40000`       | The longest body, in characters                            |
+| `editWindow`    | `0`           | Seconds an author may edit a message; `0` for always       |
+| `scheduleQueue` | `"messaging"` | The jobs queue for scheduled messages                      |
+| `notify`        | `true`        | `false` sends no message notifications                     |
 
 ## Events
 

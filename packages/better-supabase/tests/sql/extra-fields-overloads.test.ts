@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderBlocks } from "../../src/sql/render.ts";
+import { renderBlocks } from "./app-columns.ts";
 
 // A write that takes `fields jsonb` only with extra columns has two
 // signatures; a build creates one of them.

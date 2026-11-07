@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:0adc045b7ad500241c9dcac43b179c885d268c91887374f00efe9476b4543476
+-- @bsb-hash sha256:777dc7ce2401c665bc25b256529f1b85e143ff92066e81c577206b2b5bf07100
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19,7 +19,6 @@ create table "better_supabase"."forms" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
-alter table "better_supabase"."forms" add column "app_note" text;
 alter table "better_supabase"."forms" enable row level security;
 revoke all on "better_supabase"."forms" from public, anon, authenticated;
 grant select on "better_supabase"."forms" to authenticated;

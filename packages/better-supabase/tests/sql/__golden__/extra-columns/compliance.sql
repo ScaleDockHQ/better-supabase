@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:1768cdaea6cb0b207228f6da89ec57aef711703335ac585132ee76d6227410ad
+-- @bsb-hash sha256:aa7ed9b02453cc9b57d9315c5c9a209dbfa3cd2df7c85f91c9db1d028db95624
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -49,7 +49,6 @@ create table "better_supabase"."controls" (
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "framework_id") references "better_supabase"."control_frameworks" ("tenant_id", "id") on delete cascade
 );
-alter table "better_supabase"."controls" add column "app_note" text;
 create index "controls_tenant_idx" on "better_supabase"."controls" ("tenant_id", "framework_id");
 create index "controls_owner_idx" on "better_supabase"."controls" ("tenant_id", "owner_id") where "owner_id" is not null;
 alter table "better_supabase"."controls" enable row level security;

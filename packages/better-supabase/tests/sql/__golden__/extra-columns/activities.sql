@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:f97c9e381b2e95f9992b932aabcc45c781ff36ef33b1d3b4f9f8e98e8d60d9c9
+-- @bsb-hash sha256:1040de2c8ac61aa739d5a9ab41a0e1c5afae37b8b1deb8f2bcf4240e39564ccb
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,7 +26,6 @@ create table "better_supabase"."activities" (
 create index "activities_owner_open_idx" on "better_supabase"."activities" ("tenant_id", "owner_user_id", "due_at") where "done_at" is null;
 create index "activities_tenant_created_idx" on "better_supabase"."activities" ("tenant_id", "created_at" desc);
 create unique index "activities_external_ref_idx" on "better_supabase"."activities" ("tenant_id", "external_ref") where "external_ref" is not null;
-alter table "better_supabase"."activities" add column "app_note" text;
 -- Progress notes: who reads an engagement, when it locks, its addenda and the
 -- in-error flag.
 alter table "better_supabase"."activities" add column "audience" text not null default 'team' check ("audience" in ('team', 'subject', 'restricted'));

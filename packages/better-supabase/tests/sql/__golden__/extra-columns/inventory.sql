@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:828b2e158e94f0ac7c17650a208db96d49dce1b5f51b1a1881bf6927d96f3e0d
+-- @bsb-hash sha256:a702836d6ad7d8f16b7a968629bc03496ae888f140208a93edd873456cde3b78
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23,7 +23,6 @@ create table "better_supabase"."inventory_locations" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
 );
-alter table "better_supabase"."inventory_locations" add column "app_note" text;
 alter table "better_supabase"."inventory_locations" enable row level security;
 revoke all on "better_supabase"."inventory_locations" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_locations" to authenticated;

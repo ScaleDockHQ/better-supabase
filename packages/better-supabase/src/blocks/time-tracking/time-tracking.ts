@@ -51,10 +51,9 @@ export interface TimeTrackingOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the entry's extra columns
-   * (`blocks.time-tracking.options.extraColumns`), keyed by database name. It
-   * types and parses them on reads, and validates them on `start`, `log` and
-   * `update`.
+   * A Standard Schema for the entry's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `start`, `log` and `update`.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

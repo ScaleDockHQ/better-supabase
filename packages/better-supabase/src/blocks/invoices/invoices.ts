@@ -99,7 +99,7 @@ export interface InvoiceCharge {
   readonly amount: Money;
   readonly description?: string;
   readonly createdAt?: Temporal.Instant;
-  /** The charge's extra columns (`options.chargeExtraColumns`). */
+  /** The charge's extra columns (the columns the app's schema files add). */
   readonly fields?: Readonly<Record<string, unknown>>;
 }
 
@@ -209,7 +209,10 @@ export interface Invoice<F extends object = Record<never, never>> {
   readonly lines: readonly Line[];
   readonly payments: readonly InvoicePayment[];
   readonly totals: Totals;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: Readonly<Record<string, unknown>> & F;
   readonly createdAt: Temporal.Instant;
 }
@@ -425,7 +428,10 @@ export interface Invoices<F extends object = Record<never, never>>
     charge: {
       readonly amount: Money;
       readonly description?: string;
-      /** The charge's extra columns (`options.chargeExtraColumns`) by name. */
+      /**
+       * The charge's extra columns (the columns the app's schema files add) by
+       * name.
+       */
       readonly fields?: Readonly<Record<string, unknown>>;
       /** Who added it, for the state machine's history. */
       readonly actor?: TransitionActor;
@@ -465,9 +471,9 @@ export interface InvoicesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   /**
-   * A Standard Schema for the invoices' extra columns
-   * (`blocks.invoices.options.extraColumns`), keyed by column name. It types
-   * and parses `fields` on reads and validates them on `create`.
+   * A Standard Schema for the invoices' extra columns (columns the app's schema
+   * files add to the table), keyed by column name. It types and parses `fields`
+   * on reads and validates them on `create`.
    */
   readonly fields?: S;
   readonly transport: BlockTransport;

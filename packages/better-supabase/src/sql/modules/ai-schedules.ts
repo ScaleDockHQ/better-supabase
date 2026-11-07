@@ -4,7 +4,6 @@ import type { Columns } from "./module-columns.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   withExtraFields,
   writeExtraColumns,
   raise,
@@ -58,7 +57,7 @@ const NAMES: BlockSqlNames = {
       primary: true,
     },
   },
-  options: ["queue", "staleAfter", "maxPrompt", "extraColumns"],
+  options: ["queue", "staleAfter", "maxPrompt"],
   tables: {
     tasks: {
       name: "ai_scheduled_tasks",
@@ -210,7 +209,7 @@ create table if not exists ${tasks} (
   ${t.createdAt} timestamptz not null default now()${task("updatedAt") ? `,\n  ${t.updatedAt} timestamptz not null default now()` : ""}
 );
 create index if not exists ${ctx.naming.rename("ai_scheduled_tasks_due_idx")} on ${tasks} (${t.nextRunAt}) where ${t.enabled};
-create index if not exists ${ctx.naming.rename("ai_scheduled_tasks_user_idx")} on ${tasks} (${t.user}, ${t.tenant});${task("agent") ? `\ncreate index if not exists ${ctx.naming.rename("ai_scheduled_tasks_agent_idx")} on ${tasks} (${t.agent});` : ""}${addExtraColumns(tasks, extras)}
+create index if not exists ${ctx.naming.rename("ai_scheduled_tasks_user_idx")} on ${tasks} (${t.user}, ${t.tenant});${task("agent") ? `\ncreate index if not exists ${ctx.naming.rename("ai_scheduled_tasks_agent_idx")} on ${tasks} (${t.agent});` : ""}
 alter table ${tasks} enable row level security;
 ${revokeTable(tasks)}
 grant select on ${tasks} to authenticated;

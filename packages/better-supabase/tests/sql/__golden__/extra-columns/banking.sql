@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:e1d1f66fce59aff09f4d1dd738ced1f53d8e1139fcc522d95fcef86b9511570a
+-- @bsb-hash sha256:39b0a8d73e3f421f6630fd8c25634fa2fc52415e014b538f24a1e0c285acbcc2
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,6 @@ create table "better_supabase"."bank_accounts" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
-alter table "better_supabase"."bank_accounts" add column "app_note" text;
 create unique index "bank_accounts_iban_key" on "better_supabase"."bank_accounts" ("tenant_id", "iban") where "iban" is not null;
 create index "bank_accounts_tenant_idx" on "better_supabase"."bank_accounts" ("tenant_id", "name");
 create index "bank_accounts_journal_idx" on "better_supabase"."bank_accounts" ("journal_id") where "journal_id" is not null;

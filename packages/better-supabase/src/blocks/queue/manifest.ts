@@ -4,11 +4,7 @@ import { createRateLimit } from "../../rate-limit/rate-limit.ts";
 import { defineBlock } from "../define-block.ts";
 import { CRON_SECRET_ENV, DATABASE_URL_ENV } from "../wiring.ts";
 import { createIdempotency } from "./idempotency.ts";
-import {
-  queueSqlOptions,
-  rateLimitSqlOptions,
-  webhookInboxSqlOptions,
-} from "./options.ts";
+import { queueSqlOptions, rateLimitSqlOptions } from "./options.ts";
 import { createQueue } from "./queue.ts";
 import { createWebhookInbox } from "./webhook-inbox.ts";
 
@@ -67,7 +63,6 @@ export const webhookInboxBlock: BlockOf<
 > = defineBlock({
   name: "webhook-inbox",
   sql: ["webhook-inbox"],
-  options: { "webhook-inbox": webhookInboxSqlOptions },
   create: createWebhookInbox,
   category: "automation",
   description:

@@ -157,10 +157,10 @@ the file that already alters the table, beside its checks and comments, or in
 `<table>.ext.sql` next to your schema files when none does. `upgrade` never
 rewrites a file without a `@bsb-block` line, and the CLI reads the type text
 after the column name, so `text not null default 'en'` gives the field its
-default. The `extraColumns` options do the same from the config and are
-replaced by this: `better-supabase codemod extra-columns` moves them
-([doctor BS378](/docs/cli/doctor#bs378)). A table you create yourself and map a
-block over keeps the columns it has.
+default. The `extraColumns` options this replaces were removed:
+`better-supabase codemod extra-columns` moves them into your files. On a table you create yourself and map a block over, the columns the block
+takes as fields are the ones its table comment lists: `comment on table ... is
+'@bsb fields plan, seats'`.
 
 ### Migration names
 
@@ -618,9 +618,8 @@ declare it, and doctor reports it as [BS342](/docs/cli/doctor#bs342). A
 column the module only writes string literals into may be an enum whose
 labels include those literals.
 
-`organizations` and `profiles` also take `options.extraColumns`: your own
-columns, keyed by name with their SQL type, which the module adds to its
-managed table, copies on writes and returns from its reads. A name the module
+`organizations` and `profiles` also read the columns your own schema files add
+to their managed table: the module copies them on writes and returns them from its reads. A name the module
 already uses is refused. A `not null` column without a `default` is required on
 input; one with a `default` (such as `risk text not null default 'low'`) may
 be left out and the database fills it, and it is still required on output.

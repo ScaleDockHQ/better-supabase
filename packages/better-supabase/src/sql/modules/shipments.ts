@@ -16,7 +16,6 @@ import {
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   addForeignKey,
   extraFieldsArg,
   fail,
@@ -108,7 +107,7 @@ const NAMES: BlockSqlNames = {
     shipment_line: { table: "lines", singular: "shipment_line" },
   },
   events: EVENTS,
-  options: ["extraColumns"],
+  options: [],
   tables: {
     shipments: {
       name: "shipments",
@@ -203,7 +202,7 @@ const assetsOf = (ctx: BlockSqlContext): BlockSqlContext | undefined =>
 const addressValid = (value: string): string =>
   `(jsonb_typeof(${value}) = 'object' and coalesce(${value} ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce(${value} ->> 'line1', ''))) >= 1 and length(btrim(coalesce(${value} ->> 'city', ''))) >= 1 and length(${value}::text) <= 4000)`;
 
-function tables(ctx: BlockSqlContext, extras: readonly ExtraColumn[]): string {
+function tables(ctx: BlockSqlContext): string {
   if (!ctx.manages) {
     return "";
   }
@@ -284,7 +283,7 @@ create table if not exists ${shipments} (
   ${h("updatedAt")} timestamptz not null default now(),${subject ? `\n  check ((${h("subjectType")} is null) = (${h("subjectId")} is null)),` : ""}
   check ((${h("labelCost")} is null) = (${h("currency")} is null)),
   check (${h("status")} in ('draft', 'cancelled') or (${h("carrier")} is not null and ${h("trackingNumber")} is not null))
-);${addExtraColumns(shipments, extras)}
+);
 create index if not exists ${index("shipments", "tenant_idx")} on ${shipments} (${h("tenant")}, ${h("createdAt")} desc);
 create index if not exists ${index("shipments", "status_idx")} on ${shipments} (${h("tenant")}, ${h("status")});
 create unique index if not exists ${index("shipments", "tracking_key")} on ${shipments} (${h("carrier")}, ${h("trackingNumber")}) where ${h("trackingNumber")} is not null;${subject ? `\ncreate index if not exists ${index("shipments", "subject_idx")} on ${shipments} (${h("tenant")}, ${h("subjectType")}, ${h("subjectId")});` : ""}${ctx.has("shipments", "fromLocation") ? `\ncreate index if not exists ${index("shipments", "location_idx")} on ${shipments} (${h("fromLocation")});` : ""}
@@ -882,7 +881,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Shipments: packages, addresses, carrier labels and a tracking timeline
 -- whose latest event sets the shipment's status.
-${tables(ctx, extras)}${functions(ctx, extras)}${shipmentMerges(ctx)}`;
+${tables(ctx)}${functions(ctx, extras)}${shipmentMerges(ctx)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:395dafa6b6ae7050f6e8e8128d6a632225e9a38a1b042ce5dae59e075fed8b03
+-- @bsb-hash sha256:c38c72a993f2dede697accdcacffc94eac2ef2d53437ae100e291378209443fa
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -79,7 +79,6 @@ create table "better_supabase"."observations" (
   "note" text check ("note" is null or length("note") <= 4000),
   "created_at" timestamptz not null default now()
 );
-alter table "better_supabase"."observations" add column "app_note" text;
 create index "observations_series_idx" on "better_supabase"."observations" ("subject_type", "subject_id", "definition_id", "observed_at" desc);
 create index "observations_definition_idx" on "better_supabase"."observations" ("definition_id");
 create index "observations_tenant_idx" on "better_supabase"."observations" ("tenant_id", "observed_at" desc);

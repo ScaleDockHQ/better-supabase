@@ -367,6 +367,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0254: Keep unscoped statements in one file and grant sequences by name.
 - 0255: Check coverage in both directions and duplicate policies.
 - 0256: Read app columns as fields and move extraColumns into app files.
+- 0257: Remove the extraColumns options and the Create design's extraColumns.
 
 ## Pre-release pins
 

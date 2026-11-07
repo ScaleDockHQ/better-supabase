@@ -89,7 +89,10 @@ interface PartyRecord {
   readonly language?: string;
   /** Where the record stands as a supplier; unset when not assessed. */
   readonly supplierStatus?: SupplierStatus;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: Readonly<Record<string, unknown>>;
 }
 
@@ -116,7 +119,10 @@ interface TermsInput {
 export interface Company<
   F extends object = Record<never, never>,
 > extends PartyRecord {
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
   readonly domain?: string;
   readonly website?: string;
@@ -373,9 +379,8 @@ export interface ContactsOptions<
    */
   readonly schema?: string;
   /**
-   * A Standard Schema for the extra columns of the companies table
-   * (`blocks.contacts.options.extraColumns`): writes are validated, reads
-   * parsed.
+   * A Standard Schema for the extra columns of the companies table (columns the
+   * app's schema files add to the table): writes are validated, reads parsed.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

@@ -3,9 +3,9 @@ import { describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { resolveBlocks } from "../../../src/sql/registry.ts";
-import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
+import { moduleBody, renderBlocks } from "../app-columns.ts";
 
 const CENTRAKIT: AnyBlocksConfig = {
   permissions: { model: "catalog", platformClaim: "system_permissions" },
@@ -264,9 +264,6 @@ describe("organizations module", () => {
     expect(() =>
       body({ organizations: { options: { attributes: ["x; drop"] } } }),
     ).toThrow(/is not a valid column/);
-    expect(() =>
-      body({ organizations: { options: { extraColumns: { role: "text" } } } }),
-    ).toThrow(/extraColumns.role shadows/);
   });
 
   it("adds extra columns, copies them on writes and returns them from mine", () => {

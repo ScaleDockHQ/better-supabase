@@ -173,7 +173,10 @@ export interface Quote<F extends object = Record<never, never>> {
   readonly lines: readonly QuoteLine[];
   readonly taxLines: readonly QuoteTaxLine[];
   readonly totals: Totals;
-  /** The app's extra columns (`options.extraColumns`), by column name. */
+  /**
+   * The app's extra columns (the columns the app's schema files add), by column
+   * name.
+   */
   readonly fields: RowFields<F>;
   readonly createdAt: Temporal.Instant;
 }
@@ -199,8 +202,8 @@ export interface QuoteInput<F extends object = Record<never, never>> {
   /** The customer pays the deposit before accepting. */
   readonly depositRequired?: boolean;
   /**
-   * Values for the app's extra columns (`options.extraColumns`); left out keeps
-   * the stored ones.
+   * Values for the app's extra columns (the columns the app's schema files
+   * add); left out keeps the stored ones.
    */
   readonly fields?: Partial<F> & Readonly<Record<string, unknown>>;
 }
@@ -409,9 +412,8 @@ export interface QuotesOptions<
   readonly transport: BlockTransport;
   readonly schema?: string;
   /**
-   * A Standard Schema for the extra columns of the quotes table
-   * (`blocks.quotes.options.extraColumns`): writes are validated, reads
-   * parsed.
+   * A Standard Schema for the extra columns of the quotes table (columns the
+   * app's schema files add to the table): writes are validated, reads parsed.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Quotes<FieldsOf<S>>>>;

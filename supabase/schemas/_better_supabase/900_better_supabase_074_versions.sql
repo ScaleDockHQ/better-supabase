@@ -1,6 +1,6 @@
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:7e38392823654ce995f8c182a61f4786fe73ee2fd3967f6a06b6790b0e97ad95
+-- @bsb-hash sha256:bbb927b194f8150b97793c9761369e5355cb9195eb2cd486758f4653b0097127
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -102,7 +102,7 @@ $$;
 revoke execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."version_insert"(uuid, text, text, jsonb, text, text, text, boolean, uuid, text) to service_role;
 
--- fields: the extra columns (blocks.versions.options.extraColumns) to set
+-- fields: the extra columns (columns your schema files add) to set
 -- on the version written, or on the latest one when the content is unchanged.
 
 create or replace function "better_supabase"."snapshot_version"(tenant uuid, subject_type text, subject_id text, content jsonb default null, label text default null, storage_path text default null, file_sha256 text default null)

@@ -1,6 +1,6 @@
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:3f5a76d2c029d486e8027ead6996ecb576062fce95c1bbc1219b22cfa063386f
+-- @bsb-hash sha256:f2f86ec445ee465c9b16fb191014510d0cb4e967b98861030e623ef005d55d6d
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -176,7 +176,7 @@ grant execute on function "better_supabase"."template_workflow_input_errors"(uui
 -- Creates a template (template_id null) or renames it and replaces its
 -- settings. tenant null saves a system template, which only the service
 -- role may; a tenant's needs templates.manage there.
--- fields: the extra columns (blocks.templates.options.extraColumns) to set.
+-- fields: the extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."save_template"(template_id uuid, tenant uuid, type text, name text, language text, settings jsonb)
 returns jsonb

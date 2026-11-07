@@ -6,7 +6,6 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { readIfAny } from "../read-if-any.ts";
 import {
-  addExtraColumns,
   ensureCheck,
   extraFieldsArg,
   fail,
@@ -569,7 +568,7 @@ ${ensureCheck(t, "bsb_attachments_size", `${c("size")} between 0 and ${String(ma
 ${mimeCheck}
 create unique index if not exists ${ctx.naming.rename("attachments_object_idx")} on ${t} (${c("bucket")}, ${c("path")});
 create index if not exists ${ctx.naming.rename("attachments_subject_idx")} on ${t} (${c("tenant")}, ${c("subjectType")}, ${c("subjectId")});
-create index if not exists ${ctx.naming.rename("attachments_uploaded_by_idx")} on ${t} (${c("uploadedBy")});${addExtraColumns(t, extras)}${
+create index if not exists ${ctx.naming.rename("attachments_uploaded_by_idx")} on ${t} (${c("uploadedBy")});${
     documents
       ? documentGuardSql(
           ctx,

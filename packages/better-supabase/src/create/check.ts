@@ -63,7 +63,7 @@ function parseIssue(error: unknown): Issue {
 function tableAt(path: string): string {
   const [, key, name] = path.split("/");
 
-  return (key === "appTables" || key === "extraColumns") && name !== undefined
+  return key === "appTables" && name !== undefined
     ? name.replaceAll("~1", "/").replaceAll("~0", "~")
     : "design";
 }

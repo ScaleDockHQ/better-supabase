@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:0e316e3738d8bc51f889b9f8d6d7e6bdc29fd957748189624dabfdc718a9596d
+-- @bsb-hash sha256:25da4152b110b7c17466d0f9f1e231f431ba3035e402b3f9dd2be3f1af8f2f10
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -30,7 +30,6 @@ create table "better_supabase"."flags" (
   "updated_at" timestamptz not null default now(),
   check ("variants" ? "default_variant")
 );
-alter table "better_supabase"."flags" add column "app_note" text;
 alter table "better_supabase"."flags" enable row level security;
 revoke all on "better_supabase"."flags" from public, anon, authenticated;
 grant all on "better_supabase"."flags" to service_role;

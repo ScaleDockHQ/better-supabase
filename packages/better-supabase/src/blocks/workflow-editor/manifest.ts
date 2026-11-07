@@ -3,7 +3,6 @@ import type { WorkflowEditorEvents } from "./events.ts";
 
 import { defineBlock } from "../define-block.ts";
 import { workflowEditorEvents } from "./events.ts";
-import { workflowEditorSqlOptions } from "./options.ts";
 import { createWorkflowEditor } from "./workflow-editor.ts";
 
 /** The `workflow-editor` block's manifest (ADR 0029). */
@@ -15,7 +14,6 @@ export const workflowEditorBlock: BlockOf<
 > = defineBlock({
   name: "workflow-editor",
   sql: ["workflow-editor"],
-  options: { "workflow-editor": workflowEditorSqlOptions },
   events: workflowEditorEvents,
   consumes: { workflows: "optional" },
   create: createWorkflowEditor,

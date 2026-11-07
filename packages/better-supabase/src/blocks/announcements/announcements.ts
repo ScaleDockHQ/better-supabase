@@ -76,10 +76,10 @@ export interface AnnouncementsOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockTemporalOptions {
   /**
-   * A Standard Schema for the announcement columns the app adds
-   * (`blocks.announcements.options.extraColumns`), keyed by column name. It
-   * types and parses them on every read, and validates them on `publish` and
-   * `update`, which return a `validation` error for a bad value.
+   * A Standard Schema for the announcement columns the app adds (columns the
+   * app's schema files add to the table), keyed by column name. It types and
+   * parses them on every read, and validates them on `publish` and `update`,
+   * which return a `validation` error for a bad value.
    */
   readonly fields?: S;
   /** `withBlockHooks` hooks around the client's methods. */

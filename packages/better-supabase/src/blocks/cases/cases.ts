@@ -345,9 +345,9 @@ export interface CasesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the case's extra columns
-   * (`blocks.cases.options.extraColumns`), keyed by database name. It types and
-   * parses them on reads, and validates them on writes.
+   * A Standard Schema for the case's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on writes.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Cases<FieldsOf<S>>>>;

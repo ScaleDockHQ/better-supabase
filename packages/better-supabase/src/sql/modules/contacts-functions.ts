@@ -31,9 +31,9 @@ export interface PartyNames {
 export type Kind = "company" | "person";
 
 /**
- * ` || jsonb_build_object('fields', ...)` with a company's extra columns
- * (`options.extraColumns`) for row `alias`; empty for people and without extra
- * columns.
+ * ` || jsonb_build_object('fields', ...)` with a company's extra columns (the
+ * columns your schema files add) for row `alias`; empty for people and without
+ * extra columns.
  */
 function extraFields(ctx: BlockSqlContext, kind: Kind, alias: string): string {
   if (kind !== "company") {
@@ -176,7 +176,7 @@ function saveFunction(
   const address = kind === "company" && exists("address");
   const owner = exists("owner");
   const stages = kind === "company" ? names.companyStages : names.personStages;
-  // options.extraColumns adds columns to companies; people take custom fields.
+  // the columns your schema files add adds columns to companies; people take custom fields.
   const extras = kind === "company" ? ctx.extraColumns("companies") : [];
   const table = t(spec.table);
 

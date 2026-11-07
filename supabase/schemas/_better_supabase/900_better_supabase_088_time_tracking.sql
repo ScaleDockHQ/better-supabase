@@ -1,6 +1,6 @@
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:093ce902bd9506945df017534145bcb5434e0bc780dd54869134cc08105bef50
+-- @bsb-hash sha256:2acd1b026bda33e77748acd987934b3855e573fb2203f6300491bbaef8c11daa
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -147,7 +147,7 @@ create trigger bsb_time_entry_guard
   for each row execute function "better_supabase"."time_entry_guard"();
 
 -- Starts a timer for the caller, stopping the one that runs. fields: the
--- extra columns (blocks.time-tracking.options.extraColumns) to set.
+-- extra columns (columns your schema files add) to set.
 
 create or replace function "better_supabase"."start_timer"(tenant uuid, subject_type text default null, subject_id text default null, billable boolean default false, rate bigint default null, rate_currency text default null, note text default null)
 returns jsonb

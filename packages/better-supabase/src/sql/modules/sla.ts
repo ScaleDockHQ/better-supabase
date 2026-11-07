@@ -14,7 +14,6 @@ import { subjectTypeIdent } from "../../core/subject-type.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   fail,
   schemaPreamble,
   serviceGrant,
@@ -60,7 +59,7 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   hooks: [],
-  options: ["businessHours", "extraColumns"],
+  options: ["businessHours"],
   tables: {
     policies: {
       name: "sla_policies",
@@ -579,7 +578,7 @@ ${
   ctx.manages
     ? `create table if not exists ${t("policies")} (
   ${policyColumns.join(",\n  ")}
-);${addExtraColumns(t("policies"), extras)}
+);
 create unique index if not exists ${ctx.naming.rename("sla_policies_match_idx")} on ${t("policies")} (${p("tenant")}, ${p("subjectType")}, coalesce(${p("priority")}, ''))${policyHas("archivedAt") ? ` where ${p("archivedAt")} is null` : ""};
 ${lockModuleTable(ctx, "policies", { read: true })}
 ${renderPolicy(makePolicy({ table: t("policies"), name: ctx.naming.rename("sla_policies_read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(p("tenant"), read) }), { target: t("policies") })}

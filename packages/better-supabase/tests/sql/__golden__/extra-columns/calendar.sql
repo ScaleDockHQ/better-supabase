@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:8d0cea3e00c1cfe561e02613309eb74e64e54930227fd16ef218e86404d369d8
+-- @bsb-hash sha256:acbebc33e7c1ca915fb3e697bb037bd40ec3d9dd60f94c74d595ae1baf9d1940
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -60,7 +60,6 @@ alter table "better_supabase"."calendar_events" add constraint "calendar_events_
   check ("kind" in ('event', 'out_of_office', 'focus_time'));
 alter table "better_supabase"."calendar_events" add constraint "calendar_events_transparency_check"
   check ("transparency" in ('opaque', 'transparent'));
-alter table "better_supabase"."calendar_events" add column "app_note" text;
 alter table "better_supabase"."calendar_events" enable row level security;
 revoke all on "better_supabase"."calendar_events" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_events" to authenticated;

@@ -246,6 +246,17 @@ export async function moduleLayoutFor(
   };
 }
 
+/** The columns the app's schema files add to block tables, by table. */
+export async function appColumnsFor(
+  config: ResolvedConfig,
+): Promise<ReturnType<typeof appColumnsOf>> {
+  return appColumnsOf(
+    (await declarativeTexts(config)).filter(
+      (source) => !writtenByBlocks(source),
+    ),
+  );
+}
+
 /**
  * `ownTables`, `ownViews`, `ownColumns`, `ownUpdatedAtTriggers` and
  * `ownPolicies`: the database's tables and views, then the app's files.

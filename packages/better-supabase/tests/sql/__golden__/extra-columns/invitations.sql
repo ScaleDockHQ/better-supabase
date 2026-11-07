@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:9ca2e615375f494b62ea07e51e6167b9b1b76e7be930d5a7d5ede0ad164fbd67
+-- @bsb-hash sha256:9522c5c2c8a22ccc3c3e0517c08080d845d460129e7debd98184de74d5e8b129
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22,7 +22,6 @@ alter table "better_supabase"."invitations" add column "created_at" timestamptz 
 alter table "better_supabase"."invitations" add column "accepted_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."invitations" add column "declined_at" timestamptz;
 alter table "better_supabase"."invitations" add column "revoked_at" timestamptz;
-alter table "better_supabase"."invitations" add column "app_note" text;
 create unique index invitations_open_email_idx
   on "better_supabase"."invitations" ("organization_id", lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null;
 create index invitations_tenant_created_idx on "better_supabase"."invitations" ("organization_id", "created_at");

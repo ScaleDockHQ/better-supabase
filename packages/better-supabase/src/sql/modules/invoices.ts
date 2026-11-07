@@ -24,12 +24,7 @@ import {
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { searchColumnSql } from "../search-column.ts";
-import {
-  addExtraColumns,
-  extraFieldsArg,
-  schemaPreamble,
-  triggerGrant,
-} from "../shared.ts";
+import { extraFieldsArg, schemaPreamble, triggerGrant } from "../shared.ts";
 import {
   sourceTemplateColumnSql,
   templateColumnSql,
@@ -206,10 +201,7 @@ const NAMES: BlockSqlNames = {
     "prefix",
     "creditPrefix",
     "termsDays",
-    "extraColumns",
-    "lineExtraColumns",
     "lineRates",
-    "chargeExtraColumns",
     "totals",
     "providerPaymentMethods",
     "uniqueNumber",
@@ -418,7 +410,7 @@ function tables(ctx: BlockSqlContext, n: InvoiceNames): string {
 create table if not exists ${t("charges")} (
   ${chargeColumns.join(",\n  ")}
 );
-create index if not exists ${ctx.naming.rename("invoice_charges_invoice_idx")} on ${t("charges")} (${ch("invoice")});${addExtraColumns(t("charges"), chargeExtraColumns(ctx))}
+create index if not exists ${ctx.naming.rename("invoice_charges_invoice_idx")} on ${t("charges")} (${ch("invoice")});
 ${lockModuleTable(ctx, "charges", { read: true })}
 ${renderPolicy(
   makePolicy({
@@ -486,7 +478,7 @@ ${uniqueNumber === false ? "" : `  unique (${numberKey.map(i).join(", ")}),\n`} 
   check (${i("status")} <> 'draft' or ${i("number")} is null),
   check (${invoiceTemplatesOn(ctx) ? `${i("template")} is not null or ` : ""}${i("status")} in ('draft', 'void') or ${i("number")} is not null)${company === "pair" ? `,\n  check ((${i("companyType")} is null) = (${i("companyId")} is null))` : ""}${invoiceTemplatesOn(ctx) && ctx.flag("requireParty", false) && ctx.has("invoices", "companyId") ? `,\n  check (${i("template")} is not null or ${i("companyId")} is not null)` : ""}
 );
-${added === "" ? "" : `${added.slice(1)}\n`}create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin === undefined ? "" : index("invoices_origin_idx", origin === "pair" ? ["originType", "originId"] : ["originId"])}${index("invoices_original_idx", ["original"])}${company === undefined ? "" : index("invoices_company_idx", company === "pair" ? ["companyType", "companyId"] : ["companyId"])}${addExtraColumns(t("invoices"), n.extras)}${searchColumnSql(ctx, "invoices", ["identifier", "title", "note", "supplierReference"])}${ctx.has("invoices", "purchaseOrder") ? index("invoices_purchase_order_idx", ["purchaseOrder"]) : ""}${uniqueNumber === false ? "" : appUniqueIndex(ctx, "invoices", numberKey)}
+${added === "" ? "" : `${added.slice(1)}\n`}create index if not exists ${ctx.naming.rename("invoices_tenant_status_idx")} on ${t("invoices")} (${i("tenant")}, ${i("status")}, ${i("dueOn")});${origin === undefined ? "" : index("invoices_origin_idx", origin === "pair" ? ["originType", "originId"] : ["originId"])}${index("invoices_original_idx", ["original"])}${company === undefined ? "" : index("invoices_company_idx", company === "pair" ? ["companyType", "companyId"] : ["companyId"])}${searchColumnSql(ctx, "invoices", ["identifier", "title", "note", "supplierReference"])}${ctx.has("invoices", "purchaseOrder") ? index("invoices_purchase_order_idx", ["purchaseOrder"]) : ""}${uniqueNumber === false ? "" : appUniqueIndex(ctx, "invoices", numberKey)}
 ${lockModuleTable(ctx, "invoices", { read: true })}${invoiceTemplatesOn(ctx) ? `\n${templateGuardSql({ fn: ctx.fn("invoice_template_guard"), trigger: ctx.trigger("invoice_template"), table: t("invoices"), column: ctx.colName("invoices", "template"), hint: "INVOICE_TEMPLATE_IMMUTABLE" })}\n${triggerGrant(`${ctx.fn("invoice_template_guard")}()`)}` : ""}
 ${renderPolicy(
   makePolicy({
@@ -601,7 +593,7 @@ function depositLine(ctx: BlockSqlContext): InvoiceNames["depositLine"] {
     !Object.keys(fields).every((key) => lineColumns.has(key))
   ) {
     throw new TypeError(
-      `${at}.fields must be an object of blocks.invoices.options.lineExtraColumns`,
+      `${at}.fields must be an object keyed by the columns your schema files add to the line table`,
     );
   }
 

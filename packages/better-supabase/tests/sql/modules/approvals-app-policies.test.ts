@@ -3,8 +3,8 @@ import { describe, expect, it } from "vitest";
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 import type { BlockSqlAccessProvider } from "../../../src/sql/module-types.ts";
 
-import { renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 const ADMIN = "22222222-2222-4222-8222-222222222222";
@@ -334,23 +334,6 @@ begin
 end;
 $$;`),
     ).resolves.toBeUndefined();
-  });
-
-  it("needs tenant policies for policy columns", () => {
-    expect(() =>
-      render({
-        approvals: {
-          options: {
-            policyExtraColumns: { description: "text" },
-            policies: {
-              invoice: { send: { steps: [{ approvers: { role: "a" } }] } },
-            },
-          },
-        },
-      }),
-    ).toThrow(
-      /policyExtraColumns needs blocks.approvals.options.tenantPolicies/,
-    );
   });
 
   it("switches the block's notifications off, and enriches them through a hook", () => {

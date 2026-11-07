@@ -692,7 +692,7 @@ them to `null`; the document guard renders only when all five are mapped.
 
 ## Your own fields
 
-`blocks.attachments.options.extraColumns` adds columns to the `attachments` table,
+Columns you add to `attachments` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. Pass `createAttachments` a Standard Schema
 for them as `fields`: `upload`, `put` take them next to the block's own keys and
 validate them (a bad value is a `validation` error), and every attachment read return them

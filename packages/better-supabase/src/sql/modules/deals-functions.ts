@@ -100,8 +100,8 @@ export interface DealNames {
   /** SQL that is true for the service role. */
   readonly service: string;
   /**
-   * `options.extraColumns`, which `create_deal` and `update_deals` write by
-   * name.
+   * The columns your schema files add, which `create_deal` and `update_deals`
+   * write by name.
    */
   readonly extras: readonly ExtraColumn[];
   readonly lineExtras: readonly ExtraColumn[];

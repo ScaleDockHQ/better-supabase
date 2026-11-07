@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:9de653dfd8a0c415a405d9dbe1bcd975d76e632677ffac8e64f7a734be9c2af1
+-- @bsb-hash sha256:31db904b8a93345cf6c5c73f122b845196ed100d0671a5608176e39f30d7c1be
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -66,7 +66,7 @@ grant all on "better_supabase"."invite_code_redemptions" to service_role;
 -- sees an entry's real status: everyone else reads 'waiting', and an entry that
 -- left the line gets the place a new address would, so the answer never tells
 -- whether someone was approved or signed up. fields: the extra columns
--- (blocks.waitlist.options.extraColumns), written only on a new entry.
+-- (columns your schema files add), written only on a new entry.
 
 create or replace function "better_supabase"."join_waitlist"(email text, referrer text default null, metadata jsonb default '{}'::jsonb)
 returns jsonb
@@ -415,7 +415,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:78fad4a26d717e71dcc3f54cc63e02cad52d40b5ff61ea5d6b0ba81e7f7d4804
+-- @bsb-hash sha256:17aa922114b8fe4df145bc1ee76c17b9b602c6daa949331d683df5d747b56d7b
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -480,7 +480,7 @@ grant all on "better_supabase"."invite_code_redemptions" to service_role;
 -- sees an entry's real status: everyone else reads 'waiting', and an entry that
 -- left the line gets the place a new address would, so the answer never tells
 -- whether someone was approved or signed up. fields: the extra columns
--- (blocks.waitlist.options.extraColumns), written only on a new entry.
+-- (columns your schema files add), written only on a new entry.
 
 create or replace function "better_supabase"."join_waitlist"(email text, referrer text default null, metadata jsonb default '{}'::jsonb)
 returns jsonb
@@ -874,7 +874,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:b872fea5470ae365873550cab9a32533ece0a5739815c00e6a81c46fcec8c148
+-- @bsb-hash sha256:6edd4347d0d5b7ec5bad3dcff2eeee3359d8d72bdd541e6bac0801d65892b414
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -944,7 +944,7 @@ grant all on "app_private"."invite_code_redemptions" to service_role;
 -- sees an entry's real status: everyone else reads 'waiting', and an entry that
 -- left the line gets the place a new address would, so the answer never tells
 -- whether someone was approved or signed up. fields: the extra columns
--- (blocks.waitlist.options.extraColumns), written only on a new entry.
+-- (columns your schema files add), written only on a new entry.
 
 create or replace function "app_private"."join_waitlist"(email text, referrer text default null, metadata jsonb default '{}'::jsonb)
 returns jsonb
@@ -1293,7 +1293,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:b46086fcfcbb9e527a74c7e378190c27dbb166fb265d7a60d9034b6a06105467
+-- @bsb-hash sha256:4f9325c451960eb0ac9356098246aac6d52b79500e12ce53e4be695c13f5d18e
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1358,7 +1358,7 @@ grant all on "better_supabase"."invite_code_redemptions" to service_role;
 -- sees an entry's real status: everyone else reads 'waiting', and an entry that
 -- left the line gets the place a new address would, so the answer never tells
 -- whether someone was approved or signed up. fields: the extra columns
--- (blocks.waitlist.options.extraColumns), written only on a new entry.
+-- (columns your schema files add), written only on a new entry.
 
 create or replace function "better_supabase"."join_waitlist"(email text, referrer text default null, metadata jsonb default '{}'::jsonb)
 returns jsonb
@@ -1795,7 +1795,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:5f52250fb4df90984b82a8d8e5616ab7d2932c810dd19ed2071ecc0ab6b3a0e5
+-- @bsb-hash sha256:84ffabd85fbf81342034c06b71b86dd19019451fa75631b169f4ccda94cd8049
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1856,7 +1856,7 @@ grant all on "better_supabase"."invite_code_redemptions" to service_role;
 -- sees an entry's real status: everyone else reads 'waiting', and an entry that
 -- left the line gets the place a new address would, so the answer never tells
 -- whether someone was approved or signed up. fields: the extra columns
--- (blocks.waitlist.options.extraColumns), written only on a new entry.
+-- (columns your schema files add), written only on a new entry.
 
 create or replace function "better_supabase"."join_waitlist"(email text, referrer text default null, metadata jsonb default '{}'::jsonb)
 returns jsonb
@@ -2206,7 +2206,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:73673bfaf999b9f8bd8a0f1f4ececc225f31ad26da462a2080badaa5fc2991e4
+-- @bsb-hash sha256:3b44ddecaf95a3568f8fc85643bbd094c8896d1c2fdc18d8a896f6996a67352d
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2271,7 +2271,7 @@ grant all on "better_supabase"."invite_code_redemptions" to service_role;
 -- sees an entry's real status: everyone else reads 'waiting', and an entry that
 -- left the line gets the place a new address would, so the answer never tells
 -- whether someone was approved or signed up. fields: the extra columns
--- (blocks.waitlist.options.extraColumns), written only on a new entry.
+-- (columns your schema files add), written only on a new entry.
 
 create or replace function "better_supabase"."join_waitlist"(email text, referrer text default null, metadata jsonb default '{}'::jsonb)
 returns jsonb

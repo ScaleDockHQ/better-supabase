@@ -58,10 +58,13 @@ export interface QuoteNames {
   /** Days a new quote stays valid. */
   readonly validDays: number;
   readonly service: string;
-  /** `options.extraColumns` of the quotes table, written from `attrs.fields`. */
+  /**
+   * The columns your schema files add of the quotes table, written from
+   * `attrs.fields`.
+   */
   readonly extras: readonly ExtraColumn[];
   readonly lineExtras: readonly ExtraColumn[];
-  /** `options.versionLineExtraColumns`, copied from the line of the same name. */
+  /** The columns your schema files add, copied from the line of the same name. */
   readonly versionLineExtras: readonly ExtraColumn[];
   /** `options.totals: "app"`: the app keeps the totals, the block reads them. */
   readonly appTotals: boolean;

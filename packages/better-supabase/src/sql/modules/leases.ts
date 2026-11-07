@@ -14,7 +14,7 @@ import {
 } from "../accounting-sources-sql.ts";
 import { ensureExclusion } from "../exclusion.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
+import { extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { moveSubjectRows, subjectMergeHandler } from "../subject-merge-sql.ts";
 import { registeredSubjects } from "../subject-registry.ts";
 import { leaseAccountingSources } from "./leases-accounting.ts";
@@ -71,7 +71,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["extraColumns", "noOverlap"],
+  options: ["noOverlap"],
   tables: {
     leases: {
       name: "leases",
@@ -197,7 +197,7 @@ create table if not exists ${leases} (
   ${l("createdAt")} timestamptz not null default now(),
   ${l("updatedAt")} timestamptz not null default now(),
   check (${l("endsOn")} is null or ${l("endsOn")} > ${l("startsOn")})
-);${addExtraColumns(leases, ctx.extraColumns("leases", LEASE_RESERVED))}
+);
 create index if not exists ${index("leases", "tenant_idx")} on ${leases} (${l("tenant")}, ${l("status")}, ${l("startsOn")} desc);
 create index if not exists ${index("leases", "unit_idx")} on ${leases} (${l("unit")});
 create index if not exists ${index("leases", "party_idx")} on ${leases} (${l("tenant")}, ${l("partyType")}, ${l("partyId")});

@@ -494,8 +494,8 @@ export interface ManufacturingOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the production orders' extra columns
-   * (`blocks.manufacturing.options.extraColumns`), keyed by database name.
+   * A Standard Schema for the production orders' extra columns (columns the
+   * app's schema files add to the table), keyed by database name.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Manufacturing<FieldsOf<S>>>>;

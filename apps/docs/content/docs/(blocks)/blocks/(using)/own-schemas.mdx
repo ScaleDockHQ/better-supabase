@@ -970,22 +970,14 @@ already has, such as `parent_id`, is refused.
 
 The line tables of `quotes`, `invoices` and `deals` (`quote_lines`,
 `invoice_lines`, `deal_lines`) can be yours too. Map them with `tables.lines`
-and `columns.lines`, and declare the columns of yours that `set_*_lines`
-should write in `options.lineExtraColumns`: each line's `fields` sets them, a
+and `columns.lines`, and list the columns of yours that `set_*_lines`
+should write in the line table comment as `@bsb fields`: each line's `fields` sets them, a
 key it leaves out keeps the column's default, and reads return them under
 `fields` on each line. `set_*_lines` replaces every line of the record, so
 give a column of yours that no line sets a default.
 
-```ts title="better-supabase.config.ts"
-export default defineConfig({
-  blocks: {
-    quotes: {
-      tables: { quotes: "public.quotes", lines: "public.quote_lines" },
-      columns: { lines: { parent: "quote_id" } },
-      options: { lineExtraColumns: { sku: "text" } },
-    },
-  },
-});
+```sql title="supabase/schemas/your_quote_lines.sql"
+alter table "better_supabase"."your_quote_lines" add column "sku" text;
 ```
 
 ### Names on your tables

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:ccb3ba7bbf2acea4d910eb02b999190ab5e819c407e065feafe06d82c4f49e36
+-- @bsb-hash sha256:34495d2e04437df1d61277db0ab578bd9868d5198d70859fe472de287dc30402
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -82,7 +82,6 @@ create table "better_supabase"."qualifications" (
   check ("expires_on" is null or "expires_on" >= "granted_on"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."qualification_types" ("tenant_id", "id") on delete cascade
 );
-alter table "better_supabase"."qualifications" add column "app_note" text;
 create index "qualifications_holder_idx" on "better_supabase"."qualifications" ("tenant_id", "holder_type", "holder_id");
 create index "qualifications_type_idx" on "better_supabase"."qualifications" ("tenant_id", "type_id");
 create index "qualifications_expiry_idx" on "better_supabase"."qualifications" ("type_id", "expires_on");

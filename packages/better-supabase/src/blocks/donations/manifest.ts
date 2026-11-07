@@ -4,7 +4,6 @@ import type { DonationsEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createDonations } from "./donations.ts";
 import { donationsEvents } from "./events.ts";
-import { donationsSqlOptions } from "./options.ts";
 import { givingBinding } from "./record-binding.ts";
 import {
   donationFundInputSchema,
@@ -23,7 +22,6 @@ export const donationsBlock: BlockOf<
 > = defineBlock({
   name: "donations",
   sql: ["donations"],
-  options: { donations: donationsSqlOptions },
   events: donationsEvents,
   schemas: {
     donation: { input: giftInputSchema },

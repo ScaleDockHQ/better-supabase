@@ -9,9 +9,10 @@ import {
   SQL_MODULES,
   resolveBlocks,
 } from "../../../src/sql/registry.ts";
-import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
+import { customContracts } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
+import { renderBlocks } from "../app-columns.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 

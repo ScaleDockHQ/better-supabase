@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:0733d5e8b410feea312e55a719760fd00f509859814244e0f8c40087eeef6ab6
+-- @bsb-hash sha256:47628f180235fd8e390e193cf453751aad054c5f27756d3f5b062036cac0baf4
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -67,7 +67,6 @@ create table "better_supabase"."shifts" (
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "template_id") references "better_supabase"."shift_templates" ("tenant_id", "id") on delete set null ("template_id")
 );
-alter table "better_supabase"."shifts" add column "app_note" text;
 create index "shifts_tenant_idx" on "better_supabase"."shifts" ("tenant_id", "starts_at");
 create index "shifts_template_idx" on "better_supabase"."shifts" ("tenant_id", "template_id") where "template_id" is not null;
 create index "shifts_team_idx" on "better_supabase"."shifts" ("team_id") where "team_id" is not null;

@@ -77,7 +77,7 @@ describe("migrationBetween", () => {
 
     const plan = migrationBetween(projects, notes, {
       ...notes,
-      extraColumns: { tags: { weight: "integer not null default 0" } },
+      seeds: { locale: "nl" },
     });
 
     expect(plan).toMatchObject({ ok: false, reason: "unsupported" });

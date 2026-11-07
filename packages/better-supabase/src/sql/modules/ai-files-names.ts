@@ -70,13 +70,7 @@ export const NAMES: BlockSqlNames = {
   entities: {
     ai_document: { table: "documents", singular: "ai_document", primary: true },
   },
-  options: [
-    "bucket",
-    "maxSize",
-    "allowedMimeTypes",
-    "pendingTtl",
-    "extraColumns",
-  ],
+  options: ["bucket", "maxSize", "allowedMimeTypes", "pendingTtl"],
   tables: {
     files: {
       name: "ai_files",

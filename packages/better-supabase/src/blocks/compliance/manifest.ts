@@ -4,7 +4,6 @@ import type { ComplianceEvents } from "./events.ts";
 import { defineBlock } from "../define-block.ts";
 import { createCompliance } from "./compliance.ts";
 import { complianceEvents } from "./events.ts";
-import { complianceSqlOptions } from "./options.ts";
 import {
   controlFrameworkInputSchema,
   controlInputSchema,
@@ -20,7 +19,6 @@ export const complianceBlock: BlockOf<
 > = defineBlock({
   name: "compliance",
   sql: ["compliance"],
-  options: { compliance: complianceSqlOptions },
   events: complianceEvents,
   schemas: {
     control_framework: { input: controlFrameworkInputSchema },

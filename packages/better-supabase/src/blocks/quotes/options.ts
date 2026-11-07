@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -8,8 +8,6 @@ export type QuotesSqlOptions = {
   readonly contact?: string;
   readonly prefix?: string;
   readonly validDays?: number;
-  readonly extraColumns?: ExtraColumns;
-  readonly lineExtraColumns?: ExtraColumns;
   /**
    * `"percent"` when your own line table keeps discount and tax rates as
    * percentages, such as `vat_rate numeric(5, 2)`: the block converts them from
@@ -32,7 +30,6 @@ export type QuotesSqlOptions = {
    * value of the line column of the same name (`lineExtraColumns`), so checks
    * and references on the version lines hold.
    */
-  readonly versionLineExtraColumns?: ExtraColumns;
   /**
    * `"app"` when the app keeps the totals columns itself, such as with fixed
    * line discounts or a VAT regime: the block never recounts or writes them,
@@ -78,12 +75,9 @@ export const quotesSqlOptions: BlockOptionsSchema<QuotesSqlOptions> =
     contact: option.string({ default: "person" }),
     prefix: option.string({ default: "Q-" }),
     validDays: option.number({ default: 30 }),
-    extraColumns: option.extraColumns(),
-    lineExtraColumns: option.extraColumns(),
     lineRates: option.string<"bps" | "percent">({ default: "bps" }),
     workingCopy: option.boolean({ default: false }),
     versionLines: option.boolean({ default: false }),
-    versionLineExtraColumns: option.extraColumns(),
     totals: option.string<"block" | "app">({ default: "block" }),
     resend: option.boolean({ default: false }),
     notifications: option.boolean({ default: true }),

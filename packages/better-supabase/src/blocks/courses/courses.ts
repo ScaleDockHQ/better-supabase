@@ -337,9 +337,9 @@ export interface CoursesOptions<
   S extends StandardSchemaV1 | undefined = undefined,
 > extends BlockOptions {
   /**
-   * A Standard Schema for the course's extra columns
-   * (`blocks.courses.options.extraColumns`), keyed by database name. It types
-   * and parses them on reads, and validates them on `upsert`.
+   * A Standard Schema for the course's extra columns (columns the app's schema
+   * files add to the table), keyed by database name. It types and parses them
+   * on reads, and validates them on `upsert`.
    */
   readonly fields?: S;
   readonly hooks?: NoInfer<BlockHooks<Courses<FieldsOf<S>>>>;

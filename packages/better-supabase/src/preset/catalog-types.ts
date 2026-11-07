@@ -28,11 +28,6 @@ export interface PresetCatalogBlock {
   /** Tenant names that would rename a table or column to a name it already uses. */
   readonly tenantNameClashes?: readonly PresetTenantName[];
   /**
-   * The logical table `options.extraColumns` adds columns to, when it takes
-   * them.
-   */
-  readonly extraColumns?: string;
-  /**
    * The nouns `blocks.<name>.names` renames, with what config resolution needs
    * to name them and register their subjects.
    */

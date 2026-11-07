@@ -12,7 +12,7 @@ import type { PartyNames } from "./contacts-functions.ts";
 import { sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { searchColumnSql } from "../search-column.ts";
-import { addExtraColumns, schemaPreamble } from "../shared.ts";
+import { schemaPreamble } from "../shared.ts";
 import { partyFunctions, partyJson } from "./contacts-functions.ts";
 import {
   identitiesTable,
@@ -110,13 +110,7 @@ const NAMES: BlockSqlNames = {
     "before_person_save",
     "after_person_save",
   ],
-  options: [
-    "companyLifecycles",
-    "personLifecycles",
-    "roles",
-    "extraColumns",
-    "searchColumn",
-  ],
+  options: ["companyLifecycles", "personLifecycles", "roles", "searchColumn"],
   tables: {
     companies: {
       name: "companies",
@@ -325,7 +319,7 @@ create table if not exists ${t("companies")} (
 create index if not exists ${ctx.naming.rename("companies_tenant_name_idx")} on ${t("companies")} (${co("tenant")}, lower(${co("name")}), ${co("id")});
 create unique index if not exists ${ctx.naming.rename("companies_domain_idx")} on ${t("companies")} (${co("tenant")}, ${co("domain")})
   where ${co("domain")} is not null and ${co("archivedAt")} is null;${ctx.has("companies", "owner") ? `\ncreate index if not exists ${ctx.naming.rename("companies_owner_idx")} on ${t("companies")} (${co("owner")});` : ""}
-create index if not exists ${ctx.naming.rename("companies_merged_into_idx")} on ${t("companies")} (${co("mergedInto")});${roleIndexes(ctx, "companies")}${addExtraColumns(t("companies"), ctx.extraColumns("companies"))}${searchColumnSql(ctx, "companies", ["name", "domain", "website"])}
+create index if not exists ${ctx.naming.rename("companies_merged_into_idx")} on ${t("companies")} (${co("mergedInto")});${roleIndexes(ctx, "companies")}${searchColumnSql(ctx, "companies", ["name", "domain", "website"])}
 ${lockModuleTable(ctx, "companies", { read: true })}
 ${read("companies")}
 

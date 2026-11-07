@@ -2,12 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import {
-  customContracts,
-  moduleBody,
-  moduleTopics,
-  renderBlocks,
-} from "../../../src/sql/render.ts";
+import { customContracts, moduleTopics } from "../../../src/sql/render.ts";
+import { moduleBody, renderBlocks } from "../app-columns.ts";
 
 const files = (names: readonly string[], modules: AnyBlocksConfig = {}) =>
   renderBlocks(names, { modules });

@@ -13,12 +13,7 @@ import { sqlString, sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { entityType } from "../resolved-names.ts";
 import { searchColumnSql } from "../search-column.ts";
-import {
-  addExtraColumns,
-  fail,
-  schemaPreamble,
-  triggerGrant,
-} from "../shared.ts";
+import { fail, schemaPreamble, triggerGrant } from "../shared.ts";
 import {
   liveRowsIndex,
   sourceTemplateColumnSql,
@@ -136,7 +131,6 @@ const NAMES: BlockSqlNames = {
   options: [
     "prefix",
     "maxAssignees",
-    "extraColumns",
     "authorCanDelete",
     "notify",
     "actionPath",
@@ -420,7 +414,7 @@ create table if not exists ${t("items")} (
 );${appUniqueIndex(ctx, "items", ["tenant", "number"])}
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_board_idx`)} on ${t("items")} (${w("pipeline")}, ${w("stage")}, ${w("rank")});
 create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_parent_idx`)} on ${t("items")} (${w("parent")});${ctx.has("items", "project") ? `\ncreate index if not exists ${sqlIdent(`${ctx.tableName("items").name}_${ctx.naming.rename("project_idx")}`)} on ${t("items")} (${w("project")});` : ""}${ctx.has("items", "iteration") ? `\ncreate index if not exists ${sqlIdent(`${ctx.tableName("items").name}_${ctx.naming.rename("iteration_idx")}`)} on ${t("items")} (${w("iteration")});` : ""}
-create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_due_idx`)} on ${t("items")} (${w("tenant")}, ${w("dueAt")}) where ${w("closedAt")} is null;${templatesOn(ctx) ? `\n${liveRowsIndex(`${ctx.tableName("items").name}_live_idx`, t("items"), `${w("tenant")}, ${w("number")} desc`, ctx.colName("items", "template"))}` : ""}${templateGuard(ctx, t)}${addExtraColumns(t("items"), ctx.extraColumns("items", ["fields"]))}${searchColumnSql(ctx, "items", ["identifier", "title", "body"])}
+create index if not exists ${sqlIdent(`${ctx.tableName("items").name}_due_idx`)} on ${t("items")} (${w("tenant")}, ${w("dueAt")}) where ${w("closedAt")} is null;${templatesOn(ctx) ? `\n${liveRowsIndex(`${ctx.tableName("items").name}_live_idx`, t("items"), `${w("tenant")}, ${w("number")} desc`, ctx.colName("items", "template"))}` : ""}${templateGuard(ctx, t)}${searchColumnSql(ctx, "items", ["identifier", "title", "body"])}
 ${lockModuleTable(ctx, "items", { read: true })}
 ${read("items")}
 

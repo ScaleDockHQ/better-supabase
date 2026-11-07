@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { renderBlocks } from "../../src/sql/render.ts";
+import { renderBlocks } from "./app-columns.ts";
 
 const body = (module: string): string =>
   renderBlocks([module])
@@ -87,15 +87,5 @@ describe("line tables of the app's", () => {
     expect(sql).not.toContain("for v_line in select");
     expect(sql).toContain(`"position", "sku")`);
     expect(sql).toContain(`'fields', jsonb_build_object('sku', ql."sku")`);
-  });
-
-  it("refuses a line extra column that shadows a line column", () => {
-    expect(() =>
-      files("invoices", {
-        modules: {
-          invoices: { options: { lineExtraColumns: { position: "integer" } } },
-        },
-      }),
-    ).toThrow(/lineExtraColumns\.position shadows a column/u);
   });
 });

@@ -15,13 +15,12 @@ import {
 } from "../accounting-sources-sql.ts";
 import { link } from "../links.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
-import { addExtraColumns, extraFieldsArg, schemaPreamble } from "../shared.ts";
+import { extraFieldsArg, schemaPreamble } from "../shared.ts";
 import { expenseAccountingSources } from "./expenses-accounting.ts";
 import {
   EXPENSE_REPORT_RESERVED,
   EXPENSE_REPORT_SUBJECT,
   expenseApprovals,
-  expenseCategoryExtras,
   expensesFunctions,
 } from "./expenses-functions.ts";
 import {
@@ -115,8 +114,6 @@ const NAMES: BlockSqlNames = {
   },
   events: EVENTS,
   options: [
-    "extraColumns",
-    "categoryExtraColumns",
     "approvals",
     "owner",
     "companyExpenses",
@@ -259,7 +256,7 @@ ${column("categories", "key", (name) => `${name} text not null check (${name} ~ 
   ${k("createdAt")} timestamptz not null default now(),
   ${k("updatedAt")} timestamptz not null default now(),
 ${ctx.has("categories", "key") ? `  unique (${k("tenant")}, ${k("key")}),\n` : ""}  unique (${k("tenant")}, ${k("id")})${policyCheck}
-);${addExtraColumns(categories, expenseCategoryExtras(ctx))}${ctx.has("categories", "key") ? appUniqueIndex(ctx, "categories", ["tenant", "key"]) : ""}${appUniqueIndex(ctx, "categories", ["tenant", "id"])}
+);${ctx.has("categories", "key") ? appUniqueIndex(ctx, "categories", ["tenant", "key"]) : ""}${appUniqueIndex(ctx, "categories", ["tenant", "id"])}
 ${lockModuleTable(ctx, "categories", { read: true })}
 drop policy if exists ${index("categories", "read")} on ${categories};
 ${renderPolicy(makePolicy({ table: categories, name: index("categories", "read"), command: "select", roles: ["authenticated"], using: ctx.scope.check(k("tenant"), read) }), { target: categories })}
@@ -279,7 +276,7 @@ ${approvals === undefined ? "" : `  ${r("approval")} uuid references ${approvals
   ${r("cancelledAt")} timestamptz,
   ${r("createdAt")} timestamptz not null default now(),
   ${r("updatedAt")} timestamptz not null default now()
-);${addExtraColumns(reports, ctx.extraColumns("reports", EXPENSE_REPORT_RESERVED))}
+);
 create index if not exists ${index("reports", "tenant_idx")} on ${reports} (${r("tenant")}, ${r("createdAt")} desc);
 create index if not exists ${index("reports", "user_idx")} on ${reports} (${r("user")}, ${r("tenant")});
 ${approvals === undefined ? "" : `create index if not exists ${index("reports", "approval_idx")} on ${reports} (${r("approval")}) where ${r("approval")} is not null;`}${linkIndex("approval_tx_idx", "approvalTransaction")}${linkIndex("reimbursement_idx", "reimbursement")}

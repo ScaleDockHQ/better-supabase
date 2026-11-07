@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:62a4d16e18fec7c6b1951b13bd15b31b82522110ea9c2e84eaf6e316c5fa69ea
+-- @bsb-hash sha256:3acd0e7ce0352fa6c48b663533f8018c826cc20f56e60d2499ba7d684fcd14c6
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -58,7 +58,6 @@ create index ai_chats_tenant_idx on "better_supabase"."ai_chats" ("organization_
 create index ai_chats_project_idx on "better_supabase"."ai_chats" ("project_id");
 create index ai_chats_expires_idx on "better_supabase"."ai_chats" ("expires_at") where "is_temporary";
 create index ai_chats_search_idx on "better_supabase"."ai_chats" using gin ("search_tsv");
-alter table "better_supabase"."ai_chats" add column "app_note" text;
 alter table "better_supabase"."ai_chats" enable row level security;
 revoke all on "better_supabase"."ai_chats" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chats" to service_role;

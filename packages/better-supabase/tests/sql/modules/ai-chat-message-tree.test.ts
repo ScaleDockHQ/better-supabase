@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
-import { moduleBody } from "../../../src/sql/render.ts";
+import { moduleBody } from "../app-columns.ts";
 
 const body = (options: Record<string, unknown>, more: AnyBlocksConfig = {}) =>
   moduleBody("ai-chat", { modules: { "ai-chat": { options }, ...more } })!;
@@ -138,14 +138,5 @@ describe("ai-chat extra columns on every table", () => {
     expect(sql).toContain("'fields', jsonb_build_object('thread_kind'");
     expect(sql).toContain("append_ai_user_message.message -> 'fields'");
     expect(sql).toContain("record_ai_moderation_event.event -> 'fields'");
-  });
-
-  it("refuses a column a table already has", () => {
-    expect(() => body({ messageExtraColumns: { role: "text" } })).toThrow(
-      /shadows a column/,
-    );
-    expect(() =>
-      body({ projectExtraColumns: { archived: "boolean" } }),
-    ).toThrow(/shadows a column/);
   });
 });

@@ -119,7 +119,7 @@ An archived asset location is an inactive stock location, so
 
 ## Your own fields
 
-`blocks.inventory.options.extraColumns` adds columns to the `inventory_locations` table,
+Columns you add to `inventory_locations` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. `saveLocation` writes them from `fields` and returns them under `fields`; a location you save without `fields` keeps its values. Pass a
 [Standard Schema](https://standardschema.dev) as `fields` to type them,
 parse them on reads and validate them on writes; a bad value is a

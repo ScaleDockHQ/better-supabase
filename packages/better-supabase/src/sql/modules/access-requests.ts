@@ -11,7 +11,6 @@ import type { BlockSqlDefinition } from "../module-types.ts";
 import { sqlIdent, sqlString } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -95,14 +94,7 @@ const NAMES: BlockSqlNames = {
     "before_access_grant",
     "after_access_grant",
   ],
-  options: [
-    "roles",
-    "policy",
-    "maxDuration",
-    "join",
-    "emergency",
-    "extraColumns",
-  ],
+  options: ["roles", "policy", "maxDuration", "join", "emergency"],
   tables: {
     requests: {
       name: "access_requests",
@@ -412,7 +404,7 @@ ${hasReason ? `  ${c("reason")} text check (${c("reason")} is null or length(${c
   ${c("endedAt")} timestamptz,
   ${c("createdAt")} timestamptz not null default now()
 );
-create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_idx`)} on ${requests} (${c("tenant")}, ${c("createdAt")} desc);${addExtraColumns(requests, extras)}
+create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_tenant_idx`)} on ${requests} (${c("tenant")}, ${c("createdAt")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${c("approval")}) where ${c("approval")} is not null;
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_expiry_idx`)} on ${requests} (${c("expiresAt")}) where ${c("grantedAt")} is not null and ${c("endedAt")} is null;
 ${

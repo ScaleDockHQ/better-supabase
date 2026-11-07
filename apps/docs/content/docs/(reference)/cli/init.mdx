@@ -170,9 +170,8 @@ npx better-supabase init --preset "https://app.bettersupabase.com/create?design=
 
 `init` decodes the design locally, with no network call, and writes its
 preset into `preset`, its [app tables](/docs/repository/tables) into `tables` and its extra columns into
-each block's `options.extraColumns`. The canvas positions
-stay in the URL. A design that doesn't decode, or that adds columns to a
-block the preset doesn't install, stops `init` with the reason.
+its seeds into `database.seed`. The canvas positions
+stay in the URL. A design that doesn't decode stops `init` with the reason.
 
 A design is capped at 6000 characters so the URL stays usable. When Create
 says a design is too large to share, download the design file instead and

@@ -7,7 +7,6 @@ import { ensureExclusion } from "../exclusion.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
   addCheck,
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -214,11 +213,7 @@ ${addCheck({
         .join("")}`
     : "";
 
-  const calendarExtras = ctx.extraColumns(
-    "calendars",
-    ["fields"],
-    "calendarExtraColumns",
-  );
+  const calendarExtras = ctx.extraColumns("calendars", ["fields"]);
 
   const calendarExtra = extraFieldsArg(calendarExtras);
 
@@ -274,7 +269,7 @@ ${renderPolicy(makePolicy({ table: attendees, name: `${ctx.tableName("attendees"
   ${k("ownerType")} text,
   ${k("ownerId")} text,
   ${k("createdAt")} timestamptz not null default now()
-);${addExtraColumns(calendars, calendarExtras)}${calendarColumns}
+);${calendarColumns}
 ${lockTable(calendars, { read: true })}
 create index if not exists ${sqlIdent(`${ctx.tableName("calendars").name}_tenant_idx`)} on ${calendars} (${k("tenant")});
 ${renderPolicy(makePolicy({ table: calendars, name: `${ctx.tableName("calendars").name}_read`, command: "select", roles: ["authenticated"], using: features.access ? accessCall(ctx, k("id"), "read", me) : ctx.scope.check(k("tenant"), read) }), { target: calendars })}
@@ -322,7 +317,7 @@ ${addCheck({
   table: events,
   name: `${ctx.tableName("events").name}_transparency_check`,
   expression: `${e("transparency")} in ${TRANSPARENCIES}`,
-})}${eventColumns}${addExtraColumns(events, eventExtras(ctx))}${eventOverlap(ctx)}
+})}${eventColumns}${eventOverlap(ctx)}
 ${lockTable(events, { read: true })}
 ${renderPolicy(makePolicy({ table: events, name: `${ctx.tableName("events").name}_read`, command: "select", roles: ["authenticated"], using: features.access ? eventAccessCall(ctx, e("id"), "read", me) : ctx.scope.check(e("tenant"), read) }), { target: events })}
 ${attendeesTable()}${alarmsTable(ctx)}${defaultAlarmsTable(ctx)}${workingHoursTable(ctx)}${grantsTable(ctx)}${recurrenceTables(ctx)}`
@@ -909,9 +904,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
         "text",
         "text",
         "text",
-        ...extraFieldsArg(
-          ctx.extraColumns("calendars", ["fields"], "calendarExtraColumns"),
-        ).contract,
+        ...extraFieldsArg(ctx.extraColumns("calendars", ["fields"])).contract,
         ...(attrs ? ["jsonb"] : []),
       ],
       returns: "jsonb",

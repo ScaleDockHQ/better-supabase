@@ -308,7 +308,6 @@ const NAMES: BlockSqlNames = {
     "tenant",
     "messages",
     "teamMembership",
-    ...Object.values(AI_CHAT_EXTRA_OPTIONS),
   ],
   tables: {
     projects: {
@@ -511,7 +510,7 @@ export interface AiChatNames {
   readonly staleAfter: string;
   /** Seconds a sandbox may sit unused before the idle-stop claim takes it. */
   readonly sandboxIdleAfter: number;
-  /** `options.extraColumns`, which the chats table gets. */
+  /** The columns your schema files add, which the chats table gets. */
   readonly chatExtras: readonly ExtraColumn[];
   /** The app columns of each table (`AI_CHAT_EXTRA_OPTIONS`). */
   readonly extras: { readonly [K in AiChatTable]: readonly ExtraColumn[] };
@@ -608,16 +607,12 @@ const EXTRA_RESERVED: { readonly [K in AiChatTable]?: readonly string[] } = {
 function extrasOf(ctx: BlockSqlContext): AiChatNames["extras"] {
   const extras: Partial<Record<AiChatTable, readonly ExtraColumn[]>> = {};
 
-  for (const [table, key] of Object.entries(AI_CHAT_EXTRA_OPTIONS)) {
+  for (const table of Object.keys(AI_CHAT_EXTRA_OPTIONS)) {
     if (isAiChatTable(table)) {
-      extras[table] = ctx.extraColumns(
-        table,
-        [
-          ...(table === "chats" ? CHAT_KEYS : ["fields"]),
-          ...(EXTRA_RESERVED[table] ?? []),
-        ],
-        key,
-      );
+      extras[table] = ctx.extraColumns(table, [
+        ...(table === "chats" ? CHAT_KEYS : ["fields"]),
+        ...(EXTRA_RESERVED[table] ?? []),
+      ]);
     }
   }
 

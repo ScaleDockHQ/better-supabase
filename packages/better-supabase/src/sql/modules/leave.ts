@@ -5,7 +5,6 @@ import { sqlIdent, sqlString } from "../../core/template.ts";
 import { employeeKeyBackfillSql, employeeKeySql } from "../employee-key-sql.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   extraFieldsJson,
   fail,
@@ -359,7 +358,7 @@ ${approvals === undefined ? "" : `  ${q("approval")} uuid references ${ar} (${a(
   ${q("updatedAt")} timestamptz not null default now(),
   check (${q("endsOn")} >= ${q("startsOn")}),
   foreign key (${q("tenant")}, ${q("type")}) references ${types} (${ty("tenant")}, ${ty("id")}) on delete restrict
-);${addExtraColumns(requests, extras)}
+);
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_user_idx`)} on ${requests} (${q("tenant")}, ${owner.column}, ${q("startsOn")} desc);
 create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_dates_idx`)} on ${requests} (${q("tenant")}, ${q("startsOn")}, ${q("endsOn")});
 ${approvals === undefined ? "" : `create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_approval_idx`)} on ${requests} (${q("approval")}) where ${q("approval")} is not null;\n`}create index if not exists ${sqlIdent(`${ctx.tableName("requests").name}_type_idx`)} on ${requests} (${q("tenant")}, ${q("type")});

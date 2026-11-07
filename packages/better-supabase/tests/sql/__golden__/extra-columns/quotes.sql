@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_097_quotes.sql
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:1c46569fe432162f97275ac392893f85e331b41a94b6171138e1ac715cffe04d
+-- @bsb-hash sha256:7e0dff7837c74938e83f63479b8aadc93583cbe5bb2a5249450114fe70fc1b83
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -66,7 +66,6 @@ create index quotes_tenant_status_idx on "better_supabase"."quotes" ("tenant_id"
 create index quotes_variant_idx on "better_supabase"."quotes" ("variant_of") where "variant_of" is not null;
 create index quotes_origin_idx on "better_supabase"."quotes" ("origin_type", "origin_id");
 
-alter table "better_supabase"."quotes" add column "app_note" text;
 alter table "better_supabase"."quotes" enable row level security;
 revoke all on "better_supabase"."quotes" from public, anon, authenticated;
 grant select on "better_supabase"."quotes" to authenticated;

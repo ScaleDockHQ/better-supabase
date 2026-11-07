@@ -1,4 +1,4 @@
-import type { BlockOptionsSchema, ExtraColumns } from "../options.ts";
+import type { BlockOptionsSchema } from "../options.ts";
 
 import { blockOptions, option } from "../options.ts";
 
@@ -10,8 +10,6 @@ export type DealsSqlOptions = {
   readonly priorities?: unknown;
   readonly prefix?: string;
   readonly readAll?: boolean;
-  readonly extraColumns?: ExtraColumns;
-  readonly lineExtraColumns?: ExtraColumns;
   /**
    * `"percent"` when your own line table keeps discount and tax rates as
    * percentages, such as `vat_rate numeric(5, 2)`: the block converts them from
@@ -34,8 +32,6 @@ export const dealsSqlOptions: BlockOptionsSchema<DealsSqlOptions> =
     priorities: option.unknown(),
     prefix: option.string({ default: "DEAL-" }),
     readAll: option.boolean({ default: true }),
-    extraColumns: option.extraColumns(),
-    lineExtraColumns: option.extraColumns(),
     lineRates: option.string<"bps" | "percent">({ default: "bps" }),
     searchColumn: option.boolean({ default: false }),
   });

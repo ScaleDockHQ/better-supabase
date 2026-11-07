@@ -11,7 +11,6 @@ import { sqlIdent } from "../../core/template.ts";
 import { createdOrUpdated } from "../event-verbs.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   raise,
   revokeTable,
   schemaPreamble,
@@ -103,7 +102,7 @@ const EVENTS: BlockSqlEvents<AgentsEvents> = {
 const NAMES: BlockSqlNames = {
   entities: { agent: { table: "agents", singular: "agent", primary: true } },
   events: EVENTS,
-  options: ["maxInstructions", "extraColumns"],
+  options: ["maxInstructions"],
   tables: {
     agents: {
       name: "agents",
@@ -362,7 +361,7 @@ create table if not exists ${agents} (
   ${a.updatedAt} timestamptz not null default now(),
   unique (${a.tenant}, ${a.slug})
 );
-create index if not exists ${ctx.naming.rename("agents_owner_idx")} on ${agents} (${a.owner});${addExtraColumns(agents, extras)}
+create index if not exists ${ctx.naming.rename("agents_owner_idx")} on ${agents} (${a.owner});
 create index if not exists ${ctx.naming.rename("agents_published_idx")} on ${agents} (${a.visibility}, ${a.publishedAt}) where ${a.publishedAt} is not null;
 alter table ${agents} enable row level security;
 ${revokeTable(agents)}

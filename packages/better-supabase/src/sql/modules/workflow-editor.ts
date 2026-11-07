@@ -9,7 +9,6 @@ import type { BlockSqlDefinition, BlockSqlLayout } from "../module-types.ts";
 
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import {
-  addExtraColumns,
   extraFieldsArg,
   fail,
   schemaPreamble,
@@ -65,7 +64,7 @@ const NAMES: BlockSqlNames = {
     },
   },
   events: EVENTS,
-  options: ["extraColumns"],
+  options: [],
   tables: {
     definitions: {
       name: "workflow_definitions",
@@ -341,7 +340,7 @@ create index if not exists ${ctx.naming.rename("workflow_definitions_created_by_
 -- forked_from: the definition and version a fork copied.
 -- restricted: running or editing it also needs a workflow_definition_grants
 -- row (or workflow.admin).
-${definitionColumnsSql(ctx, s)}${addExtraColumns(d, extras)}
+${definitionColumnsSql(ctx, s)}
 ${lockModuleTable(ctx, "definitions", { read: true })}
 ${renderPolicy(makePolicy({ table: d, name: ctx.naming.rename("workflow_definitions_read"), command: "select", roles: ["authenticated"], using: scoped ? `${readable(cd("tenant"))} or (${cd("scope")} = 'system' and exists (select ${ctx.scope.ids(s.permission("read"))}))` : readable(cd("tenant")) }), { target: d })}
 
@@ -520,7 +519,7 @@ ${nodeKindsSql(ctx, s)}
 -- 'system') has no tenant and only the service role saves it; the scope of
 -- a saved definition never changes.
 drop function if exists ${fn("save_workflow_definition")}(${id}, text, text, text);
--- fields: the extra columns (blocks["workflow-editor"].options.extraColumns) to set.
+-- fields: the extra columns (columns your schema files add) to set.
 ${extra.drop(fn("save_workflow_definition"), `${id}, text, text, text, text[], text, boolean`)}
 create or replace function ${fn("save_workflow_definition")}(
   tenant ${id},

@@ -261,12 +261,11 @@ const mine = await db.contacts.representedByMe(organizationId).orThrow();
 
 ## Extra columns
 
-`options.extraColumns` adds columns to `companies`, such as a segment or an industry. `saveCompany` writes them from `fields`, and every company it returns carries them in `fields`:
+Columns you add to `companies` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):, such as a segment or an industry. `saveCompany` writes them from `fields`, and every company it returns carries them in `fields`:
 
-```ts title="better-supabase.config.ts"
-blocks: {
-  contacts: { options: { extraColumns: { segment: "text", employees: "integer" } } },
-},
+```sql title="supabase/schemas/companies.sql"
+alter table "better_supabase"."companies" add column "segment" text;
+alter table "better_supabase"."companies" add column "employees" integer;
 ```
 
 Pass a Standard Schema as `fields` to type them: `saveCompany` validates the fields it writes (a `validation` error, before the database), and `saveCompany`, `mergeCompanies` and `listCompanies` parse them on read.

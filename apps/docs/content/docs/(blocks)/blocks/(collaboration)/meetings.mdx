@@ -150,15 +150,14 @@ summary, and pages with `limit` and `offset`.
 
 ## Options
 
-| Option         | Default                                                               | Does                                                         |
-| -------------- | --------------------------------------------------------------------- | ------------------------------------------------------------ |
-| `kinds`        | `meeting`, `board`, `management_review`, `one_on_one`, `toolbox_talk` | The allowed kinds; lowercase letters, digits, `_`            |
-| `calendar`     | none                                                                  | The name of a calendar that mirrors planned meetings         |
-| `extraColumns` | none                                                                  | Columns the app adds to `meetings`, written through `fields` |
+| Option     | Default                                                               | Does                                                 |
+| ---------- | --------------------------------------------------------------------- | ---------------------------------------------------- |
+| `kinds`    | `meeting`, `board`, `management_review`, `one_on_one`, `toolbox_talk` | The allowed kinds; lowercase letters, digits, `_`    |
+| `calendar` | none                                                                  | The name of a calendar that mirrors planned meetings |
 
 ## Custom fields
 
-`blocks.meetings.options.extraColumns` adds columns to the `meetings` table,
+Columns you add to `meetings` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 for example a room code or a cost center. `create` and `update` take their
 values under `fields`, and every read returns them under `fields` next to the
 meeting. Pass a Standard Schema as `fields` to `createMeetings` to type and

@@ -25,6 +25,7 @@ import {
   generateDatabaseTypes,
   oxfmtInstalled,
 } from "../introspect/typegen.ts";
+import { appColumnsFor } from "../sql-layout.ts";
 import { apiTypeSchemas } from "./api-schemas.ts";
 import {
   emitBlockConfig,
@@ -180,14 +181,21 @@ export async function render(
 
   const main = mapper ? 0 : 1;
 
-  const blockConfig = emitBlockConfig(config, runtime);
+  const blockOptions = {
+    ...runtime,
+    ...(config.blockNames.length === 0
+      ? {}
+      : { appColumns: await appColumnsFor(config) }),
+  };
 
-  const blockModule = emitBlockConfigModule(config, runtime);
+  const blockConfig = emitBlockConfig(config, blockOptions);
+
+  const blockModule = emitBlockConfigModule(config, blockOptions);
 
   if (blockConfig && blockModule) {
     files.push(blockConfig, blockModule);
 
-    const clientBlocks = emitClientBlocks(config, runtime);
+    const clientBlocks = emitClientBlocks(config, blockOptions);
 
     if (clientBlocks) {
       files.push(clientBlocks);

@@ -16,7 +16,6 @@ import {
   pageSize,
   fail,
   ensureCheck,
-  addExtraColumns,
   extraFieldsJson,
 } from "../shared.ts";
 import { appUniqueIndex, asText, lockModuleTable } from "./over-app.ts";
@@ -89,7 +88,7 @@ const NAMES: BlockSqlNames = {
     "before_workflow_start_request",
     "after_workflow_start_request",
   ],
-  options: ["runExtraColumns"],
+  options: [],
   tables: {
     runs: {
       name: "workflow_runs",
@@ -212,7 +211,7 @@ function build(ctx: BlockSqlContext): string {
   const q = requestsOn ? ctx.table("startRequests") : "";
   const keyed = ctx.has("runs", "idempotencyKey");
   const leased = keyed && ctx.has("runs", "dispatchUntil");
-  const extras = ctx.extraColumns("runs", RUN_KEYS, "runExtraColumns");
+  const extras = ctx.extraColumns("runs", RUN_KEYS);
   const cr = (column: string): string => ctx.col("runs", column);
   const cs = (column: string): string => ctx.col("schedules", column);
   const cm = (column: string): string => ctx.col("semaphores", column);
@@ -359,7 +358,7 @@ alter table ${r} add column if not exists ${cr("dispatchUntil")} timestamptz;`
             : ""
         }`
       : ""
-  }${addExtraColumns(r, extras)}${
+  }${
     linked
       ? `${app ? "" : `\n${ensureCheck(r, "workflow_runs_subject_check", `(${cr("subjectType")} is null) = (${cr("subjectId")} is null)`)}`}
 create index if not exists workflow_runs_subject_idx on ${r} (${cr("tenant")}, ${cr("subjectType")}, ${cr("subjectId")}, ${cr("createdAt")} desc) where ${cr("subjectType")} is not null;`

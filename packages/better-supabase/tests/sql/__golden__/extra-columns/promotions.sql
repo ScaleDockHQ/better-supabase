@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:59068d93840c8b03f0bd73595a22bcf7c5b650633aa591d533421367086a2346
+-- @bsb-hash sha256:31d17be89138e68a97fc29fc132d43bf4c7c6f91d9490f87b4a0dfbbdb8f607e
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,7 +38,6 @@ create table "better_supabase"."promotions" (
   check ("ends_at" is null or "starts_at" is null or "ends_at" > "starts_at")
 );
 create index promotions_tenant_idx on "better_supabase"."promotions" ("tenant_id", "active", "automatic");
-alter table "better_supabase"."promotions" add column "app_note" text;
 alter table "better_supabase"."promotions" enable row level security;
 revoke all on "better_supabase"."promotions" from public, anon, authenticated;
 grant select on "better_supabase"."promotions" to authenticated;

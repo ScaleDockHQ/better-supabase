@@ -73,8 +73,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "organizations",
       "scopes": [
         "tenant"
-      ],
-      "extraColumns": "invitations"
+      ]
     },
     {
       "name": "reserved-slugs",
@@ -125,8 +124,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "webhook-inbox",
       "contributes": [
         "housekeeping"
-      ],
-      "extraColumns": "messages"
+      ]
     },
     {
       "name": "realtime-tables",
@@ -322,8 +320,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "invitations"
           ]
         }
-      ],
-      "extraColumns": "organizations"
+      ]
     },
     {
       "name": "profiles",
@@ -336,8 +333,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "profiles",
       "tenantNameClashes": [
         "team"
-      ],
-      "extraColumns": "profiles"
+      ]
     },
     {
       "name": "outbox",
@@ -424,8 +420,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "notification_events"
           ]
         }
-      ],
-      "extraColumns": "events"
+      ]
     },
     {
       "name": "webhooks-out",
@@ -543,7 +538,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "keys",
       "entities": {
         "specs": {
           "api_key": {
@@ -689,7 +683,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "flags",
       "entities": {
         "specs": {
           "flag": {
@@ -858,7 +851,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "seeds": {
         "variants": []
       },
-      "extraColumns": "attachments",
       "entities": {
         "specs": {
           "attachment": {
@@ -978,7 +970,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "entries",
       "entities": {
         "specs": {
           "waitlist_entry": {
@@ -1026,7 +1017,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "announcements",
       "entities": {
         "specs": {
           "announcement": {
@@ -1125,7 +1115,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "definitions",
       "entities": {
         "specs": {
           "workflow_definition": {
@@ -1296,7 +1285,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "chats",
       "entities": {
         "specs": {
           "ai_chat": {
@@ -1376,7 +1364,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "files",
       "entities": {
         "specs": {
           "ai_document": {
@@ -1547,7 +1534,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "agents",
       "entities": {
         "specs": {
           "agent": {
@@ -1603,7 +1589,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "servers",
       "entities": {
         "specs": {
           "connector_server": {
@@ -1656,7 +1641,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "tasks",
       "entities": {
         "specs": {
           "ai_scheduled_task": {
@@ -1700,8 +1684,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "integrates": [
         "notifications"
       ],
-      "manifest": "push",
-      "extraColumns": "devices"
+      "manifest": "push"
     },
     {
       "name": "ai-cache",
@@ -1767,7 +1750,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "teams",
       "entities": {
         "specs": {
           "team": {
@@ -1876,7 +1858,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           ]
         }
       ],
-      "extraColumns": "tags",
       "entities": {
         "specs": {
           "tag": {
@@ -2009,7 +1990,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "links",
       "entities": {
         "specs": {
           "share_link": {
@@ -2070,7 +2050,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "subjects"
       ],
-      "extraColumns": "reminders",
       "entities": {
         "specs": {
           "reminder": {
@@ -2210,7 +2189,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "views",
       "entities": {
         "specs": {
           "saved_view": {
@@ -2264,7 +2242,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "bulk"
       ],
-      "extraColumns": "relations",
       "entities": {
         "specs": {
           "relation": {
@@ -2374,7 +2351,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "seeds": {
         "variants": []
       },
-      "extraColumns": "events",
       "entities": {
         "specs": {
           "calendar_event": {
@@ -2483,7 +2459,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "share-links"
       ],
-      "extraColumns": "bookings",
       "entities": {
         "specs": {
           "booking": {
@@ -2552,7 +2527,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "versions",
       "entities": {
         "specs": {
           "version": {
@@ -2614,8 +2588,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "housekeeping",
         "bulk"
-      ],
-      "extraColumns": "items"
+      ]
     },
     {
       "name": "reactions",
@@ -2695,7 +2668,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         "housekeeping",
         "subjects"
       ],
-      "extraColumns": "requests",
       "entities": {
         "specs": {
           "approval": {
@@ -2758,7 +2730,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "approvals"
       ],
-      "extraColumns": "requests",
       "entities": {
         "specs": {
           "access_request": {
@@ -2903,7 +2874,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "imports"
       ],
-      "extraColumns": "products",
       "entities": {
         "specs": {
           "product": {
@@ -3073,7 +3043,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           ]
         }
       ],
-      "extraColumns": "locations",
       "entities": {
         "specs": {
           "inventory_location": {
@@ -3206,7 +3175,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "nodes",
       "entities": {
         "specs": {
           "drive_node": {
@@ -3390,7 +3358,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           ]
         }
       ],
-      "extraColumns": "orders",
       "entities": {
         "specs": {
           "order": {
@@ -3502,7 +3469,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "promotions",
       "entities": {
         "specs": {
           "promotion": {
@@ -3569,7 +3535,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "share-links"
       ],
-      "extraColumns": "forms",
       "entities": {
         "specs": {
           "form": {
@@ -3629,7 +3594,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "requests",
       "entities": {
         "specs": {
           "signature_request": {
@@ -3700,7 +3664,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       ],
-      "extraColumns": "entries",
       "entities": {
         "specs": {
           "time_entry": {
@@ -3788,8 +3751,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "manifest": "service-accounts",
       "scopes": [
         "tenant"
-      ],
-      "extraColumns": "principals"
+      ]
     },
     {
       "name": "templates",
@@ -3811,7 +3773,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "templates",
       "entities": {
         "specs": {
           "template": {
@@ -3874,7 +3835,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "recruiting"
         ]
       },
-      "extraColumns": "pipelines",
       "entities": {
         "specs": {
           "pipeline": {
@@ -3933,7 +3893,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         "relations",
         "imports"
       ],
-      "extraColumns": "companies",
       "entities": {
         "specs": {
           "company": {
@@ -4062,7 +4021,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "engagements",
       "entities": {
         "specs": {
           "activity": {
@@ -4230,7 +4188,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           ]
         }
       ],
-      "extraColumns": "deals",
       "entities": {
         "specs": {
           "deal": {
@@ -4354,7 +4311,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "items",
       "entities": {
         "specs": {
           "task": {
@@ -4536,7 +4492,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "via": "quote_from_deal"
         }
       ],
-      "extraColumns": "quotes",
       "entities": {
         "specs": {
           "quote": {
@@ -4675,7 +4630,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       ],
-      "extraColumns": "invoices",
       "entities": {
         "specs": {
           "invoice": {
@@ -4788,7 +4742,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "subjects"
       ],
-      "extraColumns": "policies",
       "entities": {
         "specs": {
           "sla_policy": {
@@ -4845,7 +4798,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "targets",
       "entities": {
         "specs": {
           "goal": {
@@ -4908,7 +4860,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "jobs",
       "entities": {
         "specs": {
           "job_opening": {
@@ -5022,7 +4973,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "employees",
       "entities": {
         "specs": {
           "employee": {
@@ -5104,7 +5054,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "collections",
       "entities": {
         "specs": {
           "subject_collection": {
@@ -5262,7 +5211,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "reviews",
       "entities": {
         "specs": {
           "review": {
@@ -5332,7 +5280,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "seeds": {
         "variants": []
       },
-      "extraColumns": "requests",
       "entities": {
         "specs": {
           "leave_request": {
@@ -6047,7 +5994,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "accounting"
       ],
-      "extraColumns": "leases",
       "entities": {
         "specs": {
           "lease": {
@@ -6135,7 +6081,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         }
       ],
-      "extraColumns": "reports",
       "entities": {
         "specs": {
           "expense_report": {
@@ -6257,7 +6202,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         "accounting",
         "numbering"
       ],
-      "extraColumns": "donations",
       "entities": {
         "specs": {
           "donation": {
@@ -6396,7 +6340,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "workOrders",
       "entities": {
         "specs": {
           "work_order": {
@@ -6505,7 +6448,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "shipments",
       "entities": {
         "specs": {
           "shipment": {
@@ -6642,7 +6584,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "contracts",
       "entities": {
         "specs": {
           "contract": {
@@ -6741,7 +6682,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "acknowledgements"
       ],
-      "extraColumns": "controls",
       "entities": {
         "specs": {
           "control": {
@@ -6870,7 +6810,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "incidents",
       "entities": {
         "specs": {
           "incident": {
@@ -6989,7 +6928,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "courses",
       "entities": {
         "specs": {
           "course": {
@@ -7116,7 +7054,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "messages",
       "entities": {
         "specs": {
           "message": {
@@ -7749,7 +7686,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "posts",
       "entities": {
         "specs": {
           "post_board": {
@@ -7929,7 +7865,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "qualifications",
       "entities": {
         "specs": {
           "qualification": {
@@ -8042,7 +7977,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "seeds": {
         "variants": []
       },
-      "extraColumns": "risks",
       "entities": {
         "specs": {
           "risk": {
@@ -8186,7 +8120,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "tenantNameClashes": [
         "team"
       ],
-      "extraColumns": "shifts",
       "entities": {
         "specs": {
           "shift": {
@@ -8341,7 +8274,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "nl-rgs"
         ]
       },
-      "extraColumns": "entries",
       "entities": {
         "specs": {
           "accounting_account": {
@@ -8657,7 +8589,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "observations",
       "entities": {
         "specs": {
           "observation": {
@@ -8751,7 +8682,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "orders",
       "entities": {
         "specs": {
           "medication": {
@@ -8867,7 +8797,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "contributes": [
         "approvals"
       ],
-      "extraColumns": "plans",
       "entities": {
         "specs": {
           "care_plan": {
@@ -9062,7 +8991,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "seeds": {
         "variants": []
       },
-      "extraColumns": "cases",
       "entities": {
         "specs": {
           "case": {
@@ -9210,7 +9138,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         "numbering",
         "relations"
       ],
-      "extraColumns": "inspections",
       "entities": {
         "specs": {
           "inspection": {
@@ -9373,7 +9300,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         "numbering",
         "accounting"
       ],
-      "extraColumns": "orders",
       "entities": {
         "specs": {
           "production_order": {
@@ -9663,7 +9589,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           ]
         }
       ],
-      "extraColumns": "accounts",
       "entities": {
         "specs": {
           "bank_transaction": {
@@ -9814,7 +9739,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "meetings",
       "entities": {
         "specs": {
           "meeting": {
@@ -10041,7 +9965,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "scopes": [
         "tenant"
       ],
-      "extraColumns": "awards",
       "entities": {
         "specs": {
           "funding_product": {
@@ -18710,9 +18633,6 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "ShipmentsOptions"
         },
         {
-          "name": "ShipmentsSqlOptions"
-        },
-        {
           "name": "ShipmentStatus"
         },
         {
@@ -20393,9 +20313,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "CoursesOptions"
-        },
-        {
-          "name": "CoursesSqlOptions"
         },
         {
           "name": "CourseStatus"

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:11ad0ca6c6bcab16478baa5ff74718469c07b4fee13e80a2f9c1218a70c6eb2e
+-- @bsb-hash sha256:295d823618c21173da2c62e7c2453f5fd35ad0a3e2d645c2cd3359f25d4b80ea
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -63,7 +63,6 @@ create index deals_pipeline_stage_idx on "better_supabase"."deals" ("pipeline_id
 create index deals_tenant_close_idx on "better_supabase"."deals" ("tenant_id", "expected_close_on") where "outcome" = 'open';
 create index deals_owner_idx on "better_supabase"."deals" ("owner_user_id");
 create index deals_company_idx on "better_supabase"."deals" ("company_type", "company_id");
-alter table "better_supabase"."deals" add column "app_note" text;
 alter table "better_supabase"."deals" enable row level security;
 revoke all on "better_supabase"."deals" from public, anon, authenticated;
 grant select on "better_supabase"."deals" to authenticated;

@@ -74,7 +74,7 @@ Installing the block registers activities as the `activity` subject, so the [att
 
 ## Your own fields
 
-`blocks.activities.options.extraColumns` adds columns to the `activities` table,
+Columns you add to `activities` with `alter table` in your own schema files are fields of the block ([details](/docs/blocks/sql#columns-your-files-add-to-a-block-table)):,
 keyed by column name with their SQL type. `log` and `update` write them from `fields`, and every engagement comes back with them under `fields`. Pass a
 [Standard Schema](https://standardschema.dev) as `fields` to type them,
 parse them on reads and validate them on writes; a bad value is a
