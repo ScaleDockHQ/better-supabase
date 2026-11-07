@@ -92,6 +92,7 @@ import { resourceRoutes } from "./resources.ts";
 import { cacheKeyOf, parkUntilResponseEnds } from "./session-handle.ts";
 import { refreshCallerCache, userSessionTags } from "./session-tags.ts";
 import { authFlows } from "./sign-in.ts";
+import { gateUserOf } from "./user.ts";
 import { withContextFactory } from "./with-context.ts";
 
 /**
@@ -540,6 +541,13 @@ export function createNext<
       applyEntry(ctx, view, scope, tenant, cachedOptions);
 
       return withExtra(ctx, { session: view });
+    },
+
+    async user() {
+      const { ctx, view, scope, tenant } = await scopeOf({});
+      applyEntry(ctx, view, scope, tenant, { life: { stale: 300 } });
+
+      return gateUserOf(view, tenant);
     },
 
     async sessionHandle(handleOptions = {}) {

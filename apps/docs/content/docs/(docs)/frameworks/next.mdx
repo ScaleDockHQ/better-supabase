@@ -354,6 +354,64 @@ token was issued, such as changing a password or deleting an account. The
 `user` on the session comes from the claims, so it works with either cookie
 [encoding](/docs/auth/sessions#encoding).
 
+### The signed-in user and `AuthGate`
+
+`bsb.user()` returns the user as plain data, `{ id, email, name,
+organizationId }`, or `null` for anyone else. It never returns the token or the
+session. Call it inside a `'use cache: private'` function: it sets
+`cacheLife({ stale: 300 })` and the session tags like `bsb.cached()`, so the
+user rides in the App Shell.
+
+```ts title="src/features/auth/auth-queries.ts"
+import "server-only";
+import { bsb } from "@/lib/supabase/server";
+
+export async function getUser() {
+  "use cache: private";
+  return bsb.user();
+}
+```
+
+`AuthGate` from `better-supabase/next/auth-gate` is a Server Component for the
+app layout. The layout stays synchronous: the gate renders a `<Suspense>`
+around one `getUser()` promise and hands it to `useUser()` in Client
+Components, keyed on the user id so a user change never shows the last user's
+DOM.
+
+```tsx title="src/app/(app)/layout.tsx"
+import { AuthGate } from "better-supabase/next/auth-gate";
+import { getUser } from "@/features/auth/auth-queries";
+
+export default function Layout({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthGate
+      user={getUser}
+      fallback={<AppShellSkeleton />}
+      redirect="/sign-in"
+    >
+      {children}
+    </AuthGate>
+  );
+}
+```
+
+```tsx title="src/components/account-menu.tsx"
+"use client";
+import { useUser } from "better-supabase/next/auth-gate";
+
+export function AccountMenu() {
+  const user = useUser();
+  return <span>{user?.email}</span>;
+}
+```
+
+`useUser()` uses `use()` on the promise, so render it under a `<Suspense>`
+boundary. `redirect` sends a signed-out visitor away, and `refuse` answers with
+`forbidden()` or `unauthorized()` instead. The proxy still does the cookie-only
+redirect before rendering; the gate is the second check. A `check` function
+runs before the first `<Suspense>` when the status code must be set there, but
+awaiting a request API in it makes the layout dynamic.
+
 With `cacheComponents` enabled, see [Cache Components](/docs/frameworks/next-cache-components)
 for instant navigations and role-aware menus, and the
 [island pattern](/docs/frameworks/next-islands) for pages with many private

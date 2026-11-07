@@ -120,3 +120,17 @@ describe("bsb.cached({ life })", () => {
     expect(mocks.cacheLife).toHaveBeenLastCalledWith({ stale: 600 });
   });
 });
+
+describe("awaitStage when a gate throws", () => {
+  it("warns once and carries on", async () => {
+    const { awaitStage } = await import("../../src/next/entry.ts");
+    const warn = vi.fn<(message: string) => void>();
+    mocks.navigation.mockRejectedValue(new Error("inside a cache scope"));
+
+    await awaitStage("navigation", warn);
+    await awaitStage("navigation", warn);
+
+    expect(warn).toHaveBeenCalledOnce();
+    expect(warn.mock.calls[0]?.[0]).toContain("not allowed");
+  });
+});

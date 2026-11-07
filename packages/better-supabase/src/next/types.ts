@@ -57,6 +57,7 @@ import type { SupportStartRequest } from "../server/support.ts";
 import type { DbBudget } from "./collector.ts";
 import type { RecordAt, RecordServer } from "./record.ts";
 import type { NextResourceRoutes, NextResourcesOptions } from "./resources.ts";
+import type { GateUser } from "./user.ts";
 
 export interface NextOptions extends ServerOptions {
   /**
@@ -415,6 +416,20 @@ export interface BetterNext<
   cached(
     options?: CachedOptions<Extract<keyof M, string>>,
   ): Promise<CachedContext<M, F, E, C, P, B, D>>;
+  /**
+   * The signed-in user as plain data (`id`, `email`, `name`, `organizationId`),
+   * never the token or the session, or `null` for anyone else. Call it inside a
+   * `"use cache: private"` function: it sets `cacheLife({ stale: 300 })` and
+   * the session tags like `bsb.cached()`, so the user rides in the App Shell.
+   *
+   * ```ts
+   * export async function getUser() {
+   *   "use cache: private";
+   *   return bsb.user();
+   * }
+   * ```
+   */
+  user(): Promise<GateUser | null>;
   /**
    * Parks the request's verified session until the response is sent and returns
    * its serializable handle. Pass the handle to a `'use cache: private'`

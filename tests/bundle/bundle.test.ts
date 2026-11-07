@@ -263,6 +263,7 @@ const NODE_LOADED = [
   "./next/client",
   "./next/image",
   "./next/proxy",
+  "./next/auth-gate",
   "./server",
   "./client",
   "./query",
@@ -567,7 +568,11 @@ describe("bundle", () => {
   );
 
   it('keeps "use client" on the react and next/client entries', async () => {
-    for (const file of ["dist/react/index.js", "dist/next/client/index.js"]) {
+    for (const file of [
+      "dist/react/index.js",
+      "dist/next/client/index.js",
+      "dist/next/auth-gate/user.js",
+    ]) {
       const source = await readFile(join(PACKAGE, file), "utf-8");
       expect(source.startsWith('"use client";')).toBe(true);
     }
