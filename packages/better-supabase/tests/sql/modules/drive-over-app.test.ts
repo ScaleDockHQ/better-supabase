@@ -119,6 +119,7 @@ const BLOCKS: AnyBlocksConfig = {
       nodes: {
         tenant: "organization_id",
         drive: "drive_id",
+        deletedAt: "deleted_at",
         attachment: null,
         path: null,
         rank: null,

@@ -409,6 +409,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0343: Taint tokens and server contexts.
 - 0344: Pause block controllers offline and write the Next.js layout from init.
 - 0345: Timestamp columns end in _at.
+- 0346: Soft-deleted block rows carry archived_at.
 
 ## Pre-release pins
 

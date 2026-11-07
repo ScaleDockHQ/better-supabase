@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:85cd6794eddc975b558777154c28e3851e01088514dab40445836c49c09bac8c
+-- @bsb-hash sha256:dfabb90664887625b6a260f3d2f38cd01f940170e7fbf1164d3dd690ff5cf34c
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -200,7 +200,7 @@ begin
   end if;
   select * into v_msg from "better_supabase"."messages" x
   where x."id" = comment_sent.message and x."author_id" = auth.uid()
-    and x."sent_at" is not null and x."deleted_at" is null;
+    and x."sent_at" is not null and x."archived_at" is null;
   if not found then
     return;
   end if;
@@ -275,7 +275,7 @@ begin
   return "better_supabase"."comments_json"(array(
     select x."id" from "better_supabase"."messages" x
     where x."conversation_id" = v_conv and x."sent_at" is not null
-      and (coalesce(list_comments.include_deleted, true) or x."deleted_at" is null)
+      and (coalesce(list_comments.include_deleted, true) or x."archived_at" is null)
       and (list_comments.after is null
         or (x."sent_at", x."id") > (list_comments.after, coalesce(list_comments.after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
     order by x."sent_at", x."id"
@@ -302,7 +302,7 @@ begin
     join "better_supabase"."conversations" c on c."id" = x."conversation_id" and c."kind" = 'subject'
     where x."anchor" ->> 'kind' = 'file'
       and x."anchor" ->> 'attachmentId' = list_file_comments.attachment::text
-      and x."sent_at" is not null and x."deleted_at" is null
+      and x."sent_at" is not null and x."archived_at" is null
     order by x."sent_at", x."id"
     limit least(greatest(coalesce(list_file_comments.max_rows, 100), 1), 500)
   ));
@@ -330,7 +330,7 @@ begin
       where c."tenant_id" = comment_counts.tenant and c."kind" = 'subject'
         and c."subject_type" = comment_counts.subject_type
         and c."subject_id" = any (comment_counts.subject_ids)
-        and x."sent_at" is not null and x."deleted_at" is null
+        and x."sent_at" is not null and x."archived_at" is null
       group by 1
     ) s
   );
@@ -380,9 +380,9 @@ begin
     from "better_supabase"."messages" y
     where y."conversation_id" = v_from and y."sent_at" is not null
   ), inserted as (
-    insert into "better_supabase"."messages" ("id", "tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "deleted_at", "created_at")
+    insert into "better_supabase"."messages" ("id", "tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "archived_at", "created_at")
     select n.new_id, y."tenant_id", v_to, p.new_id, r.new_id, y."author_id",
-      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."deleted_at", y."created_at"
+      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."archived_at", y."created_at"
     from "better_supabase"."messages" y
     join copies n on n.old_id = y."id"
     left join copies p on p.old_id = y."parent_id"
@@ -412,7 +412,7 @@ declare
   v_task uuid;
 begin
   select * into v_msg from "better_supabase"."messages" x
-  where x."id" = assign_comment.message and x."sent_at" is not null and x."deleted_at" is null;
+  where x."id" = assign_comment.message and x."sent_at" is not null and x."archived_at" is null;
   if not found then
     raise exception 'no comment you can read has this id' using errcode = 'P0002', hint = 'COMMENT_NOT_FOUND';
   end if;

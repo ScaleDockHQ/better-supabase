@@ -821,7 +821,7 @@ describe("useComments", () => {
     mentions: [],
     sent_at: "2026-01-01T00:00:00Z",
     created_at: "2026-01-01T00:00:00Z",
-    deleted_at: deleted ? "2026-01-02T00:00:00Z" : null,
+    archived_at: deleted ? "2026-01-02T00:00:00Z" : null,
   });
 
   it("loads the thread, adds and removes, and reloads for the conversation's topic", async () => {

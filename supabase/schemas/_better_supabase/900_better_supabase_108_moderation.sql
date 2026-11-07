@@ -1,6 +1,6 @@
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:057280270b7ecb87e7b3c60a56f9cde7419f7e87a6c2f7cd6eba77129ec501f6
+-- @bsb-hash sha256:2f46bee48376bee20180d3bf8021083656dbf62f7a57d93b95d13710e3dfcf7d
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -322,8 +322,8 @@ begin
   if v_row."subject_type" = 'message' and v_status = 'removed' then
     update "better_supabase"."messages" x
     set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,
-      "pinned_at" = null, "pinned_by" = null, "deleted_at" = now()
-    where x."id"::text = v_row."subject_id" and x."deleted_at" is null;
+      "pinned_at" = null, "pinned_by" = null, "archived_at" = now()
+    where x."id"::text = v_row."subject_id" and x."archived_at" is null;
   end if;
   if moderation_apply.action = 'ban' and not "better_supabase"."moderation_banned"(v_row."tenant_id", v_row."author_id") then
     delete from "better_supabase"."moderation_bans" x where x."tenant_id" = v_row."tenant_id" and x."user_id" = v_row."author_id" and x."lifted_at" is null;
@@ -398,7 +398,7 @@ begin
   end if;
   if report_content.subject_type = 'message' then
     select x."author_id" into v_author from "better_supabase"."messages" x
-    where x."id"::text = report_content.subject_id and x."tenant_id" = report_content.tenant and x."deleted_at" is null;
+    where x."id"::text = report_content.subject_id and x."tenant_id" = report_content.tenant and x."archived_at" is null;
     if not found then
       raise exception 'there is no such message to report' using errcode = 'P0002', hint = 'MODERATION_SUBJECT_NOT_FOUND';
     end if;

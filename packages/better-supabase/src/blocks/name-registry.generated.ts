@@ -916,7 +916,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "create" | "manage";
     readonly hooks: "before_drive_node_create" | "after_drive_node_create" | "before_drive_node_move" | "after_drive_node_move" | "before_drive_node_rename" | "after_drive_node_rename" | "before_drive_node_share" | "after_drive_node_share";
     readonly entities: {
-      readonly "drive_node": "id" | "tenant_id" | "drive_id" | "parent_id" | "kind" | "name" | "attachment_id" | "path" | "rank" | "deleted_at" | "source" | "external_id" | "external_metadata" | "legal_hold_expires_at" | "locked_by" | "lock_expires_at" | "lock_note" | "download_blocked" | "preview_pages" | "document_number" | "document_type" | "document_status" | "document_owner_id" | "effective_version_id" | "effective_at" | "review_interval_months" | "next_review_on" | "review_notified_for" | "created_by" | "created_at" | "updated_at";
+      readonly "drive_node": "id" | "tenant_id" | "drive_id" | "parent_id" | "kind" | "name" | "attachment_id" | "path" | "rank" | "archived_at" | "source" | "external_id" | "external_metadata" | "legal_hold_expires_at" | "locked_by" | "lock_expires_at" | "lock_note" | "download_blocked" | "preview_pages" | "document_number" | "document_type" | "document_status" | "document_owner_id" | "effective_version_id" | "effective_at" | "review_interval_months" | "next_review_on" | "review_notified_for" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: "drive_node";
   };
@@ -1559,7 +1559,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "memory": "id" | "organization_id" | "owner_id" | "scope" | "agent_id" | "chat_id" | "project_id" | "kind" | "path" | "content" | "version" | "embedding" | "embedding_model" | "source_message_id" | "superseded_by" | "subject_type" | "subject_id" | "category" | "confidence" | "expires_at" | "deleted_at" | "use_count" | "last_used_at" | "tsv" | "created_at" | "updated_at";
+      readonly "memory": "id" | "organization_id" | "owner_id" | "scope" | "agent_id" | "chat_id" | "project_id" | "kind" | "path" | "content" | "version" | "embedding" | "embedding_model" | "source_message_id" | "superseded_by" | "subject_type" | "subject_id" | "category" | "confidence" | "expires_at" | "archived_at" | "use_count" | "last_used_at" | "tsv" | "created_at" | "updated_at";
     };
     readonly primary: "memory";
   };
@@ -1577,7 +1577,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "send" | "moderate";
     readonly hooks: "before_message_send" | "after_message_send" | "before_message_edit" | "after_message_edit";
     readonly entities: {
-      readonly "message": "id" | "tenant_id" | "conversation_id" | "parent_id" | "thread_id" | "author_id" | "kind" | "body" | "document" | "anchor" | "mentions" | "mention_scope" | "broadcast" | "reply_count" | "last_reply_at" | "reply_user_ids" | "pinned_at" | "pinned_by" | "resolved_at" | "resolved_by" | "scheduled_at" | "sent_at" | "edited_at" | "deleted_at" | "created_at";
+      readonly "message": "id" | "tenant_id" | "conversation_id" | "parent_id" | "thread_id" | "author_id" | "kind" | "body" | "document" | "anchor" | "mentions" | "mention_scope" | "broadcast" | "reply_count" | "last_reply_at" | "reply_user_ids" | "pinned_at" | "pinned_by" | "resolved_at" | "resolved_by" | "scheduled_at" | "sent_at" | "edited_at" | "archived_at" | "created_at";
       readonly "conversation": "id" | "tenant_id" | "kind" | "access" | "subject_type" | "subject_id" | "title" | "member_key" | "created_by" | "last_message_at" | "archived_at" | "created_at" | "updated_at";
     };
     readonly primary: "message";

@@ -110,7 +110,7 @@ describe("messaging summaries", () => {
       list_messages: [
         message("m1", "2026-01-01T00:01:00Z"),
         message("m2", "2026-01-01T00:02:00Z", { kind: "note" }),
-        message("m3", "2026-01-01T00:03:00Z", { deleted_at: AT }),
+        message("m3", "2026-01-01T00:03:00Z", { archived_at: AT }),
         message("m4", "2026-01-01T00:04:00Z", { body: "  " }),
         message("m5", "2026-01-01T00:05:00Z", {
           thread_id: "m1",

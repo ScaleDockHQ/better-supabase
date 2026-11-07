@@ -1,6 +1,6 @@
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:923cf802cd967750facf101f62f29aee608d9dbe5d9c6d7df5cdb3412d0d42d2
+-- @bsb-hash sha256:492e2ba5ea5ac1ae24654aa93e476518dbfa7bd99b4fd5ad4798165bfbdb378c
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -629,7 +629,7 @@ begin
     "reply_count" = (
       select count(*) from "better_supabase"."messages" m
       where m."conversation_id" = new."conversation_id"
-        and m."sent_at" is not null and m."deleted_at" is null
+        and m."sent_at" is not null and m."archived_at" is null
     ),
     "last_activity_at" = greatest(x."last_activity_at", coalesce(new."sent_at", x."last_activity_at"))
   from "better_supabase"."conversations" c
@@ -640,7 +640,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."posts_replied"() from public, anon, authenticated;
 create trigger "bsb_posts_replied"
-  after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
+  after insert or update of "sent_at", "archived_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_replied"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one

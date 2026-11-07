@@ -1,6 +1,6 @@
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:90615c79de04802594fe4afd0e930851612ff249bc88f6299f9739388918ebb0
+-- @bsb-hash sha256:cac3019adfe349c35a6fada165e200d22d7d3f4926429bd786001a8d58556ffe
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -150,7 +150,7 @@ begin
       and c."subject_type" = list_activity.subject_type
       and c."subject_id" = list_activity.subject_id
       and m."sent_at" is not null
-      and m."deleted_at" is null
+      and m."archived_at" is null
       and (list_activity.before is null or m."sent_at" < list_activity.before)
     order by m."sent_at" desc, m."id" desc
     limit v_limit)

@@ -689,7 +689,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:033ecd09582300767eb05f50be24e622f35076a9c429dfba18b0b3568e63ad64
+-- @bsb-hash sha256:7f7a5dd1db7aa827468672ead024ba52f5b49e7cd3887fec7ee74cf7e0911f35
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -919,7 +919,7 @@ begin
         and c."kind" = 'subject'
       where c."subject_type"::text = record_summary.subject_type
         and c."subject_id"::text = record_summary.subject_id
-        and x."sent_at" is not null and x."deleted_at" is null;
+        and x."sent_at" is not null and x."archived_at" is null;
     v_seen := coalesce((select "better_supabase"."conversation_read_at"(c."id") from "better_supabase"."conversations" c
         where c."kind" = 'subject'
           and c."subject_type" = record_summary.subject_type
@@ -1406,7 +1406,7 @@ begin
     from "better_supabase"."messages" m
     join "better_supabase"."conversations" c on c."id" = m."conversation_id" and c."kind" = 'subject'
     where v_me = any (m."mentions")
-      and m."deleted_at" is null
+      and m."archived_at" is null
       and m."sent_at" > now() - interval '30 days'
       and (my_work.tenant is null or m."tenant_id" = my_work.tenant)
     union all

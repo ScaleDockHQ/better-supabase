@@ -1506,7 +1506,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "category": "category",
               "confidence": "confidence",
               "expiresAt": "expires_at",
-              "deletedAt": "deleted_at",
+              "deletedAt": "archived_at",
               "useCount": "use_count",
               "lastUsedAt": "last_used_at",
               "tsv": "tsv",
@@ -3196,7 +3196,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "attachment": "attachment_id",
               "path": "path",
               "rank": "rank",
-              "deletedAt": "deleted_at",
+              "deletedAt": "archived_at",
               "source": "source",
               "externalId": "external_id",
               "externalMetadata": "external_metadata",
@@ -7120,7 +7120,7 @@ export const PRESET_CATALOG: PresetCatalog = {
               "scheduledFor": "scheduled_at",
               "sentAt": "sent_at",
               "editedAt": "edited_at",
-              "deletedAt": "deleted_at",
+              "deletedAt": "archived_at",
               "createdAt": "created_at"
             }
           },

@@ -38,7 +38,7 @@ describe("reactions module", () => {
     });
 
     expect(sql).toContain(
-      `when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant and s."deleted_at" is null)`,
+      `when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (reaction_subject_visible.subject_id)::uuid and s."tenant_id" = reaction_subject_visible.tenant and s."archived_at" is null)`,
     );
     expect(sql).not.toContain("react_to_message");
     expect(sql).not.toContain(`when 'comment'`);

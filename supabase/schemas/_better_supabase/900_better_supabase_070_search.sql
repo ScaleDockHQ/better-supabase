@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:f1f901e8a2ce317220a16e06cefb1ef9cb8ff565a86fa07d40726b931f0b2547
+-- @bsb-hash sha256:b07103f1466872b72c0428a724a5f671f12b0133a80b2b1b056bf1c4b6c06894
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,7 +77,7 @@ begin
         into v_tenant, v_title, v_body, v_url
         from "better_supabase"."messages" s
         where s."id" = (search_refresh.subject_id)::uuid
-        and s."deleted_at" is null;
+        and s."archived_at" is null;
       v_found := found;
     when 'channel' then
       select s."tenant_id", s."name"::text, nullif(concat_ws(E'\n', s."topic"::text, s."purpose"::text), ''), null
@@ -204,7 +204,7 @@ begin
         from "better_supabase"."drive_nodes" s
         join "better_supabase"."drive_node_search" f on f."id"::text = s."id"::text
         where s."id" = (search_refresh.subject_id)::uuid
-        and s."deleted_at" is null;
+        and s."archived_at" is null;
       v_found := found;
     when 'project' then
       select s."organization_id", s."name"::text, null, '/projects/' || s."id"::text

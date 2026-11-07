@@ -97,7 +97,7 @@ describe("messaging.anchoredTo", () => {
               sent_at: AT,
               created_at: AT,
               edited_at: null,
-              deleted_at: null,
+              archived_at: null,
               pinned_at: null,
               pinned_by: null,
               resolved_at: null,

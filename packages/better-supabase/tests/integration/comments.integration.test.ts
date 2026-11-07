@@ -1233,9 +1233,9 @@ describe.skipIf(!live)("comments", () => {
         reply_count: number;
         sent_at: Date;
         edited_at: Date | null;
-        deleted_at: Date | null;
+        archived_at: Date | null;
       }>(
-        `select id, conversation_id, parent_id, thread_id, author_id, mentions, reply_count, sent_at, edited_at, deleted_at
+        `select id, conversation_id, parent_id, thread_id, author_id, mentions, reply_count, sent_at, edited_at, archived_at
          from better_supabase.messages where id = any ($1::uuid[]) order by sent_at`,
         [[root, reply, edited, removed]],
       );
@@ -1271,7 +1271,7 @@ describe.skipIf(!live)("comments", () => {
       expect(messages[2]!.edited_at?.toISOString()).toBe(
         "2026-10-01T12:30:00.000Z",
       );
-      expect(messages[3]!.deleted_at?.toISOString()).toBe(
+      expect(messages[3]!.archived_at?.toISOString()).toBe(
         "2026-10-01T13:30:00.000Z",
       );
       expect(

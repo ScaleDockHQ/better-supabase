@@ -217,7 +217,7 @@ describe.skipIf(!live)("moderation", () => {
       expect(removed.status).toBe("removed");
       expect(
         await s.rows<{ deleted: boolean }>(
-          "select deleted_at is not null as deleted from better_supabase.messages where id = $1",
+          "select archived_at is not null as deleted from better_supabase.messages where id = $1",
           [spam],
         ),
       ).toEqual([{ deleted: true }]);

@@ -48,7 +48,7 @@ const messageRow = {
   scheduled_at: null,
   sent_at: AT,
   edited_at: null,
-  deleted_at: null,
+  archived_at: null,
   created_at: AT,
   attachments: [
     {

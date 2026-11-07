@@ -1196,7 +1196,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:30c2e61576b52199ee2241217ee3893b862f4287026842405f8a853330c3c552
+-- @bsb-hash sha256:97a66a7fbd8262bb19c36744c811d24fde79dee85f6b541fa29d8a7cb05bd66e
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1518,8 +1518,8 @@ begin
   if v_row."subject_type" = 'message' and v_status = 'removed' then
     update "better_supabase"."messages" x
     set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,
-      "pinned_at" = null, "pinned_by" = null, "deleted_at" = now()
-    where x."id"::text = v_row."subject_id" and x."deleted_at" is null;
+      "pinned_at" = null, "pinned_by" = null, "archived_at" = now()
+    where x."id"::text = v_row."subject_id" and x."archived_at" is null;
   end if;
   if moderation_apply.action = 'ban' and not "better_supabase"."moderation_banned"(v_row."tenant_id", v_row."author_id") then
     delete from "better_supabase"."moderation_bans" x where x."tenant_id" = v_row."tenant_id" and x."user_id" = v_row."author_id" and x."lifted_at" is null;
@@ -1594,7 +1594,7 @@ begin
   end if;
   if report_content.subject_type = 'message' then
     select x."author_id" into v_author from "better_supabase"."messages" x
-    where x."id"::text = report_content.subject_id and x."tenant_id" = report_content.tenant and x."deleted_at" is null;
+    where x."id"::text = report_content.subject_id and x."tenant_id" = report_content.tenant and x."archived_at" is null;
     if not found then
       raise exception 'there is no such message to report' using errcode = 'P0002', hint = 'MODERATION_SUBJECT_NOT_FOUND';
     end if;

@@ -169,7 +169,7 @@ export const MESSAGING_NAMES: BlockSqlNames = {
         scheduledFor: "scheduled_at",
         sentAt: "sent_at",
         editedAt: "edited_at",
-        deletedAt: "deleted_at",
+        deletedAt: "archived_at",
         createdAt: "created_at",
       },
       optional: ["anchor", "scheduledFor", "resolvedAt", "resolvedBy"],

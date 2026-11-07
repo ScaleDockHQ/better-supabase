@@ -161,14 +161,16 @@ describe("memory module", () => {
   it("soft deletes, restores and purges memories", () => {
     const sql = body();
     expect(sql).toContain(
-      'update "better_supabase"."memories" x set "deleted_at" = now(), "updated_at" = now()',
+      'update "better_supabase"."memories" x set "archived_at" = now(), "updated_at" = now()',
     );
     expect(sql).toContain('function "better_supabase"."memory_restore"(');
     expect(sql).toContain('function "better_supabase"."purge_memories"(');
     expect(sql).toContain(
-      'where "path" is not null and "superseded_by" is null and "deleted_at" is null;',
+      'where "path" is not null and "superseded_by" is null and "archived_at" is null;',
     );
-    expect(sql).toContain('set "deleted_at" = coalesce(x."deleted_at", now())');
+    expect(sql).toContain(
+      'set "archived_at" = coalesce(x."archived_at", now())',
+    );
   });
 
   it("hard deletes and skips use counts when the columns are gone", () => {
@@ -254,7 +256,7 @@ describe("memory module", () => {
       'y."organization_id" is not distinct from memory_save.tenant and y."owner_id" is not distinct from v_owner',
     );
     expect(sql).toContain(
-      'update "better_supabase"."memories" x set "deleted_at" = now(), "updated_at" = now()',
+      'update "better_supabase"."memories" x set "archived_at" = now(), "updated_at" = now()',
     );
     expect(() => body({ memory: { options: { maxItems: 0 } } })).toThrow(
       "maxItems must be a positive whole number",

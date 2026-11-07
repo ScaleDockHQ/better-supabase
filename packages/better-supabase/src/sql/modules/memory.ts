@@ -45,7 +45,7 @@ const MEMORIES = {
   category: "category",
   confidence: "confidence",
   expiresAt: "expires_at",
-  deletedAt: "deleted_at",
+  deletedAt: "archived_at",
   useCount: "use_count",
   lastUsedAt: "last_used_at",
   tsv: "tsv",

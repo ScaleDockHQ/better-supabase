@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:dc64e4bae86e0d40b8e1baf8df9f435106c92fc992999080386efbe72e5331cf
+-- @bsb-hash sha256:e2323d9007d33f14cc0235c64762d9cfb13619ac1c8c72f61ecdcf86e902b193
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -570,7 +570,7 @@ begin
     "reply_count" = (
       select count(*) from "better_supabase"."messages" m
       where m."conversation_id" = new."conversation_id"
-        and m."sent_at" is not null and m."deleted_at" is null
+        and m."sent_at" is not null and m."archived_at" is null
     ),
     "last_activity_at" = greatest(x."last_activity_at", coalesce(new."sent_at", x."last_activity_at"))
   from "better_supabase"."conversations" c
@@ -581,7 +581,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."posts_replied"() from public, anon, authenticated;
 create trigger "bsb_posts_replied"
-  after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
+  after insert or update of "sent_at", "archived_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_replied"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
@@ -641,7 +641,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:f8c42fed5d2731ae3630ad6df45a5c57b101a3f315fc6f43d896a8b60aaefa51
+-- @bsb-hash sha256:d75ee67fb7af11ee15d0bfd9747d3b531385e366dbfd3e1ecca3bb5de031a932
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1270,7 +1270,7 @@ begin
     "reply_count" = (
       select count(*) from "better_supabase"."messages" m
       where m."conversation_id" = new."conversation_id"
-        and m."sent_at" is not null and m."deleted_at" is null
+        and m."sent_at" is not null and m."archived_at" is null
     ),
     "last_activity_at" = greatest(x."last_activity_at", coalesce(new."sent_at", x."last_activity_at"))
   from "better_supabase"."conversations" c
@@ -1281,7 +1281,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."posts_replied"() from public, anon, authenticated;
 create trigger "bsb_posts_replied"
-  after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
+  after insert or update of "sent_at", "archived_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_replied"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
@@ -1345,7 +1345,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:d5ef4731a54c8d2378d28c04b784b5f03b33f10a99cca1af0ec5cf2ae3b056f0
+-- @bsb-hash sha256:b711e5ec2d5dcf846626eb917cdedda88ecbe96040ef99a9a1e2492625591204
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1919,7 +1919,7 @@ begin
     "reply_count" = (
       select count(*) from "better_supabase"."messages" m
       where m."conversation_id" = new."conversation_id"
-        and m."sent_at" is not null and m."deleted_at" is null
+        and m."sent_at" is not null and m."archived_at" is null
     ),
     "last_activity_at" = greatest(x."last_activity_at", coalesce(new."sent_at", x."last_activity_at"))
   from "better_supabase"."conversations" c
@@ -1930,7 +1930,7 @@ end;
 $$;
 revoke execute on function "app_private"."posts_replied"() from public, anon, authenticated;
 create trigger "bsb_posts_replied"
-  after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
+  after insert or update of "sent_at", "archived_at" on "better_supabase"."messages"
   for each row execute function "app_private"."posts_replied"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
@@ -1990,7 +1990,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:2bc9cb5f922e31caf4e8a571e98e88250c341cdab857f9f7a0c790a7b34f5542
+-- @bsb-hash sha256:accdfc81af7f77b21e6df17b38a7647f6226b5805e343c4a8b199bce8dd98fcd
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2559,7 +2559,7 @@ begin
     "reply_count" = (
       select count(*) from "better_supabase"."messages" m
       where m."conversation_id" = new."conversation_id"
-        and m."sent_at" is not null and m."deleted_at" is null
+        and m."sent_at" is not null and m."archived_at" is null
     ),
     "last_activity_at" = greatest(x."last_activity_at", coalesce(new."sent_at", x."last_activity_at"))
   from "better_supabase"."conversations" c
@@ -2570,7 +2570,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."posts_replied"() from public, anon, authenticated;
 create trigger "bsb_posts_replied"
-  after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
+  after insert or update of "sent_at", "archived_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_replied"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
@@ -2727,7 +2727,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:e412bc653d17aa44a0932a67ce6d1f5b02cc8db0a1de69bd689aaef00b279447
+-- @bsb-hash sha256:b3afbeb0ee5b86e972c0772a48b6e84211c06048afb9cbf485bd16ef64dee61d
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3289,7 +3289,7 @@ begin
     "reply_count" = (
       select count(*) from "better_supabase"."messages" m
       where m."conversation_id" = new."conversation_id"
-        and m."sent_at" is not null and m."deleted_at" is null
+        and m."sent_at" is not null and m."archived_at" is null
     ),
     "last_activity_at" = greatest(x."last_activity_at", coalesce(new."sent_at", x."last_activity_at"))
   from "better_supabase"."conversations" c
@@ -3300,7 +3300,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."posts_replied"() from public, anon, authenticated;
 create trigger "bsb_posts_replied"
-  after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
+  after insert or update of "sent_at", "archived_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_replied"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one
@@ -3360,7 +3360,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_140_posts.sql
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:e8b714f659373dee768752cbd77276c7c7131fb962abf775b84aa58df559aa7e
+-- @bsb-hash sha256:191ec37bb955f7e17b3ae2b1900dfbfd09e7c2f3b8a336805e8c73c720dba4cf
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3929,7 +3929,7 @@ begin
     "reply_count" = (
       select count(*) from "better_supabase"."messages" m
       where m."conversation_id" = new."conversation_id"
-        and m."sent_at" is not null and m."deleted_at" is null
+        and m."sent_at" is not null and m."archived_at" is null
     ),
     "last_activity_at" = greatest(x."last_activity_at", coalesce(new."sent_at", x."last_activity_at"))
   from "better_supabase"."conversations" c
@@ -3940,7 +3940,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."posts_replied"() from public, anon, authenticated;
 create trigger "bsb_posts_replied"
-  after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
+  after insert or update of "sent_at", "archived_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."posts_replied"();
 
 -- Tenant isolation (ADR 0099): permissive policies combine with or, so one

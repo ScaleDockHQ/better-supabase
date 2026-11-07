@@ -558,7 +558,7 @@ may be your own enum or domain.
 - `messaging`
   - `better_supabase.conversations`: `id`, `tenant_id`, `kind`, `access`, `subject_type`, `subject_id`, `title`, `member_key`, `created_by`, `last_message_at`, `archived_at`, `created_at`, `updated_at`; typed: `kind`, `access`
   - `better_supabase.conversation_members`: `conversation_id`, `tenant_id`, `user_id`, `role`, `last_read_at`; typed: `role`, `notify`
-  - `better_supabase.messages`: `id`, `tenant_id`, `conversation_id`, `parent_id`, `thread_id`, `author_id`, `kind`, `body`, `document`, `mentions`, `mention_scope`, `broadcast`, `reply_count`, `last_reply_at`, `reply_user_ids`, `pinned_at`, `pinned_by`, `sent_at`, `edited_at`, `deleted_at`, `created_at`; typed: `kind`, `mention_scope`
+  - `better_supabase.messages`: `id`, `tenant_id`, `conversation_id`, `parent_id`, `thread_id`, `author_id`, `kind`, `body`, `document`, `mentions`, `mention_scope`, `broadcast`, `reply_count`, `last_reply_at`, `reply_user_ids`, `pinned_at`, `pinned_by`, `sent_at`, `edited_at`, `archived_at`, `created_at`; typed: `kind`, `mention_scope`
   - `better_supabase.message_edits`: `id`, `tenant_id`, `message_id`, `body`, `edited_at`
   - `better_supabase.thread_reads`: `tenant_id`, `user_id`, `conversation_id`, `thread_id`, `last_read_at`
   - `better_supabase.message_record_mentions`: `tenant_id`, `message_id`, `conversation_id`, `subject_type`, `subject_id`, `created_at`

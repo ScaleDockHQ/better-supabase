@@ -1,6 +1,6 @@
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:5ae4a736d5b735a87399378c89994106b9bbe21bc678583e5a4dd54ba87786db
+-- @bsb-hash sha256:a1fe887b6eba2683c89550815868055f3731073ff7e7c4e5f50890891881f4eb
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -44,10 +44,10 @@ declare
 begin
   case trash_cascade.subject_type
     when 'message' then
-      update "better_supabase"."messages" s set "deleted_at" = now()
+      update "better_supabase"."messages" s set "archived_at" = now()
         where s."id" = (trash_cascade.subject_id)::uuid
           and s."tenant_id" = trash_cascade.tenant
-          and s."deleted_at" is null
+          and s."archived_at" is null
         returning s."body"::text into v_title;
     when 'conversation' then
       update "better_supabase"."conversations" s set "archived_at" = now()
@@ -110,10 +110,10 @@ begin
           and s."archived_at" is null
         returning s."name"::text into v_title;
     when 'drive_node' then
-      update "better_supabase"."drive_nodes" s set "deleted_at" = now()
+      update "better_supabase"."drive_nodes" s set "archived_at" = now()
         where s."id" = (trash_cascade.subject_id)::uuid
           and s."tenant_id" = trash_cascade.tenant
-          and s."deleted_at" is null
+          and s."archived_at" is null
         returning s."name"::text into v_title;
     when 'project' then
       update "public"."projects" s set "deleted_at" = now()
@@ -237,7 +237,7 @@ begin
   for v_item in select * from "better_supabase"."trash_items" where "batch_id" = trash_restore_batch.batch order by "depth" loop
     case v_item.subject_type
     when 'message' then
-      update "better_supabase"."messages" s set "deleted_at" = null
+      update "better_supabase"."messages" s set "archived_at" = null
         where s."id" = (v_item.subject_id)::uuid;
     when 'conversation' then
       update "better_supabase"."conversations" s set "archived_at" = null
@@ -270,7 +270,7 @@ begin
       update "public"."customers" s set "archived_at" = null
         where s."id" = (v_item.subject_id)::uuid;
     when 'drive_node' then
-      update "better_supabase"."drive_nodes" s set "deleted_at" = null
+      update "better_supabase"."drive_nodes" s set "archived_at" = null
         where s."id" = (v_item.subject_id)::uuid;
     when 'project' then
       update "public"."projects" s set "deleted_at" = null

@@ -92,7 +92,7 @@ export function messageOf(value: unknown): Message {
     scheduledFor: optionalInstant(row["scheduled_at"]),
     sentAt: optionalInstant(row["sent_at"]),
     editedAt: optionalInstant(row["edited_at"]),
-    deletedAt: optionalInstant(row["deleted_at"]),
+    deletedAt: optionalInstant(row["archived_at"]),
     createdAt: requiredInstant(row["created_at"], "createdAt"),
     attachments: filesOf(row["attachments"]),
     reactions: reactionsOf(row["reactions"]),

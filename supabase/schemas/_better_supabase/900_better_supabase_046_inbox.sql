@@ -1,6 +1,6 @@
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:f6dfddab5846d9a589fb9a4492ca4d5f9fa6e79b53c62bfaf11858c69360d4d2
+-- @bsb-hash sha256:39c2e1dbc9683780db5a4ec1d72439a6bc2193ed74c884d78dcbf13b268db78e
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1339,7 +1339,7 @@ begin
   end if;
   select m.* into v_msg from "better_supabase"."messages" m
   join "better_supabase"."inbox_message_details" d on d."message_id" = m."id"
-  where m."id" = react_to_inbox_message.message and m."deleted_at" is null;
+  where m."id" = react_to_inbox_message.message and m."archived_at" is null;
   if not found then
     raise exception 'message not found' using errcode = 'P0002', hint = 'MESSAGE_NOT_FOUND';
   end if;
@@ -1404,7 +1404,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_msg."author_id" is not null and coalesce(v_msg."author_id" = (select auth.uid()), false))) then
     raise exception 'only the author edits a message' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
-  if v_msg."deleted_at" is not null then
+  if v_msg."archived_at" is not null then
     raise exception 'message is deleted' using errcode = '22023', hint = 'MESSAGE_DELETED';
   end if;
   if length(coalesce(edit_inbox_message.body, '')) > 20000 then
@@ -1412,7 +1412,7 @@ begin
   end if;
   update "better_supabase"."messages" set
     "body" = case when coalesce(remove, false) then '' else coalesce(edit_inbox_message.body, "body") end,
-    "deleted_at" = case when coalesce(remove, false) then now() end,
+    "archived_at" = case when coalesce(remove, false) then now() end,
     "edited_at" = case when coalesce(remove, false) then "edited_at" else now() end
   where "id" = v_msg."id";
   perform "better_supabase"."index_record_mentions"(v_msg."id");
@@ -2333,7 +2333,7 @@ begin
     join "better_supabase"."inbox_message_details" d on d."message_id" = m."id"
     where a."bucket" = inbox_file_allowed.bucket and a."object_path" = inbox_file_allowed.object_name
       and a."status" = 'clean'
-      and m."deleted_at" is null
+      and m."archived_at" is null
       and "better_supabase"."inbox_conversation_allowed"(d."conversation_id"::text)
       and (m."kind" = 'message' or "better_supabase"."inbox_note_readable"(d."conversation_id"))
   );

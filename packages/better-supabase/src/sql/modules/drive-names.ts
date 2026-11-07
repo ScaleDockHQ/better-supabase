@@ -177,7 +177,7 @@ export const NAMES: BlockSqlNames = {
         attachment: "attachment_id",
         path: "path",
         rank: "rank",
-        deletedAt: "deleted_at",
+        deletedAt: "archived_at",
         source: "source",
         externalId: "external_id",
         externalMetadata: "external_metadata",

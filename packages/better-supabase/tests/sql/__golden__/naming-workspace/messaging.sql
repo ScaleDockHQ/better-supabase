@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_129_messaging.sql
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:becc456e3b91fc7c2ec07162c76a70da2c38c69865f631b112fe47810c9e8fb0
+-- @bsb-hash sha256:866db98c7816abeecf90ba890fbcde0fd4915d6981d037e1fefe84ea343af537
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -106,7 +106,7 @@ create table "better_supabase"."messages" (
   "scheduled_at" timestamptz,
   "sent_at" timestamptz,
   "edited_at" timestamptz,
-  "deleted_at" timestamptz,
+  "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   constraint bsb_messages_check check (("thread_id" is null) = ("parent_id" is null))
 );
@@ -230,15 +230,15 @@ begin
     update "better_supabase"."conversations" c set "last_message_at" = greatest(coalesce(c."last_message_at", new."sent_at"), new."sent_at"), "updated_at" = now()
     where c."id" = new."conversation_id";
   end if;
-  if new."thread_id" is not null and (tg_op = 'INSERT' or old."sent_at" is null or new."deleted_at" is distinct from old."deleted_at") then
+  if new."thread_id" is not null and (tg_op = 'INSERT' or old."sent_at" is null or new."archived_at" is distinct from old."archived_at") then
     update "better_supabase"."messages" r set
-      "reply_count" = (select count(*) from "better_supabase"."messages" x where x."thread_id" = r."id" and x."sent_at" is not null and x."deleted_at" is null),
-      "last_reply_at" = (select max(x."sent_at") from "better_supabase"."messages" x where x."thread_id" = r."id" and x."deleted_at" is null),
+      "reply_count" = (select count(*) from "better_supabase"."messages" x where x."thread_id" = r."id" and x."sent_at" is not null and x."archived_at" is null),
+      "last_reply_at" = (select max(x."sent_at") from "better_supabase"."messages" x where x."thread_id" = r."id" and x."archived_at" is null),
       "reply_user_ids" = array(
         select y.u from (
           select x."author_id" as u, min(x."sent_at") as first
           from "better_supabase"."messages" x
-          where x."thread_id" = r."id" and x."sent_at" is not null and x."deleted_at" is null and x."author_id" is not null
+          where x."thread_id" = r."id" and x."sent_at" is not null and x."archived_at" is null and x."author_id" is not null
           group by x."author_id"
         ) y order by y.first limit 3
       )
@@ -248,7 +248,7 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."messaging_message_written"() from public, anon, authenticated;
-create trigger "bsb_messaging_message_written" after insert or update of "sent_at", "deleted_at" on "better_supabase"."messages"
+create trigger "bsb_messaging_message_written" after insert or update of "sent_at", "archived_at" on "better_supabase"."messages"
   for each row execute function "better_supabase"."messaging_message_written"();
 
 
@@ -605,7 +605,7 @@ as $$
     where m."conversation_id" = c."id"
       and (m."thread_id" is null or m."broadcast")
       and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz)
-      and m."deleted_at" is null
+      and m."archived_at" is null
       and m."author_id" is distinct from auth.uid()
   ) u
 $$;
@@ -630,7 +630,7 @@ as $$
     where m."conversation_id" = k."conversation_id"
       and (m."thread_id" is null or m."broadcast")
       and m."sent_at" > coalesce(k."last_read_at", '-infinity'::timestamptz)
-      and m."deleted_at" is null
+      and m."archived_at" is null
       and m."author_id" is distinct from auth.uid()
   ) u
   where k."user_id" = auth.uid()
@@ -843,7 +843,7 @@ begin
     limit 20
   ) r
   where m."id" = index_record_mentions.message
-    and m."sent_at" is not null and m."deleted_at" is null
+    and m."sent_at" is not null and m."archived_at" is null
   on conflict do nothing;
 end;
 $$;
@@ -925,7 +925,7 @@ begin
   if v_parent is not null then
     select m."thread_id" into v_root from "better_supabase"."messages" m
     where m."id" = v_parent and m."conversation_id" = v_conv."id"
-      and m."sent_at" is not null and m."deleted_at" is null;
+      and m."sent_at" is not null and m."archived_at" is null;
     if not found then
       raise exception 'reply to a sent message in the same conversation' using errcode = '22023', hint = 'MESSAGING_PARENT_INVALID';
     end if;
@@ -1001,7 +1001,7 @@ begin
   end if;
   for v_id in
     select m."id" from "better_supabase"."messages" m
-    where m."sent_at" is null and m."deleted_at" is null and m."scheduled_at" <= now()
+    where m."sent_at" is null and m."archived_at" is null and m."scheduled_at" <= now()
     order by m."scheduled_at", m."id"
     limit least(greatest(coalesce(publish_due_messages.max_rows, 100), 1), 1000)
     for update skip locked
@@ -1032,7 +1032,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_msg from "better_supabase"."messages" m
-  where m."id" = edit_message.message and m."author_id" = auth.uid() and m."deleted_at" is null
+  where m."id" = edit_message.message and m."author_id" = auth.uid() and m."archived_at" is null
     and "better_supabase"."can_conversation"(m."conversation_id", 'read');
   if not found then
     raise exception 'no message of yours has this id' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
@@ -1089,7 +1089,7 @@ revoke execute on function "better_supabase"."edit_message"(uuid, text, jsonb) f
 grant execute on function "better_supabase"."edit_message"(uuid, text, jsonb) to authenticated, service_role;
 
 -- Deletes a message: its author or a moderator. It stays as a placeholder
--- (empty body, deleted_at) so its thread keeps its place, and its files go.
+-- (empty body, archived_at) so its thread keeps its place, and its files go.
 create or replace function "better_supabase"."delete_message"(message uuid)
 returns boolean
 language plpgsql
@@ -1103,7 +1103,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_msg from "better_supabase"."messages" m
-  where m."id" = delete_message.message and m."deleted_at" is null
+  where m."id" = delete_message.message and m."archived_at" is null
     and "better_supabase"."can_conversation"(m."conversation_id", 'read');
   if not found then
     return false;
@@ -1112,7 +1112,7 @@ begin
     raise exception 'not allowed to delete this message' using errcode = '42501', hint = 'MESSAGING_FORBIDDEN';
   end if;
   update "better_supabase"."messages" m set "body" = '', "document" = null, "mentions" = '{}', "mention_scope" = null,
-    "pinned_at" = null, "pinned_by" = null, "deleted_at" = now()
+    "pinned_at" = null, "pinned_by" = null, "archived_at" = now()
   where m."id" = v_msg."id"
   returning * into v_msg;
   delete from "better_supabase"."message_edits" x where x."message_id" = v_msg."id";
@@ -1140,7 +1140,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_msg from "better_supabase"."messages" m
-  where m."id" = pin_message.message and m."deleted_at" is null and m."sent_at" is not null;
+  where m."id" = pin_message.message and m."archived_at" is null and m."sent_at" is not null;
   if not found or not "better_supabase"."can_conversation"(v_msg."conversation_id", 'send') then
     raise exception 'no such message you can pin' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -1171,7 +1171,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_msg from "better_supabase"."messages" m
-  where m."id" = resolve_message.message and m."thread_id" is null and m."deleted_at" is null and m."sent_at" is not null;
+  where m."id" = resolve_message.message and m."thread_id" is null and m."archived_at" is null and m."sent_at" is not null;
   if not found or not "better_supabase"."can_conversation"(v_msg."conversation_id", 'send') then
     raise exception 'no such thread you can resolve' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
@@ -1217,7 +1217,7 @@ as $$
     union all
     select m."id" from "better_supabase"."messages" m
     where m."conversation_id" = list_messages.conversation
-      and m."sent_at" is null and m."deleted_at" is null
+      and m."sent_at" is null and m."archived_at" is null
       and m."author_id" = auth.uid()
       and list_messages.after is null and list_messages.before is null
   ))
@@ -1259,7 +1259,7 @@ as $$
     select m."id" from "better_supabase"."messages" m
     where m."anchor" ->> 'kind' = 'file'
       and m."anchor" ->> 'attachmentId' = list_file_anchors.attachment::text
-      and m."sent_at" is not null and m."deleted_at" is null
+      and m."sent_at" is not null and m."archived_at" is null
     order by m."sent_at", m."id"
     limit least(greatest(coalesce(list_file_anchors.max_rows, 100), 1), 500)
   ))
@@ -1333,7 +1333,7 @@ as $$
           else m."id" = s."thread_id" or m."thread_id" = s."thread_id" end
         and (m."sent_at" > s."through_at"
           or m."edited_at" > s."updated_at"
-          or m."deleted_at" > s."updated_at")
+          or m."archived_at" > s."updated_at")
     )
   )
   from "better_supabase"."thread_summaries" s
@@ -1431,7 +1431,7 @@ begin
   if to_regprocedure('realtime.send(jsonb, text, text, boolean)') is not null and new."sent_at" is not null then
     perform realtime.send(
       jsonb_build_object('conversationId', new."conversation_id", 'messageId', new."id", 'threadId', new."thread_id"),
-      case when tg_op = 'INSERT' or old."sent_at" is null then 'message' when new."deleted_at" is not null then 'message_deleted' else 'message_updated' end,
+      case when tg_op = 'INSERT' or old."sent_at" is null then 'message' when new."archived_at" is not null then 'message_deleted' else 'message_updated' end,
       'messages:' || new."conversation_id"::text,
       true
     );

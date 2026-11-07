@@ -736,7 +736,7 @@ $$;
 ${userGrant(`${fn("edit_message")}(uuid, text, jsonb)`)}
 
 -- Deletes a message: its author or a moderator. It stays as a placeholder
--- (empty body, deleted_at) so its thread keeps its place, and its files go.
+-- (empty body, archived_at) so its thread keeps its place, and its files go.
 create or replace function ${fn("delete_message")}(message uuid)
 returns boolean
 language plpgsql

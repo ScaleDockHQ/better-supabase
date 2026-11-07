@@ -237,7 +237,7 @@ describe.skipIf(!live)("memory owners, tenants and limits", () => {
 
       await s.service();
       await s.sql.queryRaw(
-        "update better_supabase.memories set deleted_at = now() - interval '40 days' where deleted_at is not null",
+        "update better_supabase.memories set archived_at = now() - interval '40 days' where archived_at is not null",
       );
       expect(
         await memory.archival

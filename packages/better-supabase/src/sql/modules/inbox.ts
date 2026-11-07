@@ -226,7 +226,7 @@ begin
   from ${q.t("conversations")} v
   on conflict do nothing;
   insert into ${msg} (${[cm("id"), cm("tenant"), cm("conversation"), cm("author"), cm("kind"), cm("body"), cm("mentions"), cm("sentAt"), cm("editedAt"), cm("deletedAt"), cm("createdAt")].join(", ")})
-  select x.id, x.${mt}, x.conversation_id, x.author_id, x.kind, left(x.body, ${String(m.maxBody)}), x.mentions, x.created_at, x.edited_at, x.deleted_at, x.created_at
+  select x.id, x.${mt}, x.conversation_id, x.author_id, x.kind, left(x.body, ${String(m.maxBody)}), x.mentions, x.created_at, x.edited_at, x.archived_at, x.created_at
   from ${messages} x
   order by x.created_at, x.id
   on conflict do nothing;
@@ -264,7 +264,7 @@ begin
       x.created_at
     from ${messages} x
     cross join lateral jsonb_array_elements(x.attachments) f
-    where x.deleted_at is null and jsonb_typeof(f) = 'object' and (f ? 'path' or f ? 'url');
+    where x.archived_at is null and jsonb_typeof(f) = 'object' and (f ? 'path' or f ? 'url');
   end if;
 ${reactions}
   drop table if exists ${old("inbox_mentions")} cascade;

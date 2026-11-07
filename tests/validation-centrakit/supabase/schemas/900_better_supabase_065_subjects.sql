@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:c7b2911e4b560b871399133e530da3a3e7b082dcebec7b10f863c65c38612e87
+-- @bsb-hash sha256:89984c99dba6a698b6b800f14a0be4fb8aed590e3349c0f3076327f4268f53ee
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -113,7 +113,7 @@ as $$
 begin
   case subject_title.subject_type
     when 'message' then
-      return (select s."body"::text from "better_supabase"."messages" s where s."id" = (subject_title.subject_id)::uuid and s."deleted_at" is null);
+      return (select s."body"::text from "better_supabase"."messages" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     when 'conversation' then
       return (select s."title"::text from "better_supabase"."conversations" s where s."id" = (subject_title.subject_id)::uuid and s."archived_at" is null);
     else
@@ -170,7 +170,7 @@ begin
       'type', 'message', 'id', s."id"::text,
       'title', s."body"::text, 'url', null::text))
     from "better_supabase"."messages" s
-    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'message')::uuid[]) and s."deleted_at" is null), '[]'::jsonb);
+    where s."id" = any(array(select r ->> 'id' from jsonb_array_elements(subject_titles.refs) r where r ->> 'type' = 'message')::uuid[]) and s."archived_at" is null), '[]'::jsonb);
   found := found || coalesce((
     select jsonb_agg(jsonb_build_object(
       'type', 'conversation', 'id', s."id"::text,
@@ -228,7 +228,7 @@ begin
     when 'message' then
       return exists (
         select 1 from "better_supabase"."messages" s
-        where s."id" = (can_subject.subject_id)::uuid and s."deleted_at" is null
+        where s."id" = (can_subject.subject_id)::uuid and s."archived_at" is null
           and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case can_subject.action
           when 'read' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.read'), false)
           when 'write' then coalesce(better_supabase.can('tenant', s."tenant_id", 'comments.create'), false)
@@ -318,7 +318,7 @@ begin
         and c."kind" = 'subject'
       where c."subject_type"::text = record_summary.subject_type
         and c."subject_id"::text = record_summary.subject_id
-        and x."sent_at" is not null and x."deleted_at" is null;
+        and x."sent_at" is not null and x."archived_at" is null;
     v_seen := coalesce((select "better_supabase"."conversation_read_at"(c."id") from "better_supabase"."conversations" c
         where c."kind" = 'subject'
           and c."subject_type" = record_summary.subject_type
@@ -368,7 +368,7 @@ begin
     when 'message' then
       return exists (
         select 1 from "better_supabase"."messages" s
-        where s."id" = (can_subject_for.subject_id)::uuid and s."deleted_at" is null
+        where s."id" = (can_subject_for.subject_id)::uuid and s."archived_at" is null
           and case can_subject_for.action
           when 'read' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'comments.read'), false)
           when 'write' then coalesce(better_supabase.can_user(can_subject_for.member, 'tenant', s."tenant_id", 'comments.create'), false)
@@ -855,7 +855,7 @@ begin
     from "better_supabase"."messages" m
     join "better_supabase"."conversations" c on c."id" = m."conversation_id" and c."kind" = 'subject'
     where v_me = any (m."mentions")
-      and m."deleted_at" is null
+      and m."archived_at" is null
       and m."sent_at" > now() - interval '30 days'
       and (my_work.tenant is null or m."tenant_id" = my_work.tenant)
     union all

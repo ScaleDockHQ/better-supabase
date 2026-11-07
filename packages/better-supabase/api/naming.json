@@ -881,6 +881,27 @@
       "kind": "column",
       "since": "0.54",
       "table": "better_supabase.consents"
+    },
+    {
+      "from": "deleted_at",
+      "to": "archived_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.drive_nodes"
+    },
+    {
+      "from": "deleted_at",
+      "to": "archived_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.memories"
+    },
+    {
+      "from": "deleted_at",
+      "to": "archived_at",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.messages"
     }
   ],
   "allowlist": {

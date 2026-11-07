@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:9d41c6f9e2e45875800070c6348f716373623ec0f0683bcae2a3ac7cb8360223
+-- @bsb-hash sha256:8994dec8e0f219700b5982f03e77408e680e51053d425326ee40df62dd1a0bc4
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -210,7 +210,7 @@ begin
   return "better_supabase"."comments_json"(array(
     select x."id" from "better_supabase"."messages" x
     where x."conversation_id" = v_conv and x."sent_at" is not null
-      and (coalesce(list_comments.include_deleted, true) or x."deleted_at" is null)
+      and (coalesce(list_comments.include_deleted, true) or x."archived_at" is null)
       and (list_comments.after is null
         or (x."sent_at", x."id") > (list_comments.after, coalesce(list_comments.after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
     order by x."sent_at", x."id"
@@ -237,7 +237,7 @@ begin
     join "better_supabase"."conversations" c on c."id" = x."conversation_id" and c."kind" = 'subject'
     where x."anchor" ->> 'kind' = 'file'
       and x."anchor" ->> 'attachmentId' = list_file_comments.attachment::text
-      and x."sent_at" is not null and x."deleted_at" is null
+      and x."sent_at" is not null and x."archived_at" is null
     order by x."sent_at", x."id"
     limit least(greatest(coalesce(list_file_comments.max_rows, 100), 1), 500)
   ));
@@ -265,7 +265,7 @@ begin
       where c."tenant_id" = comment_counts.tenant and c."kind" = 'subject'
         and c."subject_type" = comment_counts.subject_type
         and c."subject_id" = any (comment_counts.subject_ids)
-        and x."sent_at" is not null and x."deleted_at" is null
+        and x."sent_at" is not null and x."archived_at" is null
       group by 1
     ) s
   );
@@ -315,9 +315,9 @@ begin
     from "better_supabase"."messages" y
     where y."conversation_id" = v_from and y."sent_at" is not null
   ), inserted as (
-    insert into "better_supabase"."messages" ("id", "tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "deleted_at", "created_at")
+    insert into "better_supabase"."messages" ("id", "tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "archived_at", "created_at")
     select n.new_id, y."tenant_id", v_to, p.new_id, r.new_id, y."author_id",
-      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."deleted_at", y."created_at"
+      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."archived_at", y."created_at"
     from "better_supabase"."messages" y
     join copies n on n.old_id = y."id"
     left join copies p on p.old_id = y."parent_id"
@@ -372,7 +372,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:8ad26aba8fcf802afc28209cdf7ab52dfdce61df5387f15a7037f9ac44ff9242
+-- @bsb-hash sha256:acb9dab04f482ffcb39fef121c9cd21cf08c4b2888efbfa1a14fd774c452e408
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -572,7 +572,7 @@ begin
   end if;
   select * into v_msg from "better_supabase"."messages" x
   where x."id" = comment_sent.message and x."author_id" = auth.uid()
-    and x."sent_at" is not null and x."deleted_at" is null;
+    and x."sent_at" is not null and x."archived_at" is null;
   if not found then
     return;
   end if;
@@ -646,7 +646,7 @@ begin
   return "better_supabase"."comments_json"(array(
     select x."id" from "better_supabase"."messages" x
     where x."conversation_id" = v_conv and x."sent_at" is not null
-      and (coalesce(list_comments.include_deleted, true) or x."deleted_at" is null)
+      and (coalesce(list_comments.include_deleted, true) or x."archived_at" is null)
       and (list_comments.after is null
         or (x."sent_at", x."id") > (list_comments.after, coalesce(list_comments.after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
     order by x."sent_at", x."id"
@@ -673,7 +673,7 @@ begin
     join "better_supabase"."conversations" c on c."id" = x."conversation_id" and c."kind" = 'subject'
     where x."anchor" ->> 'kind' = 'file'
       and x."anchor" ->> 'attachmentId' = list_file_comments.attachment::text
-      and x."sent_at" is not null and x."deleted_at" is null
+      and x."sent_at" is not null and x."archived_at" is null
     order by x."sent_at", x."id"
     limit least(greatest(coalesce(list_file_comments.max_rows, 100), 1), 500)
   ));
@@ -701,7 +701,7 @@ begin
       where c."tenant_id" = comment_counts.tenant and c."kind" = 'subject'
         and c."subject_type" = comment_counts.subject_type
         and c."subject_id" = any (comment_counts.subject_ids)
-        and x."sent_at" is not null and x."deleted_at" is null
+        and x."sent_at" is not null and x."archived_at" is null
       group by 1
     ) s
   );
@@ -751,9 +751,9 @@ begin
     from "better_supabase"."messages" y
     where y."conversation_id" = v_from and y."sent_at" is not null
   ), inserted as (
-    insert into "better_supabase"."messages" ("id", "tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "deleted_at", "created_at")
+    insert into "better_supabase"."messages" ("id", "tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "archived_at", "created_at")
     select n.new_id, y."tenant_id", v_to, p.new_id, r.new_id, y."author_id",
-      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."deleted_at", y."created_at"
+      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."archived_at", y."created_at"
     from "better_supabase"."messages" y
     join copies n on n.old_id = y."id"
     left join copies p on p.old_id = y."parent_id"
@@ -783,7 +783,7 @@ declare
   v_task uuid;
 begin
   select * into v_msg from "better_supabase"."messages" x
-  where x."id" = assign_comment.message and x."sent_at" is not null and x."deleted_at" is null;
+  where x."id" = assign_comment.message and x."sent_at" is not null and x."archived_at" is null;
   if not found then
     raise exception 'no comment you can read has this id' using errcode = 'P0002', hint = 'COMMENT_NOT_FOUND';
   end if;
@@ -863,7 +863,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:6ea1e30458a0429df0ea14867415e6d6bc5dac2499c8e69be5eb15b010c9bff9
+-- @bsb-hash sha256:4e251b7c9032e35cd7ae3b57902df8ef58f4b678c037266960c8f58f7a7e8073
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1077,7 +1077,7 @@ begin
   return "app_private"."comments_json"(array(
     select x."id" from "better_supabase"."messages" x
     where x."conversation_id" = v_conv and x."sent_at" is not null
-      and (coalesce(list_comments.include_deleted, true) or x."deleted_at" is null)
+      and (coalesce(list_comments.include_deleted, true) or x."archived_at" is null)
       and (list_comments.after is null
         or (x."sent_at", x."id") > (list_comments.after, coalesce(list_comments.after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
     order by x."sent_at", x."id"
@@ -1104,7 +1104,7 @@ begin
     join "better_supabase"."conversations" c on c."id" = x."conversation_id" and c."kind" = 'subject'
     where x."anchor" ->> 'kind' = 'file'
       and x."anchor" ->> 'attachmentId' = list_file_comments.attachment::text
-      and x."sent_at" is not null and x."deleted_at" is null
+      and x."sent_at" is not null and x."archived_at" is null
     order by x."sent_at", x."id"
     limit least(greatest(coalesce(list_file_comments.max_rows, 100), 1), 500)
   ));
@@ -1132,7 +1132,7 @@ begin
       where c."tenant_id" = comment_counts.tenant and c."kind" = 'subject'
         and c."subject_type" = comment_counts.subject_type
         and c."subject_id" = any (comment_counts.subject_ids)
-        and x."sent_at" is not null and x."deleted_at" is null
+        and x."sent_at" is not null and x."archived_at" is null
       group by 1
     ) s
   );
@@ -1182,9 +1182,9 @@ begin
     from "better_supabase"."messages" y
     where y."conversation_id" = v_from and y."sent_at" is not null
   ), inserted as (
-    insert into "better_supabase"."messages" ("id", "tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "deleted_at", "created_at")
+    insert into "better_supabase"."messages" ("id", "tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "archived_at", "created_at")
     select n.new_id, y."tenant_id", v_to, p.new_id, r.new_id, y."author_id",
-      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."deleted_at", y."created_at"
+      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."archived_at", y."created_at"
     from "better_supabase"."messages" y
     join copies n on n.old_id = y."id"
     left join copies p on p.old_id = y."parent_id"
@@ -1239,7 +1239,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:1a291f69daa979759224c135b888325d2d66df40db9d0cd74a3c09038dca035d
+-- @bsb-hash sha256:88faf84ba7ed627be5487fc1dc064c18222a7ab32043fef81c38053be9201a16
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1448,7 +1448,7 @@ begin
   return "better_supabase"."comments_json"(array(
     select x."id" from "better_supabase"."messages" x
     where x."conversation_id" = v_conv and x."sent_at" is not null
-      and (coalesce(list_comments.include_deleted, true) or x."deleted_at" is null)
+      and (coalesce(list_comments.include_deleted, true) or x."archived_at" is null)
       and (list_comments.after is null
         or (x."sent_at", x."id") > (list_comments.after, coalesce(list_comments.after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
     order by x."sent_at", x."id"
@@ -1475,7 +1475,7 @@ begin
     join "better_supabase"."conversations" c on c."id" = x."conversation_id" and c."kind" = 'subject'
     where x."anchor" ->> 'kind' = 'file'
       and x."anchor" ->> 'attachmentId' = list_file_comments.attachment::text
-      and x."sent_at" is not null and x."deleted_at" is null
+      and x."sent_at" is not null and x."archived_at" is null
     order by x."sent_at", x."id"
     limit least(greatest(coalesce(list_file_comments.max_rows, 100), 1), 500)
   ));
@@ -1503,7 +1503,7 @@ begin
       where c."tenant_id" = comment_counts.tenant and c."kind" = 'subject'
         and c."subject_type" = comment_counts.subject_type
         and c."subject_id" = any (comment_counts.subject_ids)
-        and x."sent_at" is not null and x."deleted_at" is null
+        and x."sent_at" is not null and x."archived_at" is null
       group by 1
     ) s
   );
@@ -1553,9 +1553,9 @@ begin
     from "better_supabase"."messages" y
     where y."conversation_id" = v_from and y."sent_at" is not null
   ), inserted as (
-    insert into "better_supabase"."messages" ("id", "tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "deleted_at", "created_at")
+    insert into "better_supabase"."messages" ("id", "tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "archived_at", "created_at")
     select n.new_id, y."tenant_id", v_to, p.new_id, r.new_id, y."author_id",
-      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."deleted_at", y."created_at"
+      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."archived_at", y."created_at"
     from "better_supabase"."messages" y
     join copies n on n.old_id = y."id"
     left join copies p on p.old_id = y."parent_id"
@@ -1685,7 +1685,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:ae44143ac9986ccb3f678a1f65ea7b0c24855af1133aafc4cfd423613e1194ed
+-- @bsb-hash sha256:a56f23bdb4ec699f48a9ebe5279b594f30dc7d6c50d244743ea407e6ab034eed
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1893,7 +1893,7 @@ begin
   return "better_supabase"."comments_json"(array(
     select x."id" from "better_supabase"."messages" x
     where x."conversation_id" = v_conv and x."sent_at" is not null
-      and (coalesce(list_comments.include_deleted, true) or x."deleted_at" is null)
+      and (coalesce(list_comments.include_deleted, true) or x."archived_at" is null)
       and (list_comments.after is null
         or (x."sent_at", x."id") > (list_comments.after, coalesce(list_comments.after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
     order by x."sent_at", x."id"
@@ -1920,7 +1920,7 @@ begin
     join "better_supabase"."conversations" c on c."id" = x."conversation_id" and c."kind" = 'subject'
     where x."anchor" ->> 'kind' = 'file'
       and x."anchor" ->> 'attachmentId' = list_file_comments.attachment::text
-      and x."sent_at" is not null and x."deleted_at" is null
+      and x."sent_at" is not null and x."archived_at" is null
     order by x."sent_at", x."id"
     limit least(greatest(coalesce(list_file_comments.max_rows, 100), 1), 500)
   ));
@@ -1948,7 +1948,7 @@ begin
       where c."tenant_id" = comment_counts.tenant and c."kind" = 'subject'
         and c."subject_type" = comment_counts.subject_type
         and c."subject_id" = any (comment_counts.subject_ids)
-        and x."sent_at" is not null and x."deleted_at" is null
+        and x."sent_at" is not null and x."archived_at" is null
       group by 1
     ) s
   );
@@ -1998,9 +1998,9 @@ begin
     from "better_supabase"."messages" y
     where y."conversation_id" = v_from and y."sent_at" is not null
   ), inserted as (
-    insert into "better_supabase"."messages" ("id", "tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "deleted_at", "created_at")
+    insert into "better_supabase"."messages" ("id", "tenant_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "archived_at", "created_at")
     select n.new_id, y."tenant_id", v_to, p.new_id, r.new_id, y."author_id",
-      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."deleted_at", y."created_at"
+      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."archived_at", y."created_at"
     from "better_supabase"."messages" y
     join copies n on n.old_id = y."id"
     left join copies p on p.old_id = y."parent_id"
@@ -2055,7 +2055,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:b1607b0826c977b6b77dfe3a1f323b67895192f67d1493f71375a71a7485fa2a
+-- @bsb-hash sha256:43c4e951ca62b89c3e4ac3d360b393ad0fe1424fd7c613e3dd61249e2998bb45
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2264,7 +2264,7 @@ begin
   return "better_supabase"."comments_json"(array(
     select x."id" from "better_supabase"."messages" x
     where x."conversation_id" = v_conv and x."sent_at" is not null
-      and (coalesce(list_comments.include_deleted, true) or x."deleted_at" is null)
+      and (coalesce(list_comments.include_deleted, true) or x."archived_at" is null)
       and (list_comments.after is null
         or (x."sent_at", x."id") > (list_comments.after, coalesce(list_comments.after_id, 'ffffffff-ffff-ffff-ffff-ffffffffffff'::uuid)))
     order by x."sent_at", x."id"
@@ -2291,7 +2291,7 @@ begin
     join "better_supabase"."conversations" c on c."id" = x."conversation_id" and c."kind" = 'subject'
     where x."anchor" ->> 'kind' = 'file'
       and x."anchor" ->> 'attachmentId' = list_file_comments.attachment::text
-      and x."sent_at" is not null and x."deleted_at" is null
+      and x."sent_at" is not null and x."archived_at" is null
     order by x."sent_at", x."id"
     limit least(greatest(coalesce(list_file_comments.max_rows, 100), 1), 500)
   ));
@@ -2319,7 +2319,7 @@ begin
       where c."org_id" = comment_counts.tenant and c."kind" = 'subject'
         and c."subject_type" = comment_counts.subject_type
         and c."subject_id" = any (comment_counts.subject_ids)
-        and x."sent_at" is not null and x."deleted_at" is null
+        and x."sent_at" is not null and x."archived_at" is null
       group by 1
     ) s
   );
@@ -2369,9 +2369,9 @@ begin
     from "better_supabase"."messages" y
     where y."conversation_id" = v_from and y."sent_at" is not null
   ), inserted as (
-    insert into "better_supabase"."messages" ("id", "org_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "deleted_at", "created_at")
+    insert into "better_supabase"."messages" ("id", "org_id", "conversation_id", "parent_id", "thread_id", "author_id", "body", "document", "anchor", "mentions", "reply_count", "last_reply_at", "reply_user_ids", "sent_at", "edited_at", "archived_at", "created_at")
     select n.new_id, y."org_id", v_to, p.new_id, r.new_id, y."author_id",
-      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."deleted_at", y."created_at"
+      y."body", y."document", y."anchor", y."mentions", y."reply_count", y."last_reply_at", y."reply_user_ids", y."sent_at", y."edited_at", y."archived_at", y."created_at"
     from "better_supabase"."messages" y
     join copies n on n.old_id = y."id"
     left join copies p on p.old_id = y."parent_id"

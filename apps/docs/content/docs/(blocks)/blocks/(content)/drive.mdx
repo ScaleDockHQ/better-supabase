@@ -324,7 +324,7 @@ A legal hold keeps a node and everything under it from being purged. `hold(id, u
 ```ts title="better-supabase.config.ts"
 trash: {
   on: {
-    drive_node: { deletedAt: "deleted_at", held: "legal_hold_expires_at" },
+    drive_node: { deletedAt: "archived_at", held: "legal_hold_expires_at" },
   },
 },
 ```
@@ -391,7 +391,7 @@ blocks: {
           query: `select a.organization_id, sum(a.size)
             from better_supabase.attachments a
             join better_supabase.drive_nodes n on n.attachment_id = a.id
-            where n.deleted_at is null group by 1`,
+            where n.archived_at is null group by 1`,
         },
       },
     },

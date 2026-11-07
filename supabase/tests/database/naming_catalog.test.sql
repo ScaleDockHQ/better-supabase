@@ -59,7 +59,7 @@ select extensions.cmp_ok(
 select extensions.cmp_ok(
   (select count(*) from information_schema.columns
     where table_schema = 'better_supabase' and (column_name ~ '_user_id$' or column_name = 'deleted_at')),
-  '<=', 31::bigint,
+  '<=', 28::bigint,
   'user references are <role>_id and soft delete is archived_at'
 );
 

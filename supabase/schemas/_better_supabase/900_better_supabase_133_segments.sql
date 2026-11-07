@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:a5122dc9f502a88094603464527f8f631baf8756c714a483ecb9708bc5b2271f
+-- @bsb-hash sha256:08d2ed28e22814f692393b8b49df41b4bd7c2ea6e10b82fefda7463598926b89
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -418,7 +418,7 @@ begin
   if v_row."subject_type" = 'message' then
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
       select s."id"::text as id from "better_supabase"."messages" s
-      where s."tenant_id" = v_row."tenant_id" and s."deleted_at" is null
+      where s."tenant_id" = v_row."tenant_id" and s."archived_at" is null
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001
     ) x;
@@ -789,7 +789,7 @@ begin
   elsif v_row."subject_type" = 'drive_node' then
     select coalesce(array_agg(x.id order by x.id), '{}') into v_ids from (
       select s."id"::text as id from "better_supabase"."drive_nodes" s
-      where s."tenant_id" = v_row."tenant_id" and s."deleted_at" is null
+      where s."tenant_id" = v_row."tenant_id" and s."archived_at" is null
         and "better_supabase"."rule_matches"(v_row."conditions", to_jsonb(s), v_fields, 'UTC', v_now)
       limit 10001
     ) x;
