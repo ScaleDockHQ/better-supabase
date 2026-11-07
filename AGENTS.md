@@ -386,6 +386,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0311: Keep tags in pure `<domain>-cache.ts` files built on `tagFor`.
 - 0312: Use `cacheLife("max")` where every write calls `updateTag`.
 - 0313: Prefetch record rows and gate their heavy body behind `navigation()`.
+- 0314: Mark key pages `instant` and lock each loading sequence in a test.
 
 ## Pre-release pins
 
