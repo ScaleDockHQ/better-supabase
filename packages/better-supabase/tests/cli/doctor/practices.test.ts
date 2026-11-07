@@ -3,11 +3,17 @@ import { describe, expect, it } from "vitest";
 import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 
 import { PRACTICE_RULES } from "../../../src/cli/doctor/practices.ts";
+import { resolveConfig } from "../../../src/config/index.ts";
 
 const codes = (sql: string, path = "supabase/schemas/app.sql"): string[] => {
-  // SAFETY: the rules read only `sqlFiles`.
+  // SAFETY: the rules read only `sqlFiles`, `config` and `configToml`.
   const context = {
     sqlFiles: [{ path, text: sql }],
+    config: resolveConfig(
+      { database: { sql: { workflow: "migrations" } } },
+      "/p",
+    ),
+    configToml: undefined,
   } as unknown as DoctorContext;
 
   return PRACTICE_RULES.flatMap((rule) =>

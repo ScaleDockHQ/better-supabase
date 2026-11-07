@@ -15,6 +15,7 @@ import type { Now } from "./migrations.ts";
 import {
   buildModel,
   conflicts,
+  duplicatePolicies,
   entityRenamePlan,
   moduleFileVersion,
   moduleTopics,
@@ -101,20 +102,20 @@ export async function upgrade(
   const plan = upgradePlan(installed, sqlLayout);
   const renamed = [...new Set(renames.steps.map((step) => step.module))];
 
-  const duplicated = duplicatedPreludeFunctions(installedFiles);
+  const problems = moduleFileProblems(installedFiles);
 
   const data = {
     upgrades: plan.map(({ module, from, to }) => ({ module, from, to })),
     ...(renamed.length > 0 ? { renames: renamed } : {}),
     stale,
-    ...(duplicated.length > 0 ? { duplicated } : {}),
+    ...(problems.length > 0 ? { problems } : {}),
   };
 
   const current =
     plan.length === 0 &&
     stale.length === 0 &&
     renamed.length === 0 &&
-    duplicated.length === 0;
+    problems.length === 0;
 
   const behind = plan.map(
     (entry) =>
@@ -141,7 +142,7 @@ export async function upgrade(
           (module) => `${module} has entity renames to apply to its tables`,
         ),
         ...(stale.length > 0 ? [`Out of date: ${stale.join(", ")}.`] : []),
-        ...duplicated,
+        ...problems,
         "Run `better-supabase upgrade`.",
       ].join("\n"),
     };
@@ -343,35 +344,63 @@ async function installedFromMigration(
 }
 
 /**
- * A line for each function of the prelude that a second installed file also
- * creates: a module file written before the prelude existed pastes the helpers
- * it calls, so a schema diff finds each of them twice.
+ * A line for each problem in the installed module files that a schema diff
+ * would trip over: a helper the prelude defines that a module file also creates
+ * (a file written before the prelude existed pastes the helpers it calls),
+ * another object two module files both declare, a file that asks for
+ * `transaction=false`, a top-level `insert`, and two policies that decide the
+ * same way. Doctor reports the same findings as BS369 to BS375.
  */
-function duplicatedPreludeFunctions(
+function moduleFileProblems(
   files: readonly { readonly path: string; readonly text: string }[],
 ): string[] {
   const model = buildModel(files);
 
-  return conflicts(model).flatMap(({ declarations }) => {
+  const conflicting = conflicts(model).flatMap(({ declarations }) => {
     const first = declarations[0];
 
     if (
-      first?.kind !== "function" ||
-      !PRELUDE_FUNCTIONS.has(
-        first.name.slice(first.name.indexOf(".") + 1).replace(/\/\d+$/, ""),
-      )
+      first === undefined ||
+      first.kind === "extension" ||
+      first.kind === "schema"
     ) {
       return [];
     }
 
+    const prelude =
+      first.kind === "function" &&
+      PRELUDE_FUNCTIONS.has(
+        first.name.slice(first.name.indexOf(".") + 1).replace(/\/\d+$/, ""),
+      );
+
     return declarations
       .filter(
         (each) =>
-          each.owner.kind === "module" && each.owner.name !== PRELUDE_MODULE,
+          each.owner.kind === "module" &&
+          each.file !== first.file &&
+          (!prelude || each.owner.name !== PRELUDE_MODULE),
       )
-      .map(
-        (each) =>
-          `${each.file} declares ${first.name.replace(/\/\d+$/, "")}, which the prelude defines. Run \`better-supabase upgrade\`.`,
+      .map((each) =>
+        prelude
+          ? `${each.file} declares ${first.name.replace(/\/\d+$/, "")}, which the prelude defines. Run \`better-supabase upgrade\`.`
+          : `${each.file} declares the ${each.kind} ${each.name.replace(/\/\d+$/, "")}, which ${first.file} also declares.`,
       );
   });
+
+  const perFile = [...model.files].flatMap(([path, parsed]) => [
+    ...(parsed.outsideTransaction
+      ? [`${path} asks for transaction=false. Remove the line.`]
+      : []),
+    ...parsed.inserts.map(
+      (line) =>
+        `${path}:${String(line)} inserts rows. Rows belong in the module's data file.`,
+    ),
+  ]);
+
+  const policies = duplicatePolicies(model).map(
+    (group) =>
+      `${group.table} has the policies ${group.names.join(" and ")}, which decide the same way.`,
+  );
+
+  return [...conflicting, ...perFile, ...policies];
 }

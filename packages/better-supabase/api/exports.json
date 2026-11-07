@@ -9226,6 +9226,7 @@
       "declareRead",
       "DEFAULT_ROLES",
       "disallowedPolicyCalls",
+      "duplicatePolicies",
       "entityRenamePlan",
       "excludedColumns",
       "expiredFlagsQuery",

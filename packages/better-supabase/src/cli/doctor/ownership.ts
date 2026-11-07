@@ -4,9 +4,12 @@ import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 import {
   buildModel,
   conflicts,
+  duplicatePolicies,
   ownerOf,
   PRELUDE_FUNCTIONS,
+  splitStatements,
 } from "../../sql/index.ts";
+import { workflowOf } from "./shared.ts";
 
 /** Schema files, not migrations or data files. */
 const schemaFiles = (
@@ -17,6 +20,171 @@ const schemaFiles = (
       !file.path.includes("migrations/") &&
       !file.path.includes("better-supabase-data/"),
   );
+
+const MIGRATION_PATH = /(?:^|\/)migrations\//;
+
+/** The schemas Supabase manages: objects there are not the app's to declare. */
+const MANAGED_SCHEMAS: ReadonlySet<string> = new Set([
+  "auth",
+  "storage",
+  "extensions",
+  "realtime",
+  "graphql",
+  "graphql_public",
+  "vault",
+  "pgsodium",
+  "pgbouncer",
+  "supabase_functions",
+  "net",
+  "cron",
+  "pgmq",
+]);
+
+/** What the coverage rules compare: objects a migration and a file both name. */
+const COVERED_KINDS: ReadonlySet<Declaration["kind"]> = new Set([
+  "table",
+  "view",
+  "type",
+  "function",
+]);
+
+const IDENT_PART = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;
+
+const NAMED = String.raw`(${IDENT_PART}(?:\s*\.\s*${IDENT_PART})?)`;
+
+const DROP = new RegExp(
+  String.raw`^drop\s+(table|view|type|function|procedure)\s+(?:if\s+exists\s+)?${NAMED}`,
+  "i",
+);
+
+const RENAME = new RegExp(
+  String.raw`^alter\s+(table|view|type|function|procedure)\s+(?:if\s+exists\s+)?(?:only\s+)?${NAMED}\s*(?:\([^)]*\)\s*)?rename\s+to\s+(${IDENT_PART})`,
+  "i",
+);
+
+/** `schema.name` unquoted, with `public` for a bare name. */
+const plain = (name: string): string => {
+  const parts = name
+    .split(/\s*\.\s*/)
+    .map((part) => part.replace(/^"(.*)"$/, "$1").replaceAll('""', '"'));
+
+  return parts.length === 1 ? `public.${parts[0]!}` : parts.join(".");
+};
+
+/** Whether `name` (`schema.name`) is in a schema Supabase manages. */
+const inManagedSchema = (name: string): boolean =>
+  MANAGED_SCHEMAS.has(name.slice(0, name.indexOf(".")));
+
+const bare = (name: string): string => name.replace(/\/\d+$/, "");
+
+/**
+ * The tables, views, types and functions the migrations leave behind, oldest
+ * migration first: a `create` adds one, a `drop` removes it and a `rename`
+ * moves it. Each has the file and line of its `create`.
+ */
+function migratedObjects(
+  migrations: readonly { readonly path: string; readonly text: string }[],
+): ReadonlyMap<string, Declaration> {
+  const state = new Map<string, Declaration>();
+
+  for (const file of migrations.toSorted((a, b) =>
+    a.path.localeCompare(b.path),
+  )) {
+    const created = new Map<number, Declaration>();
+
+    for (const object of [...buildModel([file]).objects.values()].flat()) {
+      if (COVERED_KINDS.has(object.kind)) {
+        created.set(object.line, object);
+      }
+    }
+
+    for (const statement of splitStatements(file.text)) {
+      const flat = statement.text.replaceAll(/\s+/g, " ");
+      const object = created.get(statement.line);
+
+      if (object !== undefined) {
+        state.set(bare(object.name), { ...object, file: file.path });
+        continue;
+      }
+
+      const dropped = DROP.exec(flat);
+
+      if (dropped !== null) {
+        state.delete(plain(dropped[2]!));
+        continue;
+      }
+
+      const renamed = RENAME.exec(flat);
+
+      if (renamed !== null) {
+        const from = plain(renamed[2]!);
+        const held = state.get(from);
+
+        if (held !== undefined) {
+          const schema = from.slice(0, from.indexOf("."));
+          state.delete(from);
+          state.set(
+            `${schema}.${plain(renamed[3]!).slice(plain(renamed[3]!).indexOf(".") + 1)}`,
+            held,
+          );
+        }
+      }
+    }
+  }
+
+  return state;
+}
+
+/**
+ * The objects the migrations create and the schema files don't
+ * (`migrationOnly`) and the reverse (`fileOnly`), among the tables, views,
+ * types and functions outside Supabase's schemas.
+ */
+function coverage(context: DoctorContext): {
+  readonly migrationOnly: readonly Declaration[];
+  readonly fileOnly: readonly Declaration[];
+} {
+  const all = context.sqlFiles ?? [];
+  const migrations = all.filter((file) => MIGRATION_PATH.test(file.path));
+
+  const files = all
+    .filter((file) => !MIGRATION_PATH.test(file.path))
+    .filter((file) => !file.path.includes("better-supabase-data/"));
+
+  const migrated = migratedObjects(migrations);
+  const declared = buildModel(files);
+
+  // A `do` block can rename or create an object by name, which this reading
+  // can't follow, so a history that has one reports nothing.
+  const dynamic = migrations.some((file) =>
+    splitStatements(file.text).some((statement) =>
+      /^do\b/i.test(statement.text),
+    ),
+  );
+
+  if (dynamic) {
+    return { migrationOnly: [], fileOnly: [] };
+  }
+
+  const declaredObjects = new Map(
+    [...declared.objects.values()]
+      .map((list) => list[0]!)
+      .filter(
+        (object) =>
+          COVERED_KINDS.has(object.kind) && !inManagedSchema(object.name),
+      )
+      .map((object) => [bare(object.name), object] as const),
+  );
+
+  return {
+    migrationOnly: [...migrated]
+      .filter(([name]) => !inManagedSchema(name) && !declaredObjects.has(name))
+      .map(([, object]) => object),
+    fileOnly: [...declaredObjects]
+      .filter(([name]) => !migrated.has(name))
+      .map(([, object]) => object),
+  };
+}
 
 /**
  * Objects whose second definition replaces the first, so the owners must not
@@ -211,5 +379,50 @@ export const OWNERSHIP_RULES: readonly Rule[] = [
           : [],
       );
     },
+  },
+  {
+    code: "BS375",
+    severity: "warning",
+    title: "Two policies decide the same way",
+    description:
+      "Two policies on one table with the same command, roles and expressions under different names. Postgres ORs permissive policies, so the second adds nothing, and a restrictive pair checks the same condition twice. Delete one. Reads every schema file.",
+    check: (context) =>
+      duplicatePolicies(buildModel(schemaFiles(context))).map(
+        (group): FindingInput => ({
+          message: `${group.table}: the policies ${group.names.join(" and ")} decide the same way (${group.files.map((entry) => `${entry.file}:${String(entry.line)}`).join(", ")}). Keep one.`,
+          target: group.table,
+          location: { file: group.files[0]!.file, line: group.files[0]!.line },
+        }),
+      ),
+  },
+  {
+    code: "BS376",
+    severity: "warning",
+    title: "A migration creates an object no schema file declares",
+    description:
+      "Under pg-delta, `supabase db schema declarative sync --strict-coverage` fails for an object the migration history creates and the schema files don't, because the next diff would drop it. Declare the table, view, type or function in `supabase/schemas`, or drop it in a migration. Reads the migrations and every schema file.",
+    check: (context) =>
+      workflowOf(context) === "pg-delta"
+        ? coverage(context).migrationOnly.map((object): FindingInput => ({
+            message: `${object.file}:${String(object.line)}: the ${object.kind} ${object.name.replace(/\/\d+$/, "")} is created here and declared in no schema file.`,
+            target: object.file,
+            location: { file: object.file, line: object.line },
+          }))
+        : [],
+  },
+  {
+    code: "BS377",
+    severity: "warning",
+    title: "A schema file declares an object no migration creates",
+    description:
+      "Under pg-delta, a table, view, type or function in `supabase/schemas` that no migration creates is a change the sync has not turned into a migration yet. Run `supabase db schema declarative sync` and review the migration it writes. Reads the migrations and every schema file.",
+    check: (context) =>
+      workflowOf(context) === "pg-delta"
+        ? coverage(context).fileOnly.map((object): FindingInput => ({
+            message: `${object.file}:${String(object.line)}: the ${object.kind} ${object.name.replace(/\/\d+$/, "")} has no migration yet. Run the schema sync.`,
+            target: object.file,
+            location: { file: object.file, line: object.line },
+          }))
+        : [],
   },
 ];

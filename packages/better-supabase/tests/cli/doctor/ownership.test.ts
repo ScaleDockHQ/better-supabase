@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import type { DoctorContext } from "../../../src/cli/doctor/rules.ts";
 
 import { OWNERSHIP_RULES } from "../../../src/cli/doctor/ownership.ts";
+import { resolveConfig } from "../../../src/config/index.ts";
 
 const MODULE = `-- better-supabase module: tasks
 -- @bsb-block tasks@1 managed
@@ -11,11 +12,18 @@ create table public.tasks (id uuid primary key);
 create or replace function public.touch() returns void language sql as 'select 1';
 `;
 
+const MIGRATIONS = { database: { sql: { workflow: "migrations" as const } } };
+
 const run = (
   files: readonly { path: string; text: string }[],
+  config: Parameters<typeof resolveConfig>[0] = MIGRATIONS,
 ): { code: string; message: string }[] => {
-  // SAFETY: the rules read only `sqlFiles`.
-  const context = { sqlFiles: files } as unknown as DoctorContext;
+  // SAFETY: the rules read only `sqlFiles`, `config` and `configToml`.
+  const context = {
+    sqlFiles: files,
+    config: resolveConfig(config, "/p"),
+    configToml: undefined,
+  } as unknown as DoctorContext;
 
   return OWNERSHIP_RULES.flatMap((rule) =>
     (rule.check(context) as { message: string }[]).map((finding) => ({
@@ -220,5 +228,126 @@ describe("BS374", () => {
 
     expect(found).toMatchObject([{ code: "BS374" }]);
     expect(found[0]?.message).toContain("010_tasks.sql");
+  });
+});
+
+describe("BS375", () => {
+  const policy = (name: string, using = "(select auth.uid()) = user_id") =>
+    `create policy ${name} on public.notes for select to authenticated using (${using});`;
+
+  it("flags two policies that decide the same way", () => {
+    const found = run([
+      {
+        path: "supabase/schemas/notes.sql",
+        text: `${policy("notes_read")}\n${policy("notes_select_own")}`,
+      },
+    ]).filter((entry) => entry.code === "BS375");
+
+    expect(found).toHaveLength(1);
+    expect(found[0]?.message).toContain("notes_read and notes_select_own");
+  });
+
+  it("accepts policies that differ in command, roles or expression", () => {
+    expect(
+      run([
+        {
+          path: "supabase/schemas/notes.sql",
+          text: `${policy("a")}\n${policy("b", "true")}\ncreate policy c on public.notes for select to anon using ((select auth.uid()) = user_id);`,
+        },
+      ]).filter((entry) => entry.code === "BS375"),
+    ).toEqual([]);
+  });
+});
+
+describe("BS376 and BS377", () => {
+  const pgDelta = { database: { sql: { workflow: "pg-delta" as const } } };
+
+  const migration = (text: string) => ({
+    path: "supabase/migrations/20260101000000_init.sql",
+    text,
+  });
+
+  const only = (files: Parameters<typeof run>[0], code: string) =>
+    run(files, pgDelta).filter((entry) => entry.code === code);
+
+  it("flags a migration object that no schema file declares", () => {
+    const found = only(
+      [
+        migration(
+          'create table "public"."legacy" (id int);\ncreate table "public"."kept" (id int);',
+        ),
+        {
+          path: "supabase/schemas/kept.sql",
+          text: "create table public.kept (id int);",
+        },
+      ],
+      "BS376",
+    );
+
+    expect(found).toHaveLength(1);
+    expect(found[0]?.message).toContain("public.legacy");
+  });
+
+  it("lets a dropped table and a managed schema through", () => {
+    expect(
+      only(
+        [
+          migration(
+            'create table "public"."old" (id int);\ndrop table "public"."old";\ncreate table "auth"."extra" (id int);',
+          ),
+        ],
+        "BS376",
+      ),
+    ).toEqual([]);
+  });
+
+  it("flags a schema object that no migration creates", () => {
+    const found = only(
+      [
+        migration('create table "public"."kept" (id int);'),
+        {
+          path: "supabase/schemas/all.sql",
+          text: "create table public.kept (id int);\ncreate table public.fresh (id int);",
+        },
+      ],
+      "BS377",
+    );
+
+    expect(found).toHaveLength(1);
+    expect(found[0]?.message).toContain("public.fresh");
+  });
+
+  it("follows a rename and reports nothing when a migration has a do block", () => {
+    const renamed = [
+      migration(
+        'create table "public"."old" (id int);\nalter table "public"."old" rename to "fresh";',
+      ),
+      {
+        path: "supabase/schemas/fresh.sql",
+        text: "create table public.fresh (id int);",
+      },
+    ];
+
+    expect(only(renamed, "BS376")).toEqual([]);
+    expect(only(renamed, "BS377")).toEqual([]);
+
+    expect(
+      only(
+        [
+          migration(
+            "create table public.legacy (id int);\ndo $$ begin perform 1; end; $$;",
+          ),
+        ],
+        "BS376",
+      ),
+    ).toEqual([]);
+  });
+
+  it("reads nothing under the migrations workflow", () => {
+    expect(
+      run([migration('create table "public"."legacy" (id int);')]).filter(
+        (entry) => ["BS376", "BS377"].includes(entry.code),
+      ),
+    ).toEqual([]);
   });
 });

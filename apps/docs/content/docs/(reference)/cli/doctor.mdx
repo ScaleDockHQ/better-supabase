@@ -1750,6 +1750,36 @@ rows, so a top-level `insert` in a block module file never reaches the database
 from the sync. Rows belong in the module's data file, which `upgrade` writes into
 a migration. The generator writes none; this finds a hand edit.
 
+### BS375
+
+**Warning: two policies decide the same way.** Two policies on one table have
+the same command, roles and expressions under different names. Postgres ORs
+permissive policies, so the second adds nothing, and a restrictive pair checks
+the same condition twice. Delete one.
+
+### BS376
+
+**Warning: a migration creates an object no schema file declares.** Under
+pg-delta, `supabase db schema declarative sync --strict-coverage` fails for a
+table, view, type or function that the migration history creates and the schema
+files don't, because the next diff would drop it. Declare it in
+`supabase/schemas`, or drop it in a migration. Objects in Supabase's own
+schemas and objects a later migration drops or renames are left out. A history
+with a `do` block reports nothing, because the block can rename or create an
+object by name.
+
+### BS377
+
+**Warning: a schema file declares an object no migration creates.** The other
+direction of BS376: a table, view, type or function in `supabase/schemas` that no
+migration creates is a change the sync has not turned into a migration yet. Run
+`supabase db schema declarative sync` and review the migration.
+
+`better-supabase upgrade --check` runs the checks of BS369 to BS375 that apply to
+the installed block files (a helper two files define, an object two block files
+declare, `transaction=false`, a top-level `insert` and duplicate policies) and
+fails with a line for each.
+
 ## Auth config
 
 ### BS353

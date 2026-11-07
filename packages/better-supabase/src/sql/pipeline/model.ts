@@ -40,6 +40,17 @@ export interface ParsedFile {
   readonly alters: readonly AlteredTable[];
   /** `comment on table` targets with the text of their `@bsb` tag lines. */
   readonly tags: readonly { readonly table: string; readonly tags: string }[];
+  /**
+   * Each `create policy` with its table and everything after the table name,
+   * lowercased with its whitespace collapsed, so two policies that decide the
+   * same way have the same `terms`.
+   */
+  readonly policies: readonly {
+    readonly table: string;
+    readonly name: string;
+    readonly terms: string;
+    readonly line: number;
+  }[];
   /** Lines of `do` blocks that create objects at run time. */
   readonly doBlocks: readonly number[];
   /** Lines of top-level `insert` statements. */
@@ -52,7 +63,7 @@ export interface ParsedFile {
  * Changes whenever `parseDeclared` learns a new statement, so a cache drops old
  * entries.
  */
-const PARSER_VERSION = 1;
+const PARSER_VERSION = 2;
 
 const IDENT = String.raw`${NAME}(?:\s*\.\s*${NAME})?`;
 
@@ -173,6 +184,13 @@ export function parseDeclared(text: string): ParsedFile {
   const doBlocks: number[] = [];
   const inserts: number[] = [];
 
+  const policies: {
+    table: string;
+    name: string;
+    terms: string;
+    line: number;
+  }[] = [];
+
   for (const statement of splitStatements(text)) {
     const flat = statement.text.replaceAll(/\s+/g, " ");
     const line = statement.line;
@@ -208,6 +226,12 @@ export function parseDeclared(text: string): ParsedFile {
     const policy = POLICY.exec(flat);
 
     if (policy) {
+      policies.push({
+        table: nameOf(policy[2]!),
+        name: unquote(policy[1]!),
+        terms: flat.slice(policy[0].length).trim().toLowerCase(),
+        line,
+      });
       objects.push({
         kind: "policy",
         name: `${nameOf(policy[2]!)}.${unquote(policy[1]!)}`,
@@ -285,6 +309,7 @@ export function parseDeclared(text: string): ParsedFile {
     objects,
     alters,
     tags,
+    policies,
     doBlocks,
     inserts,
     outsideTransaction: OUTSIDE_TRANSACTION.test(text),
@@ -399,6 +424,44 @@ export function buildModel(
   }
 
   return { files: parsed, objects, alters };
+}
+
+/**
+ * Policies on one table that decide the same way (command, roles, expressions)
+ * under different names, with the file and line of each.
+ */
+export function duplicatePolicies(
+  model: SchemaModel,
+): readonly {
+  readonly table: string;
+  readonly names: readonly string[];
+  readonly files: readonly { readonly file: string; readonly line: number }[];
+}[] {
+  const groups = new Map<
+    string,
+    { table: string; name: string; file: string; line: number }[]
+  >();
+
+  for (const [file, parsed] of model.files) {
+    for (const policy of parsed.policies) {
+      const key = `${policy.table}\0${policy.terms}`;
+      const list = groups.get(key) ?? [];
+      list.push({ ...policy, file });
+      groups.set(key, list);
+    }
+  }
+
+  return [...groups.values()]
+    .filter(
+      (list) =>
+        list.length > 1 && new Set(list.map((each) => each.name)).size > 1,
+    )
+    .map((list) => ({
+      table: list[0]!.table,
+      names: [...new Set(list.map((each) => each.name))],
+      files: list.map(({ file, line }) => ({ file, line })),
+    }))
+    .toSorted((a, b) => a.table.localeCompare(b.table));
 }
 
 const sameOwner = (a: Owner, b: Owner): boolean =>

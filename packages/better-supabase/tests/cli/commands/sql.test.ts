@@ -1232,6 +1232,37 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
   });
 
+  it("fails upgrade --check on a hand edit a schema diff would trip over", async () => {
+    const config: ResolveInput = { blocks: ["mfa"] };
+    await sql(["sync"], config);
+
+    const file = renderBlocks(
+      ["mfa"],
+      moduleLayout(resolveConfig(config, root)),
+    ).find((entry) => entry.module === "mfa");
+
+    const path = join(root, file!.path);
+
+    await writeFile(
+      path,
+      `${await readFile(path, "utf-8")}
+-- pg-delta: transaction=false
+insert into public.flags (id) values (1);
+create policy a on public.notes for select to authenticated using (true);
+create policy b on public.notes for select to authenticated using (true);
+`,
+    );
+
+    const check = await sql(["upgrade", "--check"], config);
+
+    expect(check.code).toBe(1);
+    expect(check.error).toContain("asks for transaction=false");
+    expect(check.error).toContain("inserts rows");
+    expect(check.error).toContain(
+      "public.notes has the policies a and b, which decide the same way",
+    );
+  });
+
   it("leaves a block file edited by hand alone until --force", async () => {
     const config: ResolveInput = { blocks: ["mfa"] };
     await sql(["sync"], config);

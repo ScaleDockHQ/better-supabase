@@ -12,6 +12,7 @@ export { moduleDeprecations, upgradePlan } from "./upgrade.ts";
 export {
   buildModel,
   conflicts,
+  duplicatePolicies,
   ownerOf,
   type Declaration,
   type SchemaModel,
