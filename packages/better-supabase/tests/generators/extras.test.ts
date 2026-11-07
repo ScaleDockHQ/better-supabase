@@ -99,8 +99,7 @@ const input: GeneratorInput = {
   introspection: snapshotFixture.generator,
   extras: { tables: [], buckets: [], realtime: [] },
   config,
-  output: "/project/src/generated.ts",
-  importPath: () => "./generated.ts",
+  imports: { runtime: "better-supabase" },
   model: {
     tables: [],
     enums: [],

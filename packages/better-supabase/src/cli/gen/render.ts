@@ -1,21 +1,10 @@
-import {
-  basename,
-  dirname,
-  isAbsolute,
-  join,
-  relative,
-  resolve,
-} from "node:path";
+import { basename, dirname, join, resolve } from "node:path";
 
-import type {
-  GeneratedFile,
-  GeneratorModel,
-  ResolvedConfig,
-} from "../../config/index.ts";
+import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
-import { CliError, errorText } from "../core/errors.ts";
 import { importPath } from "../core/io.ts";
+import { runGenerators } from "../generators/run.ts";
 import {
   cachedDatabaseTypes,
   cachedTypesModule,
@@ -239,64 +228,36 @@ export async function render(
     files.push(hooks);
   }
 
-  const owners = new Map(
-    files.map((file) => [resolve(config.root, file.path), "gen"]),
+  const generated = await runGenerators(
+    config.generators,
+    {
+      meta: model.meta,
+      introspection: model.introspection,
+      extras: snapshot.extras,
+      config: {
+        output: config.output,
+        databaseTypesOutput: config.databaseTypesOutput,
+        casing: config.casing,
+        json: config.json,
+      },
+      imports: { runtime: options.runtimeImport ?? "better-supabase" },
+      model: generatorModel(model, generatorBlocks(config)),
+    },
+    { root: config.root, taken: new Set(files.map((file) => file.path)) },
   );
 
-  let view: GeneratorModel | undefined;
+  files.push(...generated.files.map((entry) => entry.file));
 
-  for (const generator of config.generators) {
-    let extra: readonly GeneratedFile[];
-
-    try {
-      extra = await generator.generate({
-        meta: model.meta,
-        introspection: model.introspection,
-        extras: snapshot.extras,
-        config,
-        output,
-        importPath: (from, to) =>
-          importPath(resolve(config.root, from), resolve(config.root, to)),
-        model: (view ??= generatorModel(model, generatorBlocks(config))),
-        ...runtime,
-      });
-    } catch (cause) {
-      throw new CliError(
-        "generator_failed",
-        `generator "${generator.name}" failed: ${errorText(cause)}`,
-        { cause },
-      );
-    }
-
-    for (const file of extra) {
-      const path = resolve(config.root, file.path);
-      const inside = relative(config.root, path);
-
-      if (inside === "" || inside.startsWith("..") || isAbsolute(inside)) {
-        throw new CliError(
-          "generator_failed",
-          `generator "${generator.name}" wrote ${file.path}, which is outside the project root`,
-        );
-      }
-
-      const owner = owners.get(path);
-
-      if (owner !== undefined) {
-        throw new CliError(
-          "generator_failed",
-          `generator "${generator.name}" wrote ${file.path}, which ${owner === "gen" ? "better-supabase gen writes" : `generator "${owner}" also writes`}`,
-        );
-      }
-
-      owners.set(path, generator.name);
-      files.push(file);
-    }
-  }
-
-  const validators =
+  const validatorsOwner =
     options.extensions === false
       ? undefined
-      : files.find((file) => file.validators === true);
+      : generated.capabilities.get("validators");
+
+  const validators =
+    validatorsOwner === undefined
+      ? undefined
+      : generated.files.find((entry) => entry.generator === validatorsOwner)
+          ?.file;
 
   const withValidators = {
     ...emitOptions,

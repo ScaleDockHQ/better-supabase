@@ -248,16 +248,47 @@ function extensionsOf(
   };
 }
 
+/** The generator contract this release runs. */
+const GENERATOR_API = 2;
+
+/**
+ * What is wrong with a generator's declaration, or `undefined`. A v1 generator
+ * gets the change that broke it: version 2 hands `generate` plain data and
+ * wants `version`, so `gen` can cache the files.
+ */
+export function generatorProblem(generator: Generator): string | undefined {
+  const declared: unknown = generator;
+
+  if (typeof declared !== "object" || declared === null) {
+    return "a generator is an object: { apiVersion: 2, name, version, generate }";
+  }
+
+  const name =
+    "name" in declared && typeof declared.name === "string"
+      ? declared.name
+      : "(unnamed)";
+
+  const api = "apiVersion" in declared ? declared.apiVersion : undefined;
+
+  if (api !== GENERATOR_API) {
+    return `generator "${name}" targets generator API ${api === undefined ? "1" : String(api)}; this better-supabase runs ${GENERATOR_API}. API 2 passes \`generate\` plain data (\`config\` is a view, \`imports.runtime\` replaces \`runtimeImport\`, \`importPath\` is \`relativeImport\` in better-supabase/generators) and replaces the \`validators\` flag with \`provides: ["validators"]\`. Build it with defineGenerator, or use a release of the generator for API ${GENERATOR_API}.`;
+  }
+
+  if (!("version" in declared) || typeof declared.version !== "string") {
+    return `generator "${name}" needs a \`version\` string; it is part of the cache key`;
+  }
+
+  return undefined;
+}
+
 function generatorsOf(
   generators: readonly Generator[] | undefined,
 ): readonly Generator[] {
   for (const generator of generators ?? []) {
-    const version: unknown = generator.apiVersion;
+    const problem = generatorProblem(generator);
 
-    if (version !== undefined && version !== 1) {
-      throw new TypeError(
-        `generator "${generator.name}" targets generator API ${String(version)}; this better-supabase supports 1. Upgrade better-supabase or use a release of the generator for API 1.`,
-      );
+    if (problem !== undefined) {
+      throw new TypeError(problem);
     }
   }
 

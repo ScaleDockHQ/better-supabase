@@ -178,7 +178,13 @@ describe("cachedDatabaseTypes", () => {
 describe("cachedTypesModule", () => {
   const config = (generate: () => readonly GeneratedFile[]) =>
     resolveConfig(
-      { gen: { generators: [{ name: "g", apiVersion: 1, generate }] } },
+      {
+        gen: {
+          generators: [
+            { name: "g", apiVersion: 2, version: "1.0.0", generate },
+          ],
+        },
+      },
       "/app",
     );
 

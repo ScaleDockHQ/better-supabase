@@ -179,6 +179,7 @@ const PURE_BARRELS = [
   "realtime",
   "rate-limit",
   "recurrence",
+  "generators",
   "generators/zod",
   "generators/valibot",
   "generators/json-schema",

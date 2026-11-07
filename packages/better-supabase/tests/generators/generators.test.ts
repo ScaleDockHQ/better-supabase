@@ -1,5 +1,4 @@
 import { readFile } from "node:fs/promises";
-import { dirname, relative, resolve, sep } from "node:path";
 import * as v from "valibot";
 import { describe, expect, it } from "vitest";
 
@@ -16,12 +15,6 @@ import * as standardSchemas from "../fixtures/generated-camel.standard.ts";
 import * as valibotSchemas from "../fixtures/generated-camel.valibot.ts";
 import * as zodMiniSchemas from "../fixtures/generated-camel.zod-mini.ts";
 import * as zodSchemas from "../fixtures/generated-camel.zod.ts";
-
-function importPath(fromFile: string, toFile: string): string {
-  const path = relative(dirname(fromFile), toFile).split(sep).join("/");
-
-  return path.startsWith(".") ? path : `./${path}`;
-}
 
 const customer = {
   organizationId: "00000000-0000-4000-8000-000000000001",
@@ -295,8 +288,7 @@ const input: GeneratorInput = {
   introspection: snapshotFixture.generator,
   extras: { tables: [], buckets: [], realtime: [] },
   config,
-  output: resolve(root, config.output),
-  importPath: (from, to) => importPath(resolve(root, from), resolve(root, to)),
+  imports: { runtime: "better-supabase" },
   model: { tables: [], enums: [], functions: [], blocks: [] },
 };
 

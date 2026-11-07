@@ -10,7 +10,12 @@ export {
 
 export { resolveJsonSchema } from "./json.ts";
 
-export { CONFIG_SCHEMA_URL, defineConfig, resolveConfig } from "./resolve.ts";
+export {
+  CONFIG_SCHEMA_URL,
+  defineConfig,
+  generatorProblem,
+  resolveConfig,
+} from "./resolve.ts";
 
 export type {
   BlockTableReference,
@@ -34,6 +39,9 @@ export type {
   GeneratorField,
   GeneratorFunction,
   GeneratorFunctionArg,
+  GeneratorCapability,
+  GeneratorConfigView,
+  GeneratorImports,
   GeneratorInput,
   GeneratorInputSchema,
   GeneratorJsonSchema,

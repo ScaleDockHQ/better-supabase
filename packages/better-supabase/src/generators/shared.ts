@@ -7,7 +7,7 @@ export type { ScalarKind };
 export interface SchemaSource {
   readonly meta: SchemaMeta;
   readonly config: { readonly json: Readonly<Record<string, unknown>> };
-  readonly runtimeImport?: string;
+  readonly imports?: { readonly runtime: string };
 }
 
 export type Variant = "Row" | "Insert" | "Update";
@@ -200,7 +200,7 @@ export function temporalGuardImport(
 
   return names.size === 0
     ? undefined
-    : `import { ${[...names].toSorted().join(", ")} } from ${JSON.stringify(input.runtimeImport ?? "better-supabase")};`;
+    : `import { ${[...names].toSorted().join(", ")} } from ${JSON.stringify(input.imports?.runtime ?? "better-supabase")};`;
 }
 
 interface CommentEntry {

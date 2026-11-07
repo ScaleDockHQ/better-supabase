@@ -564,7 +564,9 @@ ones, so the request fails with 401 instead of running as anonymous.
 ## Generator
 
 Adds files at codegen time. Return paths relative to the project root; output
-must be deterministic so `gen --check` works.
+must be deterministic so `gen --check` works. A generator targets `apiVersion: 2`:
+plain-data input, a `version`, and `provides` for what `gen` consumes. See
+[Generators](/docs/extending/generators) for the kit.
 
 ## Logger
 
