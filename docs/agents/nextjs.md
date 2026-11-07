@@ -258,3 +258,18 @@ against production after the deploy.
   pricing page returns one `default` code when `FLAGS_SECRET` is unset.
 - Pass the adapter itself (`adapter: bsFlags`) and put `identify` on
   `createBetterSupabaseAdapter`, not on each flag.
+
+## App architecture
+
+`pnpm check:app-architecture` holds the example to the feature-sliced RSC rules
+(ADR 0310). Pages compose: they import feature components and place
+`<Suspense>`, stay synchronous and turn `params` or `searchParams` into plain
+values with `params.then()` before a feature sees them. A feature takes ids and
+a `query` object, never the route promise. Queries sit in
+`<folder>-queries.ts` with `import "server-only"`, actions in
+`<folder>-actions.ts`, and pure helpers a page needs (a scope, a filter parser)
+in `<folder>-cache.ts`. An async component in `components/` exports its
+`*Skeleton` in the same file, or carries `// skeleton: <reason>` above it. Use
+`io()` from `next/cache` for a clock or random read, and `connection()` only
+with a comment that states why rendering has to wait for a request. Read
+`.agents/skills/nextjs-app-architecture` before you add a feature.
