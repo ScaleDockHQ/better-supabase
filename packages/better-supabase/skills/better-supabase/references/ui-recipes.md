@@ -369,10 +369,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { useCommandSearch } from "@/hooks/use-search";
 import { Link, toAppHref } from "@/i18n/navigation";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { searchConfig } from "@/lib/supabase/blocks/slices";
 
 /** The API schema `gen` wrote for the search block. */
-const API_SCHEMA = blockConfig.search.api;
+const API_SCHEMA = searchConfig.api;
 
 /** Cmd+K over the search index: customers by name, plus recents and favorites. */
 export function CommandSearch() {
@@ -618,10 +618,10 @@ import { gettingStarted } from "@/features/onboarding/checklist";
 import { useOnboarding } from "@/hooks/use-onboarding";
 import { Link, toAppHref } from "@/i18n/navigation";
 import { useAuth } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { onboardingConfig } from "@/lib/supabase/blocks/slices";
 
 /** The API schema `gen` wrote for the onboarding block. */
-const API_SCHEMA = blockConfig.onboarding.api;
+const API_SCHEMA = onboardingConfig.api;
 
 /** The organization's getting-started checklist; hidden once every step is done. */
 export function OnboardingCard() {
@@ -1014,7 +1014,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { useOrganizations } from "@/hooks/use-organizations";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { OrganizationSummary } from "../organization-queries";
@@ -1065,7 +1065,7 @@ export function OrganizationSwitcherMenu({
     load: loadOrganizations,
     initial,
     activeId: serverActiveId,
-    schema: blockConfig.organizations.api,
+    schema: organizationsConfig.api,
     onSwitched: () => refreshSession("/"),
   });
 
@@ -1479,10 +1479,10 @@ import { Progress } from "@/components/ui/progress";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useUsageMeter } from "@/hooks/use-usage";
 import { useAuth } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { usageConfig } from "@/lib/supabase/blocks/slices";
 
 /** The API schema `gen` wrote for the usage block. */
-const API_SCHEMA = blockConfig.usage.api;
+const API_SCHEMA = usageConfig.api;
 
 /** This period's usage per meter against the plan's quota. */
 export function UsageCard() {
@@ -1799,13 +1799,13 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useSettings } from "@/hooks/use-settings";
 import { useAuth } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { settingsConfig } from "@/lib/supabase/blocks/slices";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { settings } from "../settings-definition";
 
 /** The API schema `gen` wrote for the settings block. */
-const API_SCHEMA = blockConfig.settings.api;
+const API_SCHEMA = settingsConfig.api;
 
 /** What a control produces; the key's schema validates it before it is stored. */
 type ControlValue = string | number | boolean;
@@ -2236,7 +2236,7 @@ import { useMembers } from "@/hooks/use-organizations";
 import { Link } from "@/i18n/navigation";
 import { Role } from "@/lib/claims";
 import { initials } from "@/lib/initials";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 async function loadOrganizationMembers(): Promise<readonly Member[]> {
@@ -2452,7 +2452,7 @@ export function MemberTable({
     organizationId,
     load: loadOrganizationMembers,
     initial,
-    schema: blockConfig.organizations.api,
+    schema: organizationsConfig.api,
     onChanged: async ({ userId }) => {
       await memberChanged({ userId });
     },
@@ -2755,7 +2755,7 @@ import { useInviteLink } from "@/features/organization/use-invite-link";
 import { useRoleLabel } from "@/features/organization/use-role-label";
 import { useInvitations } from "@/hooks/use-organizations";
 import { Role } from "@/lib/claims";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
@@ -2786,7 +2786,7 @@ export function InviteMemberDialog({
   // The server renders the pending list; `invitationSent` renders it again.
   const { invite, inviting, sent, error, clear } = useInvitations({
     organizationId,
-    schema: blockConfig.organizations.api,
+    schema: organizationsConfig.api,
     onChanged: async ({ kind }) => {
       if (kind === "invited") {
         await invitationSent({});
@@ -3088,7 +3088,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useApiKeys } from "@/hooks/use-api-keys";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { apiKeysConfig } from "@/lib/supabase/blocks/slices";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { apiKeyCreated } from "../api-key-actions";
@@ -3113,7 +3113,7 @@ export function ApiKeyTable({
   const { keys, created, creating, revoking, error, create, revoke, dismiss } =
     useApiKeys({
       organizationId,
-      schema: blockConfig["api-keys"].api,
+      schema: apiKeysConfig.api,
       onChanged: async ({ kind }) => {
         if (kind === "created") {
           await apiKeyCreated({});
@@ -3374,7 +3374,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useAuditLog } from "@/hooks/use-audit";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { auditConfig } from "@/lib/supabase/blocks/slices";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 const ALL = "all";
@@ -3400,7 +3400,7 @@ export function AuditLogTable({ organizationId }: { organizationId: string }) {
   const errorMessage = useErrorMessage();
 
   const { entries, filters, hasMore, loading, error, setFilters, loadMore } =
-    useAuditLog({ organizationId, schema: blockConfig.audit.api });
+    useAuditLog({ organizationId, schema: auditConfig.api });
 
   const actors = new Map(
     (entries ?? []).flatMap((entry) =>
@@ -7719,7 +7719,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { env } from "@/env";
 import { useSupabase } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { pushConfig } from "@/lib/supabase/blocks/slices";
 
 /**
  * The app's one service worker in `public/`, which shows the pushes. It must be
@@ -7786,7 +7786,7 @@ export function PushOptIn() {
 
   const devices = createPush({
     transport: rpcTransport(supabase),
-    schema: blockConfig.push.api,
+    schema: pushConfig.api,
   });
 
   const read = () => {
@@ -8544,7 +8544,7 @@ import { Switch } from "@/components/ui/switch";
 import { useStatusLabel } from "@/features/customers/use-status-label";
 import { useRuleBuilder } from "@/hooks/use-automations";
 import { useRouter } from "@/i18n/navigation";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { automationsConfig } from "@/lib/supabase/blocks/slices";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import {
@@ -8642,7 +8642,7 @@ export function RuleBuilder({
     trigger: RULE_TRIGGER,
     initial: initialConditions,
     locked: LOCKED,
-    schema: blockConfig.automations.api,
+    schema: automationsConfig.api,
   });
 
   const enabled = enabledEdit ?? builder.rule?.enabled ?? false;
@@ -9456,7 +9456,7 @@ Web, with no shadcn components.
 "use client";
 
 import { Can } from "@/hooks/use-permissions";
-import { permissions } from "@/lib/supabase/blocks.config";
+import { permissions } from "@/lib/supabase/blocks/permissions";
 
 import { TaskImportDialog } from "./task-import-dialog";
 
@@ -21775,7 +21775,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useSupabase } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { documentsConfig } from "@/lib/supabase/blocks/slices";
 
 const DOCUMENT_NAME = "notes";
 const LOCAL = Symbol("local edit");
@@ -21907,7 +21907,7 @@ function DocumentSession({
 
     const documents = createDocuments({
       transport: rpcTransport(supabase),
-      schema: blockConfig.documents.api,
+      schema: documentsConfig.api,
     });
 
     const provider = createDocumentProvider({

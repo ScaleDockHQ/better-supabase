@@ -40,7 +40,7 @@ import { useInviteLink } from "@/features/organization/use-invite-link";
 import { useRoleLabel } from "@/features/organization/use-role-label";
 import { useInvitations } from "@/hooks/use-organizations";
 import { Role } from "@/lib/claims";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
@@ -71,7 +71,7 @@ export function InviteMemberDialog({
   // The server renders the pending list; `invitationSent` renders it again.
   const { invite, inviting, sent, error, clear } = useInvitations({
     organizationId,
-    schema: blockConfig.organizations.api,
+    schema: organizationsConfig.api,
     onChanged: async ({ kind }) => {
       if (kind === "invited") {
         await invitationSent({});

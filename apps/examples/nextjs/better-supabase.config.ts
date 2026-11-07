@@ -77,6 +77,8 @@ export default defineConfig({
     hooks: "react",
     // One module per table: a page carries the tables it imports (ADR 0262).
     tableModules: true,
+    // One module per block instance: a page carries the slices it imports.
+    blockModules: true,
   },
   tooling: {
     doctor: {

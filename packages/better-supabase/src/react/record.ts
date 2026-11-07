@@ -142,7 +142,12 @@ function clientsOf(
   env: BlockEnv,
   feature: Pick<RecordType, "blocks" | "config">,
 ): object {
-  const config = env.config ?? feature.config;
+  // The client's slices win; the record's own cover the blocks it binds.
+  const config =
+    env.config === undefined || feature.config === undefined
+      ? (env.config ?? feature.config)
+      : { ...feature.config, ...env.config };
+
   const files = { storage: env.supabase.storage };
 
   return createBlocks(

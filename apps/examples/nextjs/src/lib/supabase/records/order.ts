@@ -27,7 +27,33 @@ import { tagsBlock } from "better-supabase/blocks/tags";
 import { tasksBlock } from "better-supabase/blocks/tasks";
 import { defineRecordType } from "better-supabase/records";
 
-import { blockConfig, permissions } from "../blocks.config.ts";
+import {
+  assetsConfig,
+  attachmentsConfig,
+  billableTimeConfig,
+  commentsConfig,
+  contractsConfig,
+  customFieldsConfig,
+  dispatchConfig,
+  donationsConfig,
+  driveConfig,
+  enrollmentsConfig,
+  guestsConfig,
+  leasesConfig,
+  ledgerConfig,
+  moderationConfig,
+  passesConfig,
+  reactionsConfig,
+  relationsConfig,
+  scoresConfig,
+  shareLinksConfig,
+  shipmentsConfig,
+  signaturesConfig,
+  slaConfig,
+  tagsConfig,
+  tasksConfig,
+} from "../blocks/slices.ts";
+import { permissions } from "../blocks/permissions.ts";
 
 /**
  * The order record type: each installed block that binds to it. Pass it to
@@ -61,7 +87,32 @@ export const orderRecord = defineRecordType({
     tags: tagsBlock,
     tasks: tasksBlock,
   },
-  config: blockConfig,
+  config: {
+    attachments: attachmentsConfig,
+    comments: commentsConfig,
+    "custom-fields": customFieldsConfig,
+    ledger: ledgerConfig,
+    assets: assetsConfig,
+    scores: scoresConfig,
+    moderation: moderationConfig,
+    enrollments: enrollmentsConfig,
+    guests: guestsConfig,
+    passes: passesConfig,
+    "billable-time": billableTimeConfig,
+    leases: leasesConfig,
+    donations: donationsConfig,
+    dispatch: dispatchConfig,
+    shipments: shipmentsConfig,
+    contracts: contractsConfig,
+    drive: driveConfig,
+    signatures: signaturesConfig,
+    reactions: reactionsConfig,
+    relations: relationsConfig,
+    "share-links": shareLinksConfig,
+    sla: slaConfig,
+    tags: tagsConfig,
+    tasks: tasksConfig,
+  },
   permissions,
   access: permissionsBlock,
 });

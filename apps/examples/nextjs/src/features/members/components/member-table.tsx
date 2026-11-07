@@ -49,7 +49,7 @@ import { useMembers } from "@/hooks/use-organizations";
 import { Link } from "@/i18n/navigation";
 import { Role } from "@/lib/claims";
 import { initials } from "@/lib/initials";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 async function loadOrganizationMembers(): Promise<readonly Member[]> {
@@ -265,7 +265,7 @@ export function MemberTable({
     organizationId,
     load: loadOrganizationMembers,
     initial,
-    schema: blockConfig.organizations.api,
+    schema: organizationsConfig.api,
     onChanged: async ({ userId }) => {
       await memberChanged({ userId });
     },

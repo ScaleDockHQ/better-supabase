@@ -24,7 +24,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useApiKeys } from "@/hooks/use-api-keys";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { apiKeysConfig } from "@/lib/supabase/blocks/slices";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { apiKeyCreated } from "../api-key-actions";
@@ -49,7 +49,7 @@ export function ApiKeyTable({
   const { keys, created, creating, revoking, error, create, revoke, dismiss } =
     useApiKeys({
       organizationId,
-      schema: blockConfig["api-keys"].api,
+      schema: apiKeysConfig.api,
       onChanged: async ({ kind }) => {
         if (kind === "created") {
           await apiKeyCreated({});

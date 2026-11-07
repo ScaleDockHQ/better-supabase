@@ -18,7 +18,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { useOrganizations } from "@/hooks/use-organizations";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { organizationsConfig } from "@/lib/supabase/blocks/slices";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { OrganizationSummary } from "../organization-queries";
@@ -69,7 +69,7 @@ export function OrganizationSwitcherMenu({
     load: loadOrganizations,
     initial,
     activeId: serverActiveId,
-    schema: blockConfig.organizations.api,
+    schema: organizationsConfig.api,
     onSwitched: () => refreshSession("/"),
   });
 

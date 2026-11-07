@@ -30,6 +30,7 @@ import { apiTypeSchemas } from "./api-schemas.ts";
 import {
   emitBlockConfig,
   emitBlockConfigModule,
+  emitBlockModules,
   emitClientBlocks,
   generatorBlocks,
   schemaExtensions,
@@ -210,7 +211,11 @@ export async function render(
   const blockModule = emitBlockConfigModule(config, blockOptions);
 
   if (blockConfig && blockModule) {
-    files.push(blockConfig, blockModule);
+    files.push(
+      blockConfig,
+      blockModule,
+      ...emitBlockModules(config, blockOptions),
+    );
 
     const clientBlocks = emitClientBlocks(config, blockOptions);
 

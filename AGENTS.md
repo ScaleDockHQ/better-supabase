@@ -373,6 +373,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0260: Default a block's permission to the resource key the provider lists.
 - 0261: Remove refused config entries with a codemod, and report them in doctor.
 - 0262: Write one module per table and register the tables a client uses.
+- 0263: Write block config slices as exports of one module and import them per record.
 
 ## Pre-release pins
 

@@ -34,7 +34,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { env } from "@/env";
 import { useSupabase } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { pushConfig } from "@/lib/supabase/blocks/slices";
 
 /**
  * The app's one service worker in `public/`, which shows the pushes. It must be
@@ -101,7 +101,7 @@ export function PushOptIn() {
 
   const devices = createPush({
     transport: rpcTransport(supabase),
-    schema: blockConfig.push.api,
+    schema: pushConfig.api,
   });
 
   const read = () => {

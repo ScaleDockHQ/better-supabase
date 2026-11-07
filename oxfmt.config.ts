@@ -31,6 +31,7 @@ const config: OxfmtConfig = defineConfig({
     // `gen --check` compares the file with its own unformatted output.
     "tests/types/**/blocks.config.ts",
     "apps/examples/**/lib/supabase/blocks.config.ts",
+    "apps/examples/**/lib/supabase/blocks/*.ts",
     "tests/validation-*/src/blocks.config.ts",
     "tests/validation-*/src/wiring/*.blocks.config.ts",
     "packages/registry/stubs/lib/supabase/blocks.config.ts",

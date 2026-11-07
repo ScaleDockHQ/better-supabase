@@ -53,6 +53,28 @@ export function blockConfigModulePath(
   return posix.join(posix.dirname(config.output), "blocks.config.ts");
 }
 
+/**
+ * `blocks/slices.ts`: every instance's config slice as its own export
+ * (`gen.blockModules`).
+ */
+export function blockSlicesPath(
+  config: Pick<ResolvedConfig, "output">,
+): string {
+  return posix.join(posix.dirname(config.output), "blocks", "slices.ts");
+}
+
+/** The export of an instance's slice: `commentsConfig`, `customFieldsConfig`. */
+export function blockSliceName(instance: string): string {
+  return `${camelOf(instance)}Config`;
+}
+
+/** `blocks/permissions.ts`: the permission keys (`gen.blockModules`). */
+export function blockPermissionsPath(
+  config: Pick<ResolvedConfig, "output">,
+): string {
+  return posix.join(posix.dirname(config.output), "blocks", "permissions.ts");
+}
+
 function hasSchema(
   module: string,
 ): module is keyof typeof BLOCK_OPTION_SCHEMAS {
@@ -1058,20 +1080,49 @@ export function emitBlockConfigModule(
   }
 
   const runtime = options.runtimeImport ?? "better-supabase";
+  const split = config.gen.blockModules === true;
 
-  const body = [
-    "",
-    `import type { GeneratedBlocks } from ${q(runtimeSubpath(runtime, "blocks"))};`,
-    "",
-    "/**",
-    " * The installed blocks' settings from the `blocks` config, for",
-    " * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema",
-    " * and the options its SQL and TypeScript halves share.",
-    " */",
-    `export const blockConfig = ${literal(blockConfigEntries(config, undefined, options.appColumns), "")} as const satisfies GeneratedBlocks;`,
-    ...permissionLines(config),
-    "",
-  ];
+  const entries = blockConfigEntries(config, undefined, options.appColumns);
+
+  const body = split
+    ? [
+        "",
+        `import type { GeneratedBlocks } from ${q(runtimeSubpath(runtime, "blocks"))};`,
+        "",
+        `import {\n${Object.keys(entries)
+          .map((instance) => `  ${blockSliceName(instance)},`)
+          .join("\n")}\n} from "./blocks/slices.ts";`,
+        ...(permissionLines(config).length === 0
+          ? []
+          : [
+              "",
+              'export { permissions, type PermissionKey } from "./blocks/permissions.ts";',
+            ]),
+        "",
+        "/**",
+        " * Every installed instance's config slice, for the server. Client code",
+        " * imports the slices it uses from `blocks/<instance>.ts`.",
+        " */",
+        "export const blockConfig = {",
+        ...Object.keys(entries).map(
+          (instance) => `  ${prop(instance)}: ${blockSliceName(instance)},`,
+        ),
+        "} as const satisfies GeneratedBlocks;",
+        "",
+      ]
+    : [
+        "",
+        `import type { GeneratedBlocks } from ${q(runtimeSubpath(runtime, "blocks"))};`,
+        "",
+        "/**",
+        " * The installed blocks' settings from the `blocks` config, for",
+        " * `defineBlocks(blockConfig, { ... })`: each block's schema, API schema",
+        " * and the options its SQL and TypeScript halves share.",
+        " */",
+        `export const blockConfig = ${literal(entries, "")} as const satisfies GeneratedBlocks;`,
+        ...permissionLines(config),
+        "",
+      ];
 
   return {
     path: blockConfigModulePath(config),
@@ -1085,6 +1136,59 @@ export function emitBlockConfigModule(
       ...body,
     ].join("\n"),
   };
+}
+
+/**
+ * `blocks/slices.ts` and `blocks/permissions.ts` (`gen.blockModules`): each
+ * instance's config slice as plain data and its own export, so a page that
+ * imports one ships that instance's names and options and no other's. Empty
+ * without the option.
+ */
+export function emitBlockModules(
+  config: Parameters<typeof emitBlockConfig>[0],
+  options: {
+    readonly runtimeImport?: string;
+    readonly appColumns?: AppColumns;
+  } = {},
+): GeneratedFile[] {
+  if (config.gen.blockModules !== true || config.blockNames.length === 0) {
+    return [];
+  }
+
+  const runtime = options.runtimeImport ?? "better-supabase";
+  const entries = blockConfigEntries(config, undefined, options.appColumns);
+
+  // One module with one export per slice: a bundler drops the slices a page
+  // doesn't import, and the 100 modules a file per instance made would each
+  // add a wrapper to the chunk.
+  const slices: GeneratedFile = {
+    path: blockSlicesPath(config),
+    contents: [
+      GENERATED_HEADER,
+      "",
+      `import type { GeneratedBlock } from ${q(runtimeSubpath(runtime, "blocks"))};`,
+      ...Object.entries(entries).flatMap(([instance, entry]) => [
+        "",
+        `/** The \`${instance}\` instance's config slice. */`,
+        `export const ${blockSliceName(instance)} = ${literal(entry, "")} as const satisfies GeneratedBlock;`,
+      ]),
+      "",
+    ].join("\n"),
+  };
+
+  const keys = permissionLines(config);
+
+  return [
+    slices,
+    ...(keys.length === 0
+      ? []
+      : [
+          {
+            path: blockPermissionsPath(config),
+            contents: [GENERATED_HEADER, ...keys, ""].join("\n"),
+          },
+        ]),
+  ];
 }
 
 /** `blocks.client.ts`, next to `blocks.config.ts`. */

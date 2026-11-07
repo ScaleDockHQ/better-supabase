@@ -958,6 +958,7 @@ const ENTRIES = {
       ),
       contentMapper: v.optional(v.boolean()),
       tableModules: v.optional(v.boolean()),
+      blockModules: v.optional(v.boolean()),
       clientBlocks: v.optional(v.array(v.string())),
       powersync: v.optional(powersyncGenSchema),
       api: v.optional(

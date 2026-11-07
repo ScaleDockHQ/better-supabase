@@ -106,6 +106,16 @@ export interface GenConfig {
    */
   readonly tableModules?: boolean;
   /**
+   * Writes one module per block instance, `blocks/<instance>.ts`, with that
+   * instance's config slice, and `blocks/permissions.ts` with the permission
+   * keys. `blocks.config.ts` composes the slices for the server. A record file
+   * imports the slices of the blocks it binds and `blocks/permissions.ts`, so a
+   * page that imports a record loads those instances and no others. A browser
+   * client passes the slices it uses to `createClient({ blocks })`. Defaults to
+   * `false`.
+   */
+  readonly blockModules?: boolean;
+  /**
    * Block instances the browser client wires: `gen` writes `blocks.client.ts`
    * with `clientBlocks`, a `defineBlocks` set over only these instances, so
    * `createClient(app.blocks(clientBlocks))` has `db.<instance>` without

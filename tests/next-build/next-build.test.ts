@@ -284,4 +284,34 @@ describe("the Next.js example's first-load JavaScript", () => {
     },
     120_000,
   );
+
+  // Block config slices are exports of `blocks/slices.ts`: a route ships the
+  // slices of the instances its client imports (`client.ts`, the records it
+  // renders), never the composed `blockConfig` of the server.
+  it.skipIf(UPDATE)(
+    "ships only the block slices a page imports",
+    async () => {
+      const routes = await routeChunks();
+
+      const login = await routeSource(
+        routes.get("/[locale]/(auth)/login/page") ?? new Set(),
+      );
+
+      const slices = login.match(/schema:"better_supabase"/g)?.length ?? 0;
+
+      // The example installs more than 100 instances; the browser client wires 22.
+      expect(slices, "slices on the login route").toBeGreaterThan(0);
+      expect(slices, "slices on the login route").toBeLessThanOrEqual(30);
+
+      for (const [route, chunks] of routes) {
+        const source = await routeSource(chunks);
+
+        // `ai-chat` has a list topic no client file reads.
+        expect(source, `${route} has the ai-chat slice`).not.toContain(
+          'listTopic:"ai-chats"',
+        );
+      }
+    },
+    120_000,
+  );
 });

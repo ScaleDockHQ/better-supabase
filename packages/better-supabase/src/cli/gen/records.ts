@@ -7,13 +7,17 @@ import { PRESET_CATALOG } from "../../preset/index.ts";
 import { importPath } from "../core/io.ts";
 import { hasPermissionConstants } from "./block-names.ts";
 import {
+  blockConfigEntries,
   blockConfigModulePath,
   blockConfigPath,
+  blockPermissionsPath,
+  blockSliceName,
+  blockSlicesPath,
   generatorBlocks,
 } from "./blocks.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import { docComment, importStatement, sortImports } from "./layout.ts";
-import { q } from "./shared.ts";
+import { prop, q } from "./shared.ts";
 
 type RecordsConfig = Pick<
   ResolvedConfig,
@@ -22,6 +26,7 @@ type RecordsConfig = Pick<
   | "blockNames"
   | "buckets"
   | "casing"
+  | "gen"
   | "recordTypes"
   | "instances"
   | "output"
@@ -146,6 +151,8 @@ function recordFile(
   extras: {
     readonly access: string | undefined;
     readonly permissions: boolean;
+    /** The instances with a slice, with `gen.blockModules`. */
+    readonly slices?: ReadonlySet<string>;
   },
 ): GeneratedFile {
   const generated = importPath(path, blockConfigPath(config));
@@ -154,10 +161,15 @@ function recordFile(
   // `permissions` comes from the config module, which holds plain data: the
   // generated one imports every installed block, and a record file loads in
   // the browser.
-  const fromConfig = [
-    "blockConfig",
-    ...(extras.permissions ? ["permissions"] : []),
-  ];
+  const split = config.gen.blockModules === true;
+
+  const instances = split
+    ? blocks.filter((block) => extras.slices?.has(block.name))
+    : [];
+
+  const fromConfig = split
+    ? []
+    : ["blockConfig", ...(extras.permissions ? ["permissions"] : [])];
 
   const fromGenerated = blocks
     .filter((block) => block.from === undefined)
@@ -183,7 +195,23 @@ function recordFile(
       "",
       ...imports,
       "",
-      ...importStatement(fromConfig, configModule),
+      ...(split
+        ? [
+            ...(instances.length === 0
+              ? []
+              : importStatement(
+                  instances
+                    .map((block) => blockSliceName(block.name))
+                    .toSorted((a, b) => a.localeCompare(b)),
+                  importPath(path, blockSlicesPath(config)),
+                )),
+            ...(extras.permissions
+              ? [
+                  `import { permissions } from ${q(importPath(path, blockPermissionsPath(config)))};`,
+                ]
+              : []),
+          ]
+        : importStatement(fromConfig, configModule)),
       ...(fromGenerated.length === 0
         ? []
         : importStatement(fromGenerated, generated)),
@@ -200,7 +228,16 @@ function recordFile(
           : `    ${block.key}: ${block.local},`,
       ),
       "  },",
-      "  config: blockConfig,",
+      ...(split
+        ? [
+            "  config: {",
+            ...instances.map(
+              (block) =>
+                `    ${prop(block.name)}: ${blockSliceName(block.name)},`,
+            ),
+            "  },",
+          ]
+        : ["  config: blockConfig,"]),
       ...(extras.permissions ? ["  permissions,"] : []),
       ...(extras.access === undefined ? [] : ["  access: permissionsBlock,"]),
       "});",
@@ -239,6 +276,9 @@ export function emitRecords(config: RecordsConfig): GeneratedFile[] {
   const extras = {
     access: installed.has("permissions") ? access?.subpath : undefined,
     permissions: hasPermissionConstants(config),
+    ...(config.gen.blockModules === true
+      ? { slices: new Set(Object.keys(blockConfigEntries(config))) }
+      : {}),
   };
 
   const dir = posix.join(posix.dirname(config.output), "records");

@@ -179,6 +179,33 @@ that defines a list for a client component loads one table. Keep server code on
 `--stdout` and the content mapper write the single-module output, and the option
 is off by default.
 
+## Block modules
+
+With `gen.blockModules: true`, `gen` writes `blocks/slices.ts`, one export per
+installed block instance (`commentsConfig`, `customFieldsConfig`), and
+`blocks/permissions.ts` with `permissions` and `PermissionKey`. A slice is the
+instance's schema, API schema, function names and options as plain data.
+`blocks.config.ts` composes the slices into `blockConfig` for server code, and
+each `records/<type>.ts` imports only the slices of the blocks it binds, so a
+record no longer carries the config of every installed block.
+
+Client code imports the slices it uses and passes them to the client:
+
+```ts
+import { commentsConfig, tagsConfig } from "@/lib/supabase/blocks/slices";
+
+export const bsb = createClient(clientApp, {
+  env,
+  blocks: { comments: commentsConfig, tags: tagsConfig },
+});
+```
+
+A client component that imported `blockConfig` loads every slice, so import the
+slice instead (`commentsConfig.api`). A record's own slices fill in the blocks
+the client's `blocks` option leaves out. The slices live in one module because a
+bundler drops the exports a page doesn't import, and a module per instance adds
+a wrapper to the chunk for each one. The option is off by default.
+
 ## Options
 
 | Option                 | Effect                                                                                                                                                           |

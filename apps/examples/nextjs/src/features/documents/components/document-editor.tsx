@@ -47,7 +47,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useSupabase } from "@/lib/hooks";
-import { blockConfig } from "@/lib/supabase/blocks.config";
+import { documentsConfig } from "@/lib/supabase/blocks/slices";
 
 const DOCUMENT_NAME = "notes";
 const LOCAL = Symbol("local edit");
@@ -179,7 +179,7 @@ function DocumentSession({
 
     const documents = createDocuments({
       transport: rpcTransport(supabase),
-      schema: blockConfig.documents.api,
+      schema: documentsConfig.api,
     });
 
     const provider = createDocumentProvider({

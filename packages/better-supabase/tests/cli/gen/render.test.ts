@@ -199,3 +199,57 @@ describe("render with gen.tableModules", () => {
     );
   });
 });
+
+describe("render with gen.blockModules", () => {
+  const blocks: BetterSupabaseConfig = {
+    blocks: { "updated-at": {}, comments: {}, tags: {} },
+    subjects: { customer: { table: "customers" } },
+  };
+
+  const renderWith = async (blockModules: boolean) =>
+    (
+      await render(
+        resolveConfig({ ...blocks, gen: { blockModules } }, "/app"),
+        await loadFixtureSnapshot(),
+      )
+    ).files;
+
+  it("writes every slice as an export of blocks/slices.ts", async () => {
+    const files = await renderWith(true);
+    const slices = files.find((file) => file.path.endsWith("blocks/slices.ts"));
+
+    expect(slices?.contents).toContain("export const commentsConfig = {");
+    expect(slices?.contents).toContain("as const satisfies GeneratedBlock;");
+  });
+
+  it("composes blockConfig from the slices", async () => {
+    const files = await renderWith(true);
+
+    const config = files.find((file) =>
+      file.path.endsWith("blocks.config.ts"),
+    )?.contents;
+
+    expect(config).toContain('} from "./blocks/slices.ts";');
+    expect(config).toContain("comments: commentsConfig,");
+    expect(config).not.toContain("schema:");
+  });
+
+  it("gives a record the slices of the blocks it binds", async () => {
+    const files = await renderWith(true);
+
+    const record = files.find((file) =>
+      file.path.endsWith("records/customer.ts"),
+    )?.contents;
+
+    expect(record).toBeDefined();
+    expect(record).toContain('from "../blocks/slices.ts"');
+    expect(record).not.toContain("blockConfig");
+    expect(record).toMatch(/config: \{\n\s+comments: commentsConfig,/);
+  });
+
+  it("leaves the layout alone without the option", async () => {
+    const files = await renderWith(false);
+
+    expect(files.some((file) => file.path.includes("/blocks/"))).toBe(false);
+  });
+});
