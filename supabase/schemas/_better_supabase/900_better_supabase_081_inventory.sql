@@ -1,6 +1,6 @@
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:632059d465fbca225081eb420fd23e4d38da349cc0928d8268d02632ba66d1ec
+-- @bsb-hash sha256:abb5a564bf517d05f405cdfd0203893be7fdb4ee0d316037e3889bded316de06
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1290,6 +1290,97 @@ end;
 $$;
 revoke execute on function "better_supabase"."release_allocations"(uuid, text, text) from public, anon;
 grant execute on function "better_supabase"."release_allocations"(uuid, text, text) to authenticated, service_role;
+
+-- Releases one open allocation: what it holds goes back to available and its
+-- backorder closes. Returns the allocation.
+create or replace function "better_supabase"."release_allocation"(allocation uuid)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."variant_id" as variant, x."location_id" as location,
+    x."document_type" as document_type, x."document_id" as document_id, x."quantity" as quantity,
+    x."allocated" as allocated, x."fulfilled" as fulfilled, x."status" as status
+  into v_row from "better_supabase"."stock_allocations" x where x."id" = release_allocation.allocation for update;
+  if not found then
+    raise exception 'allocation not found' using errcode = 'P0002', hint = 'INVENTORY_ALLOCATION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.reserve'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_row.status <> 'open' then
+    raise exception 'the allocation is no longer open' using errcode = '55000', hint = 'INVENTORY_ALLOCATION_CLOSED';
+  end if;
+  if v_row.allocated > 0 then
+    update "better_supabase"."stock_levels" x set "reserved" = greatest(x."reserved" + -v_row.allocated, 0), "updated_at" = now()
+    where x."variant_id" = v_row.variant and x."location_id" = v_row.location;
+  end if;
+  update "better_supabase"."stock_allocations" x set "allocated" = 0, "status" = 'released', "updated_at" = now() where x."id" = v_row.id;
+  perform "better_supabase".emit_event('allocation.released', jsonb_build_object('organizationId', v_row.tenant, 'id', v_row.id, 'variantId', v_row.variant, 'locationId', v_row.location,
+        'documentType', v_row.document_type, 'documentId', v_row.document_id, 'quantity', v_row.quantity::text), 'stock-allocations/' || v_row.id::text, (v_row.tenant)::text, null, 'better-supabase/inventory');
+  if v_row.allocated > 0 then
+    perform "better_supabase"."fill_backorders"(v_row.tenant, v_row.variant, v_row.location);
+  end if;
+  return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
+    'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
+    'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,
+    'backordered', x."backordered"::text, 'status', x."status", 'createdAt', x."created_at") from "better_supabase"."stock_allocations" x where x."id" = v_row.id);
+end;
+$$;
+revoke execute on function "better_supabase"."release_allocation"(uuid) from public, anon;
+grant execute on function "better_supabase"."release_allocation"(uuid) to authenticated, service_role;
+
+-- Moves an open allocation to another document (a quote that became an order),
+-- keeping what it holds. line_id names the line on the new document. Returns
+-- the allocation.
+create or replace function "better_supabase"."transfer_allocation"(allocation uuid, document_type text, document_id text, line_id text default null)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_row record;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."id" as id, x."tenant_id" as tenant, x."variant_id" as variant, x."location_id" as location,
+    x."document_type" as document_type, x."document_id" as document_id, x."quantity" as quantity,
+    x."allocated" as allocated, x."fulfilled" as fulfilled, x."status" as status
+  into v_row from "better_supabase"."stock_allocations" x where x."id" = transfer_allocation.allocation for update;
+  if not found then
+    raise exception 'allocation not found' using errcode = 'P0002', hint = 'INVENTORY_ALLOCATION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_row.tenant, 'inventory.reserve'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if v_row.status <> 'open' then
+    raise exception 'the allocation is no longer open' using errcode = '55000', hint = 'INVENTORY_ALLOCATION_CLOSED';
+  end if;
+  if transfer_allocation.document_type is null or transfer_allocation.document_id is null then
+    raise exception 'an allocation names its document type and id' using errcode = '22023', hint = 'INVENTORY_DOCUMENT_INVALID';
+  end if;
+  update "better_supabase"."stock_allocations" x set "document_type" = transfer_allocation.document_type, "document_id" = transfer_allocation.document_id,
+    "line_id" = transfer_allocation.line_id, "updated_at" = now()
+  where x."id" = v_row.id;
+  return (select jsonb_build_object('id', x."id", 'variantId', x."variant_id", 'locationId', x."location_id",
+    'documentType', x."document_type", 'documentId', x."document_id", 'lineId', x."line_id",
+    'quantity', x."quantity"::text, 'allocated', x."allocated"::text, 'fulfilled', x."fulfilled"::text,
+    'backordered', x."backordered"::text, 'status', x."status", 'createdAt', x."created_at") from "better_supabase"."stock_allocations" x where x."id" = v_row.id);
+end;
+$$;
+revoke execute on function "better_supabase"."transfer_allocation"(uuid, text, text, text) from public, anon;
+grant execute on function "better_supabase"."transfer_allocation"(uuid, text, text, text) to authenticated, service_role;
 
 -- A document's allocations, oldest first.
 create or replace function "better_supabase"."list_allocations"(tenant uuid, document_type text, document_id text)
@@ -3365,6 +3456,24 @@ set search_path = ''
 as $$ select "better_supabase"."release_allocations"($1, $2, $3) $$;
 revoke execute on function "api"."release_allocations"(uuid, text, text) from public, anon;
 grant execute on function "api"."release_allocations"(uuid, text, text) to authenticated, service_role;
+
+create or replace function "api"."release_allocation"(allocation uuid)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."release_allocation"($1) $$;
+revoke execute on function "api"."release_allocation"(uuid) from public, anon;
+grant execute on function "api"."release_allocation"(uuid) to authenticated, service_role;
+
+create or replace function "api"."transfer_allocation"(allocation uuid, document_type text, document_id text, line_id text default null)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."transfer_allocation"($1, $2, $3, $4) $$;
+revoke execute on function "api"."transfer_allocation"(uuid, text, text, text) from public, anon;
+grant execute on function "api"."transfer_allocation"(uuid, text, text, text) to authenticated, service_role;
 
 create or replace function "api"."list_allocations"(tenant uuid, document_type text, document_id text)
 returns jsonb

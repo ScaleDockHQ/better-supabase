@@ -688,6 +688,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       args: ["{id}", "text", "text"],
       returns: "integer",
     },
+    { name: "release_allocation", args: ["uuid"], returns: "jsonb" },
+    {
+      name: "transfer_allocation",
+      args: ["uuid", "text", "text", "text"],
+      returns: "jsonb",
+    },
     {
       name: "list_allocations",
       args: ["{id}", "text", "text"],
