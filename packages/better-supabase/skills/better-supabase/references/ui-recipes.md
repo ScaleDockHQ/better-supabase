@@ -791,7 +791,7 @@ npx shadcn add @better-supabase/use-comments
 import type { SubmitEvent } from "react";
 
 import { useExtracted, useFormatter } from "next-intl";
-import { useId, useState } from "react";
+import { useId, useOptimistic, useState, useTransition } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldError, FieldLabel } from "@/components/ui/field";
@@ -799,6 +799,14 @@ import { Skeleton } from "@/components/ui/skeleton";
 import { Textarea } from "@/components/ui/textarea";
 import { useComments } from "@/hooks/use-comments";
 import { useErrorMessage } from "@/lib/use-error-message";
+
+interface Row {
+  readonly id: string;
+  readonly authorId: string | null;
+  readonly body: string;
+  readonly at: number;
+  readonly pending: boolean;
+}
 
 /**
  * A record's comments, oldest first, through the browser client. `subject` is
@@ -819,13 +827,36 @@ export function CommentThread({
   const errorMessage = useErrorMessage();
   const fieldId = useId();
   const [body, setBody] = useState("");
-  const [pending, setPending] = useState(false);
+  const [pending, startTransition] = useTransition();
 
   const { comments, error, add } = useComments({ subject });
 
-  const visible = comments?.filter((comment) => !comment.deletedAt);
+  const rows: readonly Row[] | undefined = comments
+    ?.filter((comment) => !comment.deletedAt)
+    .map((comment) => ({
+      id: comment.id,
+      authorId: comment.authorId ?? null,
+      body: comment.body,
+      at: (comment.sentAt ?? comment.createdAt).epochMilliseconds,
+      pending: false,
+    }));
 
-  const submit = async (event: SubmitEvent<HTMLFormElement>) => {
+  // The comment shows at once and settles when the server's list arrives.
+  const [visible, addPending] = useOptimistic(
+    rows,
+    (list, text: string): readonly Row[] => [
+      ...(list ?? []),
+      {
+        id: `pending-${text}`,
+        authorId: null,
+        body: text,
+        at: 0,
+        pending: true,
+      },
+    ],
+  );
+
+  const submit = (event: SubmitEvent<HTMLFormElement>) => {
     event.preventDefault();
     const text = body.trim();
 
@@ -833,44 +864,58 @@ export function CommentThread({
       return;
     }
 
-    setPending(true);
+    startTransition(async () => {
+      addPending(text);
 
-    if ((await add({ body: text })).ok) {
-      setBody("");
-    }
-
-    setPending(false);
+      if ((await add({ body: text })).ok) {
+        setBody("");
+      }
+    });
   };
 
   return (
-    <div className="space-y-6">
+    <div className="flex flex-col gap-6">
       {visible === undefined ? (
         <Skeleton className="h-16" />
       ) : visible.length === 0 ? (
         <p className="text-sm text-muted-foreground">{t("No comments yet.")}</p>
       ) : (
-        <ol className="space-y-4" data-testid="comments">
+        <ol className="flex flex-col gap-4" data-testid="comments">
           {visible.map((comment) => (
-            <li key={comment.id} className="space-y-1">
-              <p className="text-sm">
-                <span className="font-medium">
-                  {(comment.authorId && authors[comment.authorId]) ??
-                    t("Someone")}
-                </span>{" "}
-                <span className="text-xs text-muted-foreground">
-                  {format.dateTime(
-                    (comment.sentAt ?? comment.createdAt).epochMilliseconds,
-                    { dateStyle: "medium", timeStyle: "short" },
-                  )}
-                </span>
+            <li
+              key={comment.id}
+              className="flex flex-col gap-1"
+              aria-busy={comment.pending ? true : undefined}
+            >
+              {comment.pending ? null : (
+                <p className="text-sm">
+                  <span className="font-medium">
+                    {(comment.authorId && authors[comment.authorId]) ??
+                      t("Someone")}
+                  </span>{" "}
+                  <span className="text-xs text-muted-foreground">
+                    {format.dateTime(comment.at, {
+                      dateStyle: "medium",
+                      timeStyle: "short",
+                    })}
+                  </span>
+                </p>
+              )}
+              <p
+                className={
+                  comment.pending
+                    ? "text-sm whitespace-pre-wrap text-muted-foreground"
+                    : "text-sm whitespace-pre-wrap"
+                }
+              >
+                {comment.body}
               </p>
-              <p className="text-sm whitespace-pre-wrap">{comment.body}</p>
             </li>
           ))}
         </ol>
       )}
       {canComment ? (
-        <form onSubmit={(event) => void submit(event)} className="space-y-3">
+        <form onSubmit={submit} className="flex flex-col gap-3">
           <Field data-invalid={error ? true : undefined}>
             <FieldLabel htmlFor={`${fieldId}-comment-body`} className="sr-only">
               {t("Comment")}
@@ -2194,6 +2239,7 @@ import { useTable } from "@tanstack/react-table";
 import { DbException } from "better-supabase";
 import { UserMinusIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
+import { useQueryState } from "nuqs";
 import { createContext, use, useCallback, useMemo, useState } from "react";
 import { toast } from "sonner";
 import * as v from "valibot";
@@ -2237,6 +2283,7 @@ import { Link } from "@/i18n/navigation";
 import { Role } from "@/lib/claims";
 import { initials } from "@/lib/initials";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
+import { searchParam } from "@/lib/url-filters";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 async function loadOrganizationMembers(): Promise<readonly Member[]> {
@@ -2442,7 +2489,7 @@ export function MemberTable({
   const t = useExtracted("members");
   const roleLabel = useRoleLabel();
   const errorMessage = useErrorMessage();
-  const [search, setSearch] = useState("");
+  const [search, setSearch] = useQueryState("q", searchParam);
 
   const [roleFilter, setRoleFilter] = useState<Role | typeof ALL_ROLES>(
     ALL_ROLES,
@@ -2542,7 +2589,7 @@ export function MemberTable({
   });
 
   const clearFilters = () => {
-    setSearch("");
+    void setSearch("");
     setRoleFilter(ALL_ROLES);
   };
 
@@ -2557,7 +2604,7 @@ export function MemberTable({
             placeholder={t("Search members")}
             aria-label={t("Search members")}
             onChange={(event) => {
-              setSearch(event.target.value);
+              void setSearch(event.target.value);
             }}
           />
           <Select
