@@ -906,6 +906,16 @@ export function createModuleContext(
 
     const mapped = config.columns[table]?.[logical];
 
+    if (
+      logical === "tenant" &&
+      tenantColumn !== undefined &&
+      mapped === tenantColumn
+    ) {
+      throw new TypeError(
+        `${where}.columns.${table}.tenant: "${mapped}" is sql.tenantColumn, which fills every tenant column already. Remove the entry.`,
+      );
+    }
+
     return mapped === undefined
       ? blockColumnName(
           { module, table },

@@ -4680,12 +4680,7 @@ describe("block writes through a view Postgres can't update (BS349)", () => {
     });
 
   const config: BetterSupabaseConfig = {
-    blocks: {
-      memberships: {
-        tables: { memberships: `public.${VIEW}` },
-        columns: { memberships: { updatedAt: null, lastUsedAt: null } },
-      },
-    },
+    blocks: { memberships: { tables: { memberships: `public.${VIEW}` } } },
   };
 
   it("reports a block table on a view that is not auto-updatable", async () => {

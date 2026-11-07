@@ -27,11 +27,13 @@ type ColumnMap = Readonly<
 const cache = new WeakMap<BlockSqlLayout, WeakMap<object, ViewColumns>>();
 
 /**
- * The columns of the app's views that a block reads. A view can't take the
- * columns a block would add to a table, so each optional column (`optional` in
- * the table's spec) a view lacks counts as mapped to `null`, unless the config
- * maps it; any other column a view lacks is in `missing`. Views whose columns
- * aren't known are left alone.
+ * The columns of the app's tables and views that a block reads. Each optional
+ * column (`optional` in the table's spec) the table lacks counts as mapped to
+ * `null`, so the feature that needs it is off, unless the config maps it to a
+ * column. Mapping it to `null` when the table lacks it anyway is an error,
+ * since the block leaves it out already. A view can't take the columns a block
+ * would add, so any other column a view lacks is in `missing`. Tables whose
+ * columns aren't known are left alone.
  */
 export function viewColumns(
   layout: BlockSqlLayout,
@@ -68,11 +70,19 @@ export function viewColumns(
       continue;
     }
 
-    const ctx = createModuleContext(block, namesOf, {
-      modules,
-      ...(layout.ownTables ? { ownTables: layout.ownTables } : {}),
-      ownViews: views,
-    });
+    let ctx: ReturnType<typeof createModuleContext>;
+
+    try {
+      ctx = createModuleContext(block, namesOf, {
+        modules,
+        ...(layout.ownTables ? { ownTables: layout.ownTables } : {}),
+        ownViews: views,
+      });
+    } catch {
+      // A config this context can't validate alone (a provider option, say) is
+      // refused when the module renders, with the full layout.
+      continue;
+    }
 
     // SAFETY: a block config's `columns` maps logical tables to logical columns.
     const configured = (config.columns ?? {}) as ColumnMap;
@@ -88,9 +98,32 @@ export function viewColumns(
         continue;
       }
 
-      const unused = new Set(spec.app.unused?.(ctx));
+      let unused: ReadonlySet<string>;
+
+      try {
+        unused = new Set(spec.app.unused?.(ctx));
+      } catch {
+        // Which columns this configuration leaves out depends on a layout this
+        // context lacks (a provider's row checks); the render decides.
+        continue;
+      }
 
       for (const column of Object.keys(spec.columns)) {
+        const mapped = configured[logical]?.[column];
+        const optional = spec.optional?.includes(column) === true;
+
+        if (mapped === null) {
+          const bare = spec.columns[column]!;
+
+          if (optional && !has.includes(bare)) {
+            throw new TypeError(
+              `blocks.${block}.columns.${logical}.${column}: maps to null, but ${view} has no "${bare}" column, so the block leaves it out already. Remove the entry.`,
+            );
+          }
+
+          continue;
+        }
+
         if (unused.has(column) || !ctx.has(logical, column)) {
           continue;
         }
@@ -101,10 +134,7 @@ export function viewColumns(
           continue;
         }
 
-        if (
-          spec.optional?.includes(column) === true &&
-          configured[logical]?.[column] === undefined
-        ) {
+        if (optional && mapped === undefined) {
           columns[logical] = { ...columns[logical], [column]: null };
         } else {
           missing.push({ block, view, column: physical });

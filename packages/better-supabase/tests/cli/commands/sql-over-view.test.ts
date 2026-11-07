@@ -47,10 +47,7 @@ create table public.docs (
 
 const CONFIG: BetterSupabaseConfig = {
   blocks: {
-    memberships: {
-      tables: { memberships: VIEW },
-      columns: { memberships: { updatedAt: null, lastUsedAt: null } },
-    },
+    memberships: { tables: { memberships: VIEW } },
     "share-links": { on: { doc: { table: "docs" } } },
   },
 };

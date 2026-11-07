@@ -368,6 +368,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0255: Check coverage in both directions and duplicate policies.
 - 0256: Read app columns as fields and move extraColumns into app files.
 - 0257: Remove the extraColumns options and the Create design's extraColumns.
+- 0258: Infer optional columns from the tables the app owns.
 
 ## Pre-release pins
 

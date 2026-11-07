@@ -1242,3 +1242,20 @@ Only files with a block marker count, so your own files are never removed.
    column BS238 reports, and `better-supabase doctor --fix` to validate the
    checks.
 6. Run `better-supabase doctor` and work through BS237, BS347 and BS348.
+
+## Columns your view lacks
+
+A view can't take the columns a block would add to a table. A column the block
+treats as optional (`updated_at`, `deleted_at`, `created_by` and similar) that
+your view does not have switches the feature that needs it off, with no `null`
+entry in the config. Mapping such a column to `null` when the view lacks it
+anyway is an error, because the block already leaves it out; the message names
+the entry to remove. Mapping an optional column to `null` while the view has it
+still turns the feature off on purpose. On a table you own, a `null` entry keeps
+meaning that the block does not add the column.
+
+`sql.tenantColumn` fills the tenant column of every block table. An entry such
+as `columns.teams.tenant: "org_id"` that repeats it is an error for the same
+reason. Add the columns the block should read and write as fields to the table
+comment with `@bsb fields`, see
+[columns your files add](/docs/blocks/sql#columns-your-files-add-to-a-block-table).

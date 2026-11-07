@@ -58,10 +58,7 @@ insert into public.docs (id, organization_id) values ('${DOC}', '${ORG}');
 const VIEW = "public.organization_memberships";
 
 const BLOCKS: AnyBlocksConfig = {
-  memberships: {
-    tables: { memberships: VIEW },
-    columns: { memberships: { updatedAt: null, lastUsedAt: null } },
-  },
+  memberships: { tables: { memberships: VIEW } },
   "share-links": { on: { doc: { table: "docs" } } },
 };
 

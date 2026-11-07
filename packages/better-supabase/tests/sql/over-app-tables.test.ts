@@ -163,6 +163,20 @@ describe("ctx.owns", () => {
   });
 });
 
+/**
+ * Every column the module names for `schema.table`, as the app's view lists
+ * them.
+ */
+function allColumnsOf(module: string, table: string): string[] {
+  const name = table.slice(table.indexOf(".") + 1);
+
+  const spec = Object.values(SQL_MODULES[module]?.names?.tables ?? {}).find(
+    (each) => each.name === name,
+  );
+
+  return ["id", ...Object.values(spec?.columns ?? {})];
+}
+
 describe("blocks over the app's tables", () => {
   it.each(OVER)(
     "%s leaves %s to the app and creates its other tables",
@@ -189,7 +203,7 @@ describe("blocks over the app's tables", () => {
         renderBlocks([module], {
           ownTables: { [table]: "app.sql" },
           ownViews: { [table]: { updatable: false } },
-          ownColumns: { [table]: ["id"] },
+          ownColumns: { [table]: allColumnsOf(module, table) },
           modules: OVER_APP_OPTIONS,
         }),
       ).toThrow(`creates ${table}, which is already in app.sql`);
