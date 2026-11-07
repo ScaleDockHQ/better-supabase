@@ -69,4 +69,17 @@ describe("prelude", () => {
     ).not.toContain(stub);
     expect(preludeSql({}, ["memberships", "x"], [caller])).not.toContain(stub);
   });
+
+  it("creates the blocks table only if it is missing when the render reruns", () => {
+    const rerun = renderBlocks(["tasks"], { rerunnable: true }).find(
+      (file) => file.module === "prelude",
+    )!;
+
+    expect(rerun.contents).toContain(
+      "create table if not exists better_supabase.blocks (",
+    );
+    expect(prelude(["tasks"])!.contents).toContain(
+      "create table better_supabase.blocks (",
+    );
+  });
 });

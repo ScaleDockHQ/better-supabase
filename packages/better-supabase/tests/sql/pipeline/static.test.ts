@@ -215,3 +215,15 @@ select 1;`;
     expect(staticDdl(guarded)).not.toContain("drop policy");
   });
 });
+
+describe("rerunnableDdl with quoted names", () => {
+  it("drops a constraint and a trigger whose quoted name ends the line", () => {
+    const sql = rerunnableDdl(`alter table "b"."t" add constraint "c_check"
+  check (true);
+create trigger "t_trg" before insert on "b"."t"
+  for each row execute function f();`);
+
+    expect(sql).toContain('drop constraint if exists "c_check";');
+    expect(sql).toContain('drop trigger if exists "t_trg" on "b"."t";');
+  });
+});
