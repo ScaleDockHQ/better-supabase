@@ -1874,6 +1874,20 @@
       "VerifySessionOptions"
     ]
   },
+  "./next/proxy": {
+    "values": [
+      "createProxy",
+      "isRedirect",
+      "mutableResponse",
+      "overrideRequestHeaders",
+      "serverTimingValue",
+      "syncMiddlewareSetCookie"
+    ],
+    "types": [
+      "NextOptions",
+      "ProxyOptions"
+    ]
+  },
   "./next/image": {
     "values": [
       "createImageLoader"

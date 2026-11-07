@@ -56,6 +56,12 @@ export const next = createNext(betterSupabase);
 export const customers = () =>
   createClient(betterSupabase).db.customers.list({ where: { name: "Acme" } });
 `,
+  "next proxy": `
+import { defineSchema, createSupabase } from "better-supabase";
+import { createProxy } from "better-supabase/next/proxy";
+import meta from "./generated.meta.js";
+export const proxy = createProxy(createSupabase(defineSchema(meta)));
+`,
   hono: `
 import { defineSchema, createSupabase } from "better-supabase";
 import { createHono } from "better-supabase/hono";
@@ -256,6 +262,7 @@ const NODE_LOADED = [
   "./next",
   "./next/client",
   "./next/image",
+  "./next/proxy",
   "./server",
   "./client",
   "./query",

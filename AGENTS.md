@@ -403,6 +403,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0330: Run generators as plugins at apiVersion 2, with a public kit.
 - 0331: Move the generators out of better-supabase/config.
 - 0332: Register framework bindings with defineFramework.
+- 0340: Ship the proxy as its own subpath, `better-supabase/next/proxy`.
 
 ## Pre-release pins
 

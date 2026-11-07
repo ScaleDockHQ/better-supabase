@@ -22,6 +22,7 @@
   "./postgres": 40254,
   "./ssr": 31012,
   "./next": 202321,
+  "./next/proxy": 126856,
   "./next/image": 1901,
   "./next/client": 2365,
   "./hono": 138160,

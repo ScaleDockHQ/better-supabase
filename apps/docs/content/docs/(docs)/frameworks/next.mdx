@@ -115,6 +115,31 @@ share one call to Auth, so the single-use refresh token is spent once
 Auth answers the loser with `refresh_token_already_used`; the proxy keeps the
 user signed in while the old token is valid instead of signing them out.
 
+### A smaller proxy bundle
+
+`better-supabase/next/proxy` exports `createProxy()`, the same proxy without
+the Server Component side of `createNext`. Import it in `src/proxy.ts` so the
+proxy bundle leaves out sign-in flows, record bindings and REST resources:
+
+```ts title="src/proxy.ts"
+import { createProxy } from "better-supabase/next/proxy";
+import { betterSupabase } from "@/lib/supabase";
+
+export const proxy = createProxy(betterSupabase, {
+  protect: (auth, request) =>
+    auth.kind !== "user" && request.nextUrl.pathname.startsWith("/app")
+      ? Response.redirect(new URL("/login", request.url))
+      : undefined,
+});
+```
+
+`createProxy(betterSupabase, options)` takes the `createNext` options (`env`,
+`auth`, `leeway`) and the proxy options (`before`, `protect`, `after`,
+`verifySession`, `serverTiming`) in one object. It also exports
+`mutableResponse`, `overrideRequestHeaders`, `syncMiddlewareSetCookie` and
+`serverTimingValue` for a proxy that composes other middleware. It imports no
+Node built-in, so it runs wherever the Next.js proxy runs.
+
 ### Ended sessions
 
 An access token stays valid until it expires, even after its session is

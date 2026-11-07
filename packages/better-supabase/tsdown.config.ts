@@ -27,6 +27,7 @@ const entries = [
   "ssr/index",
   "next/index",
   "next/image/index",
+  "next/proxy/index",
   "next/client/index",
   "hono/index",
   "orpc/index",
