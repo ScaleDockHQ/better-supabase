@@ -575,7 +575,7 @@ characters; otherwise it comes from the column name.
 
 ## Search params for nuqs
 
-`nuqs()` from `better-supabase/config` writes `<output>.nuqs.ts`, with
+`nuqs()` from `better-supabase/generators/nuqs` writes `<output>.nuqs.ts`, with
 search-param parsers for a list of each table: a filter for every column
 with a closed set of values, `orderBy` over the sortable columns,
 `direction`, `cursor` and `limit`. Each set comes with a cache for Server
@@ -583,7 +583,8 @@ Components, a loader and a serializer for links. The file imports
 `nuqs/server`, an optional peer the app installs.
 
 ```ts title="better-supabase.config.ts"
-import { defineConfig, nuqs } from "better-supabase/config";
+import { defineConfig } from "better-supabase/config";
+import { nuqs } from "better-supabase/generators/nuqs";
 
 export default defineConfig({
   gen: { generators: [nuqs({ tables: ["tasks", "customers"], limit: 50 })] },
@@ -636,7 +637,8 @@ Standard Schema does: the [validation extension](/docs/repository/validation),
 `validate()`, form libraries, oRPC and MCP tool inputs.
 
 ```ts title="better-supabase.config.ts"
-import { defineConfig, standardSchema } from "better-supabase/config";
+import { defineConfig } from "better-supabase/config";
+import { standardSchema } from "better-supabase/generators/standard-schema";
 
 export default defineConfig({
   gen: {

@@ -76,7 +76,10 @@ from the same run, so they cannot drift.
 Generators turn the same metadata into validators and documents:
 
 ```ts
-import { defineConfig, jsonSchema, valibot, zod } from "better-supabase/config";
+import { defineConfig } from "better-supabase/config";
+import { jsonSchema } from "better-supabase/generators/json-schema";
+import { valibot } from "better-supabase/generators/valibot";
+import { zod } from "better-supabase/generators/zod";
 
 export default defineConfig({
   gen: { generators: [zod(), valibot(), jsonSchema()] },

@@ -19,7 +19,7 @@ export default defineConfig({ gen: { generators: [zod()] } });
 ## Generator subpaths
 
 Each first-party generator has its own subpath, so a config imports only the
-generator it uses. `better-supabase/config` still exports all of them.
+generator it uses. `better-supabase/config` does not export them; `better-supabase codemod generators` moves old imports.
 
 | Subpath                                      | Export                           | The generated files import   |
 | -------------------------------------------- | -------------------------------- | ---------------------------- |

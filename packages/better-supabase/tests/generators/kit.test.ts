@@ -38,6 +38,21 @@ describe("better-supabase/generators", () => {
     expect(kit.relativeImport(from, to)).toBe(expected);
   });
 
+  it("applies .. segments and ignores empty and . segments", () => {
+    expect(kit.relativeImport("a/b/c.ts", "a/../x.ts")).toBe("../../x.ts");
+    expect(kit.relativeImport("a//b.ts", "./a/./c.ts")).toBe("./c.ts");
+  });
+
+  it("explains a declaration that is not an object", () => {
+    expect(config.generatorProblem(null as never)).toContain("is an object");
+    expect(
+      config.generatorProblem({ apiVersion: 2, version: "1" } as never),
+    ).toBeUndefined();
+    expect(
+      config.generatorProblem({ apiVersion: 3, generate: () => [] } as never),
+    ).toContain('generator "(unnamed)" targets generator API 3');
+  });
+
   it("names what a version 1 generator has to change", () => {
     const problem = config.generatorProblem({
       name: "old",

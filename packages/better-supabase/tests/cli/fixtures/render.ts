@@ -7,15 +7,13 @@ import type { BetterSupabaseConfig } from "../../../src/config/index.ts";
 
 import { parseSnapshot } from "../../../src/cli/commands/snapshot.ts";
 import { renderFiles } from "../../../src/cli/gen/render.ts";
-import {
-  factories,
-  jsonSchema,
-  nuqs,
-  resolveConfig,
-  standardSchema,
-  valibot,
-  zod,
-} from "../../../src/config/index.ts";
+import { resolveConfig } from "../../../src/config/index.ts";
+import { factories } from "../../../src/generators/factories.ts";
+import { jsonSchema } from "../../../src/generators/json-schema.ts";
+import { nuqs } from "../../../src/generators/nuqs.ts";
+import { standardSchema } from "../../../src/generators/standard-schema.ts";
+import { valibot } from "../../../src/generators/valibot.ts";
+import { zod } from "../../../src/generators/zod.ts";
 import { libraryFixture, snapshotPath } from "./library.ts";
 
 const fixtureConfig: BetterSupabaseConfig = {

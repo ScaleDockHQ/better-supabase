@@ -15,6 +15,7 @@ import { namingCodemod } from "./codemod-naming.ts";
 import { reportReadMany } from "./codemod-read-many.ts";
 import { renameSubpaths } from "./codemod-subpaths.ts";
 import { tableModulesCodemod } from "./codemod-table-modules.ts";
+import { generatorsCodemod } from "./generators/codemod.ts";
 
 /** What a project-level codemod reads. */
 export interface CodemodProject {
@@ -83,6 +84,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   "extra-columns": extraColumnsCodemod(),
   config: configCodemod(),
   "table-modules": tableModulesCodemod(),
+  generators: generatorsCodemod(),
   "read-many": {
     name: "read-many",
     description: "List Promise.all groups of reads that db.$many can load",

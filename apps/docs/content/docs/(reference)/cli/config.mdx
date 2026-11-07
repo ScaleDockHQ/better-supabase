@@ -11,7 +11,8 @@ repository root works when the CLI runs from a package. `--config` overrides
 the search. TypeScript configs load natively on Node 24.
 
 ```ts title="better-supabase.config.ts"
-import { defineConfig, zod } from "better-supabase/config";
+import { defineConfig } from "better-supabase/config";
+import { zod } from "better-supabase/generators/zod";
 import { CustomerMetadata } from "./src/types.ts";
 
 export default defineConfig({

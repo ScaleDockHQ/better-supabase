@@ -16,13 +16,14 @@ import { createdByExtension } from "../../src/blocks/created-by/index.ts";
 import { membershipsExtension } from "../../src/blocks/memberships/index.ts";
 import { trashExtension } from "../../src/blocks/trash/index.ts";
 import { updatedAtExtension } from "../../src/blocks/updated-at/index.ts";
-import { jsonSchema, resolveConfig } from "../../src/config/index.ts";
+import { resolveConfig } from "../../src/config/index.ts";
 import { memoryCache } from "../../src/core/cache.ts";
 import { createSupabase } from "../../src/core/define.ts";
 import { dbError } from "../../src/core/errors.ts";
 import { definePlugin } from "../../src/core/plugin.ts";
 import { err, ok } from "../../src/core/result.ts";
 import { validation } from "../../src/core/validation.ts";
+import { jsonSchema } from "../../src/generators/json-schema.ts";
 import { relativeImport } from "../../src/generators/kit.ts";
 import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
@@ -995,6 +996,43 @@ describe("testGeneratorPlugin imports", () => {
       "../gen/types.ts",
       "../c.ts",
     ]);
+  });
+
+  it("checks the validators file, the options and the clone of a plugin", async () => {
+    const base = { apiVersion: 2, version: "1.0.0", name: "plugin" } as const;
+
+    await testGeneratorPlugin(
+      {
+        ...base,
+        provides: ["validators"],
+        generate: () => [
+          { path: "v.ts", contents: "export const validators = {};" },
+        ],
+      },
+      { meta: schema.meta, runtime: "../src/index.ts" },
+    );
+
+    expect(
+      await failures(
+        testGeneratorPlugin(
+          {
+            ...base,
+            provides: ["validators"],
+            generate: () => [{ path: "v.ts", contents: "export {};" }],
+          },
+          { meta: schema.meta },
+        ),
+      ),
+    ).toEqual(["writes the validators first when it provides them"]);
+
+    expect(
+      await failures(
+        testGeneratorPlugin(
+          { ...base, pure: true, options: { big: 1n }, generate: () => [] },
+          { meta: schema.meta },
+        ),
+      ),
+    ).toEqual(["gives the same files from the cache as from a fresh run"]);
   });
 
   it("fails generators that return no array or bad file shapes", async () => {

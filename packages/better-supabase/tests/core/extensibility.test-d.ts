@@ -125,7 +125,6 @@ import {
   stripePayments,
   stripeTax,
 } from "../../src/commerce/index.ts";
-import { jsonSchema } from "../../src/config/index.ts";
 import { bindAuthorizer } from "../../src/core/authorizer.ts";
 import {
   extendBlock,
@@ -139,6 +138,7 @@ import { createSupabase } from "../../src/core/define.ts";
 import { consoleLogger, silentLogger } from "../../src/core/logger.ts";
 import { postgrestExecutor } from "../../src/core/postgrest-executor.ts";
 import { httpSink } from "../../src/events/index.ts";
+import { jsonSchema } from "../../src/generators/json-schema.ts";
 import { valibot } from "../../src/generators/valibot.ts";
 import { zod } from "../../src/generators/zod.ts";
 import { nextCache } from "../../src/next/index.ts";

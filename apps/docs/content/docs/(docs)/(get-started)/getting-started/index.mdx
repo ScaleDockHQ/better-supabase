@@ -43,7 +43,8 @@ the same and prints the install command for your package manager. Or create
 `better-supabase.config.ts` in your project root yourself:
 
 ```ts title="better-supabase.config.ts"
-import { defineConfig, valibot } from "better-supabase/config";
+import { defineConfig } from "better-supabase/config";
+import { valibot } from "better-supabase/generators/valibot";
 
 export default defineConfig({
   gen: {
