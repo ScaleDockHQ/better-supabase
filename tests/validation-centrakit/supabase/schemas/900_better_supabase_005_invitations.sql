@@ -1,6 +1,6 @@
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:b5f4d21ba1fe6d85506a3ed355c34b3ef5d37d74bb6cfc8b6ca11877fdf0a24a
+-- @bsb-hash sha256:860199d8c4bb2c9187285f3acc40bc35a05c7a4aed0cc449f064daa90adcbfc0
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -51,9 +51,6 @@ alter table "centrakit"."organization_invitations" add column if not exists "dec
 create unique index if not exists invitations_platform_open_email_idx
   on "centrakit"."organization_invitations" (lower("email")) where "accepted_at" is null and "declined_at" is null and "organization_id" is null;
 alter table "centrakit"."organization_invitations" add column if not exists "updated_at" timestamptz not null default now();
-create trigger bsb_updated_at before update on "centrakit"."organization_invitations"
-  for each row
-  execute function better_supabase.set_updated_at('updated_at');
 create index if not exists platform_invitations_invited_by_idx on "centrakit"."organization_invitations" ("invited_by");
 
 alter table "centrakit"."organization_invitations" enable row level security;
@@ -71,11 +68,6 @@ end;
 $$;
 revoke execute on function "better_supabase"."platform_invitations_readable"() from public, anon;
 grant execute on function "better_supabase"."platform_invitations_readable"() to authenticated, service_role;
--- Tenant and platform invitations share "centrakit"."organization_invitations", so one policy reads both.
-
-create policy bsb_invitations_read on "centrakit"."organization_invitations"
-  for select to authenticated
-  using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()) or (select "better_supabase"."platform_invitations_readable"()));
 
 -- blocks.invitations.options.platformRoles.through.where names the
 -- platform roles. Every write to "centrakit"."user_roles" stores one of them,

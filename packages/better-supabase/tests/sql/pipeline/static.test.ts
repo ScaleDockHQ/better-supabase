@@ -227,3 +227,48 @@ create trigger "t_trg" before insert on "b"."t"
     expect(sql).toContain('drop trigger if exists "t_trg" on "b"."t";');
   });
 });
+
+describe("rerunnableDdl over dependents and guards", () => {
+  it("keeps a function a policy still calls instead of failing the drop", () => {
+    const sql = rerunnableDdl('drop function if exists "b"."f"();\nselect 1;');
+
+    expect(sql).toContain(
+      'do $$ begin drop function if exists "b"."f"(); exception when dependent_objects_still_exist then null; end $$;',
+    );
+    expect(sql).toContain("select 1;");
+  });
+
+  it("drops the policy on a Supabase-owned table before it creates it", () => {
+    const sql = rerunnableDdl(`do $$
+begin
+  if to_regclass('realtime.messages') is not null then
+    create policy bsb_x_receive on realtime.messages for select to authenticated using (true);
+  end if;
+end;
+$$;`);
+
+    expect(sql).toContain(
+      "drop policy if exists bsb_x_receive on realtime.messages;",
+    );
+  });
+
+  it("keeps the do block that swallows a duplicate type", () => {
+    const block = `do $$ begin create type "b"."s" as enum ('a'); exception when duplicate_object then null; end $$;`;
+
+    expect(rerunnableDdl(block)).toContain("exception when duplicate_object");
+  });
+});
+
+describe("staticDdl with two entities on one table", () => {
+  it("declares a trigger and a policy once", () => {
+    const sql =
+      staticDdl(`create trigger bsb_t before update on "a"."t" for each row execute function f();
+create policy bsb_p on "a"."t" for select to authenticated using (true);
+create trigger bsb_t before update on "a"."t" for each row execute function f();
+create policy bsb_p on "a"."t" for select to authenticated using (true);
+create trigger bsb_t before update on "a"."u" for each row execute function f();`);
+
+    expect(sql.match(/create trigger/g)).toHaveLength(2);
+    expect(sql.match(/create policy/g)).toHaveLength(1);
+  });
+});

@@ -35,7 +35,10 @@ async function install(
   await client.query("begin");
 
   try {
-    for (const file of renderBlocks(["numbering"], next)) {
+    for (const file of renderBlocks(["numbering"], {
+      ...next,
+      rerunnable: true,
+    })) {
       if (file.kind !== "test") {
         await client.query(file.contents);
       }

@@ -40,7 +40,12 @@ export function presetFiles(
   options: { readonly tests?: boolean } = {},
 ) {
   const config = resolveConfig({ preset }, process.cwd());
-  const files = renderBlocks(config.blockNames, moduleLayout(config));
+
+  const files = renderBlocks(config.blockNames, {
+    ...moduleLayout(config),
+    // The stack already holds the declarative schemas, so the install reruns.
+    rerunnable: true,
+  });
 
   return [
     ...files.filter((file) => file.kind === "schema"),

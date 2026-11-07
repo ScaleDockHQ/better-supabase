@@ -70,6 +70,24 @@ describe("prelude", () => {
     expect(preludeSql({}, ["memberships", "x"], [caller])).not.toContain(stub);
   });
 
+  it("keeps the function memberships defines when the render reruns", () => {
+    const caller = {
+      module: "x",
+      kind: "schema",
+      path: "x.sql",
+      contents: "select better_supabase.member_organization_ids();",
+    } as const;
+
+    const sql = preludeSql({ rerunnable: true }, ["x"], [caller]);
+
+    expect(sql).toContain(
+      "if to_regprocedure('better_supabase.member_organization_ids(text[])') is null then",
+    );
+    expect(sql).toContain(
+      "create function better_supabase.member_organization_ids(",
+    );
+  });
+
   it("creates the blocks table only if it is missing when the render reruns", () => {
     const rerun = renderBlocks(["tasks"], { rerunnable: true }).find(
       (file) => file.module === "prelude",

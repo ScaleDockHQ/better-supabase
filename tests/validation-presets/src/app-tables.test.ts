@@ -38,7 +38,11 @@ const config = resolveConfig(
   process.cwd(),
 );
 
-const files = renderBlocks(config.blockNames, moduleLayout(config));
+const files = renderBlocks(config.blockNames, {
+  ...moduleLayout(config),
+  // The stack already holds the declarative schemas, so the install reruns.
+  rerunnable: true,
+});
 
 const schema = files
   .filter((file) => file.kind !== "test")

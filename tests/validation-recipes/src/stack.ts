@@ -313,6 +313,12 @@ async function install(client: PoolClient, sql: string): Promise<void> {
       await client.query(`do $$ begin
         if to_regclass('better_supabase.team_members') is not null then delete from better_supabase.team_members; end if;
         if to_regclass('better_supabase.invitations') is not null then delete from better_supabase.invitations; end if;
+        -- The fixture keys field values per legal entity; a recipe without legal entities
+        -- upserts on the four-column key its render creates on a new table.
+        if to_regclass('better_supabase.bsb_field_values_entity_key_idx') is not null then
+          drop index better_supabase.bsb_field_values_entity_key_idx;
+          create unique index bsb_field_values_entity_key_idx on better_supabase.field_values (tenant_id, subject_type, subject_id, definition_id);
+        end if;
       end $$`);
       await client.query(sql);
 

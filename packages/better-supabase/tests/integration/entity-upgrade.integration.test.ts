@@ -37,7 +37,7 @@ const layout = (entities?: Record<string, string>): BlockSqlLayout => {
 // them, and the tenant module resets check_function_bodies, so each file
 // turns it off again.
 async function install(s: BlockSession, at: BlockSqlLayout): Promise<void> {
-  for (const file of renderBlocks(MODULES, at)) {
+  for (const file of renderBlocks(MODULES, { ...at, rerunnable: true })) {
     if (file.kind !== "test") {
       await s.client.query("set local check_function_bodies = off");
       await s.client.query(file.contents);
@@ -58,7 +58,12 @@ describe.skipIf(!live)(
       try {
         await s.client.query("drop schema if exists better_supabase cascade");
         const owner = await s.user("owner");
-        const installed = renderBlocks(MODULES, layout());
+
+        const installed = renderBlocks(MODULES, {
+          ...layout(),
+          rerunnable: true,
+        });
+
         await install(s, layout());
         const org = await s.organization(owner);
 

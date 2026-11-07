@@ -161,6 +161,7 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
     const files = renderBlocks(config.blockNames, {
       modules: config.blocks,
       subjects: config.subjects,
+      rerunnable: true,
     });
 
     // attachment_subject_readable is SQL-language and names the `tasks` table,

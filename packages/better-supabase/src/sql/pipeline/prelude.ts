@@ -52,6 +52,15 @@ ${enableRowSecurity("better_supabase.blocks")}
 revoke all on better_supabase.blocks from public, anon, authenticated;
 ${grantTable("better_supabase.blocks", ["select"], ["service_role"])}`;
 
+function stubFunction(name: string, idType: string): string {
+  return `create function ${name}(roles text[] default null)
+returns setof ${idType}
+language sql
+stable
+set search_path = ''
+as $$ select null::${idType} where false $$;`;
+}
+
 /**
  * `member_organization_ids` as an empty set, for a layout that has tenant scope
  * policies but no memberships block. Policies call it before `or`
@@ -62,15 +71,19 @@ function membersStub(layout: BlockSqlLayout, installed: readonly string[]) {
   const ctx = moduleContext("memberships", layout, installed);
   const name = ctx.fn("member_organization_ids");
 
+  // A rerun keeps the function memberships already defines.
   return {
     name,
     sql: `-- Until memberships installs, the caller is a member of no organization.
-create function ${name}(roles text[] default null)
-returns setof ${ctx.idType}
-language sql
-stable
-set search_path = ''
-as $$ select null::${ctx.idType} where false $$;
+${
+  layout.rerunnable === true
+    ? `do $stub$ begin
+  if to_regprocedure('${name}(text[])') is null then
+    ${stubFunction(name, ctx.idType)}
+  end if;
+end $stub$;`
+    : stubFunction(name, ctx.idType)
+}
 revoke execute on function ${name}(text[]) from public;
 grant execute on function ${name}(text[]) to anon, authenticated, service_role, supabase_auth_admin;`,
   };

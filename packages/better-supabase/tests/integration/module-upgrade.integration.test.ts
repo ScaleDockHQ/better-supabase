@@ -85,7 +85,7 @@ describe.skipIf(!live)("upgrading SQL modules installed by 0.4.0", () => {
         }
       }
 
-      for (const file of renderBlocks(MODULES)) {
+      for (const file of renderBlocks(MODULES, { rerunnable: true })) {
         if (file.kind !== "test") {
           await client.query(file.contents);
         }

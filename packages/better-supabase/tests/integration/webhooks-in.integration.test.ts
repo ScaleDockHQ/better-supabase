@@ -94,7 +94,9 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
         );
       }
 
-      for (const file of renderBlocks(["webhooks-in", "rate-limit"])) {
+      for (const file of renderBlocks(["webhooks-in", "rate-limit"], {
+        rerunnable: true,
+      })) {
         if (file.kind === "schema") {
           await client.query(file.contents);
         }
@@ -686,7 +688,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     try {
       await client.query("begin");
 
-      for (const file of renderBlocks(["webhooks-in"])) {
+      for (const file of renderBlocks(["webhooks-in"], { rerunnable: true })) {
         if (file.kind === "schema") {
           await client.query(file.contents);
         }
@@ -816,7 +818,7 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
 
       for (const file of renderBlocks(
         ["organizations", "webhooks-in", "webhook-inbox", "queue"],
-        layout,
+        { ...layout, rerunnable: true },
       )) {
         if (file.kind === "schema") {
           await client.query(file.contents);
@@ -932,7 +934,9 @@ describe.skipIf(!live)("incoming webhook endpoints", () => {
     try {
       await client.query("begin");
 
-      for (const file of renderBlocks(["webhook-inbox"])) {
+      for (const file of renderBlocks(["webhook-inbox"], {
+        rerunnable: true,
+      })) {
         if (file.kind === "schema") {
           await client.query(file.contents);
         }

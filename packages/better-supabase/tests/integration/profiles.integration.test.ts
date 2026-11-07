@@ -95,7 +95,7 @@ describe.skipIf(!live)("profiles", () => {
 
       for (const file of renderBlocks(
         ["memberships", "permissions", "profiles"],
-        layout,
+        { ...layout, rerunnable: true },
       )) {
         await client.query(file.contents);
       }
@@ -308,7 +308,10 @@ describe.skipIf(!live)("profiles", () => {
         },
       };
 
-      for (const file of renderBlocks(["profiles"], layout)) {
+      for (const file of renderBlocks(["profiles"], {
+        ...layout,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 
@@ -390,7 +393,10 @@ describe.skipIf(!live)("profiles", () => {
         },
       };
 
-      for (const file of renderBlocks(["profiles"], layout)) {
+      for (const file of renderBlocks(["profiles"], {
+        ...layout,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 
@@ -431,7 +437,7 @@ describe.skipIf(!live)("profiles", () => {
 
       for (const file of renderBlocks(
         ["organizations", "memberships", "permissions"],
-        {},
+        { rerunnable: true },
       )) {
         await client.query(file.contents);
       }

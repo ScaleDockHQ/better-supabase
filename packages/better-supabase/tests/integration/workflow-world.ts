@@ -22,7 +22,7 @@ export async function installWorld(pool: Pool): Promise<void> {
   try {
     await client.query("begin");
 
-    for (const file of renderBlocks(["workflow-sdk"])) {
+    for (const file of renderBlocks(["workflow-sdk"], { rerunnable: true })) {
       if (file.kind !== "test") {
         await client.query(file.contents);
       }

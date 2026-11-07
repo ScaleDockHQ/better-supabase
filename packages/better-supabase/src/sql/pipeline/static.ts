@@ -339,7 +339,10 @@ const DUPLICATE_OBJECT_DO =
  * which every project has) and a `create type` that swallows
  * `duplicate_object`. The choice the block made at run time is made here.
  */
-export function unwrapGuards(sql: string): string {
+export function unwrapGuards(
+  sql: string,
+  options: { readonly types?: boolean } = {},
+): string {
   return statementSpans(sql)
     .map(([from, to]) => {
       const original = sql.slice(from, to);
@@ -363,9 +366,42 @@ export function unwrapGuards(sql: string): string {
         return `${head}${body}`;
       }
 
-      const created = DUPLICATE_OBJECT_DO.exec(text);
+      const created =
+        options.types === false ? null : DUPLICATE_OBJECT_DO.exec(text);
 
       return created === null ? original : `${head}${created[2]!.trim()}`;
+    })
+    .join("");
+}
+
+/**
+ * `sql` without a second `create trigger` or `create policy` of the same name
+ * on the same table. Two entities of one block can adopt one app table, and
+ * each emits the triggers and policies the table needs.
+ */
+function withoutRepeatedObjects(sql: string): string {
+  const seen = new Set<string>();
+
+  return statementSpans(sql)
+    .map(([from, to]) => {
+      const original = sql.slice(from, to);
+      const masked = maskComments(original);
+      const text = masked.slice(/^\s*/.exec(masked)![0].length);
+      const named = CREATE_TRIGGER.exec(text) ?? CREATE_POLICY.exec(text);
+
+      if (named === null) {
+        return original;
+      }
+
+      const key = `${text.slice(0, 14).toLowerCase()} ${named[1]!} ${named[2]!}`;
+
+      if (seen.has(key)) {
+        return "";
+      }
+
+      seen.add(key);
+
+      return original;
     })
     .join("");
 }
@@ -378,6 +414,14 @@ export function unwrapGuards(sql: string): string {
  * `appTables` keeps its `if not exists`, because an app file may declare it.
  */
 export function staticDdl(
+  source: string,
+  appTables: ReadonlySet<string> = new Set(),
+  options: { readonly keepIfNotExists?: boolean } = {},
+): string {
+  return withoutRepeatedObjects(staticStatements(source, appTables, options));
+}
+
+function staticStatements(
   source: string,
   appTables: ReadonlySet<string> = new Set(),
   options: { readonly keepIfNotExists?: boolean } = {},
@@ -542,13 +586,19 @@ const ADD_CONSTRAINT = new RegExp(
   "i",
 );
 
+const DROP_FUNCTION = /^drop\s+function\s+if\s+exists\s/i;
+
 /**
  * `sql` that runs again: a `drop` before each policy, trigger and constraint
  * the file creates and `if not exists` on each column it adds. The migrations
  * workflow writes every module into each migration, so each statement a
  * migration repeats must be safe to repeat.
  */
-export function rerunnableDdl(sql: string): string {
+export function rerunnableDdl(source: string): string {
+  // A policy on a Supabase-owned table sits in a `do` block a rerun can't drop
+  // it before, so the block is unwrapped first.
+  const sql = unwrapGuards(source, { types: false });
+
   return statementSpans(sql)
     .map(([from, to]) => {
       const original = sql.slice(from, to);
@@ -571,6 +621,15 @@ export function rerunnableDdl(sql: string): string {
 
       if (constraint !== null) {
         return `${head}alter table ${constraint[1]} drop constraint if exists ${constraint[2]};\n${rest}`;
+      }
+
+      if (DROP_FUNCTION.test(text)) {
+        // A module that is off in this render drops its functions, but a
+        // policy an earlier render created can still call one. The rerun
+        // keeps such a function.
+        const statement = rest.trimEnd().replace(/;$/, "");
+
+        return `${head}do $$ begin ${statement}; exception when dependent_objects_still_exist then null; end $$;\n`;
       }
 
       const altered = ALTER_TABLE.exec(text);

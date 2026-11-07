@@ -154,7 +154,7 @@ describe.skipIf(!live)("webhooks-out", () => {
 
       for (const file of renderBlocks(
         ["organizations", "outbox", "webhooks-out"],
-        LAYOUT,
+        { ...LAYOUT, rerunnable: true },
       )) {
         await client.query(file.contents);
       }
@@ -525,7 +525,7 @@ describe.skipIf(!live)("webhooks-out", () => {
 
       for (const file of renderBlocks(
         ["organizations", "outbox", "webhooks-out"],
-        LAYOUT,
+        { ...LAYOUT, rerunnable: true },
       )) {
         await client.query(file.contents);
       }
@@ -630,7 +630,7 @@ describe.skipIf(!live)("webhooks-out", () => {
 
       for (const file of renderBlocks(
         ["organizations", "outbox", "webhooks-out"],
-        LAYOUT,
+        { ...LAYOUT, rerunnable: true },
       )) {
         await client.query(file.contents);
       }
@@ -733,7 +733,7 @@ describe.skipIf(!live)("webhooks-out", () => {
     const install = async () => {
       for (const file of renderBlocks(
         ["organizations", "outbox", "webhooks-out"],
-        LAYOUT,
+        { ...LAYOUT, rerunnable: true },
       )) {
         await client.query(file.contents);
       }

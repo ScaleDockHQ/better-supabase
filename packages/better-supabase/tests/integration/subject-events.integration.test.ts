@@ -55,10 +55,10 @@ describe.skipIf(!live)("subject-bound events in Postgres", () => {
       );
       insert into events_it.tickets (id, organization_id) values ('t1', '${ACME}');`);
 
-    for (const file of renderBlocks(
-      ["outbox", "state-machine", "reminders"],
-      layout,
-    )) {
+    for (const file of renderBlocks(["outbox", "state-machine", "reminders"], {
+      ...layout,
+      rerunnable: true,
+    })) {
       if (file.kind !== "test") {
         await client.query(file.contents);
       }

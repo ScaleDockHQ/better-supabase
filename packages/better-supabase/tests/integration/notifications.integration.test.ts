@@ -147,7 +147,7 @@ describe.skipIf(!live)("notifications", () => {
 
       for (const file of renderBlocks(
         ["organizations", "outbox", "notifications"],
-        LAYOUT,
+        { ...LAYOUT, rerunnable: true },
       )) {
         await client.query(file.contents);
       }
@@ -550,6 +550,7 @@ describe.skipIf(!live)("notifications", () => {
       }
 
       for (const file of renderBlocks(["organizations", "notifications"], {
+        rerunnable: true,
         modules: { notifications: { columns: { events: { key: null } } } },
       })) {
         await client.query(file.contents);
@@ -625,6 +626,7 @@ describe.skipIf(!live)("notifications", () => {
       );
 
       for (const file of renderBlocks(["organizations", "notifications"], {
+        rerunnable: true,
         modules: {
           notifications: {
             on: {
@@ -757,7 +759,7 @@ describe.skipIf(!live)("notifications", () => {
 
       for (const file of renderBlocks(
         ["organizations", "profiles", "notifications"],
-        LAYOUT,
+        { ...LAYOUT, rerunnable: true },
       )) {
         await client.query(file.contents);
       }
@@ -904,10 +906,10 @@ describe.skipIf(!live)("notifications", () => {
         );
       }
 
-      for (const file of renderBlocks(
-        ["organizations", "notifications"],
-        LAYOUT,
-      )) {
+      for (const file of renderBlocks(["organizations", "notifications"], {
+        ...LAYOUT,
+        rerunnable: true,
+      })) {
         await client.query(file.contents);
       }
 

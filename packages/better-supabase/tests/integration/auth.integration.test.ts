@@ -25,7 +25,7 @@ import {
   withBetterPostgres,
 } from "../../src/server/entries/upstream.ts";
 import { createServer } from "../../src/server/server.ts";
-import { SQL_MODULES } from "../../src/sql/registry.ts";
+import { moduleBody } from "../../src/sql/render.ts";
 import { schema } from "../fixtures/generated-camel.ts";
 import { deleteAudit } from "./audit-cleanup.ts";
 import { stackDbUrl, stackUrl } from "./stack-env.ts";
@@ -259,7 +259,7 @@ describe.skipIf(!live)("auth against the local stack", () => {
     const betterSupabase = createSupabase(schema).use(membershipsExtension());
     const server = createServer(betterSupabase, { env, postgres });
     const admin = crypto.randomUUID();
-    await postgres.admin.queryRaw(SQL_MODULES["audit"]!.sql);
+    await postgres.admin.queryRaw(moduleBody("audit", { rerunnable: true })!);
     await postgres.admin.queryRaw(
       "select better_supabase.audit('public.customers')",
     );
