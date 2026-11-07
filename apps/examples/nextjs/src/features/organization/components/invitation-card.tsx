@@ -15,7 +15,7 @@ import { RoleBadge } from "@/features/user/components/role-badge";
 import { getSession } from "@/features/user/user-queries";
 import { Link } from "@/i18n/navigation";
 
-import { getInvitationPreview } from "../invitation-queries";
+import { getInvitationPreview } from "../organization-queries";
 import { InvitationResponse } from "./invitation-response";
 
 /** Render inside `<Suspense>`: reads the `token` param and the session. */

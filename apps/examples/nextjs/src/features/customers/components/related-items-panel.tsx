@@ -33,15 +33,11 @@ import {
 import {
   linkCustomerRelations,
   unlinkCustomerRelations,
-} from "@/features/customers/customer-record-actions";
+} from "@/features/customers/customers-actions";
 import { SubjectLink } from "@/features/subjects/components/subject-link";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type {
-  Loaded,
-  RelatedCustomer,
-  Relations,
-} from "../customer-record-queries";
+import type { Loaded, RelatedCustomer, Relations } from "../customers-queries";
 
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 

@@ -26,14 +26,14 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type { SharingGrant, SharingTarget } from "../drive-grants-actions";
+import type { SharingGrant, SharingTarget } from "../drive-actions";
 import type { DriveRole } from "../drive-roles";
 
 import {
   loadDriveSharing,
   shareDriveItem,
   unshareDriveItem,
-} from "../drive-grants-actions";
+} from "../drive-actions";
 import { DRIVE_ROLES } from "../drive-roles";
 
 const isRole = (value: unknown): value is DriveRole =>

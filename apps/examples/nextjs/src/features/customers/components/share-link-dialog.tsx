@@ -53,12 +53,12 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { revokeCustomerShareLinks } from "@/features/customers/customer-record-actions";
+import { revokeCustomerShareLinks } from "@/features/customers/customers-actions";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type { Loaded, ShareLinkRow } from "../customer-record-queries";
+import type { Loaded, ShareLinkRow } from "../customers-queries";
 
-import { createShareLink } from "../customer-record-actions";
+import { createShareLink } from "../customers-actions";
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 
 // #region recipe:share-link-dialog

@@ -20,9 +20,9 @@ import {
 import { Card, CardContent } from "@/components/ui/card";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type { BoardCardView } from "../kitchen-queries";
+import type { BoardCardView } from "../shop-queries";
 
-import { bumpTicket } from "../kitchen-actions";
+import { bumpTicket } from "../shop-actions";
 import { preparationBadgeVariant, usePreparationLabel } from "./kitchen-labels";
 
 type Columns = Record<string, BoardCardView[]>;

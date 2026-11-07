@@ -116,7 +116,7 @@ const config: KnipConfig = {
         // page calls them yet.
         "src/features/composites/composites-actions.ts",
         // The usage billing action is the example the usage docs link to.
-        "src/features/billing/usage-billing-actions.ts",
+        "src/features/billing/billing-actions.ts",
       ],
     },
     "apps/examples/vite-react": {

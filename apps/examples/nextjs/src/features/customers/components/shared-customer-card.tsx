@@ -13,7 +13,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 
-import { getSharedCustomer } from "../shared-customer-queries";
+import { getSharedCustomer } from "../customers-queries";
 import { CustomerStatus } from "./customer-status";
 
 /** Render inside `<Suspense>`: reads the `token` param. */

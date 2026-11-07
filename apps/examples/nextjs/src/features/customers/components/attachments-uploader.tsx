@@ -50,17 +50,17 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Progress } from "@/components/ui/progress";
-import { removeCustomerAttachments } from "@/features/customers/customer-record-actions";
+import { removeCustomerAttachments } from "@/features/customers/customers-actions";
 import { useAttachmentUpload } from "@/hooks/use-attachments";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type { AttachmentRow, Loaded } from "../customer-record-queries";
+import type { AttachmentRow, Loaded } from "../customers-queries";
 
 import {
   confirmAttachment,
   downloadAttachment,
   startAttachmentUpload,
-} from "../customer-record-actions";
+} from "../customers-actions";
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 
 // #region recipe:attachments-uploader

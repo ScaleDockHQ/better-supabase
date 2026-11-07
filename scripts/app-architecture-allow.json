@@ -6,19 +6,5 @@
     "features/customers/components/customer-detail.tsx": "each side section checks its own permission and streams on its own"
   },
   "connection": {},
-  "findings": [
-    "file-prefix apps/examples/nextjs/src/features/billing/invoice-actions.ts",
-    "file-prefix apps/examples/nextjs/src/features/billing/invoice-queries.ts",
-    "file-prefix apps/examples/nextjs/src/features/billing/usage-billing-actions.ts",
-    "file-prefix apps/examples/nextjs/src/features/customers/customer-record-actions.ts",
-    "file-prefix apps/examples/nextjs/src/features/customers/customer-record-queries.ts",
-    "file-prefix apps/examples/nextjs/src/features/customers/shared-customer-queries.ts",
-    "file-prefix apps/examples/nextjs/src/features/drive/drive-grants-actions.ts",
-    "file-prefix apps/examples/nextjs/src/features/drive/drive-request-actions.ts",
-    "file-prefix apps/examples/nextjs/src/features/organization/invitation-queries.ts",
-    "file-prefix apps/examples/nextjs/src/features/projects/task-import-actions.ts",
-    "file-prefix apps/examples/nextjs/src/features/shop/kitchen-actions.ts",
-    "file-prefix apps/examples/nextjs/src/features/shop/kitchen-queries.ts",
-    "file-prefix apps/examples/nextjs/src/features/user/security-queries.ts"
-  ]
+  "findings": []
 }

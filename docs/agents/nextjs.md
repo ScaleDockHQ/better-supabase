@@ -48,7 +48,7 @@ flag.
 - Data a client component fetches in `useEffect` is never in the prefetch,
   so an `instant` page that does it shows a skeleton on every click. Load it
   in a `"use cache: private"` function with `bsb.cached()` and pass it in as a
-  prop (`security-queries.ts` for the two-factor and connected agents cards).
+  prop (`user-queries.ts` for the two-factor and connected agents cards).
   `supabase.auth` is off on the server client, which passes `accessToken`, so
   those reads call the Auth REST endpoints with `auth.token`.
 - A database budget (`maxCalls`, `maxWaves`) fails on a navigation served

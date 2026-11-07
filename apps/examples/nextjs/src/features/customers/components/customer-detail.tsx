@@ -27,8 +27,8 @@ import {
   getSlaClocks,
   getTimeline,
   getVersions,
-} from "../customer-record-queries";
-import { getCustomer } from "../customers-queries";
+  getCustomer,
+} from "../customers-queries";
 import {
   AttachmentsUploader,
   AttachmentsUploaderSkeleton,

@@ -40,7 +40,7 @@ import { useErrorMessage } from "@/lib/use-error-message";
 import type { TaskImportField } from "../project-types";
 
 import { TASK_IMPORT_FIELDS } from "../project-types";
-import { previewTaskImport, runTaskImport } from "../task-import-actions";
+import { previewTaskImport, runTaskImport } from "../projects-actions";
 
 // #region recipe:upsert-import
 

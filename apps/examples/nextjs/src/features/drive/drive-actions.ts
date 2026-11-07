@@ -1,13 +1,17 @@
 "use server";
 
-import { ok } from "better-supabase";
+import { ok, dbError, err } from "better-supabase";
+import { createDrive, rpcTransport } from "better-supabase/blocks/drive";
 import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
+import { getMembers } from "@/features/organization/organization-queries";
 import { refreshCaller } from "@/lib/refresh-caller";
+import { blockConfig } from "@/lib/supabase/blocks.config";
 import { bsb } from "@/lib/supabase/server";
 
 import { driveOf } from "./drive-client";
+import { DRIVE_ROLES } from "./drive-roles";
 
 const Id = v.pipe(v.string(), v.uuid());
 const Name = v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(255));
@@ -238,5 +242,173 @@ export const requestDriveApproval = bsb.action(
     await refreshCaller(auth);
 
     return ok({ id: requested.data.id, revision: requested.data.revision });
+  },
+);
+
+const Principal = v.object({ type: v.picklist(["user", "team"]), id: Id });
+
+export interface SharingGrant {
+  readonly type: "user" | "team" | "role";
+  readonly id: string;
+  readonly name: string;
+  readonly role: string;
+  /** Granted on a folder above the item, so it is removed there. */
+  readonly inherited: boolean;
+}
+
+export interface SharingTarget {
+  readonly type: "user" | "team";
+  readonly id: string;
+  readonly name: string;
+}
+
+/**
+ * The item's grants, inherited ones included, and the members and teams it can
+ * be shared with. The drive functions decide who may read the grants.
+ */
+export const loadDriveSharing = bsb.action(
+  {
+    input: v.object({ id: Id }),
+    requireTenant: true,
+    permission: "drive.read",
+  },
+  async ({ id }, { tenant, db }) => {
+    const [grants, members, teams] = await Promise.all([
+      driveOf(db).grants(id),
+      getMembers(tenant),
+      db.teams.list(tenant),
+    ]);
+
+    if (!grants.ok) {
+      return grants;
+    }
+
+    if (!teams.ok) {
+      return teams;
+    }
+
+    const targets: SharingTarget[] = [
+      ...members.map((member) => ({
+        type: "user" as const,
+        id: member.userId,
+        name: member.name ?? member.email ?? member.userId,
+      })),
+      ...teams.data.map((team) => ({
+        type: "team" as const,
+        id: team.id,
+        name: team.name,
+      })),
+    ];
+
+    const names = new Map(
+      targets.map((target) => [`${target.type}:${target.id}`, target.name]),
+    );
+
+    return ok({
+      grants: grants.data.map((grant): SharingGrant => ({
+        type: grant.principal.type,
+        id: grant.principal.id,
+        name:
+          names.get(`${grant.principal.type}:${grant.principal.id}`) ??
+          grant.principal.id,
+        role: grant.role,
+        inherited: grant.inherited,
+      })),
+      targets,
+    });
+  },
+);
+
+/** Shares the item with a member or a team; a second share changes the role. */
+export const shareDriveItem = bsb.action(
+  {
+    input: v.object({
+      id: Id,
+      principal: Principal,
+      role: v.picklist(DRIVE_ROLES),
+    }),
+    requireTenant: true,
+    permission: "drive.read",
+  },
+  async ({ id, principal, role }, { db, auth }) => {
+    const shared = await driveOf(db).share({ id, principal, role });
+
+    if (!shared.ok) {
+      return shared;
+    }
+
+    await refreshCaller(auth);
+
+    return ok(null);
+  },
+);
+
+/** Removes a grant made on the item itself. */
+export const unshareDriveItem = bsb.action(
+  {
+    input: v.object({ id: Id, principal: Principal }),
+    requireTenant: true,
+    permission: "drive.read",
+  },
+  async ({ id, principal }, { db, auth }) => {
+    const removed = await driveOf(db).unshare({ id, principal });
+
+    if (!removed.ok) {
+      return removed;
+    }
+
+    if (!removed.data) {
+      return err(dbError("not_found", "Grant not found"));
+    }
+
+    await refreshCaller(auth);
+
+    return ok(null);
+  },
+);
+
+/** Next.js caps a Server Action body at 1 MB (`serverActions.bodySizeLimit`). */
+const MAX_BYTES = 1_000_000;
+
+/**
+ * Sends one file through a file request link, signed in or not. The drive
+ * function checks the token, its password, its uses and its rate limit, so the
+ * service role here only uploads the bytes to the path it returns.
+ */
+export const sendToFileRequest = bsb.action(
+  {
+    input: v.object({
+      token: v.pipe(v.string(), v.regex(/^[0-9a-f]{32,128}$/)),
+      file: v.pipe(v.file(), v.minSize(1), v.maxSize(MAX_BYTES)),
+      password: v.optional(v.pipe(v.string(), v.maxLength(200))),
+    }),
+    allow: ["none", "user"],
+  },
+  async ({ token, file, password }) => {
+    const service = bsb.admin().$client;
+
+    const drive = createDrive({
+      transport: rpcTransport(service, { schema: blockConfig.drive.api }),
+      storage: service.storage,
+      schema: blockConfig.drive.api,
+    });
+
+    const sent = await (password
+      ? drive.uploadToRequest({
+          token,
+          file,
+          options: { name: file.name, password },
+        })
+      : drive.uploadToRequest({ token, file, options: { name: file.name } }));
+
+    if (!sent.ok) {
+      return sent;
+    }
+
+    return ok(
+      sent.data.passwordRequired
+        ? { passwordRequired: true as const }
+        : { passwordRequired: false as const, name: file.name },
+    );
   },
 );

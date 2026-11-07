@@ -30,7 +30,7 @@ import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 import { Link } from "@/i18n/navigation";
 
-import { getKitchen } from "../kitchen-queries";
+import { getKitchen } from "../shop-queries";
 import { KitchenLive } from "./kitchen-live";
 import { KitchenTicket } from "./kitchen-ticket";
 

@@ -18,9 +18,9 @@ import {
 } from "@/components/ui/empty";
 import { useErrorMessage } from "@/lib/use-error-message";
 
-import type { Loaded, SlaClockRow } from "../customer-record-queries";
+import type { Loaded, SlaClockRow } from "../customers-queries";
 
-import { startCustomerSla } from "../customer-record-actions";
+import { startCustomerSla } from "../customers-actions";
 import { RecordCardSkeleton, RecordLoadError } from "./record-card-states";
 
 // #region recipe:sla-badges
