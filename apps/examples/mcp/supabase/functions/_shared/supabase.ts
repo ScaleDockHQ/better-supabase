@@ -1,7 +1,7 @@
 import { createSupabase } from "better-supabase";
 import * as v from "valibot";
 
-import { schema } from "../../../lib/supabase/generated.ts";
+import { schema } from "../../../lib/supabase/generated-schema.ts";
 
 /**
  * The custom access token hook sets `user_role` to one role or a list. A token

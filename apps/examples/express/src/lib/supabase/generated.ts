@@ -5,7 +5,7 @@
 import { defineSchema, type Schema } from "better-supabase";
 import type { EnrichDatabase, GeneratedColumns, MutableWhere, OrderByArg, OrderByInput, WritableColumns } from "better-supabase";
 import type { Database as SupabaseDatabase } from "./database.types.ts";
-import meta from "./generated.meta.js";
+
 
 export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];
 
@@ -890,4 +890,8 @@ export type SubjectType = (typeof subjectTypes)[number];
 /** One subject: its type and its id as text. */
 export type RecordRef<T extends SubjectType = SubjectType> = { readonly type: T; readonly id: string };
 
-export const schema: Schema<Models, Database, Functions, SubjectType> = defineSchema(meta);
+/**
+ * The schema of a browser client without a table registry: it registers each
+ * table module a page uses through `bsb.table(...)`.
+ */
+export const clientSchema: Schema<Models, Database, Functions, SubjectType> = /*#__PURE__*/ defineSchema({ version: 1, casing: "camel", lazyTables: true, tables: {}, enums: {}, functions: {} });

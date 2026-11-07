@@ -453,13 +453,13 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   },
   "gen.tableModules": {
     description:
-      "Write one module per table, tables/<table>.ts, and a clientSchema that registers the tables a browser client uses.",
-    default: false,
+      "Write one module per table, tables/<table>.ts, and a clientSchema that registers the tables a browser client uses. false writes the single module.",
+    default: true,
   },
   "gen.blockModules": {
     description:
-      "Write one module per block instance, blocks/<instance>.ts, with its config slice, and blocks/permissions.ts.",
-    default: false,
+      "Write one module per block instance, blocks/<instance>.ts, with its config slice, and blocks/permissions.ts. false writes blockConfig as one object.",
+    default: true,
   },
   "tooling.env": {
     description: "The env file better-supabase dev env writes.",

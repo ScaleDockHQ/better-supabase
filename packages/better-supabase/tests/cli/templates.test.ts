@@ -76,7 +76,7 @@ describe("import paths", () => {
   it("keeps .ts in Edge Functions and pins the version in deno.json", () => {
     const files = TEMPLATES.edge.files(context({ srcDir: "." }));
     expect(contents(files, "supabase/functions/_shared/supabase.ts")).toContain(
-      "from '../../../src/generated/supabase.ts';",
+      "from '../../../src/generated/supabase-schema.ts';",
     );
     expect(
       JSON.parse(contents(files, "supabase/functions/api/deno.json")),

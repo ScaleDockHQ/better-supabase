@@ -70,7 +70,11 @@ describe("named presets", () => {
       `./${name}.blocks.generated.ts`,
     );
 
-    const resolved = resolveConfig({ preset: name }, "/");
+    // The wiring files hold `blockConfig` as one object, with no slice modules.
+    const resolved = resolveConfig(
+      { preset: name, gen: { blockModules: false } },
+      "/",
+    );
 
     const blockConfig = (emitBlockConfig(resolved)?.contents ?? "").replaceAll(
       "./blocks.config.ts",

@@ -562,6 +562,9 @@ function writeConfig(profile: Profile, contentMapper: boolean): void {
       gen: {
         casing: "camel",
         output: "generated.ts",
+        // The benchmark measures one schema object, so its baselines hold.
+        tableModules: false,
+        blockModules: false,
         tasks: ["types"],
         contentMapper: contentMapper || undefined,
         json: profile.composite

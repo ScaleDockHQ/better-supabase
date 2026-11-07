@@ -2753,13 +2753,13 @@
         },
         "tableModules": {
           "type": "boolean",
-          "description": "Write one module per table, tables/<table>.ts, and a clientSchema that registers the tables a browser client uses.",
-          "default": false
+          "description": "Write one module per table, tables/<table>.ts, and a clientSchema that registers the tables a browser client uses. false writes the single module.",
+          "default": true
         },
         "blockModules": {
           "type": "boolean",
-          "description": "Write one module per block instance, blocks/<instance>.ts, with its config slice, and blocks/permissions.ts.",
-          "default": false
+          "description": "Write one module per block instance, blocks/<instance>.ts, with its config slice, and blocks/permissions.ts. false writes blockConfig as one object.",
+          "default": true
         },
         "clientBlocks": {
           "type": "array",

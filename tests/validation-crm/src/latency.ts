@@ -1,7 +1,7 @@
 import { defineReadSet, createSupabase } from "better-supabase";
 import { defineListQuery } from "better-supabase/list";
 
-import { schema } from "./generated.ts";
+import { schema } from "./generated-schema.ts";
 
 export const betterSupabase = createSupabase(schema);
 

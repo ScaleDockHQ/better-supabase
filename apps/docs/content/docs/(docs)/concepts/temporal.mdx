@@ -22,7 +22,7 @@ pnpm add temporal-polyfill
 import { Temporal } from "temporal-polyfill";
 import { createSupabase } from "better-supabase";
 
-import { schema } from "./generated";
+import { schema } from "./generated-schema";
 
 export const betterSupabase = createSupabase(schema, { temporal: Temporal });
 ```

@@ -2,7 +2,7 @@ import { createSupabase } from "better-supabase";
 import { membershipsExtension } from "better-supabase/blocks/memberships";
 import * as v from "valibot";
 
-import { schema } from "./generated.ts";
+import { schema } from "./generated-schema.ts";
 
 /** Claims of the customer portal token: the customer the contact may see. */
 export const PortalClaims = v.object({

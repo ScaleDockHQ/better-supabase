@@ -155,7 +155,7 @@ export async function render(
   const metaFiles = metaPaths(config.output);
 
   const split =
-    config.gen.tableModules === true &&
+    config.gen.tableModules !== false &&
     !options.inlineMeta &&
     config.gen.contentMapper !== true;
 

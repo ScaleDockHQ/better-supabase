@@ -6,6 +6,7 @@ import type { Framework } from "./project/detect.ts";
 
 import { groupEntries, INTEGRATION_INFO } from "../config/index.ts";
 import { PROVIDER_COMMENT } from "../preset/index.ts";
+import { schemaModulePath } from "./gen/emit.ts";
 import { INTEGRATIONS } from "./names.ts";
 
 export type Integration = IntegrationName;
@@ -25,6 +26,11 @@ export interface TemplateContext {
    * `blockConfig` from `blocks.config.ts`.
    */
   readonly blocks?: boolean;
+  /**
+   * Whether `gen.contentMapper` is on, which keeps the schema in
+   * `generated.ts`. Otherwise the server's schema is in `generated-schema.ts`.
+   */
+  readonly contentMapper?: boolean;
 }
 
 export interface TemplateFile {
@@ -124,6 +130,12 @@ const denoJson = (context: TemplateContext): string =>
     2,
   )}\n`;
 
+/** The module that exports `schema`. */
+const schemaModule = (context: TemplateContext): string =>
+  context.contentMapper === true
+    ? context.generated
+    : schemaModulePath(context.generated);
+
 const SHARED = "supabase/functions/_shared/supabase.ts";
 
 function shared(context: TemplateContext): TemplateFile {
@@ -131,7 +143,7 @@ function shared(context: TemplateContext): TemplateFile {
     path: SHARED,
     contents: `import { createSupabase } from 'better-supabase';
 
-import { schema } from '${importFrom(context, SHARED, context.generated, true)}';
+import { schema } from '${importFrom(context, SHARED, schemaModule(context), true)}';
 
 export const betterSupabase = createSupabase(schema);
 `,
@@ -255,6 +267,7 @@ export default defineConfig({${
 
   const path = libEntry(context);
   const generated = importFrom(context, path, context.generated);
+  const schemaFrom = importFrom(context, path, schemaModule(context));
   // Hermes has no Temporal, and patching the global breaks other libraries.
   const expo = context.frameworks.includes("expo");
 
@@ -264,7 +277,7 @@ export default defineConfig({${
       path,
       contents: `import { createSupabase } from 'better-supabase';
 ${expo ? "import { Temporal } from 'temporal-polyfill';\n" : ""}
-import { schema } from '${generated}';
+import { schema } from '${schemaFrom}';
 
 export type { Functions, Models } from '${generated}';
 

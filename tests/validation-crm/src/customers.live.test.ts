@@ -3,7 +3,7 @@ import { createSupabase } from "better-supabase";
 import { describe, expect, it } from "vitest";
 
 import { createCustomersService } from "./customers.ts";
-import { schema } from "./generated.ts";
+import { schema } from "./generated-schema.ts";
 
 const url = process.env["CRM_SUPABASE_URL"];
 const secretKey = process.env["CRM_SUPABASE_SECRET_KEY"];

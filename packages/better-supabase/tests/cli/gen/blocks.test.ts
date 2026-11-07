@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import type { ResolveInput } from "../../../src/config/resolve.ts";
 import type { PresetCatalog } from "../../../src/preset/catalog-types.ts";
 
 import {
@@ -11,10 +12,24 @@ import {
   schemaExtensions,
 } from "../../../src/cli/gen/blocks.ts";
 import { renderFiles } from "../../../src/cli/gen/render.ts";
-import { resolveConfig } from "../../../src/config/resolve.ts";
+import { resolveConfig as resolveDefault } from "../../../src/config/resolve.ts";
 import { zod } from "../../../src/generators/zod.ts";
 import { PRESET_CATALOG } from "../../../src/preset/catalog.generated.ts";
 import { loadFixtureSnapshot } from "../fixtures/render.ts";
+
+/**
+ * These tests read the single-module layout; the default layout has its own in
+ * render.test.ts.
+ */
+function resolveConfig(input: ResolveInput, root: string) {
+  return resolveDefault(
+    {
+      ...input,
+      gen: { tableModules: false, blockModules: false, ...input.gen },
+    },
+    root,
+  );
+}
 
 describe("blocks.generated.ts", () => {
   it("writes each installed block's schema, API schema and shared options", () => {

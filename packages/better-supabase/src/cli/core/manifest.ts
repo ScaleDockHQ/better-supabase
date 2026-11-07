@@ -671,6 +671,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [FILES],
       },
       {
+        name: "table-modules",
+        description:
+          "Import schema from generated-schema and read tables in client files through the table modules",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
         name: "read-many",
         description:
           "List Promise.all groups of repository reads that db.$many or a read set can load in one round trip",

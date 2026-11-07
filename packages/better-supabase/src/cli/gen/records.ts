@@ -11,6 +11,7 @@ import {
   blockConfigModulePath,
   blockConfigPath,
   blockPermissionsPath,
+  blockModulesOn,
   blockSliceName,
   blockSlicesPath,
   generatorBlocks,
@@ -161,7 +162,7 @@ function recordFile(
   // `permissions` comes from the config module, which holds plain data: the
   // generated one imports every installed block, and a record file loads in
   // the browser.
-  const split = config.gen.blockModules === true;
+  const split = blockModulesOn(config.gen);
 
   const instances = split
     ? blocks.filter((block) => extras.slices?.has(block.name))
@@ -276,7 +277,7 @@ export function emitRecords(config: RecordsConfig): GeneratedFile[] {
   const extras = {
     access: installed.has("permissions") ? access?.subpath : undefined,
     permissions: hasPermissionConstants(config),
-    ...(config.gen.blockModules === true
+    ...(blockModulesOn(config.gen)
       ? { slices: new Set(Object.keys(blockConfigEntries(config))) }
       : {}),
   };

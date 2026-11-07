@@ -146,8 +146,8 @@ reloads the types in the editor too. `--check` checks the mapper-mode files.
 
 ## Table modules
 
-With `gen.tableModules: true`, `gen` writes one module per table, `tables/<table>.ts`,
-next to the generated module. Each one exports the table's runtime metadata as
+By default `gen` writes one module per table, `tables/<table>.ts`, next to the
+generated module (`gen.tableModules: false` writes the single module instead). Each one exports the table's runtime metadata as
 `<key>Table` (`customersTable`), and `generated.meta.js` lists no table. The
 server's schema moves to `generated-schema.ts`, which imports every table. The
 generated module keeps the types, `buckets`, the extensions and `clientSchema`,
@@ -176,12 +176,14 @@ that defines a list for a client component loads one table. Keep server code on
 `schema` from `generated-schema.ts`: a page that imports it loads every table.
 `tests/next-build` in this repository holds the Next.js example to that rule.
 
-`--stdout` and the content mapper write the single-module output, and the option
-is off by default.
+`--metadata` output and the content mapper write the single-module output. An
+existing project moves to this layout with `better-supabase codemod table-modules`:
+it imports `schema` from `generated-schema` and, in a `"use client"` file,
+rewrites `bsb.db.customers` to `bsb.table(customersTable)` with the import.
 
 ## Block modules
 
-With `gen.blockModules: true`, `gen` writes `blocks/slices.ts`, one export per
+By default `gen` writes `blocks/slices.ts`, one export per
 installed block instance (`commentsConfig`, `customFieldsConfig`), and
 `blocks/permissions.ts` with `permissions` and `PermissionKey`. A slice is the
 instance's schema, API schema, function names and options as plain data.
@@ -204,7 +206,13 @@ A client component that imported `blockConfig` loads every slice, so import the
 slice instead (`commentsConfig.api`). A record's own slices fill in the blocks
 the client's `blocks` option leaves out. The slices live in one module because a
 bundler drops the exports a page doesn't import, and a module per instance adds
-a wrapper to the chunk for each one. The option is off by default.
+a wrapper to the chunk for each one. `gen.blockModules: false` writes
+`blockConfig` as one object.
+
+The slices are plain data. The block API types stay in `blocks.generated.ts`
+as aliases over the block packages, because writing a concrete interface per
+instance needs a type extraction step that `gen` does not have. Import those
+types with `import type`, which costs nothing at runtime.
 
 ## Options
 

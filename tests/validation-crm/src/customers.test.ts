@@ -6,7 +6,7 @@ import type { CustomersService } from "./customers.ts";
 import type { Json } from "./generated.ts";
 
 import { createCustomersService } from "./customers.ts";
-import { schema } from "./generated.ts";
+import { schema } from "./generated-schema.ts";
 
 const ORG = "00000000-0000-4000-8000-0000000000aa";
 

@@ -174,9 +174,19 @@ export async function runCodemod(
   const edits: PlannedFile[] = [];
   const review: { file: string; line: number; message: string }[] = [];
 
+  const projectInput = {
+    config,
+    sql: await projectSqlFiles(config.root),
+    ...(configFile === undefined
+      ? {}
+      : { configFile, configText: await readFile(configFile, "utf-8") }),
+  };
+
+  const rewrite = await codemod.files?.(projectInput);
+
   for (const file of files) {
     const source = await readFile(file, "utf-8");
-    const result = applyCodemod(codemod, source);
+    const result = applyCodemod(codemod, source, rewrite, file);
     const path = relative(config.root, file);
     review.push(...result.review.map((hint) => ({ file: path, ...hint })));
 
@@ -186,13 +196,7 @@ export async function runCodemod(
   }
 
   if (codemod.project !== undefined) {
-    const project = await codemod.project({
-      config,
-      sql: await projectSqlFiles(config.root),
-      ...(configFile === undefined
-        ? {}
-        : { configFile, configText: await readFile(configFile, "utf-8") }),
-    });
+    const project = await codemod.project(projectInput);
 
     for (const file of project.files) {
       const at = edits.findIndex((edit) => edit.path === file.path);

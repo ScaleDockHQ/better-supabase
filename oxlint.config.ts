@@ -34,6 +34,12 @@ export const ignorePatterns: string[] = [
   "**/database.types.ts",
   "**/lib/supabase/records/**",
   "**/lib/supabase/tables/**",
+  // The table and block modules `gen` writes.
+  "**/lib/supabase/blocks/*.ts",
+  "**/src/tables/*.ts",
+  "**/src/runtime/tables/*.ts",
+  "**/src/blocks/permissions.ts",
+  "**/src/blocks/slices.ts",
 ];
 
 /**

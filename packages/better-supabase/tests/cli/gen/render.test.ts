@@ -20,7 +20,13 @@ const base: BetterSupabaseConfig = {
 };
 
 const configFor = (contentMapper: boolean) =>
-  resolveConfig({ ...base, gen: { contentMapper } }, "/app");
+  resolveConfig(
+    {
+      ...base,
+      gen: { contentMapper, tableModules: false, blockModules: false },
+    },
+    "/app",
+  );
 
 describe("render", () => {
   it("renders the types module only when asked in files mode", async () => {
@@ -168,7 +174,7 @@ describe("render with gen.tableModules", () => {
     );
   });
 
-  it("leaves the layout alone without the option", async () => {
+  it("leaves the layout alone with the option off", async () => {
     const snapshot = await loadFixtureSnapshot();
     const { files } = await render(configFor(false), snapshot);
 
@@ -247,7 +253,7 @@ describe("render with gen.blockModules", () => {
     expect(record).toMatch(/config: \{\n\s+comments: commentsConfig,/);
   });
 
-  it("leaves the layout alone without the option", async () => {
+  it("leaves the layout alone with the option off", async () => {
     const files = await renderWith(false);
 
     expect(files.some((file) => file.path.includes("/blocks/"))).toBe(false);

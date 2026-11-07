@@ -9,7 +9,7 @@ import { envSchema } from "better-supabase/env";
 
 import type { Functions, Models } from "./generated.ts";
 
-import { schema } from "./generated.ts";
+import { schema } from "./generated-schema.ts";
 
 export const betterSupabase = createSupabase(schema);
 

@@ -400,6 +400,12 @@ describe("templates", () => {
       for (const file of [
         ...files,
         { path: context.generated, contents: generated },
+        {
+          // The fixture is one module; the templates import `schema` from the
+          // default layout's schema module.
+          path: context.generated.replace(/\.ts$/, "-schema.ts"),
+          contents: 'export { schema } from "./generated.ts";\n',
+        },
         ...metaFiles,
         {
           path: context.generated.replace(/[^/]+$/, "database.types.ts"),

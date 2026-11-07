@@ -20,6 +20,10 @@ import { libraryFixture, snapshotPath } from "./library.ts";
 
 const fixtureConfig: BetterSupabaseConfig = {
   gen: {
+    // The runtime tests import `schema` and its tables from one module; the
+    // default layout is covered by tests/cli/gen/render.test.ts and the examples.
+    tableModules: false,
+    blockModules: false,
     output: "tests/fixtures/generated.ts",
     json: {
       "customers.metadata": {

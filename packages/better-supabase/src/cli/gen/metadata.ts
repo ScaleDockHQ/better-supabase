@@ -95,7 +95,12 @@ async function renderEmit(
   const { files, warnings, notices } = await render(
     {
       ...config,
-      gen: { ...config.gen, contentMapper: false },
+      gen: {
+        ...config.gen,
+        contentMapper: false,
+        tableModules: false,
+        blockModules: false,
+      },
       generators: generator ? [generator] : [],
     },
     snapshot,

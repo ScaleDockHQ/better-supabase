@@ -7,7 +7,7 @@ import { toSession } from "better-supabase/server";
 
 import type { Functions, Models } from "./generated.ts";
 
-import { schema } from "./generated.ts";
+import { schema } from "./generated-schema.ts";
 
 /**
  * The one `createSupabase` in the monorepo. Domain packages never import

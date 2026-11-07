@@ -101,8 +101,8 @@ export interface GenConfig {
    * `tables/customers` and carries that table only. `generated.ts` imports them
    * all for the server and adds `clientSchema`, a schema that registers the
    * tables a client uses (`bsb.table(customers)`), for a browser client without
-   * a table registry. `hooks.ts` reads through `bsb.table`. Defaults to
-   * `false`.
+   * a table registry. `hooks.ts` reads through `bsb.table`. Defaults to `true`;
+   * `false` writes the single module.
    */
   readonly tableModules?: boolean;
   /**
@@ -112,7 +112,7 @@ export interface GenConfig {
    * imports the slices of the blocks it binds and `blocks/permissions.ts`, so a
    * page that imports a record loads those instances and no others. A browser
    * client passes the slices it uses to `createClient({ blocks })`. Defaults to
-   * `false`.
+   * `true`; `false` writes `blockConfig` as one object.
    */
   readonly blockModules?: boolean;
   /**

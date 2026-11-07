@@ -37,7 +37,7 @@ the old one until you've moved over.
 ```ts title="src/lib/supabase/index.ts"
 import { defineSupabase } from "better-supabase";
 
-import { schema } from "./generated.ts";
+import { schema } from "./generated-schema.ts";
 
 export const betterSupabase = defineSupabase(schema);
 ```

@@ -28,7 +28,8 @@ import {
   toSession,
 } from "better-supabase/server";
 
-import { type Functions, type Models, schema } from "./generated.ts";
+import { type Functions, type Models } from "./generated.ts";
+import { schema } from "./generated-schema.ts";
 
 export const betterSupabase = createSupabase(schema);
 

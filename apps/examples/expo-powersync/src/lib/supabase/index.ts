@@ -1,7 +1,7 @@
 import { createSupabase } from "better-supabase";
 import { Temporal } from "temporal-polyfill";
 
-import { schema } from "./generated";
+import { schema } from "./generated-schema";
 
 export type { Functions, Models } from "./generated";
 

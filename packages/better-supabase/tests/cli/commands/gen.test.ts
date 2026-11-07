@@ -50,7 +50,14 @@ describe("gen", () => {
     resolveConfig(
       {
         ...config,
-        gen: { casing: "camel", output: "src/db/generated.ts", ...config.gen },
+        gen: {
+          casing: "camel",
+          output: "src/db/generated.ts",
+          // The single-module layout keeps the file lists below short.
+          tableModules: false,
+          blockModules: false,
+          ...config.gen,
+        },
       },
       root,
     );

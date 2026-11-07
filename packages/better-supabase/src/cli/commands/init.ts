@@ -19,7 +19,7 @@ import type { CliEnv } from "../env.ts";
 import type { InstallTarget, Project } from "../project/detect.ts";
 import type { Prompter } from "../prompts.ts";
 import type { Now } from "../sql/migrations.ts";
-import type { TemplateFile } from "../templates.ts";
+import type { TemplateContext, TemplateFile } from "../templates.ts";
 
 import { groupConfig, resolveConfig } from "../../config/index.ts";
 import {
@@ -474,11 +474,14 @@ async function runInit(
     generated = inPackage ? (await loadConfig(root)).output : config.output;
   }
 
-  const templateContext = templateContextFor(
-    project,
-    generated,
-    chosen !== null || keys.blocks !== undefined,
-  );
+  const templateContext: TemplateContext = {
+    ...templateContextFor(
+      project,
+      generated,
+      chosen !== null || keys.blocks !== undefined,
+    ),
+    ...(contentMapper ? { contentMapper } : {}),
+  };
 
   const migrationSince =
     (await latestMigrationVersion(root)) ??

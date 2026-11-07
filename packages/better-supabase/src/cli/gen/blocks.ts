@@ -68,6 +68,18 @@ export function blockSliceName(instance: string): string {
   return `${camelOf(instance)}Config`;
 }
 
+/**
+ * Whether `gen` writes the block slice modules: on by default, off with
+ * `gen.blockModules: false` and in content mapper mode, which keeps one
+ * module.
+ */
+export function blockModulesOn(gen: {
+  readonly blockModules?: boolean;
+  readonly contentMapper?: boolean;
+}): boolean {
+  return gen.blockModules !== false && gen.contentMapper !== true;
+}
+
 /** `blocks/permissions.ts`: the permission keys (`gen.blockModules`). */
 export function blockPermissionsPath(
   config: Pick<ResolvedConfig, "output">,
@@ -1080,7 +1092,7 @@ export function emitBlockConfigModule(
   }
 
   const runtime = options.runtimeImport ?? "better-supabase";
-  const split = config.gen.blockModules === true;
+  const split = blockModulesOn(config.gen);
 
   const entries = blockConfigEntries(config, undefined, options.appColumns);
 
@@ -1151,7 +1163,7 @@ export function emitBlockModules(
     readonly appColumns?: AppColumns;
   } = {},
 ): GeneratedFile[] {
-  if (config.gen.blockModules !== true || config.blockNames.length === 0) {
+  if (!blockModulesOn(config.gen) || config.blockNames.length === 0) {
     return [];
   }
 

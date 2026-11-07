@@ -4,7 +4,7 @@ import { eveAgentJob } from "better-supabase/eve";
 import { createPostgres } from "better-supabase/postgres";
 import { createServer } from "better-supabase/server";
 
-import { schema } from "../../lib/supabase/generated";
+import { schema } from "../../lib/supabase/generated-schema";
 
 const postgres = createPostgres();
 

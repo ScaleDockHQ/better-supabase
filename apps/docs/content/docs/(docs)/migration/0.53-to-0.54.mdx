@@ -11,6 +11,7 @@ needs a regenerated pgTAP helper file. Run `better-supabase upgrade`, then
 | Section                                                  | Needs code                                           |
 | -------------------------------------------------------- | ---------------------------------------------------- |
 | [BS315 is an error](#bs315-is-an-error)                  | Audit the listed tables or exempt them with a reason |
+| [Table and block modules](#table-and-block-modules)      | Run `gen`, then `codemod table-modules`              |
 | [pgTAP helpers](#pgtap-helpers)                          | Run `gen` again and commit the new test helper       |
 | [Tasks set forms](#tasks-set-forms)                      | Run `upgrade`, then `db diff`                        |
 | [Reading rows with `$decode`](#reading-rows-with-decode) | None; read the notes                                 |
@@ -30,6 +31,26 @@ without a reason. In 0.53 both were warnings. To clear it:
    `blocks.audit.options.exempt` as `{ table: "public.*_archive", reason: "read-only copies" }`.
 4. Turn each bare glob string in `exempt` into a `{ table, reason }` entry.
 5. Run `doctor` again and confirm that no `BS315` is left.
+
+## Table and block modules
+
+`gen` now writes one module per table (`tables/<table>.ts`) and one
+`blocks/slices.ts` with a config slice per block instance. The server's schema
+moves from `generated.ts` to `generated-schema.ts`, `generated.ts` exports
+`clientSchema` (a schema with no tables) for a browser client, and a record
+imports only the slices of the blocks it binds. A page then ships the tables and
+slices it imports. To move:
+
+1. Run `better-supabase gen`, then `better-supabase codemod table-modules`. It
+   imports `schema` from `generated-schema` and, in a `"use client"` file,
+   reads `bsb.db.customers` as `bsb.table(customersTable)`.
+2. Build the browser's client over `clientSchema` and register the tables it
+   uses, and pass the slices it uses to `createClient({ blocks })`.
+3. Replace a client import of `blockConfig` with the slice
+   (`settingsConfig.api`), because `blockConfig` holds every slice.
+
+To keep the single module, set `gen.tableModules: false` and
+`gen.blockModules: false`. See [Table modules](/docs/cli/gen#table-modules).
 
 ## pgTAP helpers
 

@@ -14,6 +14,7 @@ import { extraColumnsCodemod } from "./codemod-extra-columns.ts";
 import { namingCodemod } from "./codemod-naming.ts";
 import { reportReadMany } from "./codemod-read-many.ts";
 import { renameSubpaths } from "./codemod-subpaths.ts";
+import { tableModulesCodemod } from "./codemod-table-modules.ts";
 
 /** What a project-level codemod reads. */
 export interface CodemodProject {
@@ -24,6 +25,12 @@ export interface CodemodProject {
   readonly configFile?: string;
   readonly configText?: string;
 }
+
+/** A rewrite of one source file, with the project's context already read. */
+export type FileRewrite = (
+  path: string,
+  text: string,
+) => { readonly text: string; readonly review: readonly ReviewLine[] };
 
 export interface Codemod {
   readonly name: string;
@@ -40,6 +47,12 @@ export interface Codemod {
     readonly text: string;
     readonly review: readonly ReviewLine[];
   };
+  /**
+   * A rewrite of every source file that needs the project (the generated
+   * folder, the config). It reads what it needs once and returns the per-file
+   * rewrite, which runs after `source`.
+   */
+  readonly files?: (project: CodemodProject) => Promise<FileRewrite>;
   /**
    * SQL for a hand migration the codemod writes next to the app's own, or
    * `undefined` when nothing needs renaming. `sql` is the text of the project's
@@ -69,6 +82,7 @@ export const CODEMODS: Readonly<Record<string, Codemod>> = {
   naming: namingCodemod(),
   "extra-columns": extraColumnsCodemod(),
   config: configCodemod(),
+  "table-modules": tableModulesCodemod(),
   "read-many": {
     name: "read-many",
     description: "List Promise.all groups of reads that db.$many can load",
@@ -211,7 +225,12 @@ export interface CodemodResult {
 }
 
 /** Applies one codemod to a source file. */
-export function applyCodemod(codemod: Codemod, source: string): CodemodResult {
+export function applyCodemod(
+  codemod: Codemod,
+  source: string,
+  rewrite?: FileRewrite,
+  path: string = "",
+): CodemodResult {
   let text = source;
   const review: ReviewLine[] = [];
 
@@ -231,6 +250,12 @@ export function applyCodemod(codemod: Codemod, source: string): CodemodResult {
 
   if (codemod.source) {
     const rewritten = codemod.source(text);
+    text = rewritten.text;
+    review.push(...rewritten.review);
+  }
+
+  if (rewrite) {
+    const rewritten = rewrite(path, text);
     text = rewritten.text;
     review.push(...rewritten.review);
   }
