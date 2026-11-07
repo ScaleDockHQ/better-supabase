@@ -51,6 +51,56 @@ describe("resumeStreamResponse", () => {
     });
     expect(response.headers.get("x-workflow-stream-tail-index")).toBe("7");
   });
+
+  it("answers as server-sent events when asked", async () => {
+    const response = await resumeStreamResponse("wrun_1", { sse: true });
+
+    expect(response.headers.get("content-type")).toBe(
+      "text/event-stream; charset=utf-8",
+    );
+    expect(response.headers.get("cache-control")).toBe(
+      "no-cache, no-transform",
+    );
+    expect(response.headers.get("x-accel-buffering")).toBe("no");
+  });
+
+  it("pipes the chunks through a transform", async () => {
+    getReadable.mockReturnValueOnce(
+      Object.assign(
+        new ReadableStream<Uint8Array>({
+          start(controller) {
+            controller.enqueue(new TextEncoder().encode("hi"));
+            controller.close();
+          },
+        }),
+        { getTailIndex: async () => 0 },
+      ),
+    );
+
+    const response = await resumeStreamResponse("wrun_1", {
+      transform: new TransformStream<Uint8Array, Uint8Array>({
+        transform(chunk, controller) {
+          controller.enqueue(
+            new TextEncoder().encode(
+              `data: ${new TextDecoder().decode(chunk)}\n\n`,
+            ),
+          );
+        },
+      }),
+      sse: true,
+    });
+
+    expect(await response.text()).toBe("data: hi\n\n");
+  });
+
+  it("keeps the content type the caller set", async () => {
+    const response = await resumeStreamResponse("wrun_1", {
+      sse: true,
+      headers: { "content-type": "text/plain" },
+    });
+
+    expect(response.headers.get("content-type")).toBe("text/plain");
+  });
 });
 
 describe("resumeHookFromWebhook", () => {

@@ -117,7 +117,7 @@ turns it into entries for the [usage block](/docs/blocks/usage)
 (`ai.input_tokens` and `ai.output_tokens` by default), and
 `usageQuota(usage, meter)` is the quota check `createAssistant` takes: it
 returns a `quota_exceeded` error with `retryAfter` when the meter is used up.
-`problem429(error)` is the RFC 9457 response for it, with `Retry-After`.
+`problem429(error)` is the RFC 9457 response for it, with `Retry-After`. A third argument, `{ extra, headers, format }`, adds members and headers to the answer.
 
 ## Thread summaries
 

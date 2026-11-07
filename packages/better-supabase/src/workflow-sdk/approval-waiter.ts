@@ -12,6 +12,18 @@ export interface ApprovalWaitOptions {
   readonly expiresAt: Temporal.Instant | string;
 }
 
+/** A registered approval hook, from `approvalWaiter.create`. */
+export interface ApprovalHandle<P = unknown> {
+  readonly token: string;
+  /**
+   * Waits until `expiresAt` (see `approvalWaiter.wait`), then disposes the
+   * hook.
+   */
+  wait(options: ApprovalWaitOptions): Promise<ApprovalWaitResult<P>>;
+  /** Releases the hook without waiting. */
+  dispose(): void;
+}
+
 /**
  * Pauses a workflow on an approval and resumes it by token. `wait` runs inside
  * a `"use workflow"` function; `wake` runs in server code, after the approver
@@ -20,6 +32,12 @@ export interface ApprovalWaitOptions {
  * run without storing the hook.
  */
 export interface ApprovalWaiter {
+  /**
+   * Registers the hook for `token` now and returns a handle to wait on it
+   * later, so a `wake` that arrives while the workflow does other steps is not
+   * missed. Call `wait` on the handle once, which also disposes the hook.
+   */
+  create<P = unknown>(token: string): ApprovalHandle<P>;
   /**
    * Waits for `wake(token, payload)` until `expiresAt`: `{ status: "resumed",
    * payload }`, or `{ status: "expired" }` when the time passes first (at once
@@ -66,6 +84,42 @@ const WAKE_RETRY_MS = 150;
 
 /** `wait` and `wake` for approvals that pause a workflow run. */
 export const approvalWaiter: ApprovalWaiter = Object.freeze({
+  create<P = unknown>(token: string): ApprovalHandle<P> {
+    const key = tokenOf(token);
+    const hook = createHook<P>({ token: key });
+
+    return {
+      token: key,
+      dispose: () => {
+        hook.dispose();
+      },
+      async wait(options: ApprovalWaitOptions) {
+        const until = epochOf(options.expiresAt);
+
+        // The workflow runtime replays Date.now() from the event log, so the
+        // comparison is deterministic and Temporal need not exist in its sandbox.
+        if (until <= Date.now()) {
+          hook.dispose();
+
+          return { status: "expired" };
+        }
+
+        try {
+          return await Promise.race([
+            hook.then((payload): ApprovalWaitResult<P> => ({
+              status: "resumed",
+              payload,
+            })),
+            sleep(new Date(until)).then((): ApprovalWaitResult<P> => ({
+              status: "expired",
+            })),
+          ]);
+        } finally {
+          hook.dispose();
+        }
+      },
+    };
+  },
   async wait<P = unknown>(
     token: string,
     options: ApprovalWaitOptions,
@@ -73,27 +127,12 @@ export const approvalWaiter: ApprovalWaiter = Object.freeze({
     const key = tokenOf(token);
     const until = epochOf(options.expiresAt);
 
-    // The workflow runtime replays Date.now() from the event log, so the
-    // comparison is deterministic and Temporal need not exist in its sandbox.
+    // A past `expiresAt` registers no hook.
     if (until <= Date.now()) {
       return { status: "expired" };
     }
 
-    const hook = createHook<P>({ token: key });
-
-    try {
-      return await Promise.race([
-        hook.then((payload): ApprovalWaitResult<P> => ({
-          status: "resumed",
-          payload,
-        })),
-        sleep(new Date(until)).then((): ApprovalWaitResult<P> => ({
-          status: "expired",
-        })),
-      ]);
-    } finally {
-      hook.dispose();
-    }
+    return approvalWaiter.create<P>(key).wait(options);
   },
   async wake(token: string, payload: unknown = null): Promise<void> {
     const key = tokenOf(token);
