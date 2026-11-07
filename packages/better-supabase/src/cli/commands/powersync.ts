@@ -21,7 +21,7 @@ import {
   publicationSql,
 } from "../powersync/streams.ts";
 import { migrationsDir, snapshotColumnTypes } from "../sql-layout.ts";
-import { stampAfter } from "../sql/migrations.ts";
+import { hasMigrationSuffix, migrationFile } from "../sql/migration-names.ts";
 import { layoutFor } from "../sql/providers.ts";
 import { renderBlocksCached } from "../sql/render-cache.ts";
 
@@ -134,7 +134,10 @@ async function publicationMigration(
 ): Promise<PlannedFile | undefined> {
   const dir = resolve(config.root, migrationsDir(config));
   const names = existsSync(dir) ? (await readdir(dir)).toSorted() : [];
-  const earlier = names.filter((name) => name.endsWith(PUBLICATION_SUFFIX));
+
+  const earlier = names.filter((name) =>
+    hasMigrationSuffix(name, PUBLICATION_SUFFIX),
+  );
 
   const published =
     earlier.length === 0
@@ -152,7 +155,10 @@ async function publicationMigration(
   return sql === undefined
     ? undefined
     : {
-        path: join(dir, `${stampAfter(names, now())}${PUBLICATION_SUFFIX}`),
+        path: join(
+          dir,
+          migrationFile(names, now(), PUBLICATION_SUFFIX, sql).name,
+        ),
         contents: sql,
         policy: "create",
         note: "adds the tables to the powersync publication",

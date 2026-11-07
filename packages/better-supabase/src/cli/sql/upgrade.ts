@@ -1,4 +1,4 @@
-import { readFile } from "node:fs/promises";
+import { readdir, readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
 import type { ResolvedConfig } from "../../config/index.ts";
@@ -29,7 +29,7 @@ import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
-import { migrationStamp } from "./migrations.ts";
+import { migrationFile } from "./migration-names.ts";
 import {
   latestMigration,
   migrationInstances,
@@ -179,8 +179,14 @@ export async function upgrade(
   const dryRun = args["dry-run"] === true;
 
   if (steps.length > 0 && !migrations) {
-    const path = `${migrationsDir(config)}/${migrationStamp(now())}_better_supabase_block_upgrade.sql`;
+    const dir = migrationsDir(config);
     const contents = `-- better-supabase upgrade: steps that run before the schema diff.\n\n${steps.join("\n\n")}\n`;
+
+    const existing: string[] = await readdir(resolve(config.root, dir)).catch(
+      () => [],
+    );
+
+    const path = `${dir}/${migrationFile(existing, now(), "_better_supabase_block_upgrade.sql", contents).name}`;
 
     const applied = await applyPlan(
       sqlPlan(config, {

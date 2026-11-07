@@ -18,7 +18,7 @@ import {
 } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { migrationsDir, writtenByBlocks } from "../sql-layout.ts";
-import { stampAfter } from "../sql/migrations.ts";
+import { migrationFile } from "../sql/migration-names.ts";
 import { plain } from "../style.ts";
 
 const CODEMOD_ARGS = {
@@ -194,7 +194,12 @@ export async function runCodemod(
       path: resolve(
         config.root,
         dir,
-        `${stampAfter(existing, new Date())}_better_supabase_${codemod.name}.sql`,
+        migrationFile(
+          existing,
+          new Date(),
+          `_better_supabase_${codemod.name}.sql`,
+          sql,
+        ).name,
       ),
       contents: sql,
       policy: "create",

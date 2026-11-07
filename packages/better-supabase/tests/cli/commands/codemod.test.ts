@@ -118,7 +118,9 @@ describe("runCodemod", () => {
     const names = await readdir(join(root, "supabase/migrations"));
 
     expect(names).toHaveLength(1);
-    expect(names[0]).toMatch(/^\d{14}_better_supabase_with-sql\.sql$/u);
+    expect(names[0]).toMatch(
+      /^\d{14}_better_supabase_with-sql_[0-9a-f]{8}\.sql$/u,
+    );
     expect(
       await readFile(join(root, "supabase/migrations", names[0]!), "utf-8"),
     ).toBe("select 1;\n");

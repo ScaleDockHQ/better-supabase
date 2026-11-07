@@ -47,6 +47,19 @@ describe("row audit of block tables", () => {
     );
   });
 
+  it("leaves a table the app already has to the app's own triggers", () => {
+    const sql = renderBlocks(["audit", "tags"], {
+      appTables: { tags: {} },
+      ownTables: { "better_supabase.tags": "supabase/schemas/010_app.sql" },
+    })
+      .filter((file) => file.kind === "schema" && file.module === "tags")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(sql).not.toContain("on public.tags deferrable");
+    expect(sql).not.toContain("on better_supabase.tags deferrable");
+  });
+
   it("never audits the audit module's own tables", () => {
     expect(schemaOf(["audit"], undefined, "audit")).not.toContain(
       "Row audit for",

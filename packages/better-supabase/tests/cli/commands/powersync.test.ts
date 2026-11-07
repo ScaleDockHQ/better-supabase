@@ -12,6 +12,7 @@ import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
 import { configuredTasks } from "../../../src/cli/commands/gen-pipeline.ts";
 import { runPowerSync } from "../../../src/cli/commands/powersync.ts";
+import { hasMigrationSuffix } from "../../../src/cli/sql/migration-names.ts";
 import { resolveConfig } from "../../../src/config/index.ts";
 
 const BLOCKS = {
@@ -49,7 +50,7 @@ describe("powersync streams", () => {
 
   const migrations = async () =>
     (await readdir(join(root, "supabase/migrations"))).filter((name) =>
-      name.endsWith("_powersync_publication.sql"),
+      hasMigrationSuffix(name, "_powersync_publication.sql"),
     );
 
   it("asks for the instances when gen.powersync is unset", async () => {

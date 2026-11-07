@@ -48,21 +48,25 @@ describe("sql upgrade with forward steps", () => {
   it("writes the steps with SQL into a migration before the schema diff", async () => {
     await sql(["sync"]);
 
-    const path =
-      "supabase/migrations/20261003080910_better_supabase_block_upgrade.sql";
-
     const dry = await sql(["upgrade", "--dry-run"]);
-    expect(dry.output).toContain(`Would create ${path}`);
+
+    const path =
+      /supabase\/migrations\/20261003080910_better_supabase_block_upgrade_[0-9a-f]{8}\.sql/.exec(
+        dry.output ?? "",
+      )?.[0];
+
+    expect(path).toBeDefined();
+    expect(dry.output).toContain(`Would create ${path!}`);
     await expect(readdir(join(root, "supabase"))).resolves.not.toContain(
       "migrations",
     );
 
     const done = await sql(["upgrade"]);
     expect(done.code).toBe(0);
-    expect(done.output).toContain(`Created ${path}`);
+    expect(done.output).toContain(`Created ${path!}`);
     expect(done.output).toContain("memberships: version 1 to 3");
     expect(done.output).toContain("  Renames org_id to tenant_id.");
-    const migration = await readFile(join(root, path), "utf-8");
+    const migration = await readFile(join(root, path!), "utf-8");
     expect(migration).toContain(
       "-- memberships: version 2 to 3. Renames org_id to tenant_id.\nalter table memberships rename column org_id to tenant_id;",
     );

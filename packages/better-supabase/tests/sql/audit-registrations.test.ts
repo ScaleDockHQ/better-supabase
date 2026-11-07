@@ -21,6 +21,18 @@ select better_supabase.audit('crm."Deals"', redact := array['secret']::text[], c
     ]);
   });
 
+  it("reads a deferrable constraint trigger as a registration", () => {
+    expect(
+      auditRegistrations([
+        file(
+          `create constraint trigger bsb_audit after insert or update or delete on better_supabase.tasks deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":["updated_at"],"redact":[]}');`,
+        ),
+      ]),
+    ).toEqual([
+      { target: "better_supabase.tasks", ignore: ["updated_at"], redact: [] },
+    ]);
+  });
+
   it("lets a later call replace an earlier one and unaudit remove it", () => {
     expect(
       auditRegistrations([

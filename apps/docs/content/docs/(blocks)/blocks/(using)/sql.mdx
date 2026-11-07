@@ -141,6 +141,16 @@ differ from the newest `*_better_supabase_modules.sql`.
 - `gen` writes the read-sets module into `<stamp>_better_supabase_read_sets.sql`.
 - The pgTAP files still go to `database.sql.testsDir`.
 
+### Migration names
+
+Every migration the CLI writes is named `<stamp>_better_supabase_<name>_<hash>.sql`.
+The stamp is later than the newest name in the migrations folder, whichever tool
+wrote it, so an authorization library's generator never shares a version with
+`upgrade`. The hash is the first 8 hex digits of the statements without their
+comments. A command that would write statements an existing migration already
+holds leaves the folder alone, and `--force` writes them again as a new
+migration. Names without a hash, from earlier releases, are still read.
+
 ## Modules
 
 | Module                      | What it adds                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |

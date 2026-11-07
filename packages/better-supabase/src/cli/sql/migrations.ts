@@ -10,46 +10,12 @@ import { moduleSchemaExtensions } from "../../sql/index.ts";
 import { applyPlan, changeLines } from "../core/files.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
+import { hasMigrationSuffix, migrationFile } from "./migration-names.ts";
 import { layoutFor } from "./providers.ts";
 import { renderBlocksCached } from "./render-cache.ts";
 
 /** The clock the migration stamps read, injected so tests pin it. */
 export type Now = () => Date;
-
-/** `YYYYMMDDHHMMSS` in UTC, the Supabase CLI's migration prefix. */
-export const migrationStamp = (now: Date): string =>
-  now.toISOString().replaceAll(/[-:T]/g, "").slice(0, 14);
-
-/**
- * A stamp for `now`, or one second after the newest migration when that one has
- * the same stamp or a later one: the Supabase CLI keys migrations by stamp, and
- * the data has to run after the schema.
- */
-export function stampAfter(migrations: readonly string[], now: Date): string {
-  // Every name that starts with 14 digits counts, whatever follows them
-  // (another tool's `<stamp>-seeds.sql` or `<stamp>.sql`), so the data
-  // migration never shares a timestamp with one.
-  const newest = migrations
-    .map((name) =>
-      /^(\d{4})(\d{2})(\d{2})(\d{2})(\d{2})(\d{2})(?!\d)/.exec(name),
-    )
-    .filter((match) => match !== null)
-    .map((match) =>
-      Date.UTC(
-        Number(match[1]),
-        Number(match[2]) - 1,
-        Number(match[3]),
-        Number(match[4]),
-        Number(match[5]),
-        Number(match[6]),
-      ),
-    )
-    .reduce((max, time) => Math.max(max, time), Number.NEGATIVE_INFINITY);
-
-  const at = Math.floor(now.getTime() / 1000) * 1000;
-
-  return migrationStamp(new Date(Math.max(at, newest + 1000)));
-}
 
 const EXTENSIONS_SUFFIX = "_better_supabase_extensions.sql";
 
@@ -69,7 +35,7 @@ async function unmigratedExtensions(
   const created = new Set<string>();
 
   for (const name of existing) {
-    if (!name.endsWith(".sql") || name.endsWith(DATA_SUFFIX)) {
+    if (!name.endsWith(".sql") || hasMigrationSuffix(name, DATA_SUFFIX)) {
       continue;
     }
 
@@ -101,17 +67,21 @@ export async function writeExtensionsMigration(
     return [];
   }
 
-  const path = `${dir}/${stampAfter(existing, new Date(now().getTime() - 1000))}${EXTENSIONS_SUFFIX}`;
+  const contents = `-- better-supabase sql: the extensions of ${missing.map((extension) => extension.name).join(", ")}, created before the schema migration that needs them.\n\n${missing.map((extension) => extension.statement).join("\n")}\n`;
+
+  const path = `${dir}/${
+    migrationFile(
+      existing,
+      new Date(now().getTime() - 1000),
+      EXTENSIONS_SUFFIX,
+      contents,
+    ).name
+  }`;
 
   const applied = await applyPlan(
     sqlPlan(config, {
       regenerate: "better-supabase upgrade",
-      files: [
-        {
-          path,
-          contents: `-- better-supabase sql: the extensions of ${missing.map((extension) => extension.name).join(", ")}, created before the schema migration that needs them.\n\n${missing.map((extension) => extension.statement).join("\n")}\n`,
-        },
-      ],
+      files: [{ path, contents }],
     }),
     { "dry-run": dryRun },
   );
@@ -200,7 +170,7 @@ export async function dataMigration(
 
   const latest = existing
     .toSorted()
-    .findLast((name) => name.endsWith(DATA_SUFFIX));
+    .findLast((name) => hasMigrationSuffix(name, DATA_SUFFIX));
 
   if (
     latest !== undefined &&
@@ -222,7 +192,7 @@ export async function dataMigration(
     };
   }
 
-  const path = `${dir}/${stampAfter(existing, now())}${DATA_SUFFIX}`;
+  const path = `${dir}/${migrationFile(existing, now(), DATA_SUFFIX, contents).name}`;
 
   const applied = await applyPlan(
     sqlPlan(config, {

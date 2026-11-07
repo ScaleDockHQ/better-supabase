@@ -3,6 +3,7 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
 
+import { hasMigrationSuffix } from "../../../src/cli/sql/migration-names.ts";
 import {
   migrationHolds,
   migrationModules,
@@ -137,14 +138,16 @@ describe("writeLatestMigration", () => {
     const first = await write("select 1;\n");
     expect(first).toMatchObject({
       wrote: true,
-      path: `supabase/migrations/20260102030406${MODULES_SUFFIX}`,
+      path: expect.stringMatching(
+        /^supabase\/migrations\/20260102030406_better_supabase_modules_[0-9a-f]{8}\.sql$/,
+      ),
     });
     expect((await write("select 1;\n")).wrote).toBe(false);
     expect((await write("select 1;\n", true)).wrote).toBe(true);
     expect((await write("select 2;\n")).wrote).toBe(true);
     expect(
       (await readdir(join(root, "supabase/migrations"))).filter((name) =>
-        name.endsWith(MODULES_SUFFIX),
+        hasMigrationSuffix(name, MODULES_SUFFIX),
       ),
     ).toHaveLength(3);
   });

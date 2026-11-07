@@ -238,7 +238,7 @@ describe("gen", () => {
     const first = await gen(false);
 
     const path =
-      /supabase\/migrations\/\d{14}_better_supabase_read_sets\.sql/.exec(
+      /supabase\/migrations\/\d{14}_better_supabase_read_sets_[0-9a-f]{8}\.sql/.exec(
         first.output ?? "",
       )?.[0];
 

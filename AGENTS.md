@@ -363,6 +363,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0250: Emit declarative DDL and keep rerunnable SQL for the migrations workflow.
 - 0251: Resolve the remaining do blocks and block overlaps at generation time.
 - 0252: Declare row audit triggers in the schema files.
+- 0253: Name migrations by stamp and content hash.
 
 ## Pre-release pins
 
