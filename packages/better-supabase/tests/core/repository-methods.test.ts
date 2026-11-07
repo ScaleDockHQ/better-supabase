@@ -1355,6 +1355,38 @@ describe("plugins and options", () => {
     expect(kinds).toEqual(["upsert"]);
   });
 
+  it("copies the returned rows for a mutation listener only when it reads them", async () => {
+    let copies = 0;
+
+    const row = new Proxy(
+      { id: "c1", organizationId: "o", name: "A" },
+      {
+        ownKeys: (target) => {
+          copies += 1;
+
+          return Reflect.ownKeys(target);
+        },
+      },
+    );
+
+    const fake = scripted(() => rowsOf([row]));
+    const betterSupabase = createSupabase(schema);
+    const keys: unknown[] = [];
+    const names: unknown[] = [];
+
+    betterSupabase.on("mutation", (event) => keys.push(event.keys));
+    const db = betterSupabase.connect(fake.executor);
+
+    await db.customers.create({ organizationId: "o", name: "A" });
+    expect(keys).toEqual([[{ id: "c1" }]]);
+    expect(copies).toBe(0);
+
+    betterSupabase.on("mutation", (event) => names.push(event.rows));
+    await db.customers.create({ organizationId: "o", name: "A" });
+    expect(names).toEqual([[{ id: "c1", organizationId: "o", name: "A" }]]);
+    expect(copies).toBe(1);
+  });
+
   it("hands the abort signal to the executor", async () => {
     const { db, contexts } = connect();
     const controller = new AbortController();

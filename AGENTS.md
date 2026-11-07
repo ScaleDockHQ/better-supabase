@@ -376,6 +376,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0263: Write block config slices as exports of one module and import them per record.
 - 0264: Write table and block modules by default.
 - 0265: Read tables in every framework's hooks, name AppDb, and keep Insert and Update written out.
+- 0266: Copy mutation rows on first read.
 
 ## Pre-release pins
 
