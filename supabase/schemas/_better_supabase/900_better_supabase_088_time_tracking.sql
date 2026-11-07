@@ -1,6 +1,6 @@
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:2acd1b026bda33e77748acd987934b3855e573fb2203f6300491bbaef8c11daa
+-- @bsb-hash sha256:d812704b7116faa7c869fdfd128c25b0623dcc9994863546f9fc886d1b962155
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -169,6 +169,9 @@ begin
   end if;
   if (start_timer.subject_type is null) <> (start_timer.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
+  end if;
+  if start_timer.subject_type is not null and start_timer.subject_type <> all (array['company', 'project']::text[]) then
+    raise exception 'time is tracked on company, project records' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
   if start_timer.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case start_timer.subject_type
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (start_timer.subject_id)::uuid and s."tenant_id" = start_timer.tenant) and coalesce(better_supabase.can('tenant', start_timer.tenant, 'messages.read'), false)
@@ -394,6 +397,9 @@ begin
   if (log_time.subject_type is null) <> (log_time.subject_id is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
+  if log_time.subject_type is not null and log_time.subject_type <> all (array['company', 'project']::text[]) then
+    raise exception 'time is tracked on company, project records' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
+  end if;
   if log_time.subject_type is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case log_time.subject_type
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (log_time.subject_id)::uuid and s."tenant_id" = log_time.tenant) and coalesce(better_supabase.can('tenant', log_time.tenant, 'messages.read'), false)
     when 'conversation' then exists (select 1 from "better_supabase"."conversations" s where s."id" = (log_time.subject_id)::uuid and s."tenant_id" = log_time.tenant) and coalesce(better_supabase.can('tenant', log_time.tenant, 'messages.read'), false)
@@ -551,6 +557,9 @@ begin
     v_row."subject_id" := v_patch ->> 'subjectId';
     if (v_row."subject_type" is null) <> (v_row."subject_id" is null) then
     raise exception 'name both subject_type and subject_id, or neither' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
+  end if;
+  if v_row."subject_type" is not null and v_row."subject_type" <> all (array['company', 'project']::text[]) then
+    raise exception 'time is tracked on company, project records' using errcode = '22023', hint = 'TIME_SUBJECT_INVALID';
   end if;
   if v_row."subject_type" is not null and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or case v_row."subject_type"
     when 'message' then exists (select 1 from "better_supabase"."messages" s where s."id" = (v_row."subject_id")::uuid and s."tenant_id" = v_row."tenant_id") and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'messages.read'), false)

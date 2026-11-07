@@ -31,6 +31,7 @@ import {
   TIMESHEET_SUBJECT,
 } from "./time-tracking-approvals.ts";
 import { approvedWeekFunction } from "./time-tracking-approved.ts";
+import { subjectOnSql } from "./time-tracking-on.ts";
 import {
   byEmployee,
   durationEntries,
@@ -118,6 +119,7 @@ const NAMES: BlockSqlNames = {
     "overlap",
     "timers",
     "lockedColumns",
+    "on",
   ],
   tables: {
     entries: {
@@ -445,7 +447,7 @@ function build(ctx: BlockSqlContext): string {
     id: string,
   ): string => `if (${type} is null) <> (${id} is null) then
     ${fail("TIME_SUBJECT_INVALID", "name both subject_type and subject_id, or neither", "22023")}
-  end if;
+  end if;${subjectOnSql(ctx, type)}
   if ${type} is not null and not (${SERVICE_CALLER} or ${subjectReadable(ctx, subjects, { type, id, tenant })}) then
     ${forbidden("not allowed to track time on this record")}
   end if;`;

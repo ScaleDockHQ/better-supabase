@@ -88,6 +88,8 @@ import { useTasks } from "@/lib/supabase/hooks";
 const rows = useTasks({ limit: 50 });
 ```
 
+`create` takes the extra columns of your table under `fields`, as `update` does. The `locked` column is optional: map it to `null` in `blocks.tasks.columns.items` and the table has no lock, so dates always change.
+
 `update({ changes })` applies grid edits and Gantt drags one by one and returns the refused ones with their hint. The table refuses a parent that would put an item under itself (`TASK_PARENT_CYCLE`) and date changes on a locked item (`TASK_LOCKED`). Moving to a completed or canceled stage stamps `closedAt` and a close reason (`completed`, or `not_planned` for canceled; pass `closeReason: "duplicate"` with the move to mark a duplicate) and records `task.closed`. Moving back to an open stage clears both and records `task.reopened`.
 
 A Gantt drag that moves both ends sends one `window` change, `{ startAt, endAt }`, which writes the two dates in one update. Two separate changes would fail the `endAt >= startAt` check halfway when the bar moves past its old end. Either key can be left out or `null`. Pass `atomic: true` when a batch must apply in full or not at all: the first refused change then fails the whole call with its hint, and nothing is written.

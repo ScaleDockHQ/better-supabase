@@ -18,6 +18,22 @@ const sqlOf = (
 const BASE = ["approvals", "time-tracking"];
 
 describe("time-tracking module", () => {
+  it("restricts the record types of an entry to options.on", () => {
+    expect(sqlOf(BASE)).not.toContain("time is tracked on");
+
+    const sql = sqlOf(BASE, {
+      modules: { "time-tracking": { options: { on: ["company", "project"] } } },
+    });
+
+    expect(sql).toContain(`<> all (array['company', 'project']::text[])`);
+    expect(sql).toContain("time is tracked on company, project records");
+    expect(() =>
+      sqlOf(BASE, {
+        modules: { "time-tracking": { options: { on: ["Company"] } } },
+      }),
+    ).toThrow(/must list lowercase record types/);
+  });
+
   it("keeps one running timer and no overlaps per member", () => {
     const sql = sqlOf(BASE);
     expect(sql).toContain(

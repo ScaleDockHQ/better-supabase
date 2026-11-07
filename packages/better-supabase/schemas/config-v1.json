@@ -7619,6 +7619,12 @@
                 "items": {
                   "type": "string"
                 }
+              },
+              "on": {
+                "type": "array",
+                "items": {
+                  "type": "string"
+                }
               }
             }
           }

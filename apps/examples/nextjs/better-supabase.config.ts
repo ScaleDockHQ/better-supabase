@@ -423,7 +423,8 @@ export default defineConfig({
     relations: {},
     employees: { names: { employee: { url: "/people" } } },
     hiring: {},
-    "time-tracking": {},
+    // Time is logged on companies and projects only.
+    "time-tracking": { options: { on: ["company", "project"] } },
     // Fixed deposit invoices and a discount on the invoice header.
     invoices: {
       columns: {

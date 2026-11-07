@@ -37,6 +37,12 @@ export type TimeTrackingSqlOptions = {
    * rate), so a billable flag, a note or a link column stays writable.
    */
   readonly lockedColumns?: readonly string[];
+  /**
+   * The record types an entry can be tracked on, such as `["task", "project"]`.
+   * Another type fails with `TIME_SUBJECT_INVALID`. Default: any record type
+   * the caller can read.
+   */
+  readonly on?: readonly string[];
 };
 
 export const timeTrackingSqlOptions: BlockOptionsSchema<TimeTrackingSqlOptions> =
@@ -52,4 +58,5 @@ export const timeTrackingSqlOptions: BlockOptionsSchema<TimeTrackingSqlOptions> 
     overlap: option.string<"refuse" | "allow">({ default: "refuse" }),
     timers: option.string<"one" | "many">({ default: "one" }),
     lockedColumns: option.strings(),
+    on: option.strings(),
   });

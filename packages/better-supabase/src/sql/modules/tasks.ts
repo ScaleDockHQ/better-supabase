@@ -183,6 +183,7 @@ const NAMES: BlockSqlNames = {
         "progress",
         "startAt",
         "endAt",
+        "locked",
         "recursFrom",
         "createdBy",
         "template",
@@ -404,8 +405,7 @@ create table if not exists ${t("items")} (
   ${w("stageEnteredAt")} timestamptz,
   ${w("state")} text not null default 'backlog' check (${w("state")} in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled')),
   ${w("closeReason")} text check (${w("closeReason")} in ('completed', 'not_planned', 'duplicate')),
-  ${w("closedAt")} timestamptz,
-  ${w("locked")} boolean not null default false,
+  ${w("closedAt")} timestamptz,${column("items", "locked", (name) => `${name} boolean not null default false`)}
   ${w("rank")} text collate "C" not null default 'V',
   ${w("archivedAt")} timestamptz,${column("items", "createdBy", (name) => `${name} uuid`)}
   ${w("createdAt")} timestamptz not null default now(),
@@ -488,10 +488,14 @@ begin
     if not exists (select 1 from ${t("items")} x where x.${w("id")} = new.${w("parent")} and x.${w("tenant")} = new.${w("tenant")}) then
       ${fail("TASK_PARENT_INVALID", "the parent is in another organization", "22023")}
     end if;
-  end if;
+  end if;${
+    ctx.has("items", "locked") && dates !== ""
+      ? `
   if tg_op = 'UPDATE' and old.${w("locked")} and not ${n.service} and (${dates}) then
     ${fail("TASK_LOCKED", "the item is locked; its dates can't change", "55000")}
-  end if;
+  end if;`
+      : ""
+  }
   if tg_op = 'INSERT' then
     if ${closed} then
       new.${w("closedAt")} := now();

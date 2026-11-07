@@ -34,16 +34,16 @@ commit that adds it. "Open" has a reason.
 
 ## Fields and work
 
-| Item                                     | State                                                                           |
-| ---------------------------------------- | ------------------------------------------------------------------------------- |
-| Custom fields update, delete, seal       | Exists                                                                          |
-| Tasks create fields, optional columns    | Open                                                                            |
-| Time entries: `on` links, employee owner | Employee owner exists (`owner`); `on` links open                                |
-| Leave ledger by employee                 | Exists (`owner: "employee"`)                                                    |
-| Expenses employee owner                  | Exists (`owner: "employee"`)                                                    |
-| Employees statuses from the app enum     | Open                                                                            |
-| Hiring simplified                        | Exists: `stages`, `hiringManager`; further simplification open                  |
-| Approvals request policy and floors      | Exists for floors (`options.policies`, tenant policies); extension columns open |
+| Item                                     | State                                                                   |
+| ---------------------------------------- | ----------------------------------------------------------------------- |
+| Custom fields update, delete, seal       | Exists                                                                  |
+| Tasks create fields, optional columns    | Done (ADR 0269): `fields` on create existed; `locked` is optional       |
+| Time entries: `on` links, employee owner | Done (ADR 0269): `options.on`; the employee owner exists (`owner`)      |
+| Leave ledger by employee                 | Exists (`owner: "employee"`)                                            |
+| Expenses employee owner                  | Exists (`owner: "employee"`)                                            |
+| Employees statuses from the app enum     | Exists: `typed` status with value maps (`employees-shapes.test.ts`)     |
+| Hiring simplified                        | Exists: `stages`, `hiringManager`; no further change named (ADR 0269)   |
+| Approvals request policy and floors      | Exists: floors, tenant policies, extra columns on requests and policies |
 
 ## Platform and runtime
 

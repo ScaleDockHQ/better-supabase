@@ -868,7 +868,7 @@ as $$
   select coalesce(jsonb_agg(jsonb_build_object(
     'id', tree.${w("id")}, 'parentId', tree.${w("parent")}, 'identifier', tree.${w("identifier")}, 'title', tree.${w("title")},
     'state', ${ctx.label("items", "state", `tree.${w("state")}`)}, 'startAt', ${or("tree", "startAt")}, 'endAt', ${or("tree", "endAt")}, 'dueAt', tree.${w("dueAt")},
-    'locked', tree.${w("locked")}, 'depth', tree.depth,
+    'locked', ${or("tree", "locked")}, 'depth', tree.depth,
     'progress', coalesce(${or("tree", "progress")}, (
       select case when count(*) filter (where ${state(`ch.${w("state")}`, ["canceled"], true)}) = 0 then
           ${ctx.mapsValues("items", "state") ? `case when ${state(`tree.${w("state")}`, ["completed"])} then 100 else 0 end` : `case tree.${w("state")} when 'completed' then 100 else 0 end`}

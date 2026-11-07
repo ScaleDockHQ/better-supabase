@@ -379,6 +379,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0266: Copy mutation rows on first read.
 - 0267: Inventory gets a reorder quantity, a serial pick and composite keys.
 - 0268: Close the parties and documents gaps of the base layer.
+- 0269: Close the fields and work gaps of the base layer.
 
 ## Pre-release pins
 
