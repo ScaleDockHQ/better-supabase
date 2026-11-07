@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { PageHeader } from "@/components/page-header";
 import {
   LegalEntityListSection,
-  LegalEntityListSkeleton,
+  LegalEntityListSectionSkeleton,
 } from "@/features/legal-entities/components/legal-entity-sections";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
@@ -19,7 +19,7 @@ export default function LegalEntitiesPage() {
           "The companies inside this organization, each with its own VAT number, currency and tax period.",
         )}
       />
-      <Suspense fallback={<LegalEntityListSkeleton />}>
+      <Suspense fallback={<LegalEntityListSectionSkeleton />}>
         <PermissionGate permission="legal_entities.read">
           <LegalEntityListSection />
         </PermissionGate>

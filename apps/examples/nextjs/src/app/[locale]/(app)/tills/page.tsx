@@ -2,8 +2,10 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import { TillsSkeleton } from "@/features/tills/components/tills";
-import { TillsSection } from "@/features/tills/components/tills-section";
+import {
+  TillsSectionSkeleton,
+  TillsSection,
+} from "@/features/tills/components/tills-section";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
 export default function TillsPage() {
@@ -17,7 +19,7 @@ export default function TillsPage() {
           "Cash drawer shifts with their expected cash and status.",
         )}
       />
-      <Suspense fallback={<TillsSkeleton />}>
+      <Suspense fallback={<TillsSectionSkeleton />}>
         <PermissionGate permission="tills.read">
           <TillsSection />
         </PermissionGate>

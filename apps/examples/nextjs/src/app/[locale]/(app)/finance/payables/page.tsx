@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { PageHeader } from "@/components/page-header";
 import {
   PayablesAgingSection,
-  PayablesAgingSkeleton,
+  PayablesAgingSectionSkeleton,
 } from "@/features/payables/components/payables-aging";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
@@ -19,7 +19,7 @@ export default function PayablesPage() {
           "What you owe suppliers on issued purchase bills, by days past due.",
         )}
       />
-      <Suspense fallback={<PayablesAgingSkeleton />}>
+      <Suspense fallback={<PayablesAgingSectionSkeleton />}>
         <PermissionGate permission="invoices.read">
           <PayablesAgingSection />
         </PermissionGate>

@@ -65,7 +65,6 @@ async function CasesLoadError({ title }: { title: string }) {
   );
 }
 
-// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /** Render inside `<Suspense>`: the board of open cases by stage. */
 export async function CaseBoardSection() {
   const [t, permissions] = await Promise.all([
@@ -128,7 +127,6 @@ export async function CaseBoardSection() {
   );
 }
 
-// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /**
  * Render inside `<Suspense>`: the case `?case=<id>` picks, with its blockers
  * and actions.
@@ -188,7 +186,7 @@ export async function CaseDetailSection({
   );
 }
 
-export function CaseBoardSkeleton() {
+export function CaseBoardSectionSkeleton() {
   return (
     <Frame spacing="sm" aria-busy="true">
       <FrameHeader className="gap-1">
@@ -204,7 +202,7 @@ export function CaseBoardSkeleton() {
   );
 }
 
-export function CaseDetailSkeleton() {
+export function CaseDetailSectionSkeleton() {
   return (
     <Frame spacing="sm" aria-busy="true">
       <FrameHeader className="gap-1">

@@ -20,7 +20,6 @@ async function retry() {
   refresh();
 }
 
-// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /** Render inside `<Suspense>`: the customer's notes in the editor. */
 export async function DocumentEditorView({ id }: { id: string }) {
   const [view, t] = await Promise.all([
@@ -52,6 +51,6 @@ export async function DocumentEditorView({ id }: { id: string }) {
   return <DocumentEditor {...view.data} />;
 }
 
-export function DocumentEditorSkeleton() {
+export function DocumentEditorViewSkeleton() {
   return <Skeleton className="h-96 rounded-xl" aria-busy="true" />;
 }

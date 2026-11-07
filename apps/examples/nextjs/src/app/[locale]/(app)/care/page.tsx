@@ -3,7 +3,7 @@ import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
 import {
-  CareSectionSkeleton,
+  ClientListSkeleton,
   ClientList,
 } from "@/features/care/components/care-sections";
 import { PermissionGate } from "@/features/user/components/permission-gate";
@@ -19,7 +19,7 @@ export default function CarePage() {
           "The clients in your care. Open one for their notes, care plan, observations, medication, consents and access log.",
         )}
       />
-      <Suspense fallback={<CareSectionSkeleton />}>
+      <Suspense fallback={<ClientListSkeleton />}>
         <PermissionGate permission="customers.read">
           <ClientList />
         </PermissionGate>

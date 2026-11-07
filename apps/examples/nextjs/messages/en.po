@@ -1375,6 +1375,18 @@ msgctxt "acknowledgements.5vDqi-"
 msgid "Due {date}"
 msgstr "Due {date}"
 
+#: src/features/ai-providers/components/ai-provider-section.tsx
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders._3yfCs"
+msgid "AI providers"
+msgstr "AI providers"
+
+#: src/features/ai-providers/components/ai-provider-section.tsx
+#: src/features/ai-providers/components/ai-provider-settings.tsx
+msgctxt "aiProviders.ItEK0n"
+msgid "The organization's own provider keys, used instead of the app's key for the assistant."
+msgstr "The organization's own provider keys, used instead of the app's key for the assistant."
+
 #: src/features/ai-providers/components/ai-provider-settings.tsx
 msgctxt "aiProviders.or3Lzc"
 msgid "Key saved"
@@ -1474,16 +1486,6 @@ msgstr "Enabled"
 msgctxt "aiProviders.tthToS"
 msgid "Disabled"
 msgstr "Disabled"
-
-#: src/features/ai-providers/components/ai-provider-settings.tsx
-msgctxt "aiProviders._3yfCs"
-msgid "AI providers"
-msgstr "AI providers"
-
-#: src/features/ai-providers/components/ai-provider-settings.tsx
-msgctxt "aiProviders.ItEK0n"
-msgid "The organization's own provider keys, used instead of the app's key for the assistant."
-msgstr "The organization's own provider keys, used instead of the app's key for the assistant."
 
 #: src/features/ai-providers/components/ai-provider-settings.tsx
 msgctxt "aiProviders.y1rlCZ"
@@ -9318,6 +9320,18 @@ msgctxt "inspections.PjaypS"
 msgid "Close inspection"
 msgstr "Close inspection"
 
+#: src/features/integrations/components/integration-section.tsx
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.6cBDhe"
+msgid "Integrations"
+msgstr "Integrations"
+
+#: src/features/integrations/components/integration-section.tsx
+#: src/features/integrations/components/integration-settings.tsx
+msgctxt "integrations.7lMzB0"
+msgid "Your own accounts the app may use on your behalf, such as the mailbox mail sync reads."
+msgstr "Your own accounts the app may use on your behalf, such as the mailbox mail sync reads."
+
 #: src/features/integrations/components/integration-settings.tsx
 msgctxt "integrations.IvjoDS"
 msgid "Connected"
@@ -9387,16 +9401,6 @@ msgstr "{name} didn't connect"
 msgctxt "integrations.o1qevE"
 msgid "Consent was declined or expired. Try connecting again."
 msgstr "Consent was declined or expired. Try connecting again."
-
-#: src/features/integrations/components/integration-settings.tsx
-msgctxt "integrations.6cBDhe"
-msgid "Integrations"
-msgstr "Integrations"
-
-#: src/features/integrations/components/integration-settings.tsx
-msgctxt "integrations.7lMzB0"
-msgid "Your own accounts the app may use on your behalf, such as the mailbox mail sync reads."
-msgstr "Your own accounts the app may use on your behalf, such as the mailbox mail sync reads."
 
 #: src/features/integrations/components/integration-settings.tsx
 msgctxt "integrations.vDGz5L"

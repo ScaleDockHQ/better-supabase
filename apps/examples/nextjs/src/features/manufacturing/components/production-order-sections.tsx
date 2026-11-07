@@ -38,7 +38,6 @@ async function retry() {
   refresh();
 }
 
-// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /** Render inside `<Suspense>`: the production orders by status. */
 export async function ProductionOrderBoardSection() {
   const [t, permissions] = await Promise.all([
@@ -113,7 +112,7 @@ export async function ProductionOrderBoardSection() {
   );
 }
 
-export function ProductionOrderBoardSkeleton() {
+export function ProductionOrderBoardSectionSkeleton() {
   return (
     <Frame spacing="sm" aria-busy="true">
       <FrameHeader className="gap-1">

@@ -2,10 +2,14 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import { CarePlanEditorSkeleton } from "@/features/care-plans/components/care-plan-editor";
-import { CarePlanEditorSection } from "@/features/care-plans/components/care-plan-editor-section";
-import { CarePlanEvaluationsSkeleton } from "@/features/care-plans/components/care-plan-evaluations";
-import { CarePlanEvaluationsSection } from "@/features/care-plans/components/care-plan-evaluations-section";
+import {
+  CarePlanEditorSectionSkeleton,
+  CarePlanEditorSection,
+} from "@/features/care-plans/components/care-plan-editor-section";
+import {
+  CarePlanEvaluationsSectionSkeleton,
+  CarePlanEvaluationsSection,
+} from "@/features/care-plans/components/care-plan-evaluations-section";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
 export default function CarePlansPage() {
@@ -19,12 +23,12 @@ export default function CarePlansPage() {
           "A client's problems, goals and actions in the active plan, and what each goal evaluation found.",
         )}
       />
-      <Suspense fallback={<CarePlanEditorSkeleton />}>
+      <Suspense fallback={<CarePlanEditorSectionSkeleton />}>
         <PermissionGate permission="care_plans.read">
           <CarePlanEditorSection />
         </PermissionGate>
       </Suspense>
-      <Suspense fallback={<CarePlanEvaluationsSkeleton />}>
+      <Suspense fallback={<CarePlanEvaluationsSectionSkeleton />}>
         <PermissionGate permission="care_plans.read">
           <CarePlanEvaluationsSection />
         </PermissionGate>

@@ -2,8 +2,10 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import { SamplesSkeleton } from "@/features/lims/components/samples";
-import { SamplesSection } from "@/features/lims/components/samples-section";
+import {
+  SamplesSectionSkeleton,
+  SamplesSection,
+} from "@/features/lims/components/samples-section";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
 export default function LimsPage() {
@@ -17,7 +19,7 @@ export default function LimsPage() {
           "Samples, their results and whether they may be released.",
         )}
       />
-      <Suspense fallback={<SamplesSkeleton />}>
+      <Suspense fallback={<SamplesSectionSkeleton />}>
         <PermissionGate permission="lims.read">
           <SamplesSection />
         </PermissionGate>

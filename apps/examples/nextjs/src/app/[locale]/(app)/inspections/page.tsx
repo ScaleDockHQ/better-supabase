@@ -2,10 +2,14 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import { InspectionProgramCalendarSkeleton } from "@/features/inspections/components/inspection-program-calendar";
-import { InspectionProgramCalendarSection } from "@/features/inspections/components/inspection-program-calendar-section";
-import { InspectionRunSkeleton } from "@/features/inspections/components/inspection-run";
-import { InspectionRunSection } from "@/features/inspections/components/inspection-run-section";
+import {
+  InspectionProgramCalendarSectionSkeleton,
+  InspectionProgramCalendarSection,
+} from "@/features/inspections/components/inspection-program-calendar-section";
+import {
+  InspectionRunSectionSkeleton,
+  InspectionRunSection,
+} from "@/features/inspections/components/inspection-run-section";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
 export default function InspectionsPage({
@@ -23,12 +27,12 @@ export default function InspectionsPage({
           "The audit programme with each inspection's status, and the findings of the one you open, each nonconformity with its case.",
         )}
       />
-      <Suspense fallback={<InspectionProgramCalendarSkeleton />}>
+      <Suspense fallback={<InspectionProgramCalendarSectionSkeleton />}>
         <PermissionGate permission="inspections.read">
           <InspectionProgramCalendarSection />
         </PermissionGate>
       </Suspense>
-      <Suspense fallback={<InspectionRunSkeleton />}>
+      <Suspense fallback={<InspectionRunSectionSkeleton />}>
         <PermissionGate permission="inspections.read">
           {searchParams.then((query) => (
             <InspectionRunSection query={query} />

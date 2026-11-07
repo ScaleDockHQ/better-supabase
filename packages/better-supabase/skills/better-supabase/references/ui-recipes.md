@@ -6713,7 +6713,7 @@ export function WorkflowRuns({ tenant }: { tenant: string | null }) {
   );
 }
 
-export function WorkflowRunsSkeleton() {
+function WorkflowRunsSkeleton() {
   return (
     <div className="space-y-2" aria-busy="true">
       {Array.from({ length: 4 }, (_, index) => (
@@ -6947,7 +6947,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -7193,24 +7192,6 @@ export function AiTaskQueue({ read }: { read: AiTasksRead }) {
     </Card>
   );
 }
-
-const SKELETON_ROWS = ["first", "second", "third"];
-
-export function AiTaskQueueSkeleton() {
-  return (
-    <Card aria-busy="true">
-      <CardHeader>
-        <Skeleton className="h-5 w-40" />
-        <Skeleton className="h-4 w-72" />
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {SKELETON_ROWS.map((row) => (
-          <Skeleton key={row} className="h-11 w-full" />
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
 ```
 
 ## AI provider settings
@@ -7294,7 +7275,6 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { Skeleton } from "@/components/ui/skeleton";
 import {
   Table,
   TableBody,
@@ -7648,30 +7628,7 @@ export function AiProviderSettings({ read }: { read: ProviderKeysRead }) {
   );
 }
 
-const SKELETON_ROWS = ["first", "second"];
-
 /** Keeps the card's title in the static shell, so the tab commits it at once. */
-export function AiProviderSettingsSkeleton() {
-  const t = useExtracted("aiProviders");
-
-  return (
-    <Card aria-busy="true">
-      <CardHeader>
-        <CardTitle>{t("AI providers")}</CardTitle>
-        <CardDescription>
-          {t(
-            "The organization's own provider keys, used instead of the app's key for the assistant.",
-          )}
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="flex flex-col gap-2">
-        {SKELETON_ROWS.map((row) => (
-          <Skeleton key={row} className="h-11 w-full" />
-        ))}
-      </CardContent>
-    </Card>
-  );
-}
 ```
 
 ## Push opt-in
@@ -9427,7 +9384,7 @@ function ValueControl({
   }
 }
 
-export function RuleBuilderSkeleton() {
+function RuleBuilderSkeleton() {
   return (
     <Card aria-busy="true">
       <CardHeader>
@@ -10765,7 +10722,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 
 import type { DocumentRegisterView, DocumentRow } from "../drive-queries";
 
@@ -10963,20 +10919,6 @@ export function DocumentRegister({ state }: { state: DocumentRegisterView }) {
         ) : (
           <DocumentGrid documents={state.documents} />
         )}
-      </FramePanel>
-    </Frame>
-  );
-}
-
-export function DocumentRegisterSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-36" />
-        <Skeleton className="h-4 w-80" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-48" />
       </FramePanel>
     </Frame>
   );
@@ -15825,7 +15767,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 
 import type {
   CarePlanActionRow,
@@ -16165,20 +16106,6 @@ export function CarePlanEditor({ state }: { state: Loaded<CarePlanState> }) {
     </Frame>
   );
 }
-
-export function CarePlanEditorSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-40" />
-        <Skeleton className="h-4 w-72" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-56" />
-      </FramePanel>
-    </Frame>
-  );
-}
 ```
 
 ## Care plan evaluations
@@ -16233,7 +16160,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 
 import type {
   CarePlanEvaluationRow,
@@ -16398,20 +16324,6 @@ export function CarePlanEvaluations({
         ) : (
           <EvaluationGrid evaluations={evaluations} />
         )}
-      </FramePanel>
-    </Frame>
-  );
-}
-
-export function CarePlanEvaluationsSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-4 w-80" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-40" />
       </FramePanel>
     </Frame>
   );
@@ -27188,7 +27100,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 
 import type { BandTone, Loaded, RiskRow } from "../risks-queries";
 
@@ -27384,20 +27295,6 @@ export function RiskRegister({ state }: { state: Loaded<readonly RiskRow[]> }) {
         ) : (
           <RiskGrid risks={state.data} />
         )}
-      </FramePanel>
-    </Frame>
-  );
-}
-
-export function RiskRegisterSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-4 w-80" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-48" />
       </FramePanel>
     </Frame>
   );
@@ -28099,7 +27996,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 
 import type { InspectionRow, Loaded } from "../inspections-queries";
@@ -28288,20 +28184,6 @@ export function InspectionProgramCalendar({
         ) : (
           <CalendarGrid inspections={state.data} />
         )}
-      </FramePanel>
-    </Frame>
-  );
-}
-
-export function InspectionProgramCalendarSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-36" />
-        <Skeleton className="h-4 w-80" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-48" />
       </FramePanel>
     </Frame>
   );
@@ -28577,7 +28459,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 import { Link } from "@/i18n/navigation";
 
 import type { Loaded, MeetingRow } from "../meetings-queries";
@@ -28743,20 +28624,6 @@ export function MeetingAgenda({
         ) : (
           <AgendaGrid meetings={state.data} />
         )}
-      </FramePanel>
-    </Frame>
-  );
-}
-
-export function MeetingAgendaSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-36" />
-        <Skeleton className="h-4 w-80" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-48" />
       </FramePanel>
     </Frame>
   );

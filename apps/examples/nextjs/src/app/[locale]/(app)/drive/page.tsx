@@ -2,8 +2,10 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import { DocumentRegisterSkeleton } from "@/features/drive/components/document-register";
-import { DocumentRegisterSection } from "@/features/drive/components/document-register-section";
+import {
+  DocumentRegisterSectionSkeleton,
+  DocumentRegisterSection,
+} from "@/features/drive/components/document-register-section";
 import {
   DriveExplorer,
   DriveExplorerSkeleton,
@@ -26,7 +28,7 @@ export default function DrivePage() {
           <DriveExplorer folderId={ROOT} />
         </PermissionGate>
       </Suspense>
-      <Suspense fallback={<DocumentRegisterSkeleton />}>
+      <Suspense fallback={<DocumentRegisterSectionSkeleton />}>
         <PermissionGate permission="drive.read">
           <DocumentRegisterSection />
         </PermissionGate>

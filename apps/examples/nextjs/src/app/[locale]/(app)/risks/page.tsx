@@ -6,8 +6,10 @@ import {
   RiskHeatmap,
   RiskHeatmapSkeleton,
 } from "@/features/risks/components/risk-heatmap";
-import { RiskRegisterSkeleton } from "@/features/risks/components/risk-register";
-import { RiskRegisterSection } from "@/features/risks/components/risk-register-section";
+import {
+  RiskRegisterSectionSkeleton,
+  RiskRegisterSection,
+} from "@/features/risks/components/risk-register-section";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
 export default function RisksPage() {
@@ -26,7 +28,7 @@ export default function RisksPage() {
           <RiskHeatmap />
         </PermissionGate>
       </Suspense>
-      <Suspense fallback={<RiskRegisterSkeleton />}>
+      <Suspense fallback={<RiskRegisterSectionSkeleton />}>
         <PermissionGate permission="risks.read">
           <RiskRegisterSection />
         </PermissionGate>

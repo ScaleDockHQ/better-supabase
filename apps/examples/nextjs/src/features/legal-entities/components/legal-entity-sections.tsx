@@ -44,7 +44,6 @@ async function retry() {
   refresh();
 }
 
-// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /** Render inside `<Suspense>`: the organization's legal entities. */
 export async function LegalEntityListSection() {
   const t = await getExtracted("legal-entities");
@@ -150,7 +149,7 @@ export async function LegalEntityListSection() {
   );
 }
 
-export function LegalEntityListSkeleton() {
+export function LegalEntityListSectionSkeleton() {
   return (
     <Frame spacing="sm" aria-busy="true">
       <FrameHeader className="gap-1">

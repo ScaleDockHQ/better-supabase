@@ -2,8 +2,10 @@ import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
 import { PageHeader } from "@/components/page-header";
-import { PrescriptionsSkeleton } from "@/features/e-prescribing/components/prescriptions";
-import { PrescriptionsSection } from "@/features/e-prescribing/components/prescriptions-section";
+import {
+  PrescriptionsSectionSkeleton,
+  PrescriptionsSection,
+} from "@/features/e-prescribing/components/prescriptions-section";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
 export default function PrescriptionsPage() {
@@ -17,7 +19,7 @@ export default function PrescriptionsPage() {
           "Drafts the prescriber signs, then a gateway sends them to the pharmacy.",
         )}
       />
-      <Suspense fallback={<PrescriptionsSkeleton />}>
+      <Suspense fallback={<PrescriptionsSectionSkeleton />}>
         <PermissionGate permission="e_prescribing.read">
           <PrescriptionsSection />
         </PermissionGate>

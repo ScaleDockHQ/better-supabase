@@ -1,8 +1,8 @@
 import { Suspense } from "react";
 
 import {
-  TeamsSection,
   TeamsSectionSkeleton,
+  TeamsSection,
 } from "@/features/teams/components/teams-section";
 import { PermissionGate } from "@/features/user/components/permission-gate";
 

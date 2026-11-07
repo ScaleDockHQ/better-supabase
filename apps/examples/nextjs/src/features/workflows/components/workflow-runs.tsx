@@ -103,7 +103,7 @@ export function WorkflowRuns({ tenant }: { tenant: string | null }) {
   );
 }
 
-export function WorkflowRunsSkeleton() {
+function WorkflowRunsSkeleton() {
   return (
     <div className="space-y-2" aria-busy="true">
       {Array.from({ length: 4 }, (_, index) => (

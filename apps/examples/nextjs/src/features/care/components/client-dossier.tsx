@@ -3,14 +3,10 @@ import { Suspense } from "react";
 
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { getCarePlan } from "@/features/care-plans/care-plans-queries";
-import {
-  CarePlanEditor,
-  CarePlanEditorSkeleton,
-} from "@/features/care-plans/components/care-plan-editor";
-import {
-  CarePlanEvaluations,
-  CarePlanEvaluationsSkeleton,
-} from "@/features/care-plans/components/care-plan-evaluations";
+import { CarePlanEditor } from "@/features/care-plans/components/care-plan-editor";
+import { CarePlanEditorSectionSkeleton } from "@/features/care-plans/components/care-plan-editor-section";
+import { CarePlanEvaluations } from "@/features/care-plans/components/care-plan-evaluations";
+import { CarePlanEvaluationsSectionSkeleton } from "@/features/care-plans/components/care-plan-evaluations-section";
 import {
   ActivityTimeline,
   ActivityTimelineSkeleton,
@@ -26,9 +22,10 @@ import {
 import { PermissionGate } from "@/features/user/components/permission-gate";
 
 import {
-  CareSectionSkeleton,
   ClientAccessLog,
+  ClientAccessLogSkeleton,
   ClientConsents,
+  ClientConsentsSkeleton,
   ClientHeading,
   ClientHeadingSkeleton,
 } from "./care-sections";
@@ -41,7 +38,6 @@ async function PlanEvaluations({ clientId }: { clientId: string }) {
   return <CarePlanEvaluations state={await getCarePlan(clientId)} />;
 }
 
-// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /**
  * Render inside `<Suspense>`: the client's name over one tab per part of the
  * dossier. Every tab streams in on its own and checks its own permission.
@@ -71,12 +67,12 @@ export async function ClientDossier({ clientId }: { clientId: string }) {
           </Suspense>
         </TabsContent>
         <TabsContent value="plan" className="flex flex-col gap-6">
-          <Suspense fallback={<CarePlanEditorSkeleton />}>
+          <Suspense fallback={<CarePlanEditorSectionSkeleton />}>
             <PermissionGate permission="care_plans.read">
               <PlanEditor clientId={clientId} />
             </PermissionGate>
           </Suspense>
-          <Suspense fallback={<CarePlanEvaluationsSkeleton />}>
+          <Suspense fallback={<CarePlanEvaluationsSectionSkeleton />}>
             <PermissionGate permission="care_plans.read">
               <PlanEvaluations clientId={clientId} />
             </PermissionGate>
@@ -97,14 +93,14 @@ export async function ClientDossier({ clientId }: { clientId: string }) {
           </Suspense>
         </TabsContent>
         <TabsContent value="consents">
-          <Suspense fallback={<CareSectionSkeleton />}>
+          <Suspense fallback={<ClientConsentsSkeleton />}>
             <PermissionGate permission="consents.read">
               <ClientConsents clientId={clientId} />
             </PermissionGate>
           </Suspense>
         </TabsContent>
         <TabsContent value="access">
-          <Suspense fallback={<CareSectionSkeleton />}>
+          <Suspense fallback={<ClientAccessLogSkeleton />}>
             <PermissionGate permission="audit.read">
               <ClientAccessLog clientId={clientId} />
             </PermissionGate>
@@ -113,4 +109,8 @@ export async function ClientDossier({ clientId }: { clientId: string }) {
       </Tabs>
     </div>
   );
+}
+
+export function ClientDossierSkeleton() {
+  return <ClientHeadingSkeleton />;
 }

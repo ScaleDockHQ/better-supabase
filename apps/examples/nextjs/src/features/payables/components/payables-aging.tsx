@@ -47,7 +47,6 @@ async function retry() {
   refresh();
 }
 
-// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 /**
  * Render inside `<Suspense>`: what the organization owes its suppliers on open
  * purchase bills, then the same total by days past due.
@@ -200,7 +199,7 @@ export async function PayablesAgingSection() {
   );
 }
 
-export function PayablesAgingSkeleton() {
+export function PayablesAgingSectionSkeleton() {
   return (
     <div className="flex flex-col gap-6" aria-busy="true">
       <div className="grid gap-4 md:grid-cols-3">

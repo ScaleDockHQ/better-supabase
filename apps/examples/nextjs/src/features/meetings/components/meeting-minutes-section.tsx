@@ -1,6 +1,8 @@
 import { io } from "next/cache";
 import * as v from "valibot";
 
+import { Frame, FrameHeader, FramePanel } from "@/components/reui/frame";
+import { Skeleton } from "@/components/ui/skeleton";
 import {
   MeetingMinutes,
   MeetingMinutesPicker,
@@ -11,7 +13,6 @@ import { can } from "@/features/user/user-permissions";
 
 const MeetingParam = v.pipe(v.string(), v.uuid());
 
-// skeleton: the page passes the wrapped component's own skeleton to <Suspense>
 export async function MeetingMinutesSection({
   query,
 }: {
@@ -30,5 +31,19 @@ export async function MeetingMinutesSection({
       state={await getMeetingMinutes(picked.output)}
       canRun={can(permissions, "meetings.write")}
     />
+  );
+}
+
+export function MeetingMinutesSectionSkeleton() {
+  return (
+    <Frame spacing="sm" aria-busy="true">
+      <FrameHeader className="gap-1">
+        <Skeleton className="h-4 w-48" />
+        <Skeleton className="h-4 w-32" />
+      </FrameHeader>
+      <FramePanel>
+        <Skeleton className="h-32" />
+      </FramePanel>
+    </Frame>
   );
 }

@@ -42,7 +42,6 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
-import { Skeleton } from "@/components/ui/skeleton";
 
 import type { BandTone, Loaded, RiskRow } from "../risks-queries";
 
@@ -243,17 +242,4 @@ export function RiskRegister({ state }: { state: Loaded<readonly RiskRow[]> }) {
   );
 }
 
-export function RiskRegisterSkeleton() {
-  return (
-    <Frame spacing="sm" aria-busy="true">
-      <FrameHeader className="gap-1">
-        <Skeleton className="h-4 w-28" />
-        <Skeleton className="h-4 w-80" />
-      </FrameHeader>
-      <FramePanel>
-        <Skeleton className="h-48" />
-      </FramePanel>
-    </Frame>
-  );
-}
 // #endregion recipe:risk-register

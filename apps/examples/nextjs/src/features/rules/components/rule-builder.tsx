@@ -963,7 +963,7 @@ function ValueControl({
   }
 }
 
-export function RuleBuilderSkeleton() {
+function RuleBuilderSkeleton() {
   return (
     <Card aria-busy="true">
       <CardHeader>
