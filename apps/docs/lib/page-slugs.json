@@ -256,6 +256,7 @@
   "cli",
   "cli/agent-mode",
   "cli/automations",
+  "cli/cache",
   "cli/codemod",
   "cli/completion",
   "cli/config",

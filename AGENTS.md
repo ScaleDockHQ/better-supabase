@@ -381,6 +381,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0268: Close the parties and documents gaps of the base layer.
 - 0269: Close the fields and work gaps of the base layer.
 - 0290: CLI contract 3 follows the Vercel CLI design guidelines.
+- 0291: Memoize the adoption scan on disk, watch with `dev`, and purge the cache with `cache purge`.
 
 ## Pre-release pins
 

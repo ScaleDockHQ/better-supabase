@@ -15,6 +15,7 @@ import type { CommandNode, Loader } from "./parse.ts";
 import type { ExecEvent, HttpEvent } from "./trace.ts";
 
 import { builtinCommands } from "../builtin-commands.ts";
+import { setCacheEnabled } from "../cache/store.ts";
 import { painter } from "../style.ts";
 import { VERSION } from "../version.ts";
 import { checkConsent, missingInputNext, resolveAgent } from "./agent.ts";
@@ -568,6 +569,7 @@ export function cliFromTree(
       }
 
       const globals = parseArgs<typeof GLOBAL_ARGS>([...rest], GLOBAL_ARGS);
+      setCacheEnabled(!rest.includes("--no-cache"));
       const cwd = projectDirectory(options.cwd ?? ".", globals.cwd);
       const env = parseEnv(options.env ?? {});
       const environment = configEnvironment(globals.env, env);
@@ -613,6 +615,13 @@ export function cliFromTree(
           });
         }
       };
+
+      // Lazy: the memo store pulls in the SQL generator, which `--help` and
+      // `--version` never load. Without the store the generator computes every
+      // result, so the fallback is a slower run, never a wrong one.
+      await import("../cache/memo-backend.ts").then(({ installMemo }) =>
+        installMemo(config.root),
+      );
 
       context = {
         cwd,

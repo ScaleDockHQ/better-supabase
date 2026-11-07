@@ -95,3 +95,13 @@ export function renderKey(
 
   return text === UNCACHEABLE ? undefined : sha256Hex(text);
 }
+
+/**
+ * The key of any `parts`, with the same rules as `renderKey`: `undefined` when
+ * a part holds a function or state the text can't carry.
+ */
+export function stableKey(parts: unknown): string | undefined {
+  const text = stable(parts);
+
+  return text === UNCACHEABLE ? undefined : sha256Hex(text);
+}

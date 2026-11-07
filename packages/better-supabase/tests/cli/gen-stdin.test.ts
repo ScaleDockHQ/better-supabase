@@ -144,7 +144,7 @@ describe("gen --metadata", () => {
 
   it("refuses flags that don't combine with --metadata", async () => {
     const cases = [
-      [["--metadata", "-", "--watch"], /can't be combined with --watch/],
+      [["--metadata", "-", "--watch"], /--watch was removed.*dev command/],
       [["--metadata", "-", "--snapshot", "s.json"], /--snapshot/],
       [["--metadata", "-", "--emit", "sql"], /--emit must be one of/],
       [

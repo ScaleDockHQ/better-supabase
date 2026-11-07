@@ -46,6 +46,7 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
         (m) => m.dbPruneWorkflowsCommand,
       ),
   ],
+  ["dev", () => import("./commands/dev.ts").then((m) => m.devCommand)],
   ["dev env", () => import("./commands/env.ts").then((m) => m.envCommand)],
   ["dev run", () => import("./commands/run.ts").then((m) => m.runCommand)],
   ["dev keys", () => import("./commands/keys.ts").then((m) => m.keysCommand)],
@@ -130,6 +131,10 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
   [
     "completion",
     () => import("./commands/completion.ts").then((m) => m.completionCommand),
+  ],
+  [
+    "cache purge",
+    () => import("./commands/cache.ts").then((m) => m.cachePurgeCommand),
   ],
   ["config", () => import("./commands/config.ts").then((m) => m.configCommand)],
 ];

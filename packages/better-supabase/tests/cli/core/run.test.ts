@@ -105,8 +105,11 @@ describe("run", () => {
   it("prints the usage to stderr without a command and to stdout for help", async () => {
     expect(await run([])).toMatchObject({ code: 2, stdout: "" });
     expect((await run(["help"])).code).toBe(0);
+    expect((await run(["db", "--help"])).stdout).toContain(
+      "Usage: better-supabase db <command> [options]",
+    );
     expect((await run(["dev", "--help"])).stdout).toContain(
-      "Usage: better-supabase dev <command> [options]",
+      "Usage: better-supabase dev [command] [options]",
     );
     expect((await run(["help", "dev"])).stdout).toContain(
       "Usage: better-supabase dev",
@@ -352,16 +355,7 @@ describe("run", () => {
     const stderr: string[] = [];
 
     const result = await run(
-      [
-        "gen",
-        "--watch",
-        "--interval",
-        "1",
-        "--project-ref",
-        "abc",
-        "--cwd",
-        dir,
-      ],
+      ["dev", "--interval", "1", "--project-ref", "abc", "--cwd", dir],
       {
         signal: controller.signal,
         env: ENV,
@@ -379,7 +373,7 @@ describe("run", () => {
     );
 
     expect(result.code).toBe(0);
-    expect(stderr).toHaveLength(1);
+    expect(stderr.filter((line) => line !== "Ready\n")).toHaveLength(1);
     expect(stderr[0]).toContain("500");
     expect(stdout).toEqual([
       "Created src/lib/supabase/database.types.ts\nCreated src/lib/supabase/generated.ts\nCreated src/lib/supabase/generated.meta.js\nCreated src/lib/supabase/generated.meta.d.ts\nCreated src/lib/supabase/generated-schema.ts\nGenerated 0 tables.\n",
@@ -411,16 +405,7 @@ describe("run", () => {
     const stdout: string[] = [];
 
     const result = await run(
-      [
-        "gen",
-        "--watch",
-        "--interval",
-        "1",
-        "--project-ref",
-        "abc",
-        "--cwd",
-        dir,
-      ],
+      ["dev", "--interval", "1", "--project-ref", "abc", "--cwd", dir],
       {
         signal: controller.signal,
         env: ENV,
@@ -456,7 +441,7 @@ describe("run", () => {
     const stdout: string[] = [];
 
     const result = await run(
-      ["gen", "--watch", "--json", "--interval", "1", "--project-ref", "abc"],
+      ["dev", "--json", "--interval", "1", "--project-ref", "abc"],
       {
         cwd: dir,
         signal: controller.signal,
@@ -500,16 +485,7 @@ describe("run", () => {
     const stderr: string[] = [];
 
     const result = await run(
-      [
-        "gen",
-        "--watch",
-        "--interval",
-        "1",
-        "--project-ref",
-        "abc",
-        "--cwd",
-        dir,
-      ],
+      ["dev", "--interval", "1", "--project-ref", "abc", "--cwd", dir],
       {
         signal: controller.signal,
         env: ENV,
@@ -524,7 +500,9 @@ describe("run", () => {
     );
 
     expect(result.code).toBe(0);
-    expect(stderr).toEqual([`generator "flaky" failed: flaky failed\n`]);
+    expect(stderr.filter((line) => line !== "Ready\n")).toEqual([
+      `generator "flaky" failed: flaky failed\n`,
+    ]);
     expect(stdout[0]).toContain("Generated 0 tables");
     const counter = globalThis as { flakyGeneratorRuns?: number };
     expect(counter.flakyGeneratorRuns).toBe(3);
@@ -549,16 +527,7 @@ describe("run", () => {
     const stdout: string[] = [];
 
     const result = await run(
-      [
-        "gen",
-        "--watch",
-        "--interval",
-        "1",
-        "--project-ref",
-        "abc",
-        "--cwd",
-        dir,
-      ],
+      ["dev", "--interval", "1", "--project-ref", "abc", "--cwd", dir],
       {
         signal: controller.signal,
         env: ENV,
@@ -593,10 +562,9 @@ describe("run", () => {
 
   it("refuses a watch interval that isn't a positive number", async () => {
     for (const interval of ["abc", "0", "-5"]) {
-      const result = await run(
-        ["gen", "--watch", "--interval", interval, "--cwd", dir],
-        { env: ENV },
-      );
+      const result = await run(["dev", "--interval", interval, "--cwd", dir], {
+        env: ENV,
+      });
 
       expect(result.code).toBe(2);
       expect(result.stderr).toContain("--interval");
@@ -608,19 +576,16 @@ describe("run", () => {
     const controller = new AbortController();
     const started = Date.now();
 
-    const result = await run(
-      ["gen", "--watch", "--project-ref", "abc", "--cwd", dir],
-      {
-        signal: controller.signal,
-        env: ENV,
-        io: io({
-          stdout: () =>
-            setTimeout(() => {
-              controller.abort();
-            }, 0),
-        }),
-      },
-    );
+    const result = await run(["dev", "--project-ref", "abc", "--cwd", dir], {
+      signal: controller.signal,
+      env: ENV,
+      io: io({
+        stdout: () =>
+          setTimeout(() => {
+            controller.abort();
+          }, 0),
+      }),
+    });
 
     expect(result.code).toBe(0);
     expect(Date.now() - started).toBeLessThan(2000);

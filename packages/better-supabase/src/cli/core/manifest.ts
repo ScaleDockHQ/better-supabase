@@ -314,6 +314,30 @@ export const COMMANDS: readonly CommandSpec[] = [
     ],
   },
   {
+    name: "cache",
+    description:
+      "Works with what the CLI keeps between runs: rendered modules, parsed schema files and the catalog snapshot",
+    group: "maintain",
+    docs: "/docs/cli/cache",
+    effects: [FILES],
+    subcommands: [
+      {
+        name: "purge",
+        description:
+          "Deletes the CLI's cache in node_modules/.cache/better-supabase; the next run rebuilds what it needs",
+        docs: "/docs/cli/cache#purge",
+        effects: [FILES],
+        examples: [
+          {
+            command: "better-supabase cache purge --dry-run",
+            description:
+              "Name the cached entries and their size, and keep them",
+          },
+        ],
+      },
+    ],
+  },
+  {
     name: "completion",
     description:
       "Prints the shell completion script for bash, zsh or fish, for both better-supabase and bsb",
@@ -415,10 +439,23 @@ export const COMMANDS: readonly CommandSpec[] = [
   {
     name: "dev",
     description:
-      "Works with the local stack: its env file, commands run against it, its signing key and the stacks on this machine",
+      "Regenerates the project whenever the config, the schema files or a task's input changes; its subcommands work with the local stack",
     group: "local",
     docs: "/docs/cli/dev",
-    effects: [FILES, { kind: "process" }, { kind: "stacks", access: "write" }],
+    examples: [
+      {
+        command: "better-supabase dev",
+        description:
+          "Runs the generator tasks, prints Ready, and runs only what a change affects",
+      },
+    ],
+    effects: [
+      FILES,
+      READS_DATABASE,
+      MANAGEMENT_API,
+      { kind: "process" },
+      { kind: "stacks", access: "write" },
+    ],
     subcommands: [
       {
         name: "env",

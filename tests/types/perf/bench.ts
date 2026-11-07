@@ -676,7 +676,12 @@ const compilerOf = (mode: Mode): Compiler =>
 const describe = (measurement: Measurement): string =>
   `${String(measurement.instantiations)} instantiations, ${String(measurement.types)} types, check ${measurement.checkTime.toFixed(2)}s`;
 
-for (const [profileName, profile] of Object.entries(PROFILES)) {
+// `BENCH_ONLY=upgrade` skips the type profiles, for work on the generator alone.
+const only = process.env["BENCH_ONLY"];
+
+for (const [profileName, profile] of Object.entries(
+  only === "upgrade" ? {} : PROFILES,
+)) {
   const current = run(profile);
   next[profileName] = {
     ...profile,
@@ -815,25 +820,38 @@ function checkGen(
 
 /**
  * `upgrade` on a copy of the CentraKit fixture: a cold run with no module
- * files, a warm no-op and a run after one edit of an app file. The run count
- * and the written count come from the command's own report, so a render cache
- * shows up as fewer rendered modules, not only as less time.
+ * files, a warm no-op and a run after one edit of an app file. The rendered
+ * count comes from the command's own cache report (module files a fresh render
+ * produced) and the written count from its receipt, so the render cache shows
+ * up as fewer rendered modules, not only as less time.
  */
 function upgradeRun(directory: string): UpgradeRun {
   const started = performance.now();
 
-  const output = execFileSync(
+  const result = spawnSync(
     process.execPath,
-    [cli, "upgrade", "--cwd", directory, "--agent", "no"],
-    { encoding: "utf-8", stdio: ["ignore", "pipe", "pipe"] },
+    [cli, "upgrade", "--cwd", directory, "--agent", "no", "--json"],
+    { encoding: "utf-8" },
   );
 
   const seconds = Number(((performance.now() - started) / 1000).toFixed(2));
-  const lines = output.split("\n").filter((line) => / \(.+\)$/.test(line));
+
+  if (result.status !== 0) {
+    throw new Error(`upgrade failed: ${result.stderr}`);
+  }
+
+  // SAFETY: `upgrade --json` prints the result document with the cache counts.
+  const document = JSON.parse(result.stdout) as {
+    readonly data: { readonly cache: { readonly rendered: number } };
+  };
+
+  const lines = result.stderr
+    .split("\n")
+    .filter((line) => / \(.+\)$/.test(line));
 
   return {
     seconds,
-    rendered: lines.length,
+    rendered: document.data.cache.rendered,
     written: lines.filter((line) => !line.startsWith("Unchanged ")).length,
   };
 }
@@ -860,7 +878,18 @@ function benchUpgrade(): UpgradeTimes {
     }
   }
 
+  // The fixture's node_modules is a link into the repo, so its cache outlives a
+  // copy; purging it makes the first run cold.
+  execFileSync(process.execPath, [cli, "cache", "purge", "--cwd", directory], {
+    stdio: "pipe",
+  });
+
   const cold = upgradeRun(directory);
+
+  // The first run's files change what the second one sees (the tables the
+  // modules own), so one unmeasured run settles the tree; the warm run after
+  // it is a true no-op.
+  upgradeRun(directory);
   const warm = upgradeRun(directory);
 
   const app = join(directory, "supabase", "schemas", "000_centrakit.sql");
@@ -870,7 +899,9 @@ function benchUpgrade(): UpgradeTimes {
   );
   const edit = upgradeRun(directory);
 
-  rmSync(directory, { recursive: true, force: true });
+  if (process.env["BENCH_KEEP"] !== "1") {
+    rmSync(directory, { recursive: true, force: true });
+  }
 
   return { cold, warm, edit };
 }
@@ -923,7 +954,7 @@ if (!update) {
   checkUpgrade(upgradeNow, baseline.upgrade);
 }
 
-if (update) {
+if (update && only === undefined) {
   writeFileSync(
     baselinePath,
     `${JSON.stringify({ calibration, profiles: next, upgrade: upgradeNow }, null, 2)}\n`,

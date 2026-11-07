@@ -15,6 +15,16 @@ const REMOVED: readonly RemovedFlag[] = [
     flag: "--confirm",
     replacement: "--yes --effects-digest <digest>",
   },
+  {
+    path: ["gen"],
+    flag: "--watch",
+    replacement: "the dev command (better-supabase dev)",
+  },
+  {
+    path: ["gen"],
+    flag: "--interval",
+    replacement: "the dev command (better-supabase dev --interval <ms>)",
+  },
 ];
 
 const startsWith = (

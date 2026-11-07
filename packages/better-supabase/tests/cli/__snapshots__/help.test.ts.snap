@@ -231,6 +231,61 @@ Docs: https://bettersupabase.com/docs/cli/presets#blocks
 "
 `;
 
+exports[`help > documents cache 1`] = `
+"Usage: better-supabase cache <command> [options]
+
+Works with what the CLI keeps between runs: rendered modules, parsed schema files and the catalog snapshot
+
+Commands
+  purge  Deletes the CLI's cache in node_modules/.cache/better-supabase; the next run rebuilds what it needs
+
+Global options
+  --cwd <dir>                Project directory
+  --config <file>            Config file, relative to --cwd
+  --env <name>               Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                     Print one JSON document on stdout; a failure prints an error document on stderr. On by default in agent mode
+  --agent <auto|yes|no>      Agent mode (JSON output, no prompts, confirmation for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --effects-digest <digest>  The digest from a confirmation_required result; with --yes, confirms exactly those effects
+  -y, --yes                  Answer yes to every confirmation; ask nothing
+  --non-interactive          Never prompt; fail with input_required when a value is missing. On in CI and agent mode
+  --no-color                 Print no colors, like $NO_COLOR
+  --debug                    Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help                 Show help
+
+Docs: https://bettersupabase.com/docs/cli/cache
+"
+`;
+
+exports[`help > documents cache purge 1`] = `
+"Usage: better-supabase cache purge [options]
+
+Deletes the CLI's cache in node_modules/.cache/better-supabase; the next run rebuilds what it needs
+
+Options
+  --dry-run  Name what would be removed and remove nothing
+
+Global options
+  --cwd <dir>                Project directory
+  --config <file>            Config file, relative to --cwd
+  --env <name>               Config environment to apply ($env.<name> or $<name>). Defaults to $BETTER_SUPABASE_ENV, then ci when $CI is set
+  --json                     Print one JSON document on stdout; a failure prints an error document on stderr. On by default in agent mode
+  --agent <auto|yes|no>      Agent mode (JSON output, no prompts, confirmation for destructive work): auto detects a coding agent, yes or no decide. Defaults to $BETTER_SUPABASE_AGENT, then auto
+  --effects-digest <digest>  The digest from a confirmation_required result; with --yes, confirms exactly those effects
+  -y, --yes                  Answer yes to every confirmation; ask nothing
+  --non-interactive          Never prompt; fail with input_required when a value is missing. On in CI and agent mode
+  --no-color                 Print no colors, like $NO_COLOR
+  --debug                    Print stack traces, the commands the CLI runs, and timings on stderr
+  -h, --help                 Show help
+
+Examples
+  # Name the cached entries and their size, and keep them
+  $ better-supabase cache purge --dry-run
+
+Side effects: Writes files.
+Docs: https://bettersupabase.com/docs/cli/cache#purge
+"
+`;
+
 exports[`help > documents codemod 1`] = `
 "Usage: better-supabase codemod <command> [options]
 
@@ -691,15 +746,23 @@ Docs: https://bettersupabase.com/docs/cli/db#seed
 `;
 
 exports[`help > documents dev 1`] = `
-"Usage: better-supabase dev <command> [options]
+"Usage: better-supabase dev [command] [options]
 
-Works with the local stack: its env file, commands run against it, its signing key and the stacks on this machine
+Regenerates the project whenever the config, the schema files or a task's input changes; its subcommands work with the local stack
 
 Commands
   env    Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines
   run    Runs the command after -- with the local stack's URL and keys set, overriding the shell and .env files
   keys   Creates an ES256 signing key for the local stack, so local tokens verify through JWKS like hosted ones
   stack  Lists the Supabase CLI's managed stacks and prunes the ones whose worktree or branch is gone
+
+Options
+  --only <list,...>    Tasks to run: types, sql, powersync, spec, seed, env. Defaults to gen.tasks, or every task the config sets up
+  --force              Overwrite a file at a generated path that the CLI did not write
+  --interval <ms>      Milliseconds between checks when no file event arrives. Defaults to gen.watchInterval, then 2000
+  --snapshot <file>    Read a saved snapshot instead of the database
+  --db-url-stdin       Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL
+  --project-ref <ref>  Read a hosted project through the Management API
 
 Global options
   --cwd <dir>                Project directory
@@ -714,6 +777,11 @@ Global options
   --debug                    Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help                 Show help
 
+Examples
+  # Runs the generator tasks, prints Ready, and runs only what a change affects
+  $ better-supabase dev
+
+Side effects: Writes files, reads the database, runs the command you pass, stops or destroys local stacks.
 Docs: https://bettersupabase.com/docs/cli/dev
 "
 `;
@@ -954,8 +1022,6 @@ Options
   --check                               Fail when a generated file is out of date
   --dry-run                             Print what would change and write nothing
   --force                               Overwrite a file at a generated path that the CLI did not write
-  --watch                               Run again whenever the schema, the config file or a task's input changes
-  --interval <ms>                       Milliseconds between checks in --watch. Defaults to gen.watchInterval, then 2000
   --save-snapshot                       Read the database and save the schema as a snapshot file instead of generating
   --out <file>                          With --save-snapshot: defaults to database.source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json
   --kind <snapshot|generator-metadata>  With --save-snapshot: snapshot (the default) or generator-metadata (postgrest-typegen's input)
@@ -1575,7 +1641,7 @@ Generate
   spec       Writes, checks or validates the OpenAPI and other spec documents your defineApi() module renders
 
 Local stack
-  dev  Works with the local stack: its env file, commands run against it, its signing key and the stacks on this machine
+  dev  Regenerates the project whenever the config, the schema files or a task's input changes; its subcommands work with the local stack
   db   Runs SQL files and seeds against the database, backfills columns, prunes ended workflow runs, and diffs the declarative schema: the local stack by default, or the one in the connection string
 
 Inspect
@@ -1586,6 +1652,7 @@ Inspect
 
 Maintain
   migrate  Moves a project to a newer model: schema-first turns appTables into table files you own
+  cache    Works with what the CLI keeps between runs: rendered modules, parsed schema files and the catalog snapshot
   codemod  Rewrites imports, calls and config keys for renamed better-supabase APIs
 
 Account

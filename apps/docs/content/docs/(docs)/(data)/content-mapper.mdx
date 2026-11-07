@@ -88,7 +88,7 @@ The mapper tells TypeScript to watch the config, the snapshot,
 `supabase/config.toml` and a stamp file in the cache folder, and TypeScript
 asks for the types again when one changes. TypeScript can't watch a folder
 pattern, so a change to `supabase/schemas` or a migration reaches the editor
-through `gen`, or through [`gen --watch`](/docs/cli/gen#introspection-cache),
+through `gen`, or through [`dev`](/docs/cli/dev#watching),
 which rewrites the stamp only when the types change.
 
 Each `tsc` run starts the mapper, which takes about 0.3 seconds; checking the

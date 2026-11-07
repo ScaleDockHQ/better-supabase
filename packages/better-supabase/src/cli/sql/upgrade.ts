@@ -89,6 +89,7 @@ export async function upgrade(
     installed.map((entry) => entry.module),
     text,
     sqlLayout,
+    files,
   );
 
   if (renames.refused.length > 0) {

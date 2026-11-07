@@ -49,6 +49,7 @@ const PAGES: Readonly<Record<string, string>> = {
   blocks: "cli/presets.mdx",
   automations: "cli/automations.mdx",
   dev: "cli/dev.mdx",
+  cache: "cli/cache.mdx",
   db: "cli/db.mdx",
   table: "cli/table.mdx",
   migrate: "cli/migrate.mdx",

@@ -20,8 +20,12 @@ interface Entry {
  */
 const memory = new Map<string, readonly BlockSqlFile[]>();
 
-/** Renders and cache lookups this process made, for tests and the bench. */
-export const renderStats = { fresh: 0, memory: 0, disk: 0 };
+/**
+ * Renders and cache lookups this process made, for tests and the bench:
+ * `modules` counts the module files a fresh render produced, so a run served
+ * from the cache reports zero.
+ */
+export const renderStats = { fresh: 0, memory: 0, disk: 0, modules: 0 };
 
 function isFile(value: unknown): value is BlockSqlFile {
   return (
@@ -82,8 +86,10 @@ export async function renderBlocksCached(
 
   if (key === undefined) {
     renderStats.fresh += 1;
+    const files = renderBlocks(names, layout);
+    renderStats.modules += files.length;
 
-    return renderBlocks(names, layout);
+    return files;
   }
 
   const held = memory.get(key);
@@ -109,6 +115,7 @@ export async function renderBlocksCached(
 
   renderStats.fresh += 1;
   const files = renderBlocks(names, layout);
+  renderStats.modules += files.length;
   memory.set(key, files);
   const entry: Entry = { key, files };
   const temporary = `${file}.${String(process.pid)}.tmp`;
