@@ -596,6 +596,10 @@ export function emitModule(model: Model, options: EmitOptions): string {
     );
   }
 
+  if (model.jsonImports.some((entry) => entry.value === true)) {
+    lines.push(`import type { StandardSchemaV1 } from ${q(runtime)};`);
+  }
+
   lines.push(
     options.inlineMeta
       ? `\nconst meta: SchemaMeta = ${compactJson({ ...model.meta })};`

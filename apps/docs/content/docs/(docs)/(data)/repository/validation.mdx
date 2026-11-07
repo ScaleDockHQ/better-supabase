@@ -83,3 +83,22 @@ const betterSupabase = createSupabase(schema).use(
 
 Any validator that implements [Standard Schema](https://standardschema.dev)
 works: zod, valibot, arktype, effect schema and more.
+
+## Typed jsonb columns
+
+Name a Standard Schema for a jsonb column in the `json` option of
+`standardSchema()`, and the column's row type is that schema's output. You no
+longer repeat the type in `gen.json`:
+
+```ts title="better-supabase.config.ts"
+gen: {
+  generators: [
+    standardSchema({ json: { "customers.metadata": "./src/schemas.ts#metadata" } }),
+  ],
+},
+```
+
+The generated module imports `metadata` for its `typeof` and types the column
+as `StandardSchemaV1.InferOutput<typeof metadata>`. An entry in `gen.json` for
+the same column wins. Settings keep their own declaration: pass the
+`defineSettings()` result as `blocks.settings.options.schemas`.
