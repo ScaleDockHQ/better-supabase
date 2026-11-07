@@ -1,6 +1,6 @@
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:c4c0fc00faf5673c88c41f118b7fcb09e297288e583e670fadc94d88bf5de294
+-- @bsb-hash sha256:f365bfc33e44b63bd70115604226b569d5c3802947a69b79e7be565976c16146
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -563,11 +563,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."scores" as restricti
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.score_models', target_type => 'score_model', event_prefix => 'score_model', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.score_models deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"score_model","event_prefix":"score_model"}');
 
 -- blocks.scores.api: entry points for the Data API.
 create schema if not exists "api";

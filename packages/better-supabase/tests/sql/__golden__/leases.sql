@@ -560,7 +560,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:b9e9c520c503981be6c303186a9351be6f2aafca4c6a97f930b251da14879bd0
+-- @bsb-hash sha256:5199714ab14a0262b398979c4d2553852481066b6f0697f8c69c7f629687890f
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1219,11 +1219,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."lease_charges" as re
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.leases', target_type => 'lease', event_prefix => 'lease', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.leases deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"lease","event_prefix":"lease"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_120_leases.sql
 -- better-supabase module: leases

@@ -999,7 +999,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:b6b5c33cbfc423a1d1ef6cbb0a140d7ce47c79fda2d7db0f01ec6207dfe4a024
+-- @bsb-hash sha256:10632fbcd29542de5ae236ed8f12c0eb648e0bcae0ea8a9e9ee56e27101b8b57
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2161,14 +2161,10 @@ create policy bsb_tenant_scope_delete on "better_supabase"."iterations" as restr
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.tasks', target_type => 'task', event_prefix => 'task', deferred => true);
-  perform better_supabase.audit('better_supabase.projects', target_type => 'project', event_prefix => 'project', deferred => true);
-  perform better_supabase.audit('better_supabase.iterations', target_type => 'iteration', event_prefix => 'iteration', deferred => true);
-  perform better_supabase.audit('better_supabase.task_checklist_items', target_type => 'checklist_item', event_prefix => 'checklist_item', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.tasks deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"task","event_prefix":"task"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.projects deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"project","event_prefix":"project"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.iterations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"iteration","event_prefix":"iteration"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.task_checklist_items deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"checklist_item","event_prefix":"checklist_item"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks

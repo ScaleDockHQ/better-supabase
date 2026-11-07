@@ -1,6 +1,6 @@
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:32d62b1bf945d1989a1cdd7cb98b373c725adb233d5f933e0c9f918eb03e19d4
+-- @bsb-hash sha256:9e5835d3c214e02d6857ecf5119f080a25f3cb8ed9a56707d681c0c0b4aa83ee
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -272,11 +272,7 @@ grant execute on function "better_supabase"."save_announcement"(uuid, jsonb) to 
 grant execute on function "better_supabase"."delete_announcement"(uuid) to authenticated, service_role;
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.announcements', target_type => 'announcement', event_prefix => 'announcement', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.announcements deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"announcement","event_prefix":"announcement"}');
 
 -- blocks.announcements.api: entry points for the Data API.
 create schema if not exists "api";

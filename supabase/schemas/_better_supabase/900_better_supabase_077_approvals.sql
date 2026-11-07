@@ -1,6 +1,6 @@
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:6139f9511a53bc6f15fe6ddb544c31658001d562f7835675f9cf3121ec29adbd
+-- @bsb-hash sha256:a5cb6b5dec77343b88780772f691019ccc1312adcf4036853b31e89c7ce5036d
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2190,11 +2190,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."approval_policies" a
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.approval_requests', target_type => 'approval', event_prefix => 'approval', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.approval_requests deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"approval","event_prefix":"approval"}');
 
 -- blocks.approvals.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,6 +1,6 @@
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:dffba9e38156cc8277a8eaccfc03a28f13e1dd60ceae8012dbc6d4d5440e3f3b
+-- @bsb-hash sha256:800a836f58ab2bbdb5dfc813203f1cad0077ad6f5632b3f96f977fa30ce31db1
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -423,11 +423,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."team_members" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.teams', target_type => 'team', event_prefix => 'team', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.teams deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"team","event_prefix":"team"}');
 
 -- blocks.teams.api: entry points for the Data API.
 create schema if not exists "api";

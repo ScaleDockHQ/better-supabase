@@ -1097,7 +1097,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:ce18ff17a217cbfa89e3a9fe9703257b97cee650770cb6fdc9ad320ee7e59cf2
+-- @bsb-hash sha256:31d91caf9b8ca1e961d2b2d86dd5b8d0b8403a6c69c8440459a921eb9c423c9b
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2439,15 +2439,11 @@ create policy bsb_tenant_scope_delete on "better_supabase"."funding_claim_lines"
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.funding_products', target_type => 'funding_product', event_prefix => 'funding_product', deferred => true);
-  perform better_supabase.audit('better_supabase.funding_awards', target_type => 'funding_award', event_prefix => 'funding_award', deferred => true);
-  perform better_supabase.audit('better_supabase.funding_deliveries', target_type => 'funding_delivery', event_prefix => 'funding_delivery', deferred => true);
-  perform better_supabase.audit('better_supabase.funding_claims', target_type => 'funding_claim', event_prefix => 'funding_claim', deferred => true);
-  perform better_supabase.audit('better_supabase.funding_claim_lines', target_type => 'funding_claim_line', event_prefix => 'funding_claim_line', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.funding_products deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"funding_product","event_prefix":"funding_product"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.funding_awards deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"funding_award","event_prefix":"funding_award"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.funding_deliveries deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"funding_delivery","event_prefix":"funding_delivery"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.funding_claims deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"funding_claim","event_prefix":"funding_claim"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.funding_claim_lines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"funding_claim_line","event_prefix":"funding_claim_line"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_158_funding.sql
 -- better-supabase module: funding

@@ -1042,7 +1042,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:2fde20b3cfecffa42c7d89bc96c06dbddeedaff9cde58ab87d8581be4fc78a45
+-- @bsb-hash sha256:165f2c73c1c2881b196bde4ae44b7b41f97cbf6703ee3e65594fef48505dbcbe
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2217,11 +2217,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."form_submissions" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.forms', target_type => 'form', event_prefix => 'form', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.forms deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"form","event_prefix":"form"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_086_forms.sql
 -- better-supabase module: forms

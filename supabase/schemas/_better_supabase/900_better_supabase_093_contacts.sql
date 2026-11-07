@@ -1,6 +1,6 @@
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:cde0d816e91829c789b9926f0d8c43166f1e77de2583b96cda2d08aabfa745d5
+-- @bsb-hash sha256:dbea2444080a82df091d42738d2af88b10dae83063e16f429b13ef824b2ff875
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1591,12 +1591,8 @@ create trigger "bsb_search_person_index"
   for each row execute function "better_supabase"."search_index_row"('person', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.companies', target_type => 'company', event_prefix => 'company', deferred => true);
-  perform better_supabase.audit('better_supabase.people', target_type => 'person', event_prefix => 'person', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.companies deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"company","event_prefix":"company"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.people deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"person","event_prefix":"person"}');
 
 -- blocks.contacts.api: entry points for the Data API.
 create schema if not exists "api";

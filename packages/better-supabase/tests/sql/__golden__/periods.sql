@@ -322,7 +322,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:c296c3b447d837396d6cc1d5bd665560e3ff0601f056391847cd6180a14d532a
+-- @bsb-hash sha256:1b0b6d342ac8999e848d54d1c478e1724cc3fda2ae53d7d80a5ae462e7267049
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -699,11 +699,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."periods" as restrict
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.periods', target_type => 'period', event_prefix => 'period', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.periods deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"period","event_prefix":"period"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_170_periods.sql
 -- better-supabase module: periods

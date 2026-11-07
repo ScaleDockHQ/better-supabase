@@ -356,7 +356,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:07e1551ac3cad7f16852034d31fa8f9bb75345518ba812a5af29441a3b33b06c
+-- @bsb-hash sha256:312585e0db3e420e5178b264d93daef537f0c449d2b96c2c7ebad0f4dd24bcf6
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -745,12 +745,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."payroll_lines" as re
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.payroll_runs', target_type => 'payroll_run', event_prefix => 'payroll_run', deferred => true);
-  perform better_supabase.audit('better_supabase.payroll_lines', target_type => 'payroll_line', event_prefix => 'payroll_line', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.payroll_runs deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"payroll_run","event_prefix":"payroll_run"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.payroll_lines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"payroll_line","event_prefix":"payroll_line"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export

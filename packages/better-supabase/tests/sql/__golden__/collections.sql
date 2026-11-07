@@ -981,7 +981,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:a6c2dd2f5d195489acc8d917f8efa0aab1f7aff69196887f9fd1d5098790dadf
+-- @bsb-hash sha256:d370901d42bcc34df0508081b7abf1064fad004d64c95a05fe8ac6deb649a45a
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1945,11 +1945,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."saved_items" as rest
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.subject_collections', target_type => 'subject_collection', event_prefix => 'subject_collection', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.subject_collections deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"subject_collection","event_prefix":"subject_collection"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_103_collections.sql
 -- better-supabase module: collections

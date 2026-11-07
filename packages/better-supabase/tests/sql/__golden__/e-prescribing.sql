@@ -419,7 +419,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:598decd571efc5c804351b5f8d38c9927b643fab25862af4b784a64b0a9ad59e
+-- @bsb-hash sha256:9c8e040f38492ee2e261eb065ce67e4609d10093b259cf34887be0e356d782ea
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -881,11 +881,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."prescriptions" as re
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.prescriptions', target_type => 'prescription', event_prefix => 'prescription', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.prescriptions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"prescription","event_prefix":"prescription"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing

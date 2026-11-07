@@ -1,6 +1,6 @@
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:b20cbd64343092091edbc2cf8b8c3874e04ea9597989e64a8bf0254cf856c3c0
+-- @bsb-hash sha256:cc734ea79fe9e1f42dc66652529c993027f701b6bd90dff42004db9b6df5b0e1
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -994,15 +994,11 @@ create policy bsb_tenant_scope_delete on "better_supabase"."rfq_quote_lines" as 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.rfqs', target_type => 'rfq', event_prefix => 'rfq', deferred => true);
-  perform better_supabase.audit('better_supabase.rfq_lines', target_type => 'rfq_line', event_prefix => 'rfq_line', deferred => true);
-  perform better_supabase.audit('better_supabase.rfq_suppliers', target_type => 'rfq_supplier', event_prefix => 'rfq_supplier', deferred => true);
-  perform better_supabase.audit('better_supabase.rfq_quotes', target_type => 'rfq_quote', event_prefix => 'rfq_quote', deferred => true);
-  perform better_supabase.audit('better_supabase.rfq_quote_lines', target_type => 'rfq_quote_line', event_prefix => 'rfq_quote_line', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfqs deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq","event_prefix":"rfq"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfq_lines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq_line","event_prefix":"rfq_line"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfq_suppliers deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq_supplier","event_prefix":"rfq_supplier"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfq_quotes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq_quote","event_prefix":"rfq_quote"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.rfq_quote_lines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"rfq_quote_line","event_prefix":"rfq_quote_line"}');
 
 -- blocks.rfqs.api: entry points for the Data API.
 create schema if not exists "api";

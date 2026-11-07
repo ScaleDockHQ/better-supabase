@@ -1,6 +1,6 @@
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:2048239e6ed9af5e98221e219598e09e16c91349184d1569f6813d37ba5881cb
+-- @bsb-hash sha256:0439654ef3b5003c98568e9b03791ec89d87074ed8fc076af6c3c21e55e1aaa4
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -880,15 +880,11 @@ create policy bsb_tenant_scope_delete on "better_supabase"."till_deposits" as re
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.tills', target_type => 'till', event_prefix => 'till', deferred => true);
-  perform better_supabase.audit('better_supabase.till_sessions', target_type => 'till_session', event_prefix => 'till_session', deferred => true);
-  perform better_supabase.audit('better_supabase.till_movements', target_type => 'till_movement', event_prefix => 'till_movement', deferred => true);
-  perform better_supabase.audit('better_supabase.till_counts', target_type => 'till_count', event_prefix => 'till_count', deferred => true);
-  perform better_supabase.audit('better_supabase.till_deposits', target_type => 'till_deposit', event_prefix => 'till_deposit', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.tills deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till","event_prefix":"till"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.till_sessions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till_session","event_prefix":"till_session"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.till_movements deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till_movement","event_prefix":"till_movement"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.till_counts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till_count","event_prefix":"till_count"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.till_deposits deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"till_deposit","event_prefix":"till_deposit"}');
 
 -- blocks.tills.api: entry points for the Data API.
 create schema if not exists "api";

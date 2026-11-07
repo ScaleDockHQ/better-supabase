@@ -1,6 +1,6 @@
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:1c3f9505595c5738f8de92bffc37272cb3b0c07dedb2fbb6dc7823cdb0b0c798
+-- @bsb-hash sha256:2a335e27e5b218bf57c9c1025f211d6dbb55d4357d6119bc0d145e734b7f7e13
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2345,12 +2345,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."documents" as restri
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.documents', target_type => 'document', event_prefix => 'document', deferred => true);
-  perform better_supabase.audit('better_supabase.document_suggestions', target_type => 'document_suggestion', event_prefix => 'document_suggestion', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.documents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document","event_prefix":"document"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.document_suggestions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document_suggestion","event_prefix":"document_suggestion"}');
 
 -- blocks.documents.api: entry points for the Data API.
 create schema if not exists "api";

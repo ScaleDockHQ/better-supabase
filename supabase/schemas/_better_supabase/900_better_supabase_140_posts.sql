@@ -1,6 +1,6 @@
 -- better-supabase module: posts
 -- @bsb-block posts@1 managed
--- @bsb-hash sha256:e1a8ca1055396056c061875e67a87a752202eef72b0a40927fe72d61e6e5a34f
+-- @bsb-hash sha256:a768bced282e40bab004ecfe11b258824f6759372580d1f4dc1a0d3c4f119350
 -- Forum threads and feedback posts on boards. Replies are comments on the messaging core, votes are reactions, and each post is a moderation item members can report. Feedback posts move through a status from open to done.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -687,12 +687,8 @@ create trigger "bsb_search_post_index"
   for each row execute function "better_supabase"."search_index_row"('post', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.post_boards', target_type => 'post_board', event_prefix => 'post_board', deferred => true);
-  perform better_supabase.audit('better_supabase.posts', target_type => 'post', event_prefix => 'post', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.post_boards deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"post_board","event_prefix":"post_board"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.posts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"post","event_prefix":"post"}');
 
 -- blocks.posts.api: entry points for the Data API.
 create schema if not exists "api";

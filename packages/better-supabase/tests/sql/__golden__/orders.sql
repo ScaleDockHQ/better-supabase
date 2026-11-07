@@ -2419,7 +2419,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:b096c9da91402f25d45838cdede51936dd87a9a73e981f97d0822da95d01a99c
+-- @bsb-hash sha256:997ed8f9a4200d914d5009e600c5578346f988fde5e947ff36b278a83219680f
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5048,12 +5048,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."order_refunds" as re
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.orders', target_type => 'order', event_prefix => 'order', deferred => true);
-  perform better_supabase.audit('better_supabase.carts', target_type => 'cart', event_prefix => 'cart', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.orders deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"order","event_prefix":"order"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.carts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"cart","event_prefix":"cart"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_084_orders.sql
 -- better-supabase module: orders

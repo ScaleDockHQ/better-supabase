@@ -493,7 +493,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:e2ea7aa95bd80e622089ef28217f7948bd53e6be9f3a93878d0e32676f361765
+-- @bsb-hash sha256:084f05511c61b9a87fd623ce425c942ae8a062be049c757430afbe4eeec73046
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1059,11 +1059,7 @@ revoke execute on function "better_supabase"."review_summary"(uuid, text, text[]
 grant execute on function "better_supabase"."review_summary"(uuid, text, text[]) to anon, authenticated, service_role;
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.reviews', target_type => 'review', event_prefix => 'review', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.reviews deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"review","event_prefix":"review"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews

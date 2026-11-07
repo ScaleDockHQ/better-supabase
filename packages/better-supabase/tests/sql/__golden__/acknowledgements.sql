@@ -617,7 +617,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:96cf53549e4c6bf36dcc3845dd6ba6c1e93a918f242d8d583fdf88ed9e29c6bf
+-- @bsb-hash sha256:7d874d170679c56788b6722b905cefd4fbec76c1fdac1fa1ca994e2f2c433e06
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1312,12 +1312,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."acknowledgements" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.acknowledgements', target_type => 'acknowledgement', event_prefix => 'acknowledgement', deferred => true);
-  perform better_supabase.audit('better_supabase.acknowledgement_assignments', target_type => 'acknowledgement_assignment', event_prefix => 'acknowledgement_assignment', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.acknowledgements deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"acknowledgement","event_prefix":"acknowledgement"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.acknowledgement_assignments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"acknowledgement_assignment","event_prefix":"acknowledgement_assignment"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements

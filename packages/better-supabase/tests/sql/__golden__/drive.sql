@@ -1508,7 +1508,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:3dc1deb5efd6cd04e992ba7f42ab8fb5e10c45fc50090c996eecb8d19ec59496
+-- @bsb-hash sha256:2969ca1698e304089e9f15dff564f2daa03d60401053a133e711020c7c7bc19f
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3145,11 +3145,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."drive_node_texts" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.drive_nodes', target_type => 'drive_node', event_prefix => 'drive_node', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.drive_nodes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"drive_node","event_prefix":"drive_node"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_032_drive.sql
 -- better-supabase module: drive

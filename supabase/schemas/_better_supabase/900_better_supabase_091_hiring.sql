@@ -1,6 +1,6 @@
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:81fe6f8ba8908fb2a7536056d0d7cabac7e29dc4f327c115e22d018dc5acff6c
+-- @bsb-hash sha256:82cfb31b9a6861ad31124c6b951c55e313e8792082caca0281035da34d4122d2
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -571,13 +571,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."interviews" as restr
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.job_openings', target_type => 'job_opening', event_prefix => 'job_opening', deferred => true);
-  perform better_supabase.audit('better_supabase.applications', target_type => 'application', event_prefix => 'application', deferred => true);
-  perform better_supabase.audit('better_supabase.interviews', target_type => 'interview', event_prefix => 'interview', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.job_openings deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"job_opening","event_prefix":"job_opening"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.applications deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"application","event_prefix":"application"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.interviews deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"interview","event_prefix":"interview"}');
 
 -- blocks.hiring.api: entry points for the Data API.
 create schema if not exists "api";

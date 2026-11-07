@@ -993,7 +993,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:3d3962d03d9d394244835195b8e5a073706fc7724636d4d36f5b8736a8d048bd
+-- @bsb-hash sha256:7af4391c2e98691b7e8e7ed700d8feccd40a7b15eb56d2b1ff2f5da35087132c
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2082,13 +2082,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."risk_assessments" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.risks', target_type => 'risk', event_prefix => 'risk', deferred => true);
-  perform better_supabase.audit('better_supabase.risk_matrices', target_type => 'risk_matrix', event_prefix => 'risk_matrix', deferred => true);
-  perform better_supabase.audit('better_supabase.risk_assessments', target_type => 'risk_assessment', event_prefix => 'risk_assessment', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.risks deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"risk","event_prefix":"risk"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.risk_matrices deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"risk_matrix","event_prefix":"risk_matrix"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.risk_assessments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"risk_assessment","event_prefix":"risk_assessment"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_144_risks.sql
 -- better-supabase module: risks

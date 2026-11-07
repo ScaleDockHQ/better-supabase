@@ -1,6 +1,6 @@
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:341955013e41c7f5bed8ea44c24d011272816c72fd18a8757d38d215fb89f631
+-- @bsb-hash sha256:5bd3840712b5879fe02ad19ddfe353315869b8e65b515c8c2681b3546e818943
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -970,13 +970,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."work_order_parts" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.work_orders', target_type => 'work_order', event_prefix => 'work_order', deferred => true);
-  perform better_supabase.audit('better_supabase.dispatch_routes', target_type => 'dispatch_route', event_prefix => 'dispatch_route', deferred => true);
-  perform better_supabase.audit('better_supabase.work_order_parts', target_type => 'work_order_part', event_prefix => 'work_order_part', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_orders deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"work_order","event_prefix":"work_order"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.dispatch_routes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dispatch_route","event_prefix":"dispatch_route"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_order_parts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"work_order_part","event_prefix":"work_order_part"}');
 
 -- blocks.dispatch.api: entry points for the Data API.
 create schema if not exists "api";

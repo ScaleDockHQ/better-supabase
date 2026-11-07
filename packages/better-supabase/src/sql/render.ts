@@ -226,8 +226,11 @@ function moduleFiles(
   // `audit` has no `audit()` to call yet and registers from its data file.
   const auditAt = installed.indexOf("audit");
 
+  // A static trigger needs no function at apply time under a declarative
+  // diff; only the migrations workflow applies the statements in file order.
   const rowAuditBeforeSchema =
-    auditAt === -1 || installed.indexOf(module.name) < auditAt;
+    auditAt === -1 ||
+    (layout.rerunnable === true && installed.indexOf(module.name) < auditAt);
 
   const rowAuditSchema = rowAuditBeforeSchema
     ? ""

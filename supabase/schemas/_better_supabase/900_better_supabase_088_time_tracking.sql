@@ -1,6 +1,6 @@
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:305b21b34cdcaf545d54ce4d7fbf20bfa950c550c6a55220c4620d90b5a4c90b
+-- @bsb-hash sha256:093ce902bd9506945df017534145bcb5434e0bc780dd54869134cc08105bef50
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1029,12 +1029,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."timesheets" as restr
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.time_entries', target_type => 'time_entry', event_prefix => 'time_entry', deferred => true);
-  perform better_supabase.audit('better_supabase.timesheets', target_type => 'timesheet', event_prefix => 'timesheet', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.time_entries deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"time_entry","event_prefix":"time_entry"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.timesheets deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"timesheet","event_prefix":"timesheet"}');
 
 -- blocks.time-tracking.api: entry points for the Data API.
 create schema if not exists "api";

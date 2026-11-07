@@ -1,6 +1,6 @@
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:f59889b9a4903ce44b65de1e2856a704b51867aeda923e1bbacfa48794e05322
+-- @bsb-hash sha256:c6b58ce9e4b8cd87180be2dfbd7e9725132e44e25999ee3074aa80b718922067
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -938,10 +938,6 @@ create policy bsb_tenant_scope_delete on "better_supabase"."ledger_holds" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.ledger_accounts', target_type => 'ledger_account', event_prefix => 'ledger_account', deferred => true);
-  perform better_supabase.audit('better_supabase.ledger_transactions', target_type => 'ledger_transaction', event_prefix => 'ledger_transaction', deferred => true);
-  perform better_supabase.audit('better_supabase.ledger_holds', target_type => 'ledger_hold', event_prefix => 'ledger_hold', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.ledger_accounts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ledger_account","event_prefix":"ledger_account"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.ledger_transactions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ledger_transaction","event_prefix":"ledger_transaction"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.ledger_holds deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ledger_hold","event_prefix":"ledger_hold"}');

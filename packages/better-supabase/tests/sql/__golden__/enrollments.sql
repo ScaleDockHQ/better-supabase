@@ -1092,7 +1092,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:6de41b272fe26095b07ca8be33d7a2d65d3511aa14f48feb7151a2376b766ba6
+-- @bsb-hash sha256:9084b7237cfea2056df0cecd58995c6d93a3254a92d6a82178cc22885cb33efd
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2272,12 +2272,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.enrollment_programs', target_type => 'enrollment_program', event_prefix => 'enrollment_program', deferred => true);
-  perform better_supabase.audit('better_supabase.enrollments', target_type => 'enrollment', event_prefix => 'enrollment', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.enrollment_programs deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"enrollment_program","event_prefix":"enrollment_program"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.enrollments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"enrollment","event_prefix":"enrollment"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments

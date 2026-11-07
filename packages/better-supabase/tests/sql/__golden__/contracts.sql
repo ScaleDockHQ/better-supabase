@@ -697,7 +697,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:6d6127149fb9d6797619594b0ba8543b6b93c2dadb5fce24b7ada47176ba7fe3
+-- @bsb-hash sha256:346fb5ef8abd54940c8a411aa2bcd977fa2c77bbe5f1edf156e2b817149a00f6
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1440,12 +1440,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."contract_obligations
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.contracts', target_type => 'contract', event_prefix => 'contract', deferred => true);
-  perform better_supabase.audit('better_supabase.contract_obligations', target_type => 'contract_obligation', event_prefix => 'contract_obligation', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.contracts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"contract","event_prefix":"contract"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.contract_obligations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"contract_obligation","event_prefix":"contract_obligation"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts

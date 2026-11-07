@@ -1169,7 +1169,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:c793ae466a8e01ef07e5891601eb1cb333c62931ed3215e7c3697c79aa7f798e
+-- @bsb-hash sha256:493829e267356760daedc4217a01e07830385325ed998b52ec616c38501d68b7
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2421,17 +2421,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."advisory_vulnerabili
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.advisories', target_type => 'advisory', event_prefix => 'advisory', deferred => true);
-  perform better_supabase.audit('better_supabase.advisory_products', target_type => 'advisory_product', event_prefix => 'advisory_product', deferred => true);
-  perform better_supabase.audit('better_supabase.advisory_product_versions', target_type => 'advisory_product_version', event_prefix => 'advisory_product_version', deferred => true);
-  perform better_supabase.audit('better_supabase.sbom_components', target_type => 'sbom_component', event_prefix => 'sbom_component', deferred => true);
-  perform better_supabase.audit('better_supabase.vulnerabilities', target_type => 'vulnerability', event_prefix => 'vulnerability', deferred => true);
-  perform better_supabase.audit('better_supabase.vex_statements', target_type => 'vex_statement', event_prefix => 'vex_statement', deferred => true);
-  perform better_supabase.audit('better_supabase.advisory_vulnerabilities', target_type => 'advisory_vulnerability', event_prefix => 'advisory_vulnerability', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.advisories deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"advisory","event_prefix":"advisory"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.advisory_products deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"advisory_product","event_prefix":"advisory_product"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.advisory_product_versions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"advisory_product_version","event_prefix":"advisory_product_version"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.sbom_components deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"sbom_component","event_prefix":"sbom_component"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.vulnerabilities deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"vulnerability","event_prefix":"vulnerability"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.vex_statements deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"vex_statement","event_prefix":"vex_statement"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.advisory_vulnerabilities deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"advisory_vulnerability","event_prefix":"advisory_vulnerability"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories

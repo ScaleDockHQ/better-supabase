@@ -1808,7 +1808,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:d2ccad6e0a51cdc7f02186bf04a203f7e389fc658386a3b209f6d4520b5eed12
+-- @bsb-hash sha256:35352cc3856dffacc83c256b95c99c38aff6d3277b96e6b6eaef6c13834cfc24
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3692,12 +3692,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."calendar_working_hou
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.calendar_events', target_type => 'calendar_event', event_prefix => 'calendar_event', deferred => true);
-  perform better_supabase.audit('better_supabase.calendars', target_type => 'calendar', event_prefix => 'calendar', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.calendar_events deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"calendar_event","event_prefix":"calendar_event"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.calendars deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"calendar","event_prefix":"calendar"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar

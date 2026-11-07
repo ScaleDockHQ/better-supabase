@@ -1,6 +1,6 @@
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:475ac79874b04e06a73c6b7895b3755ea509dad6185cdb0938dc295812b41423
+-- @bsb-hash sha256:8406263975967ca03f00305d34f517fabdba700b4ad5af3348a6835041a257b8
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -138,11 +138,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."goals" as restrictiv
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.goals', target_type => 'goal', event_prefix => 'goal', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.goals deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"goal","event_prefix":"goal"}');
 
 -- blocks.goals.api: entry points for the Data API.
 create schema if not exists "api";

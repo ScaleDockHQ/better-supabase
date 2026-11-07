@@ -1,6 +1,6 @@
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:1899572716c3aab0c0c4955cd2da45a638ec2c89fdef799759ff17ba51043fe6
+-- @bsb-hash sha256:7e75534f1609b99e757ae1b5e2a32134727f8232155b593137d3e77786a15bd2
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -320,11 +320,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."timeline_entries" as
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.timeline_entries', target_type => 'timeline_entry', event_prefix => 'timeline_entry', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.timeline_entries deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"timeline_entry","event_prefix":"timeline_entry"}');
 
 -- blocks.timeline.api: entry points for the Data API.
 create schema if not exists "api";

@@ -768,7 +768,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:60702041ca9d1a5dda33a54f8951a5838de9c3d0c75b21a3938b79406582aa39
+-- @bsb-hash sha256:5e9e52208cd43cd11c3c126c0d275e7bb56cb23a22f7de0af664aba085f67032
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1565,11 +1565,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."knowledge_collection
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.knowledge_documents', target_type => 'knowledge_document', event_prefix => 'knowledge_document', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.knowledge_documents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"knowledge_document","event_prefix":"knowledge_document"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_049_knowledge.sql
 -- better-supabase module: knowledge

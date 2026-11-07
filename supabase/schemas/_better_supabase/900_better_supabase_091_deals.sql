@@ -1,6 +1,6 @@
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:c7c948cc2d5cb87d4ff760f79971c733f9652766fe60ebb6c338fb48d36337eb
+-- @bsb-hash sha256:c6b4cd308f20b845854ebea6fcffc36001bfebdeb7bc28020843f26173ceef82
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1215,11 +1215,7 @@ create trigger "bsb_search_deal_index"
   for each row execute function "better_supabase"."search_index_row"('deal', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.deals', target_type => 'deal', event_prefix => 'deal', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.deals deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"deal","event_prefix":"deal"}');
 
 -- blocks.deals.api: entry points for the Data API.
 create schema if not exists "api";

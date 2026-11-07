@@ -1,6 +1,6 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:5b95083c4161a81603d717c1f96cf057283105e1e797bc062b6f0fe38bde8b2f
+-- @bsb-hash sha256:d73916fd3b2c329bb6f1374b6b2f940979bf0a2e53d7346300e537dea5e7d2c4
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1224,12 +1224,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."asset_depreciations"
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.assets', target_type => 'asset', event_prefix => 'asset', deferred => true);
-  perform better_supabase.audit('better_supabase.asset_locations', target_type => 'asset_location', event_prefix => 'asset_location', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.assets deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset","event_prefix":"asset"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.asset_locations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"asset_location","event_prefix":"asset_location"}');
 
 -- blocks.assets.api: entry points for the Data API.
 create schema if not exists "api";

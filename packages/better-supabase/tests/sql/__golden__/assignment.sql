@@ -419,7 +419,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:862dc92aec6d693800a5f2a4268a6ae6ec25dc3e3c231d5b3adc74a9dd3fb2f1
+-- @bsb-hash sha256:99aed0ec94ed8d272142ff274352da9f472c258b24a0f917822d8e78b925deae
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -821,11 +821,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."assignments" as rest
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.assignment_queues', target_type => 'assignment_queue', event_prefix => 'assignment_queue', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.assignment_queues deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"assignment_queue","event_prefix":"assignment_queue"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment

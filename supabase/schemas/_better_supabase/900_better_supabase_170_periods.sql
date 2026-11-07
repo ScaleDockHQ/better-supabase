@@ -1,6 +1,6 @@
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:4305b2290148059f8bf00eca3ae9a98368188bed447bdd2d9a839698a195d903
+-- @bsb-hash sha256:f0557127c3eed33855a4c1c160e895ce5e99a7dee249089af9db68de57420a78
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -363,11 +363,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."periods" as restrict
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.periods', target_type => 'period', event_prefix => 'period', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.periods deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"period","event_prefix":"period"}');
 
 -- blocks.periods.api: entry points for the Data API.
 create schema if not exists "api";

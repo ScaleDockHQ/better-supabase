@@ -1196,7 +1196,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:93bf5528e9b5068e5dec76672c434a626367ee788dc8eab9713a58f87199471a
+-- @bsb-hash sha256:4a4e207499e4112e2217a24aa3be6eb3fbd18feb279121438836f20ebb901a1a
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2472,11 +2472,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."moderation_appeals" 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.moderation_items', target_type => 'moderation_item', event_prefix => 'moderation_item', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.moderation_items deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"moderation_item","event_prefix":"moderation_item"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation

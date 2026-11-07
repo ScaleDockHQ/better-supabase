@@ -550,7 +550,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:c70f42124e04661c5f4e4a480f29f0273d3b367b458965f9e80dc2689c459a8d
+-- @bsb-hash sha256:653ba11915f0c3c107aa762740430f28ad48b1a10cce03d4f3017b067442a185
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1113,11 +1113,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."scores" as restricti
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.score_models', target_type => 'score_model', event_prefix => 'score_model', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.score_models deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"score_model","event_prefix":"score_model"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_115_scores.sql
 -- better-supabase module: scores

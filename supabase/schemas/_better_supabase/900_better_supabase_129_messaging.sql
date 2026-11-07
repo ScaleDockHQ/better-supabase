@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:41ffb992bcfba5bf38244aba7685fdd04a81922d1dc4fd9a33936ce2ba86b98a
+-- @bsb-hash sha256:76f731d339482f2e6e44e9ef47d04e6130f01a537ba31e0db8596514bed5b35c
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1963,12 +1963,8 @@ create trigger "bsb_search_message_index"
   for each row execute function "better_supabase"."search_index_row"('message', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.messages', target_type => 'message', event_prefix => 'message', deferred => true);
-  perform better_supabase.audit('better_supabase.conversations', target_type => 'conversation', event_prefix => 'conversation', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.messages deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"message","event_prefix":"message"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.conversations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"conversation","event_prefix":"conversation"}');
 
 -- blocks.messaging.api: entry points for the Data API.
 create schema if not exists "api";

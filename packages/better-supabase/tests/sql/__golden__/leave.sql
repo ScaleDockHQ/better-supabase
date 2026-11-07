@@ -1014,7 +1014,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:c4736ace74c54784f6d7cb8abd80a36e7ef022af571fdd3a10c2503ad0cca81f
+-- @bsb-hash sha256:7cf8dc67bf4fe8467112cb8e39c75ccf33a8827e74d53ca85ecde7f56bc9880c
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2173,12 +2173,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."leave_requests" as r
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.leave_requests', target_type => 'leave_request', event_prefix => 'leave_request', deferred => true);
-  perform better_supabase.audit('better_supabase.leave_types', target_type => 'leave_type', event_prefix => 'leave_type', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.leave_requests deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"leave_request","event_prefix":"leave_request"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.leave_types deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"leave_type","event_prefix":"leave_type"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_110_leave.sql
 -- better-supabase module: leave

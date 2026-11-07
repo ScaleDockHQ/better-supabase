@@ -1,6 +1,6 @@
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:31e7cedfc2bbbfa0ebed04d446c685e346c356883f76e0fab4cd9c8f8924d28f
+-- @bsb-hash sha256:7f8720d2e8a4d33efe693c1c95a5143ab93503a605c61b921ea7593e3f6ae109
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1680,11 +1680,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."drive_node_texts" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.drive_nodes', target_type => 'drive_node', event_prefix => 'drive_node', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.drive_nodes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"drive_node","event_prefix":"drive_node"}');
 
 -- blocks.drive.api: entry points for the Data API.
 create schema if not exists "api";

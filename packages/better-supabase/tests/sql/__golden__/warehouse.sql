@@ -1699,7 +1699,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:c7aaf5666e6beaba710accf839d21bdebc96de6f14a0d373ca1b9ed41a3c1784
+-- @bsb-hash sha256:af262ce07c7da9d2788058ef72839a8e5f89f4670e30106657a958375772f3ab
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3472,17 +3472,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."variant_sizes" as re
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.pick_lists', target_type => 'pick_list', event_prefix => 'pick_list', deferred => true);
-  perform better_supabase.audit('better_supabase.pick_waves', target_type => 'pick_wave', event_prefix => 'pick_wave', deferred => true);
-  perform better_supabase.audit('better_supabase.pick_lines', target_type => 'pick_line', event_prefix => 'pick_line', deferred => true);
-  perform better_supabase.audit('better_supabase.count_plans', target_type => 'count_plan', event_prefix => 'count_plan', deferred => true);
-  perform better_supabase.audit('better_supabase.putaway_rules', target_type => 'putaway_rule', event_prefix => 'putaway_rule', deferred => true);
-  perform better_supabase.audit('better_supabase.bin_slots', target_type => 'bin_slot', event_prefix => 'bin_slot', deferred => true);
-  perform better_supabase.audit('better_supabase.variant_sizes', target_type => 'variant_size', event_prefix => 'variant_size', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.pick_lists deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pick_list","event_prefix":"pick_list"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.pick_waves deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pick_wave","event_prefix":"pick_wave"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.pick_lines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pick_line","event_prefix":"pick_line"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.count_plans deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"count_plan","event_prefix":"count_plan"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.putaway_rules deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"putaway_rule","event_prefix":"putaway_rule"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bin_slots deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bin_slot","event_prefix":"bin_slot"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.variant_sizes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"variant_size","event_prefix":"variant_size"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse

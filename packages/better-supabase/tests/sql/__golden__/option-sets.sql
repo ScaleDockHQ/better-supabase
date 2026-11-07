@@ -429,7 +429,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:ddd531fac928fd818ec2ca464a87024adcc0281be2894efc88af8e5c137a9445
+-- @bsb-hash sha256:4e5ba939c7f06b18b4c21c1161ce5043b2e7beeaf98a0b97cf7998a86964a446
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -971,11 +971,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."option_set_items" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.option_sets', target_type => 'option_set', event_prefix => 'option_set', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.option_sets deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"option_set","event_prefix":"option_set"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets

@@ -893,7 +893,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:459b4fdb336006b1cd1c2cee7505aab1e8d154212fb2b63c5c16d714d1680483
+-- @bsb-hash sha256:1fe712e9b13c97cc218d38d229a46c28b6badf34181d25a622fc0fc7f354897c
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1875,13 +1875,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."mail_thread_subjects
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.mail_threads', target_type => 'mail_thread', event_prefix => 'mail_thread', deferred => true);
-  perform better_supabase.audit('better_supabase.mail_accounts', target_type => 'mail_account', event_prefix => 'mail_account', deferred => true);
-  perform better_supabase.audit('better_supabase.mail_messages', target_type => 'mail_message', event_prefix => 'mail_message', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.mail_threads deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"mail_thread","event_prefix":"mail_thread"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.mail_accounts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"mail_account","event_prefix":"mail_account"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.mail_messages deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"mail_message","event_prefix":"mail_message"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync

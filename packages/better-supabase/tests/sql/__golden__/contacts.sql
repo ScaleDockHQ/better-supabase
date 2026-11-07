@@ -1449,7 +1449,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:0ea1b690816d1594e372b67756213c9c90960a0cb2f6cc8bd378be57629af907
+-- @bsb-hash sha256:cc8a4f64a76a0e9639ba9fc79d9c272da6af6967627dbe570ca25f5c9e564a36
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3037,12 +3037,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."person_identities" a
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.companies', target_type => 'company', event_prefix => 'company', deferred => true);
-  perform better_supabase.audit('better_supabase.people', target_type => 'person', event_prefix => 'person', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.companies deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"company","event_prefix":"company"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.people deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"person","event_prefix":"person"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts

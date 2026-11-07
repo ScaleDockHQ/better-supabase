@@ -782,7 +782,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:fd3e7e770e93ab4fa25c4ca73aefd114fb38612e984d95910a11a0f4c944e42a
+-- @bsb-hash sha256:75fe663a4af45eba54f9a062446ae66af7a2dc672406b7282d4951aac347e41e
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1658,11 +1658,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."time_invoice_entries
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.time_rates', target_type => 'time_rate', event_prefix => 'time_rate', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.time_rates deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"time_rate","event_prefix":"time_rate"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time

@@ -1206,7 +1206,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:7835aa44a33e02d8d2ba01bfeb7c999aee9af173d2c29037ed815181063ed831
+-- @bsb-hash sha256:5ed4d3699a8cbe6b9a1d60d329191dc3345fa90646d946e0aa85a7bc7258a09e
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2940,15 +2940,11 @@ create policy bsb_tenant_scope_delete on "better_supabase"."payment_batch_items"
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.bank_transactions', target_type => 'bank_transaction', event_prefix => 'bank_transaction', deferred => true);
-  perform better_supabase.audit('better_supabase.bank_accounts', target_type => 'bank_account', event_prefix => 'bank_account', deferred => true);
-  perform better_supabase.audit('better_supabase.bank_statements', target_type => 'bank_statement', event_prefix => 'bank_statement', deferred => true);
-  perform better_supabase.audit('better_supabase.bank_matches', target_type => 'bank_match', event_prefix => 'bank_match', deferred => true);
-  perform better_supabase.audit('better_supabase.bank_rules', target_type => 'bank_rule', event_prefix => 'bank_rule', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_transactions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_transaction","event_prefix":"bank_transaction"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_accounts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_account","event_prefix":"bank_account"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_statements deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_statement","event_prefix":"bank_statement"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_matches deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_match","event_prefix":"bank_match"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bank_rules deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bank_rule","event_prefix":"bank_rule"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_155_banking.sql
 -- better-supabase module: banking

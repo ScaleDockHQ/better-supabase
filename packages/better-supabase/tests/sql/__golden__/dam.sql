@@ -363,7 +363,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:c394103e7c4149241486556672a1e2c46a2a3bd4f54ad7072cb5d4b3f57f457d
+-- @bsb-hash sha256:3c4266a08a271ab2f7536ff37911d465516e3e5227d44c3e89d40b3c54264424
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -778,12 +778,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as r
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.dam_usage_rights', target_type => 'dam_usage_right', event_prefix => 'dam_usage_right', deferred => true);
-  perform better_supabase.audit('better_supabase.dam_renditions', target_type => 'dam_rendition', event_prefix => 'dam_rendition', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.dam_usage_rights deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dam_usage_right","event_prefix":"dam_usage_right"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.dam_renditions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dam_rendition","event_prefix":"dam_rendition"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_161_dam.sql
 -- better-supabase module: dam

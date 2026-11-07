@@ -986,7 +986,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:7db2951914e256eb7f635d67818cd7b3b615ad6caaf81d5aa7afbba42192bcdb
+-- @bsb-hash sha256:7359c6067a92387e4a921f729a40472716e066a8af9bcc7c981b7114267cd02b
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2054,14 +2054,10 @@ create policy bsb_tenant_scope_delete on "better_supabase"."donations" as restri
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.donations', target_type => 'donation', event_prefix => 'donation', deferred => true);
-  perform better_supabase.audit('better_supabase.pledges', target_type => 'pledge', event_prefix => 'pledge', deferred => true);
-  perform better_supabase.audit('better_supabase.donation_funds', target_type => 'donation_fund', event_prefix => 'donation_fund', deferred => true);
-  perform better_supabase.audit('better_supabase.donation_receipts', target_type => 'donation_receipt', event_prefix => 'donation_receipt', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.donations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"donation","event_prefix":"donation"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.pledges deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"pledge","event_prefix":"pledge"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.donation_funds deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"donation_fund","event_prefix":"donation_fund"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.donation_receipts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"donation_receipt","event_prefix":"donation_receipt"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_122_donations.sql
 -- better-supabase module: donations

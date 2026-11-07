@@ -1,6 +1,6 @@
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:51cd8ce34c561c914071932aa62abd49c0dc4dff947ab7d1e1830431f20db9d1
+-- @bsb-hash sha256:a2d37febc9ae2e9355994d33477d1f227b12e78f02102136936d4aeec457736d
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -726,12 +726,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."guest_grants" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.guests', target_type => 'guest', event_prefix => 'guest', deferred => true);
-  perform better_supabase.audit('better_supabase.guest_grants', target_type => 'guest_grant', event_prefix => 'guest_grant', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.guests deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"guest","event_prefix":"guest"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.guest_grants deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"guest_grant","event_prefix":"guest_grant"}');
 
 -- blocks.guests.api: entry points for the Data API.
 create schema if not exists "api";

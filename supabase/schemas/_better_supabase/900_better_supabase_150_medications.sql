@@ -1,6 +1,6 @@
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:7f34e5faa6a9ad707d27f226d5fb54ebab8c0966c02cb1f1007ca3a743529a5c
+-- @bsb-hash sha256:96e26dd0e657ce0ddfc041d412c38497a31811635f60f396d884680e38c6b7fe
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1586,13 +1586,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."medication_administr
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.medications', target_type => 'medication', event_prefix => 'medication', deferred => true);
-  perform better_supabase.audit('better_supabase.medication_orders', target_type => 'medication_order', event_prefix => 'medication_order', deferred => true);
-  perform better_supabase.audit('better_supabase.medication_administrations', target_type => 'medication_administration', event_prefix => 'medication_administration', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.medications deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"medication","event_prefix":"medication"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.medication_orders deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"medication_order","event_prefix":"medication_order"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.medication_administrations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"medication_administration","event_prefix":"medication_administration"}');
 
 -- blocks.medications.api: entry points for the Data API.
 create schema if not exists "api";

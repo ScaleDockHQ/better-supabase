@@ -3671,7 +3671,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:3a1f6e62f846cb8cf9a9240aab2f0f88f0ffdb17e16163357af912eb8e519538
+-- @bsb-hash sha256:67f500f9158c6093cf54dadd030c41d93e955f5964c6558025dd088a8bd6b224
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7563,12 +7563,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."discount_rules" as r
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.products', target_type => 'product', event_prefix => 'product', deferred => true);
-  perform better_supabase.audit('better_supabase.product_variants', target_type => 'product_variant', event_prefix => 'product_variant', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.products deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"product","event_prefix":"product"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.product_variants deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"product_variant","event_prefix":"product_variant"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog

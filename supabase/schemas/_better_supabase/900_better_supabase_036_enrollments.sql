@@ -1,6 +1,6 @@
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:1aeba8cb963b77a98dc8e7a194da358ab3cb03a821e6e5ecb7662c926262174c
+-- @bsb-hash sha256:662d7586dd1d55ed8d780b3c7361b111f54a73cd41f562b25652d1716ce85933
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1180,12 +1180,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."enrollment_steps" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.enrollment_programs', target_type => 'enrollment_program', event_prefix => 'enrollment_program', deferred => true);
-  perform better_supabase.audit('better_supabase.enrollments', target_type => 'enrollment', event_prefix => 'enrollment', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.enrollment_programs deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"enrollment_program","event_prefix":"enrollment_program"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.enrollments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"enrollment","event_prefix":"enrollment"}');
 
 -- blocks.enrollments.api: entry points for the Data API.
 create schema if not exists "api";

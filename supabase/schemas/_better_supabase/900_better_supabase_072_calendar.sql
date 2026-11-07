@@ -1,6 +1,6 @@
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:d257678b7c9613427326bd9c625e4d116cb05028c56355ffc6ca6b4dfa7d2698
+-- @bsb-hash sha256:f40b886bc08786717d2bcdb2509e1f686e003b03b57dfde68341f2eaf6f0491b
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1870,12 +1870,8 @@ create trigger "bsb_search_calendar_event_index"
   for each row execute function "better_supabase"."search_index_row"('calendar_event', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.calendar_events', target_type => 'calendar_event', event_prefix => 'calendar_event', deferred => true);
-  perform better_supabase.audit('better_supabase.calendars', target_type => 'calendar', event_prefix => 'calendar', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.calendar_events deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"calendar_event","event_prefix":"calendar_event"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.calendars deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"calendar","event_prefix":"calendar"}');
 
 -- blocks.calendar.api: entry points for the Data API.
 create schema if not exists "api";

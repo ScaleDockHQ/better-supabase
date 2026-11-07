@@ -853,7 +853,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:138961fd2c527deb406b4d949e0bcd83199c5617e7edffd657f9f210c42f18f1
+-- @bsb-hash sha256:8e5228b4293d3bed9ce01fbc213ed31036ce71ca6ac5478b24bebcd2ba354189
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1689,11 +1689,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."promotion_redemption
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.promotions', target_type => 'promotion', event_prefix => 'promotion', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.promotions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"promotion","event_prefix":"promotion"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions

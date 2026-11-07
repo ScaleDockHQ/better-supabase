@@ -421,7 +421,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:29eaac6b5539931d8c0218e61a8b854446a1e753c728ea69d250d396627fb6c7
+-- @bsb-hash sha256:5560808c023cdf07fed56c87e67ed8992921838d15ab5901ade3860b6bebd7ef
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -880,11 +880,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."versions" as restric
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.versions', target_type => 'version', event_prefix => 'version', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.versions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"version","event_prefix":"version"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_074_versions.sql
 -- better-supabase module: versions

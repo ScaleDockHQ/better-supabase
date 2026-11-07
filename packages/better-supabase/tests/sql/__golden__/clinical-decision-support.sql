@@ -619,7 +619,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:606f85a91e7131ed664ab145c380790776dc5cbb8dd33914fc3d1ad6fb19e988
+-- @bsb-hash sha256:250ab30ebd5635c6f7f3827025d52a289fd458480399fbc7236d99922c67228d
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1290,12 +1290,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."care_alerts" as rest
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.care_alerts', target_type => 'care_alert', event_prefix => 'care_alert', deferred => true);
-  perform better_supabase.audit('better_supabase.care_rules', target_type => 'care_rule', event_prefix => 'care_rule', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_alerts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_alert","event_prefix":"care_alert"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.care_rules deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"care_rule","event_prefix":"care_rule"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support

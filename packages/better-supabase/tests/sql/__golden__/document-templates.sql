@@ -1130,7 +1130,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:0516a5b79b9bf351da8c5bba8c46aedec2448de9036304e3f81f50090d44daa2
+-- @bsb-hash sha256:c12be4ef38485614df91e8b7e1c473e601e0ae4c20c8b0f8e5c8e69ffe3bc2de
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2715,13 +2715,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."rendered_documents" 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.document_templates', target_type => 'document_template', event_prefix => 'document_template', deferred => true);
-  perform better_supabase.audit('better_supabase.document_text_blocks', target_type => 'document_text_block', event_prefix => 'document_text_block', deferred => true);
-  perform better_supabase.audit('better_supabase.rendered_documents', target_type => 'document_snapshot', event_prefix => 'document_snapshot', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.document_templates deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document_template","event_prefix":"document_template"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.document_text_blocks deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document_text_block","event_prefix":"document_text_block"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.rendered_documents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"document_snapshot","event_prefix":"document_snapshot"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates

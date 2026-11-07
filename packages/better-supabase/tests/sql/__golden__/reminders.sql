@@ -260,7 +260,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:ef4640aa80538f9164a219e5bff5c8b27f8259d0158cc09542ae3a0169253163
+-- @bsb-hash sha256:2366542dcfe259841fd57b18ff6b3bd8f66cd1dc34b337ba5d8cd2f311309c60
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -503,11 +503,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."reminders" as restri
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.reminders', target_type => 'reminder', event_prefix => 'reminder', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.reminders deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"reminder","event_prefix":"reminder"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders

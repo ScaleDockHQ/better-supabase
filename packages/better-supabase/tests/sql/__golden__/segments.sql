@@ -414,7 +414,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:278b76bcd9b83c23aad0395472a66e8b900597dc5e7742167e90dae4bb1c580e
+-- @bsb-hash sha256:536b611c984c75ed21815b95c3eab965908953adf17212437548fa9a83d20d83
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -838,11 +838,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."segment_members" as 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.segments', target_type => 'segment', event_prefix => 'segment', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.segments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"segment","event_prefix":"segment"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_133_segments.sql
 -- better-supabase module: segments

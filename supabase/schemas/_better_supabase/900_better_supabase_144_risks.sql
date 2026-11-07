@@ -1,6 +1,6 @@
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:7cb8eee0b87af7537691cfba77ea203407ccab20e3817498a7442e75f4dd8d62
+-- @bsb-hash sha256:4638caf7aafd1ae59bbe18064f43f5bd48c9f06ac16bb36403de5acda83f5d71
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1092,13 +1092,9 @@ create trigger "bsb_search_risk_index"
   for each row execute function "better_supabase"."search_index_row"('risk', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.risks', target_type => 'risk', event_prefix => 'risk', deferred => true);
-  perform better_supabase.audit('better_supabase.risk_matrices', target_type => 'risk_matrix', event_prefix => 'risk_matrix', deferred => true);
-  perform better_supabase.audit('better_supabase.risk_assessments', target_type => 'risk_assessment', event_prefix => 'risk_assessment', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.risks deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"risk","event_prefix":"risk"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.risk_matrices deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"risk_matrix","event_prefix":"risk_matrix"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.risk_assessments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"risk_assessment","event_prefix":"risk_assessment"}');
 
 -- blocks.risks.api: entry points for the Data API.
 create schema if not exists "api";

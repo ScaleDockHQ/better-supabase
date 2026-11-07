@@ -1139,7 +1139,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:16b26d611bc36cdc1d3327dc71c8067d0df279d3f259fec6b0f9bf631a4ec10a
+-- @bsb-hash sha256:a58c5977be7558695b4eba787c211278fa2601bc23e6eb6bcbd205e4618c5347
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2399,11 +2399,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions"
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.attachments', target_type => 'attachment', event_prefix => 'attachment', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.attachments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"attachment","event_prefix":"attachment"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments

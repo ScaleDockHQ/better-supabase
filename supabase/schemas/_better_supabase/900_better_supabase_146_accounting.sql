@@ -1,6 +1,6 @@
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:cee8ab1ab23fc0de9e600d7b38b4860e6b2ba83a054592888016dacf5052c389
+-- @bsb-hash sha256:3223be03276ab119ea83a5a681c77f6a97a98616a13b0940ea10cd91db9c5b5b
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3614,16 +3614,12 @@ create policy bsb_tenant_scope_delete on "better_supabase"."accounting_budget_li
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.accounting_accounts', target_type => 'accounting_account', event_prefix => 'accounting_account', deferred => true);
-  perform better_supabase.audit('better_supabase.accounting_journals', target_type => 'accounting_journal', event_prefix => 'accounting_journal', deferred => true);
-  perform better_supabase.audit('better_supabase.accounting_periods', target_type => 'accounting_period', event_prefix => 'accounting_period', deferred => true);
-  perform better_supabase.audit('better_supabase.accounting_entries', target_type => 'accounting_entry', event_prefix => 'accounting_entry', deferred => true);
-  perform better_supabase.audit('better_supabase.accounting_dimensions', target_type => 'accounting_dimension', event_prefix => 'accounting_dimension', deferred => true);
-  perform better_supabase.audit('better_supabase.accounting_budgets', target_type => 'accounting_budget', event_prefix => 'accounting_budget', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_accounts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_account","event_prefix":"accounting_account"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_journals deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_journal","event_prefix":"accounting_journal"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_periods deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_period","event_prefix":"accounting_period"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_entries deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_entry","event_prefix":"accounting_entry"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_dimensions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_dimension","event_prefix":"accounting_dimension"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.accounting_budgets deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"accounting_budget","event_prefix":"accounting_budget"}');
 
 -- blocks.accounting.api: entry points for the Data API.
 create schema if not exists "api";

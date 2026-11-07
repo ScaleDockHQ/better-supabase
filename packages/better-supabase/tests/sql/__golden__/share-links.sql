@@ -292,7 +292,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:f85d7d85fd85f544ef38f307d780214307b4a294448da27b7d710aafdcf4b198
+-- @bsb-hash sha256:00bafad13dee84115e477d08c18f5ef7238cc9833885b979b11bf63f64f15203
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -739,11 +739,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."share_links" as rest
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.share_links', target_type => 'share_link', event_prefix => 'share_link', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.share_links deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"share_link","event_prefix":"share_link"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links

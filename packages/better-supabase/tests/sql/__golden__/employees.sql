@@ -786,7 +786,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:2f08ef986a74acebffc961b9c6d5a6b6a456b6fc8881ccb920593d1306689118
+-- @bsb-hash sha256:06043a7503b5d028c4d722ffe493d86873fb59e0144ab9a4f3309df6974fbfc2
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1650,11 +1650,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."employee_contracts" 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.employees', target_type => 'employee', event_prefix => 'employee', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.employees deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"employee","event_prefix":"employee"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_102_employees.sql
 -- better-supabase module: employees

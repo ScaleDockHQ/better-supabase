@@ -1,6 +1,6 @@
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:4cec407a32a8a96f6f9cc7e9976df4f4995a35ef881b2ce157827f8d33df9cdd
+-- @bsb-hash sha256:822d1c93a2c2995d498b2f17355c5658504168c04c3cda19c08ecb6fbd899c43
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -402,11 +402,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."assignments" as rest
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.assignment_queues', target_type => 'assignment_queue', event_prefix => 'assignment_queue', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.assignment_queues deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"assignment_queue","event_prefix":"assignment_queue"}');
 
 -- blocks.assignment.api: entry points for the Data API.
 create schema if not exists "api";

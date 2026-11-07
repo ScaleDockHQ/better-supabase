@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:9c9ce218fe6a444a9047d90e4686dcafaa0df3861c3b3a7d58915ff8de04eff3
+-- @bsb-hash sha256:41a8782f0ebbcf5b8df21159a797a825c399c0eb1b71f6b189e0fffdcb3ea4ea
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1369,11 +1369,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions"
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.attachments', target_type => 'attachment', event_prefix => 'attachment', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.attachments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"attachment","event_prefix":"attachment"}');
 
 -- blocks.attachments.api: entry points for the Data API.
 create schema if not exists "api";

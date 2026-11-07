@@ -1,6 +1,6 @@
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:193c105783a2a8e58f5d0ef423a2464d3b19258443f172eb01c785c7eabbd905
+-- @bsb-hash sha256:d92f3de4cf9b943ae9203ba1ded5a9a71dfe8f93740ced3fc848dbfb9a4e030e
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -415,12 +415,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."dam_renditions" as r
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.dam_usage_rights', target_type => 'dam_usage_right', event_prefix => 'dam_usage_right', deferred => true);
-  perform better_supabase.audit('better_supabase.dam_renditions', target_type => 'dam_rendition', event_prefix => 'dam_rendition', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.dam_usage_rights deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dam_usage_right","event_prefix":"dam_usage_right"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.dam_renditions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"dam_rendition","event_prefix":"dam_rendition"}');
 
 -- blocks.dam.api: entry points for the Data API.
 create schema if not exists "api";

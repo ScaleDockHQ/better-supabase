@@ -625,7 +625,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@1 managed
--- @bsb-hash sha256:f68402955bf2f0ba9a4af9a7d2c2ab7680403fc953a80bae3a6bb7db0210d3b5
+-- @bsb-hash sha256:62c0dcda51f4ca33a90bfc51288a9f69ea8d95d386bfe588530101bae363cfd9
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash and a citation per rule, and the deadlines computed from a subject's facts: due on a date or unknown with the facts still missing, recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1272,11 +1272,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."deadlines" as restri
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.deadlines', target_type => 'deadline', event_prefix => 'deadline', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.deadlines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"deadline","event_prefix":"deadline"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines

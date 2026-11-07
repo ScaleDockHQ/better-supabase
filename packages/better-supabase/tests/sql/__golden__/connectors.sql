@@ -520,7 +520,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:380b98628b62ac22c81c5511eb29164cbcf65edd1eebc3f709727cb2cee147b2
+-- @bsb-hash sha256:5faaca86ed5f58001a6f340ca387ec98f244cbb2caa9cc70ddbe5c923282e21a
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1075,11 +1075,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."connector_grants" as
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.connector_servers', target_type => 'connector_server', event_prefix => 'connector_server', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.connector_servers deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"connector_server","event_prefix":"connector_server"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors

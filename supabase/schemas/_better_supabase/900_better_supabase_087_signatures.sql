@@ -1,6 +1,6 @@
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:e0ce7736e5bf4830add09e0225161a5f98f1f42b1cd279de6062a3f67c60aed5
+-- @bsb-hash sha256:1663f590672dab802d80666768587e7720d08c6aca82504a513d2eb89b290214
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -676,11 +676,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."signatures" as restr
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.signature_requests', target_type => 'signature_request', event_prefix => 'signature_request', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.signature_requests deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"signature_request","event_prefix":"signature_request"}');
 
 -- blocks.signatures.api: entry points for the Data API.
 create schema if not exists "api";

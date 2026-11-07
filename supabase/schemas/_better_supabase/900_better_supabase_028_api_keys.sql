@@ -1,6 +1,6 @@
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:a44116809078e2827dd545e8c25e1bcfa30ebce1a853697ea31ddc1ecdfb6d63
+-- @bsb-hash sha256:6c50ad1a5c5a7a42d07515c8131010123cd2ed29052fcaeeb670c528453f1302
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -443,11 +443,7 @@ grant execute on function "better_supabase"."has_scope"(text) to anon, authentic
 grant execute on function "better_supabase"."api_key_tenant"() to anon, authenticated, service_role;
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.api_keys', target_type => 'api_key', event_prefix => 'api_key', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.api_keys deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"api_key","event_prefix":"api_key"}');
 
 -- blocks.api-keys.api: entry points for the Data API.
 create schema if not exists "api";

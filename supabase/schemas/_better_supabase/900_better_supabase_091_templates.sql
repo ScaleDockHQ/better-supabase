@@ -1,6 +1,6 @@
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:298a14443f489df5c8585a9bcafc439c7f6f9dc5f2399bde465fae62bf31e4d1
+-- @bsb-hash sha256:3f5a76d2c029d486e8027ead6996ecb576062fce95c1bbc1219b22cfa063386f
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1482,11 +1482,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."template_schedule_ru
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.templates', target_type => 'template', event_prefix => 'template', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.templates deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"template","event_prefix":"template"}');
 
 -- blocks.templates.api: entry points for the Data API.
 create schema if not exists "api";

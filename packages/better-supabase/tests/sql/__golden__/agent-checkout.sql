@@ -505,7 +505,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:0b7c8637ec29318124162db7123acda8f3f92fcd516d9fd511194347e2698b02
+-- @bsb-hash sha256:419a3fcace7167d9a4ef2a0f8a398707b2edcd78c245c090db2c7cb4b301b228
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1066,12 +1066,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."agent_mandates" as r
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.checkout_sessions', target_type => 'checkout_session', event_prefix => 'checkout_session', deferred => true);
-  perform better_supabase.audit('better_supabase.agent_mandates', target_type => 'agent_mandate', event_prefix => 'agent_mandate', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.checkout_sessions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"checkout_session","event_prefix":"checkout_session"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.agent_mandates deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"agent_mandate","event_prefix":"agent_mandate"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout

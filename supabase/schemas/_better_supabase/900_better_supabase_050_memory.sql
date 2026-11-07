@@ -1,6 +1,6 @@
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:ed7928dcf55abe9fc4bceb3fd92d10e973f63cb33683cefd31bc05ecb7d722b9
+-- @bsb-hash sha256:c8b1b100991d121528333b1246b6e33ed4f1bfcd1c96525c5a3b787a2e68c761
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1084,11 +1084,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."memory_message_embed
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.memories', target_type => 'memory', event_prefix => 'memory', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.memories deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"memory","event_prefix":"memory"}');
 
 -- blocks.memory.api: entry points for the Data API.
 create schema if not exists "api";

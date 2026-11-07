@@ -1,6 +1,6 @@
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:27f1031b43d4cd1dc63b109a270e6d3363056fb4287bd83d9367a8e6130bdd8e
+-- @bsb-hash sha256:9cb80ee565b076f2fbf0ad8127c43a03ff26bcbc93de9fac6b45f31ad65845fa
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1006,12 +1006,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."legal_entity_setting
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.legal_entities', target_type => 'legal_entity', event_prefix => 'legal_entity', deferred => true);
-  perform better_supabase.audit('better_supabase.legal_entity_settings', target_type => 'legal_entity_setting', event_prefix => 'legal_entity_setting', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.legal_entities deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"legal_entity","event_prefix":"legal_entity"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.legal_entity_settings deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"legal_entity_setting","event_prefix":"legal_entity_setting"}');
 
 -- blocks.legal-entities.api: entry points for the Data API.
 create schema if not exists "api";

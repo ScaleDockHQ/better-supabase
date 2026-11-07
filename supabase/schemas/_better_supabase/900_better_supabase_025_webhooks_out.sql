@@ -1,6 +1,6 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:87bdf70dfd33e0f82420470a174712c92a104dbc3f14b7dbb72127ef42419aa9
+-- @bsb-hash sha256:186dc8ac2a60b2edb677c3a26d17ba0cd79b814b16c4f57b42d6c477e67f9708
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -783,11 +783,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."webhook_deliveries" 
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.webhook_endpoints', target_type => 'webhook_endpoint', event_prefix => 'webhook_endpoint', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.webhook_endpoints deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"webhook_endpoint","event_prefix":"webhook_endpoint"}');
 
 -- blocks.webhooks-out.api: entry points for the Data API.
 create schema if not exists "api";

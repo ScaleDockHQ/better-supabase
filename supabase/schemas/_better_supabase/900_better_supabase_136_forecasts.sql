@@ -1,6 +1,6 @@
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:35c06701ee16f42c2cab0860716681663e8b23a4a71458487786bab2c849f73a
+-- @bsb-hash sha256:37b174e2e1e69da576e499b21231f0978d9054222d8ac3ba22085a5310bbadc0
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -258,11 +258,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_de
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.forecast_snapshots', target_type => 'forecast_snapshot', event_prefix => 'forecast_snapshot', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.forecast_snapshots deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"forecast_snapshot","event_prefix":"forecast_snapshot"}');
 
 -- blocks.forecasts.api: entry points for the Data API.
 create schema if not exists "api";

@@ -485,7 +485,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:93ab4eb61860cf707fa042dcf2db90ddb8243e9bc0dd9f4c6502da9d64110561
+-- @bsb-hash sha256:7fdd906f661e4176bb5ff3c043ebb97e21c61ec3a7964b37dcd50760d74b347c
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1009,12 +1009,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."guest_grants" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.guests', target_type => 'guest', event_prefix => 'guest', deferred => true);
-  perform better_supabase.audit('better_supabase.guest_grants', target_type => 'guest_grant', event_prefix => 'guest_grant', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.guests deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"guest","event_prefix":"guest"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.guest_grants deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"guest_grant","event_prefix":"guest_grant"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_032_guests.sql
 -- better-supabase module: guests

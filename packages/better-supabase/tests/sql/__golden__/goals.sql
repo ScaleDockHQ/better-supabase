@@ -141,7 +141,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:e402b6720c435b139ecffa710b83d09156874c610f8404076c2ecaa6fdc1c9fb
+-- @bsb-hash sha256:66e328d6aefd3729485a742a43e4fce38865cce49e12608ec7929398c3783af7
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -279,11 +279,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."goals" as restrictiv
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.goals', target_type => 'goal', event_prefix => 'goal', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.goals deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"goal","event_prefix":"goal"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_100_goals.sql
 -- better-supabase module: goals

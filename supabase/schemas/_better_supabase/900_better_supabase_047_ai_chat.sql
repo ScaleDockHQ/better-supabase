@@ -1,6 +1,6 @@
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:9bd7682d9905c6ebf4ee94e51a92be652916a4323b665ac8da48775f4caf9f91
+-- @bsb-hash sha256:cf2c91a8b13f82cae60f78b32ef715690bdd2ecd85b1130548684dd1689ba421
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2690,12 +2690,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."ai_sandboxes" as res
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.ai_chats', target_type => 'ai_chat', event_prefix => 'ai_chat', deferred => true);
-  perform better_supabase.audit('better_supabase.ai_projects', target_type => 'ai_project', event_prefix => 'ai_project', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_chats deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_chat","event_prefix":"ai_chat"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_projects deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_project","event_prefix":"ai_project"}');
 
 -- blocks.ai-chat.api: entry points for the Data API.
 create schema if not exists "api";

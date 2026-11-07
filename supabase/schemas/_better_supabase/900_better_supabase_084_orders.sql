@@ -1,6 +1,6 @@
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:4918a3d6ba0f1782ffbe13f2c884db0be26ccd4697091fb3ab55d3f28af1b958
+-- @bsb-hash sha256:c5a7186c811b36d5fce2c5c1554b699e99111a7006f88662dc0bfeafd6f4393a
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3057,12 +3057,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."order_refunds" as re
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.orders', target_type => 'order', event_prefix => 'order', deferred => true);
-  perform better_supabase.audit('better_supabase.carts', target_type => 'cart', event_prefix => 'cart', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.orders deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"order","event_prefix":"order"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.carts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"cart","event_prefix":"cart"}');
 
 -- blocks.orders.api: entry points for the Data API.
 create schema if not exists "api";

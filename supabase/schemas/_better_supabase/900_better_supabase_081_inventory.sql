@@ -1,6 +1,6 @@
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:525485ef11c13f1a7003e85e5f7a0fc1b77ea068333109af5216dffbf9c6fbcd
+-- @bsb-hash sha256:632059d465fbca225081eb420fd23e4d38da349cc0928d8268d02632ba66d1ec
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3255,14 +3255,10 @@ create policy bsb_tenant_scope_delete on "better_supabase"."stock_count_lines" a
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.inventory_locations', target_type => 'inventory_location', event_prefix => 'inventory_location', deferred => true);
-  perform better_supabase.audit('better_supabase.purchase_orders', target_type => 'purchase_order', event_prefix => 'purchase_order', deferred => true);
-  perform better_supabase.audit('better_supabase.purchase_requisitions', target_type => 'purchase_requisition', event_prefix => 'purchase_requisition', deferred => true);
-  perform better_supabase.audit('better_supabase.inventory_receipts', target_type => 'inventory_receipt', event_prefix => 'inventory_receipt', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.inventory_locations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inventory_location","event_prefix":"inventory_location"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.purchase_orders deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"purchase_order","event_prefix":"purchase_order"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.purchase_requisitions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"purchase_requisition","event_prefix":"purchase_requisition"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.inventory_receipts deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inventory_receipt","event_prefix":"inventory_receipt"}');
 
 -- blocks.inventory.api: entry points for the Data API.
 create schema if not exists "api";

@@ -341,7 +341,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:03a43d11dfec3a61b927fc0bf910c567d9a0b9b38e9147b96d9ac1e42f6aee87
+-- @bsb-hash sha256:394dd9a33de883b00bbfe874ed4bc7c75b80f9fa7918192b45cebc15d110b6b5
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1025,11 +1025,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."access_requests" as 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.access_requests', target_type => 'access_request', event_prefix => 'access_request', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.access_requests deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"access_request","event_prefix":"access_request"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests

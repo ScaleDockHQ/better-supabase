@@ -739,7 +739,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:7fa4bc50d2726674bc42cce5f77decf144c74dfd0c0990aea19edc6e805ca7e1
+-- @bsb-hash sha256:f7eeb3f30130383c55fd2b65263ae4c1135a18634a8249fc30a2045c59b497cb
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1612,13 +1612,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."qualifications" as r
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.qualifications', target_type => 'qualification', event_prefix => 'qualification', deferred => true);
-  perform better_supabase.audit('better_supabase.qualification_types', target_type => 'qualification_type', event_prefix => 'qualification_type', deferred => true);
-  perform better_supabase.audit('better_supabase.qualification_requirements', target_type => 'qualification_requirement', event_prefix => 'qualification_requirement', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.qualifications deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"qualification","event_prefix":"qualification"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.qualification_types deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"qualification_type","event_prefix":"qualification_type"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.qualification_requirements deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"qualification_requirement","event_prefix":"qualification_requirement"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications

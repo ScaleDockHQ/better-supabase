@@ -528,7 +528,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:c24d9519737d16e825eab047a7a288366351dd052c6e83e2f1d3878d6d531f46
+-- @bsb-hash sha256:b3f854e34b710074cd05df1fc55a4249095e15a1d067df61f6fc07b4c3c5d373
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1039,13 +1039,9 @@ create policy bsb_tenant_scope_delete on "better_supabase"."interviews" as restr
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.job_openings', target_type => 'job_opening', event_prefix => 'job_opening', deferred => true);
-  perform better_supabase.audit('better_supabase.applications', target_type => 'application', event_prefix => 'application', deferred => true);
-  perform better_supabase.audit('better_supabase.interviews', target_type => 'interview', event_prefix => 'interview', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.job_openings deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"job_opening","event_prefix":"job_opening"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.applications deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"application","event_prefix":"application"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.interviews deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"interview","event_prefix":"interview"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring

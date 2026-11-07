@@ -1,6 +1,6 @@
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:be26e2ed9435e7ee727a86c02ced8a3ce007f37431140e18e3c85abb7ede9fd1
+-- @bsb-hash sha256:ac1f13380f7695e2e68a471bab67eaedbca12db10e79e0d776bd65eddfaaf2d5
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -506,11 +506,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."agent_installs" as r
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.agents', target_type => 'agent', event_prefix => 'agent', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.agents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"agent","event_prefix":"agent"}');
 
 -- blocks.agents.api: entry points for the Data API.
 create schema if not exists "api";

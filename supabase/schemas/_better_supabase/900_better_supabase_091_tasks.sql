@@ -1,6 +1,6 @@
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:776795f5ac96fcaf47b6d38f71473c2654f9365a8f6a2f1c0c2850a147e149f2
+-- @bsb-hash sha256:4e0e210087c5e4d69ad95637a97c6d9532275c26db551181719c0a4c11245b37
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1165,14 +1165,10 @@ create trigger "bsb_search_work_item_index"
   for each row execute function "better_supabase"."search_index_row"('work_item', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.work_items', target_type => 'task', event_prefix => 'task', deferred => true);
-  perform better_supabase.audit('better_supabase.work_projects', target_type => 'project', event_prefix => 'project', deferred => true);
-  perform better_supabase.audit('better_supabase.iterations', target_type => 'iteration', event_prefix => 'iteration', deferred => true);
-  perform better_supabase.audit('better_supabase.work_item_checklist_items', target_type => 'checklist_item', event_prefix => 'checklist_item', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_items deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"task","event_prefix":"task"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_projects deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"project","event_prefix":"project"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.iterations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"iteration","event_prefix":"iteration"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_item_checklist_items deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"checklist_item","event_prefix":"checklist_item"}');
 
 -- blocks.tasks.api: entry points for the Data API.
 create schema if not exists "api";

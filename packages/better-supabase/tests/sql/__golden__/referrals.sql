@@ -392,7 +392,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:fb4494894aaae028c5589a94cbb6f4854e62fdf5ae01d0e720f6fcb9778d3eb5
+-- @bsb-hash sha256:033b664b32ca0bf03a25b2c8c11d6296bb44a67f80cb5a69fd30a9efb4238924
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -813,12 +813,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."referrals" as restri
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.referral_codes', target_type => 'referral_code', event_prefix => 'referral_code', deferred => true);
-  perform better_supabase.audit('better_supabase.referrals', target_type => 'referral', event_prefix => 'referral', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.referral_codes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"referral_code","event_prefix":"referral_code"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.referrals deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"referral","event_prefix":"referral"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals

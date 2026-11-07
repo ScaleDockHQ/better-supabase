@@ -1,6 +1,6 @@
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:2ccddf9ca7440e400b02886c56e94ee5118c542137495b4106e121572307e649
+-- @bsb-hash sha256:a8f6a64dcecf780eee615a0b80556e746d8101f52f40c13a8cc049d23c3ae8b0
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -679,11 +679,7 @@ create trigger "bsb_search_content_entry_index"
   for each row execute function "better_supabase"."search_index_row"('content_entry', 'id');
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.content_entries', target_type => 'content_entry', event_prefix => 'content_entry', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.content_entries deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"content_entry","event_prefix":"content_entry"}');
 
 -- blocks.content.api: entry points for the Data API.
 create schema if not exists "api";

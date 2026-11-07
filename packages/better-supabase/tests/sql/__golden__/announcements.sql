@@ -268,7 +268,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:31449e44e006b24c488b49234aedf2ae94abf63f72875721dc6930f96e4a65c0
+-- @bsb-hash sha256:266e73fe9cc5652eeefa3d59c2415f73d2f445e139c125455ac3312176016aa3
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -540,11 +540,7 @@ grant execute on function "better_supabase"."save_announcement"(uuid, jsonb) to 
 grant execute on function "better_supabase"."delete_announcement"(uuid) to authenticated, service_role;
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.announcements', target_type => 'announcement', event_prefix => 'announcement', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.announcements deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"announcement","event_prefix":"announcement"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements

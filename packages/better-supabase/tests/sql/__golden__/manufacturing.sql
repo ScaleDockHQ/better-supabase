@@ -1825,7 +1825,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:0f6d4f2302993d60a573b71964d514344a5f77a908bf8440d53c59728f594836
+-- @bsb-hash sha256:7e7753de17e32501d3c43ebdb4d2c5741a282cc33dd2f7cc5aec5ca5f65172f9
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3716,18 +3716,14 @@ create policy bsb_tenant_scope_delete on "better_supabase"."stock_lot_links" as 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.production_orders', target_type => 'production_order', event_prefix => 'production_order', deferred => true);
-  perform better_supabase.audit('better_supabase.boms', target_type => 'bom', event_prefix => 'bom', deferred => true);
-  perform better_supabase.audit('better_supabase.bom_components', target_type => 'bom_component', event_prefix => 'bom_component', deferred => true);
-  perform better_supabase.audit('better_supabase.bom_operations', target_type => 'bom_operation', event_prefix => 'bom_operation', deferred => true);
-  perform better_supabase.audit('better_supabase.work_centers', target_type => 'work_center', event_prefix => 'work_center', deferred => true);
-  perform better_supabase.audit('better_supabase.production_order_operations', target_type => 'production_order_operation', event_prefix => 'production_order_operation', deferred => true);
-  perform better_supabase.audit('better_supabase.production_consumptions', target_type => 'production_consumption', event_prefix => 'production_consumption', deferred => true);
-  perform better_supabase.audit('better_supabase.stock_lot_links', target_type => 'stock_lot_link', event_prefix => 'stock_lot_link', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.production_orders deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"production_order","event_prefix":"production_order"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.boms deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bom","event_prefix":"bom"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bom_components deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bom_component","event_prefix":"bom_component"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.bom_operations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"bom_operation","event_prefix":"bom_operation"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.work_centers deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"work_center","event_prefix":"work_center"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.production_order_operations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"production_order_operation","event_prefix":"production_order_operation"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.production_consumptions deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"production_consumption","event_prefix":"production_consumption"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.stock_lot_links deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"stock_lot_link","event_prefix":"stock_lot_link"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing

@@ -275,7 +275,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:61ced024242c502bea7c84b385820840d48b50da268563c7800b8243fe7597de
+-- @bsb-hash sha256:3bd4e9e42d1521618255d5740229b779d8dabe3bb44cd18d81af9db8b03eace6
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -533,11 +533,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."forecast_snapshot_de
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.forecast_snapshots', target_type => 'forecast_snapshot', event_prefix => 'forecast_snapshot', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.forecast_snapshots deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"forecast_snapshot","event_prefix":"forecast_snapshot"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_136_forecasts.sql
 -- better-supabase module: forecasts

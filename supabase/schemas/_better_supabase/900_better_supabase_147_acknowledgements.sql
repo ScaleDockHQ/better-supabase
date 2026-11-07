@@ -1,6 +1,6 @@
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:cfc75ed1dab77903682e65c316d10db3122db07d7fc528ba4ab021de89af75d6
+-- @bsb-hash sha256:3ce5d862b74ca11a75782ac4b1c27e1e7b0a7420cf98ced740748dddcfcab900
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -729,12 +729,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."acknowledgements" as
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.acknowledgements', target_type => 'acknowledgement', event_prefix => 'acknowledgement', deferred => true);
-  perform better_supabase.audit('better_supabase.acknowledgement_assignments', target_type => 'acknowledgement_assignment', event_prefix => 'acknowledgement_assignment', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.acknowledgements deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"acknowledgement","event_prefix":"acknowledgement"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.acknowledgement_assignments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"acknowledgement_assignment","event_prefix":"acknowledgement_assignment"}');
 
 -- blocks.acknowledgements.api: entry points for the Data API.
 create schema if not exists "api";

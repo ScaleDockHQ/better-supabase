@@ -1,6 +1,6 @@
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:302fe86149effc5761c55eb6030994b0474e9aa5ce809a976dbaeac4ba34a475
+-- @bsb-hash sha256:c0f3b4ac38d4b53580093a60a79880d11bc3273d96af028f7797de60d7f24a99
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1319,17 +1319,13 @@ create policy bsb_tenant_scope_delete on "better_supabase"."appraisal_goals" as 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.appraisals', target_type => 'appraisal', event_prefix => 'appraisal', deferred => true);
-  perform better_supabase.audit('better_supabase.appraisal_cycles', target_type => 'appraisal_cycle', event_prefix => 'appraisal_cycle', deferred => true);
-  perform better_supabase.audit('better_supabase.appraisal_reviews', target_type => 'appraisal_review', event_prefix => 'appraisal_review', deferred => true);
-  perform better_supabase.audit('better_supabase.appraisal_calibrations', target_type => 'appraisal_calibration', event_prefix => 'appraisal_calibration', deferred => true);
-  perform better_supabase.audit('better_supabase.appraisal_goals', target_type => 'appraisal_goal', event_prefix => 'appraisal_goal', deferred => true);
-  perform better_supabase.audit('better_supabase.appraisal_competencies', target_type => 'appraisal_competency', event_prefix => 'appraisal_competency', deferred => true);
-  perform better_supabase.audit('better_supabase.appraisal_review_ratings', target_type => 'appraisal_review_rating', event_prefix => 'appraisal_review_rating', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.appraisals deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"appraisal","event_prefix":"appraisal"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.appraisal_cycles deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"appraisal_cycle","event_prefix":"appraisal_cycle"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.appraisal_reviews deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"appraisal_review","event_prefix":"appraisal_review"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.appraisal_calibrations deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"appraisal_calibration","event_prefix":"appraisal_calibration"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.appraisal_goals deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"appraisal_goal","event_prefix":"appraisal_goal"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.appraisal_competencies deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"appraisal_competency","event_prefix":"appraisal_competency"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.appraisal_review_ratings deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"appraisal_review_rating","event_prefix":"appraisal_review_rating"}');
 
 -- blocks.appraisals.api: entry points for the Data API.
 create schema if not exists "api";

@@ -725,7 +725,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:75811a6823de24381f34f508e4f97faa1501dc20fba4fee2d03abc88d9e368a1
+-- @bsb-hash sha256:85d45f009b76152f2963c401f6ea7e9b2e485659e3bb64ac44f9e6135dd1fcba
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1430,11 +1430,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."ai_documents" as res
   using ("organization_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.ai_documents', target_type => 'ai_document', event_prefix => 'ai_document', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_documents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_document","event_prefix":"ai_document"}');
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files

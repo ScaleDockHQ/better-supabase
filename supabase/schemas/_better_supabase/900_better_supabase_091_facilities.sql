@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
 -- @bsb-block facilities@5 managed tasks
--- @bsb-hash sha256:8d79f7456339869161e3ba520e82c29873c615f2245f6fd1d7b80ef2d31c989c
+-- @bsb-hash sha256:dcfd8ed5c677012eef0e0fcd35886ffde8b2135c3cf937541d75b47053acc6a7
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -986,12 +986,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."maintenance_request_
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.maintenance_requests', target_type => 'task', event_prefix => 'task', deferred => true);
-  perform better_supabase.audit('better_supabase.maintenance_request_checklist_items', target_type => 'checklist_item', event_prefix => 'checklist_item', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.maintenance_requests deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"task","event_prefix":"task"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.maintenance_request_checklist_items deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"checklist_item","event_prefix":"checklist_item"}');
 
 -- blocks.tasks.api: entry points for the Data API.
 create schema if not exists "api";

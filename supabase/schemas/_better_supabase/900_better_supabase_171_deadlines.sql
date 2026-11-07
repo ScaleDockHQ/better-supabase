@@ -1,6 +1,6 @@
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@1 managed
--- @bsb-hash sha256:10e929d9cf9bdf8112812b8398d44db15487f4a29dc912d2ff710426468bedbb
+-- @bsb-hash sha256:046b6a94d393e9eed13da24fc4b8abdc5532e66c1649bc9c29216346d55f811b
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash and a citation per rule, and the deadlines computed from a subject's facts: due on a date or unknown with the facts still missing, recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -647,11 +647,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."deadlines" as restri
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.deadlines', target_type => 'deadline', event_prefix => 'deadline', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.deadlines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"deadline","event_prefix":"deadline"}');
 
 -- blocks.deadlines.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,6 +1,6 @@
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:0321bd4ff8f3ed94d2190860b6a1507c5a6f0df8bb2e200eafa5c3da94f2ecdc
+-- @bsb-hash sha256:5ed2926df763714aa5cc0c0e5eb66bc855408a35fca8baf2ae52e1f2abdd5d7b
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1241,14 +1241,10 @@ create policy bsb_tenant_scope_delete on "better_supabase"."intrastat_lines" as 
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.shipments', target_type => 'shipment', event_prefix => 'shipment', deferred => true);
-  perform better_supabase.audit('better_supabase.shipment_packages', target_type => 'shipment_package', event_prefix => 'shipment_package', deferred => true);
-  perform better_supabase.audit('better_supabase.shipment_tracking_events', target_type => 'shipment_tracking_event', event_prefix => 'shipment_tracking_event', deferred => true);
-  perform better_supabase.audit('better_supabase.shipment_lines', target_type => 'shipment_line', event_prefix => 'shipment_line', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.shipments deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shipment","event_prefix":"shipment"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.shipment_packages deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shipment_package","event_prefix":"shipment_package"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.shipment_tracking_events deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shipment_tracking_event","event_prefix":"shipment_tracking_event"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.shipment_lines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"shipment_line","event_prefix":"shipment_line"}');
 
 -- blocks.shipments.api: entry points for the Data API.
 create schema if not exists "api";

@@ -1,6 +1,6 @@
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:905d43d20639cbf707187e686fc04ad87b4ccab12b6d8cf8b5078d77fb76fbd3
+-- @bsb-hash sha256:cf57d5683a6753b84aeea51efa6703376bcb27a5142a28f16f6f77f4fe696bf3
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2495,11 +2495,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."inbox_drafts" as res
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.inboxes', target_type => 'inbox', event_prefix => 'inbox', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.inboxes deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"inbox","event_prefix":"inbox"}');
 
 -- blocks.inbox.api: entry points for the Data API.
 create schema if not exists "api";

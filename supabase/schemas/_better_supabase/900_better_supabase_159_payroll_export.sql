@@ -1,6 +1,6 @@
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:c634993d1b538fc4a6373355799fc49491a2cd78f0760ab25e48233d52d4f6e5
+-- @bsb-hash sha256:0a428088a806ff7354ef6cd8be6ec4551f985c077e5151583550e14edc5dcbba
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -378,12 +378,8 @@ create policy bsb_tenant_scope_delete on "better_supabase"."payroll_lines" as re
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
-do $$
-begin
-  perform better_supabase.audit('better_supabase.payroll_runs', target_type => 'payroll_run', event_prefix => 'payroll_run', deferred => true);
-  perform better_supabase.audit('better_supabase.payroll_lines', target_type => 'payroll_line', event_prefix => 'payroll_line', deferred => true);
-end;
-$$;
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.payroll_runs deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"payroll_run","event_prefix":"payroll_run"}');
+create constraint trigger bsb_audit after insert or update or delete on better_supabase.payroll_lines deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"payroll_line","event_prefix":"payroll_line"}');
 
 -- blocks.payroll-export.api: entry points for the Data API.
 create schema if not exists "api";
