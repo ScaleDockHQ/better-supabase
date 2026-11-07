@@ -119,7 +119,17 @@ const config: KnipConfig = {
         "src/features/billing/usage-billing-actions.ts",
       ],
     },
-    "apps/examples/vite-react": browserExample,
+    "apps/examples/vite-react": {
+      ...browserExample,
+      // The generated layout writes one module per table, and the SPA imports the
+      // one table it reads (ADR 0262); the rest are the generator's output.
+      ignore: [
+        ...exampleIgnore,
+        "src/lib/supabase/generated-schema.ts",
+        "src/lib/supabase/generated.meta.js",
+        "src/lib/supabase/tables/**",
+      ],
+    },
     // eve loads the agent's files by path, and the World by package name
     // from agent/agent.ts.
     "apps/examples/eve": {

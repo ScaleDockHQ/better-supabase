@@ -3,6 +3,10 @@ import type { BetterQueries } from "better-supabase/query";
 import type { Models } from "./lib/supabase";
 
 import { betterSupabase } from "./lib/supabase";
+import { customersTable } from "./lib/supabase/tables/customers";
+
+// The browser registers the tables it reads (ADR 0262); this page needs one.
+betterSupabase.registerTable(customersTable);
 
 type AppQueries = BetterQueries<Models, unknown>;
 
