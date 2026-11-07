@@ -25,7 +25,8 @@ const config: KnipConfig = {
   tags: ["-internal"],
   ignoreExportsUsedInFile: { interface: true, type: true },
   // Vendored maintainer skills (ADR 0004) carry their own scripts.
-  ignore: [".agents/**"],
+  // `init` output, compared byte for byte by the init fixture test.
+  ignore: [".agents/**", "tests/init-fixture/**"],
   // The Vercel CLI runs from the user's machine (`pnpm env:pull`). The MCP
   // configs run shadcn with `pnpm --dir apps/marketing`, which declares it.
   ignoreBinaries: ["vercel", "shadcn"],

@@ -1801,6 +1801,7 @@
       "CachedContext",
       "CachedLife",
       "CachedOptions",
+      "CachedStage",
       "CacheScope",
       "CacheShare",
       "DbBudget",
@@ -1809,6 +1810,7 @@
       "EmailRedirect",
       "ExchangeCodeParams",
       "ExistingAccount",
+      "GateUser",
       "GuardOptions",
       "Impersonator",
       "LiveCountSeed",
@@ -1874,6 +1876,32 @@
       "VerifySessionOptions"
     ]
   },
+  "./next/auth-gate": {
+    "values": [
+      "AuthGate",
+      "UserProvider",
+      "useUser"
+    ],
+    "types": [
+      "AuthGateProps",
+      "GateUser",
+      "UserProviderProps"
+    ]
+  },
+  "./next/proxy": {
+    "values": [
+      "createProxy",
+      "isRedirect",
+      "mutableResponse",
+      "overrideRequestHeaders",
+      "serverTimingValue",
+      "syncMiddlewareSetCookie"
+    ],
+    "types": [
+      "NextOptions",
+      "ProxyOptions"
+    ]
+  },
   "./next/image": {
     "values": [
       "createImageLoader"
@@ -1886,6 +1914,8 @@
   },
   "./next/client": {
     "values": [
+      "useBlockMutation",
+      "useBlockQuery",
       "useSessionChange",
       "useSessionWatch",
       "watchSession"

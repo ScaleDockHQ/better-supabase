@@ -1,5 +1,7 @@
 export { createNext } from "./create.ts";
 
+export type { GateUser } from "./user.ts";
+
 export { postAuthPath } from "./sign-in.ts";
 
 export { nextCache, sessionIdTag, sessionTag, supportTag } from "./cache.ts";
@@ -73,6 +75,7 @@ export type {
   CacheShare,
   CachedContext,
   CachedLife,
+  CachedStage,
   CachedOptions,
   ExchangeCodeParams,
   EmailRedirect,

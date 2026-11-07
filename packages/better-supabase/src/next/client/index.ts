@@ -1,14 +1,30 @@
 "use client";
 
 import { useRouter } from "next/navigation.js";
+import { useOffline } from "next/offline.js";
 import { useCallback, useEffect, useRef, useState } from "react";
 
+import type {
+  BlockArgsOf,
+  BlockDataOf,
+  BlockEngineOptions,
+  BlockMethodName,
+  BlockMutationActions,
+  BlockMutationState,
+  BlockQueryActions,
+  BlockQueryOptions,
+  BlockQueryState,
+} from "../../blocks/block-controller.ts";
 import type { SessionStatusBody } from "../../server/session-status.ts";
 import type {
   SessionWatchEvent,
   SessionWatchOptions,
 } from "./session-watch.ts";
 
+import {
+  useBlockMutationController,
+  useBlockQueryController,
+} from "../../react/block-hooks.ts";
 import { watchSession } from "./session-watch.ts";
 
 export { watchSession } from "./session-watch.ts";
@@ -172,4 +188,61 @@ export function useSessionWatch(
   }, [enabled, url, intervalMs, channel, fingerprint]);
 
   return last;
+}
+
+/**
+ * `useBlockQuery` that pauses while the app is offline (`useOffline()` from
+ * `next/offline`): the last data stays, `offline` is `true` instead of an
+ * error, and the read runs once when the connection returns. `useOffline()` is
+ * `false` during SSR and hydration, so the first render matches the server.
+ */
+export function useBlockQuery<
+  C extends object,
+  const K extends BlockMethodName<C>,
+>(
+  client: C,
+  method: K,
+  args: BlockArgsOf<C, K>,
+  options: BlockQueryOptions = {},
+): BlockQueryState<BlockDataOf<C, K>> & BlockQueryActions {
+  const offline = useOffline();
+
+  const { controller, view } = useBlockQueryController(client, method, args, {
+    ...options,
+    offline,
+  });
+
+  useEffect(() => {
+    controller.actions.setOffline(offline);
+  }, [controller, offline]);
+
+  return view;
+}
+
+/**
+ * `useBlockMutation` that queues one write while the app is offline and runs it
+ * once when the connection returns, the way `experimental.useOffline` retries a
+ * Server Action. `mutate` resolves with the write's own result.
+ */
+export function useBlockMutation<
+  C extends object,
+  const K extends BlockMethodName<C>,
+>(
+  client: C,
+  method: K,
+  options: BlockEngineOptions = {},
+): BlockMutationState<BlockDataOf<C, K>> &
+  BlockMutationActions<BlockArgsOf<C, K>, BlockDataOf<C, K>> {
+  const offline = useOffline();
+
+  const { controller, view } = useBlockMutationController(client, method, {
+    ...options,
+    offline,
+  });
+
+  useEffect(() => {
+    controller.actions.setOffline(offline);
+  }, [controller, offline]);
+
+  return view;
 }

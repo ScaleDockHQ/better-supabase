@@ -27,6 +27,9 @@ const entries = [
   "ssr/index",
   "next/index",
   "next/image/index",
+  "next/proxy/index",
+  "next/auth-gate/index",
+  "next/auth-gate/user",
   "next/client/index",
   "hono/index",
   "orpc/index",
@@ -293,7 +296,8 @@ const entries = [
 
 const src = resolve(import.meta.dirname, "src");
 
-const USE_CLIENT_MODULE = /src\/react\/(index|hooks|session)\.ts$/;
+const USE_CLIENT_MODULE =
+  /src\/(react\/(index|hooks|session)|next\/auth-gate\/user)\.ts$/;
 
 /**
  * The subpath of a library entry (`src/sql/index.ts` is `sql`), or undefined
@@ -352,6 +356,15 @@ const library = defineConfig({
           importer?.endsWith("src/react/server.ts")
         ) {
           return { id: "./session.js", external: true };
+        }
+
+        // The auth gate's Server Component renders its provider from the built
+        // `next/auth-gate/user.js` entry, so it stays a "use client" reference.
+        if (
+          source === "./user.js" &&
+          importer?.endsWith("src/next/auth-gate/index.ts")
+        ) {
+          return { id: "./user.js", external: true };
         }
 
         return null;

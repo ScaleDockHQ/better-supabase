@@ -8,6 +8,7 @@ import { groupEntries, INTEGRATION_INFO } from "../config/index.ts";
 import { PROVIDER_COMMENT } from "../preset/index.ts";
 import { schemaModulePath } from "./gen/emit.ts";
 import { INTEGRATIONS } from "./names.ts";
+import { nextAppFiles, nextPwaFiles } from "./templates-next.ts";
 
 export type Integration = IntegrationName;
 
@@ -350,6 +351,10 @@ import { betterSupabase } from '${importLib(context, server)}';
 export const bsb = createNext(betterSupabase);
 `,
         },
+        ...nextAppFiles(context, server, (file, to) =>
+          importFrom(context, file, to),
+        ),
+        ...nextPwaFiles(context),
         {
           path: proxy,
           contents: `import type { NextRequest } from 'next/server';
@@ -359,7 +364,7 @@ import { bsb } from '${importFrom(context, proxy, server)}';
 export const proxy = (request: NextRequest) => bsb.proxy(request);
 
 export const config = {
-  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\\\.(?:svg|png|jpg|webp)$).*)'],
+  matcher: ['/((?!_next/static|_next/image|favicon.ico|.*\\\\.(?:svg|png|jpg|webp|html|webmanifest)$).*)'],
 };
 `,
         },

@@ -211,6 +211,7 @@ export default defineConfig({
         "src/postgres/pool.ts",
         "src/testing/**",
         "src/next/create.ts",
+        "src/next/proxy-runtime.ts",
         "src/server/respond.ts",
         "src/core/events.ts",
         // The CLI reads its environment: DATABASE_URL, SUPABASE_BIN and CI.

@@ -1,10 +1,9 @@
 import { cacheLife, cacheTag, io } from "next/cache.js";
 import { redirect } from "next/dist/client/components/redirect.js";
 import { cookies } from "next/headers.js";
-import { NextResponse, after } from "next/server.js";
 import { cache } from "react";
 
-import type { AuthResolution, ResolvePhase } from "../auth/resolve.ts";
+import type { AuthResolution } from "../auth/resolve.ts";
 import type { SessionSnapshot } from "../auth/snapshot.ts";
 import type { AuthSession } from "../auth/view.ts";
 import type {
@@ -38,7 +37,7 @@ import type {
   ScopeOptions,
 } from "./types.ts";
 
-import { endedSessionOf, markSessionEnded } from "../auth/ended.ts";
+import { markSessionEnded } from "../auth/ended.ts";
 import { isSessionSnapshot, snapshotOf } from "../auth/snapshot.ts";
 import { SUPPORT_COOKIE, supportCookieMaxAge } from "../auth/support-cookie.ts";
 import { tenantOf, toSession } from "../auth/view.ts";
@@ -51,7 +50,7 @@ import { isQuerySpec } from "../core/spec.ts";
 import { validate } from "../core/standard.ts";
 import { EMPTY_STATS } from "../core/stats.ts";
 import { tagFor } from "../core/tags.ts";
-import { bearerRequest, flushEvents, handle } from "../server/adapter.ts";
+import { bearerRequest, handle } from "../server/adapter.ts";
 import {
   accessOf,
   bootstrapSchema,
@@ -59,7 +58,6 @@ import {
   mapBootstrapMemo,
 } from "../server/bootstrap.ts";
 import { serverCore } from "../server/entries/core.ts";
-import { outageResponse } from "../server/entries/session.ts";
 import { withExtra } from "../server/extra.ts";
 import {
   authorizeCaller as authorizeAuth,
@@ -81,37 +79,21 @@ import {
   supportTag,
   tableTags,
 } from "./cache.ts";
-import {
-  DEFAULT_ROUND_TRIPS,
-  devBudget,
-  REQUEST_ID_HEADER,
-  logActionStats,
-  requestIdOf,
-  formatStats,
-  sharedCollector,
-} from "./collector.ts";
+import { logActionStats, requestIdOf, formatStats } from "./collector.ts";
 import { interrupt, rethrowNextControlFlow } from "./control-flow.ts";
-import { applyCacheEntry } from "./entry.ts";
+import { applyCacheEntry, awaitStage } from "./entry.ts";
 import { incomingRequest } from "./incoming-request.ts";
-import {
-  isRedirect,
-  mutableResponse,
-  overrideRequestHeaders,
-  syncMiddlewareSetCookie,
-  serverTimingValue,
-} from "./proxy.ts";
+import { proxyHandler } from "./proxy-handler.ts";
+import { proxyRuntime } from "./proxy-runtime.ts";
 import { recordAtServer, recordServer } from "./record.ts";
 import { handOff, takeHandoff } from "./remote-handoff.ts";
-import { adminForRequest, stampStats, verifyOption } from "./request-stats.ts";
+import { adminForRequest, verifyOption } from "./request-stats.ts";
 import { resourceRoutes } from "./resources.ts";
 import { cacheKeyOf, parkUntilResponseEnds } from "./session-handle.ts";
 import { refreshCallerCache, userSessionTags } from "./session-tags.ts";
 import { authFlows } from "./sign-in.ts";
-import {
-  STATS_URL_HEADER,
-  endedRedirect,
-  shouldCheckSession,
-} from "./support.ts";
+import { taintObject, taintResolution, taintedAdmin } from "./taint.ts";
+import { gateUserOf } from "./user.ts";
 import { withContextFactory } from "./with-context.ts";
 
 /**
@@ -155,46 +137,19 @@ export function createNext<
     betterSupabase.cache(nextCache());
   }
 
-  const debug = options.debug;
-  const statsHeader = debug?.header ?? "x-bsb-db-calls";
-  const statsRoute = debug?.route ?? "/api/bsb-stats";
-  const development = process.env["NODE_ENV"] === "development";
-
-  const roundTrips = options.devRoundTripBudget ?? DEFAULT_ROUND_TRIPS;
-  const watching = development && roundTrips !== false;
-
-  const budget = debug?.budget ?? devBudget(watching && roundTrips);
-
-  const collector =
-    debug?.enabled || watching
-      ? sharedCollector({
-          logger: betterSupabase.events.logger,
-          warn: development,
-          ...(budget ? { budget } : {}),
-        })
-      : undefined;
+  const {
+    collector,
+    statsHeader,
+    statsRoute,
+    development,
+    waitUntil,
+    flushAfter,
+  } = proxyRuntime(betterSupabase, options);
 
   const statsFor = (request: Request): ContextOptions => {
     const id = collector && requestIdOf(request.headers);
 
     return id ? { stats: collector.recorderFor(id) } : {};
-  };
-
-  const waitUntil = (work: Promise<unknown>): void => {
-    try {
-      after(() => work);
-    } catch (cause) {
-      // after() only works inside a request scope; the sends still run.
-      betterSupabase.events.logger.warn(
-        "after() is unavailable; event sends may be cut off",
-        { cause },
-      );
-    }
-  };
-
-  /** Keeps the function alive for event sink sends the handler started. */
-  const flushAfter = (): void => {
-    flushEvents(betterSupabase, waitUntil);
   };
 
   /** Sets the context's cookies (the replica pin) through Next's cookie jar. */
@@ -279,10 +234,14 @@ export function createNext<
       // then answers from the verified-token memo.
       await base.snapshot(request, verify.onVerify);
 
-      return {
-        request,
-        resolution: await base.resolve(request, { refresh: false, ...verify }),
-      };
+      const resolution = await base.resolve(request, {
+        refresh: false,
+        ...verify,
+      });
+
+      taintResolution(resolution, options.auth?.cookie?.name, base.env.url);
+
+      return { request, resolution };
     },
   );
 
@@ -373,6 +332,11 @@ export function createNext<
         tenant,
       );
 
+      taintObject(
+        "better-supabase: the server context never goes to the client.",
+        ctx,
+      );
+
       if (tenant !== undefined) {
         scopedTenants.set(ctx, tenant);
       }
@@ -430,9 +394,11 @@ export function createNext<
 
   const withAccounts = withExtra(base, {
     context,
-    admin: adminForRequest(
-      (adminContext, adminOptions) => base.admin(adminContext, adminOptions),
-      (request) => statsFor(request).stats,
+    admin: taintedAdmin(
+      adminForRequest(
+        (adminContext, adminOptions) => base.admin(adminContext, adminOptions),
+        (request) => statsFor(request).stats,
+      ),
     ),
     contextFromSession,
     evictSession,
@@ -541,6 +507,12 @@ export function createNext<
     return { ctx, view: toSession(ctx.auth), scope: "remote", tenant };
   };
 
+  const stageWarn = development
+    ? (message: string): void => {
+        betterSupabase.events.logger.warn(message);
+      }
+    : undefined;
+
   const applyEntry = (
     ctx: ServerContext<M, F, E, C, P, B>,
     view: AuthSession<C, P>,
@@ -575,10 +547,19 @@ export function createNext<
       refreshCallerCache(await getClaims(), base),
 
     async cached(cachedOptions = {}) {
+      await awaitStage(cachedOptions.stage, stageWarn);
+
       const { ctx, view, scope, tenant } = await scopeOf(cachedOptions);
       applyEntry(ctx, view, scope, tenant, cachedOptions);
 
       return withExtra(ctx, { session: view });
+    },
+
+    async user() {
+      const { ctx, view, scope, tenant } = await scopeOf({});
+      applyEntry(ctx, view, scope, tenant, { life: { stale: 300 } });
+
+      return gateUserOf(view, tenant);
     },
 
     async sessionHandle(handleOptions = {}) {
@@ -630,6 +611,8 @@ export function createNext<
     async bootstrap<T, S extends ReadSet = ReadSet>(
       bootstrapOptions: BootstrapOptions<Extract<keyof M, string>, S>,
     ): Promise<Bootstrap<C, P, T, ReadSetResult<S>>> {
+      await awaitStage(bootstrapOptions.stage, stageWarn);
+
       const { ctx, view, scope, tenant } = await scopeOf(bootstrapOptions);
       const calls = bootstrapCalls();
 
@@ -722,165 +705,14 @@ export function createNext<
       };
     },
 
-    async proxy(request, proxyOptions = {}) {
-      const started = performance.now();
-      const id = collector ? crypto.randomUUID() : undefined;
-      const proxyRecorder = id ? collector?.recorderFor(id) : undefined;
-      let authMs = 0;
-      const phases: Partial<Record<ResolvePhase, number>> = {};
-
-      // `before` (i18n rewrites, redirects) and auth run on the original request.
-      const sessionCheck =
-        proxyOptions.verifySession === true
-          ? {}
-          : proxyOptions.verifySession === "bootstrap"
-            ? undefined
-            : proxyOptions.verifySession;
-
-      const verifySession =
-        sessionCheck !== undefined && shouldCheckSession(request, sessionCheck);
-
-      const [early, resolution] = await Promise.all([
-        proxyOptions.before?.(request),
-        base
-          .resolve(request, {
-            refresh: true,
-            ...verifyOption(proxyRecorder),
-            ...(verifySession ? { verifySession } : {}),
-            // Under "bootstrap" the render's session check is the only one:
-            // a session it found ended clears its cookies here.
-            ...(proxyOptions.verifySession === "bootstrap"
-              ? { endedSession: (token: string) => endedSessionOf(token) }
-              : {}),
-            ...(proxyOptions.leeway === undefined
-              ? {}
-              : { leeway: proxyOptions.leeway }),
-            ...(proxyOptions.serverTiming
-              ? {
-                  onTiming: (phase: ResolvePhase, ms: number) => {
-                    phases[phase] = (phases[phase] ?? 0) + ms;
-                  },
-                }
-              : {}),
-          })
-          .then((resolved) => {
-            authMs = performance.now() - started;
-
-            return resolved;
-          }),
-      ]);
-
-      // A refreshed token is already verified: the render reads it from the
-      // memo instead of verifying it again.
-      if (resolution.cookies.length > 0) {
-        await base.sessions.seed(resolution.auth);
-      }
-
-      const protectMethods = proxyOptions.protectMethods;
-
-      const runsProtect =
-        protectMethods === true
-          ? true
-          : (protectMethods ?? ["GET", "HEAD"]).includes(request.method);
-
-      const ended =
-        resolution.sessionVerified === false &&
-        sessionCheck?.redirect !== undefined &&
-        request.nextUrl.pathname !== sessionCheck.redirect
-          ? endedRedirect(
-              request,
-              sessionCheck.redirect,
-              resolution.reason === "user_banned"
-                ? (sessionCheck.reasons?.banned ?? "user_banned")
-                : (sessionCheck.reasons?.ended ?? "session_not_found"),
-            )
-          : undefined;
-
-      const custom =
-        ended ??
-        (await outageResponse(
-          proxyOptions.onAuthOutage,
-          resolution,
-          request,
-          betterSupabase.events.logger,
-        )) ??
-        (runsProtect
-          ? await proxyOptions.protect?.(resolution.auth, request)
-          : undefined);
-
-      const initial = custom ?? early;
-
-      if (
-        !initial &&
-        resolution.cookies.length === 0 &&
-        !id &&
-        !proxyOptions.after &&
-        !proxyOptions.serverTiming
-      ) {
-        flushAfter();
-
-        return NextResponse.next();
-      }
-
-      let response = syncMiddlewareSetCookie(
-        resolution.apply(mutableResponse(initial ?? NextResponse.next())),
-      );
-
-      if (!custom && !isRedirect(response)) {
-        const forwarded: Record<string, string> = {};
-
-        if (resolution.cookies.length > 0) {
-          forwarded["cookie"] = resolution.requestCookies
-            .map(
-              (cookie) => `${cookie.name}=${encodeURIComponent(cookie.value)}`,
-            )
-            .join("; ");
-        }
-
-        if (id) {
-          forwarded[REQUEST_ID_HEADER] = id;
-        }
-
-        if (Object.keys(forwarded).length > 0 || early) {
-          overrideRequestHeaders(response, request, forwarded);
-        }
-      }
-
-      if (id) {
-        response.headers.set(REQUEST_ID_HEADER, id);
-        response.headers.set(STATS_URL_HEADER, `${statsRoute}?id=${id}`);
-
-        // Headers leave before the render runs, so this carries the proxy's own
-        // verification; the render's totals come from the stats route.
-        stampStats(response.headers, statsHeader, proxyRecorder);
-      }
-
-      if (proxyOptions.after) {
-        const replaced = await proxyOptions.after(response, resolution.auth);
-
-        if (replaced) {
-          response = resolution.apply(mutableResponse(replaced));
-        }
-      }
-
-      if (proxyOptions.serverTiming) {
-        response.headers.append(
-          "server-timing",
-          serverTimingValue({
-            "bsb-proxy": performance.now() - started,
-            "bsb-auth": authMs,
-            ...Object.fromEntries(
-              Object.entries(phases).map(([phase, ms]) => [`bsb-${phase}`, ms]),
-            ),
-          }),
-        );
-      }
-
-      // A refresh or sign-out in `resolve`, or `protect`, can start sink sends.
-      flushAfter();
-
-      return response;
-    },
+    proxy: proxyHandler<C, P>({
+      base,
+      logger: betterSupabase.events.logger,
+      collector,
+      statsHeader,
+      statsRoute,
+      flushAfter,
+    }),
 
     route(handler, guardOptions = {}) {
       return async (request, segment) => {
@@ -1104,7 +936,7 @@ export function createNext<
           flushAfter();
           await writeCookies(ctx);
           await logActionStats(
-            debug?.enabled ? collector : undefined,
+            options.debug?.enabled ? collector : undefined,
             betterSupabase.events.logger,
             incomingRequest,
             statsHeader,

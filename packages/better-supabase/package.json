@@ -154,6 +154,16 @@
       "types": "./dist/next/index.d.ts",
       "default": "./dist/next/index.js"
     },
+    "./next/auth-gate": {
+      "@better-supabase/source": "./src/next/auth-gate/index.ts",
+      "types": "./dist/next/auth-gate/index.d.ts",
+      "default": "./dist/next/auth-gate/index.js"
+    },
+    "./next/proxy": {
+      "@better-supabase/source": "./src/next/proxy/index.ts",
+      "types": "./dist/next/proxy/index.d.ts",
+      "default": "./dist/next/proxy/index.js"
+    },
     "./next/image": {
       "@better-supabase/source": "./src/next/image/index.ts",
       "types": "./dist/next/image/index.d.ts",
@@ -1550,6 +1560,14 @@
       "./next": {
         "types": "./dist/next/index.d.ts",
         "default": "./dist/next/index.js"
+      },
+      "./next/auth-gate": {
+        "types": "./dist/next/auth-gate/index.d.ts",
+        "default": "./dist/next/auth-gate/index.js"
+      },
+      "./next/proxy": {
+        "types": "./dist/next/proxy/index.d.ts",
+        "default": "./dist/next/proxy/index.js"
       },
       "./next/image": {
         "types": "./dist/next/image/index.d.ts",

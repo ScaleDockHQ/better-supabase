@@ -1,8 +1,9 @@
+import * as nextCache from "next/cache.js";
 import { cacheLife, cacheTag } from "next/cache.js";
 
 import type { AuthState } from "../auth/resolve.ts";
 import type { AuthSession } from "../auth/view.ts";
-import type { CacheScope, CachedOptions } from "./types.ts";
+import type { CacheScope, CachedOptions, CachedStage } from "./types.ts";
 
 import { tagFor } from "../core/tags.ts";
 import { cachedLife, sessionIdTag, supportTag, tableTags } from "./cache.ts";
@@ -46,6 +47,48 @@ export function warnIfNested(
   warn(
     "bsb.cached() ran inside another cache scope. Private scopes don't nest and each one resolves the session again: call the inner function from the page, or pass the same bsb.sessionHandle() to both.",
   );
+}
+
+let warnedStage = false;
+
+/**
+ * Awaits `prefetch()` or `navigation()` for a `stage` option. A Next.js build
+ * without the gates (no Cache Components, or before 16.3) skips it and logs
+ * once. Call it from the component, before the cache scope's context resolves.
+ */
+export async function awaitStage(
+  stage: CachedStage | undefined,
+  warn?: (message: string) => void,
+): Promise<void> {
+  if (stage === undefined) {
+    return;
+  }
+
+  const gate =
+    stage === "navigation" ? nextCache.navigation : nextCache.prefetch;
+
+  if (typeof gate !== "function") {
+    if (warn && !warnedStage) {
+      warnedStage = true;
+      warn(
+        `bsb.cached({ stage: "${stage}" }) does nothing: this Next.js build has no ${stage}() in next/cache. It needs Cache Components and Partial Prefetching.`,
+      );
+    }
+
+    return;
+  }
+
+  try {
+    await gate();
+  } catch (cause) {
+    // The gates throw inside a "use cache" scope; the read still runs.
+    if (warn && !warnedStage) {
+      warnedStage = true;
+      warn(
+        `bsb.cached({ stage: "${stage}" }) ran where ${stage}() is not allowed, such as inside a "use cache" function, so the stage was skipped: ${String(cause)}`,
+      );
+    }
+  }
 }
 
 /** Sets `cacheLife` and the session, support, table and row tags of an entry. */

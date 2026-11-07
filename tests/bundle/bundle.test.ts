@@ -56,6 +56,12 @@ export const next = createNext(betterSupabase);
 export const customers = () =>
   createClient(betterSupabase).db.customers.list({ where: { name: "Acme" } });
 `,
+  "next proxy": `
+import { defineSchema, createSupabase } from "better-supabase";
+import { createProxy } from "better-supabase/next/proxy";
+import meta from "./generated.meta.js";
+export const proxy = createProxy(createSupabase(defineSchema(meta)));
+`,
   hono: `
 import { defineSchema, createSupabase } from "better-supabase";
 import { createHono } from "better-supabase/hono";
@@ -256,6 +262,8 @@ const NODE_LOADED = [
   "./next",
   "./next/client",
   "./next/image",
+  "./next/proxy",
+  "./next/auth-gate",
   "./server",
   "./client",
   "./query",
@@ -560,7 +568,11 @@ describe("bundle", () => {
   );
 
   it('keeps "use client" on the react and next/client entries', async () => {
-    for (const file of ["dist/react/index.js", "dist/next/client/index.js"]) {
+    for (const file of [
+      "dist/react/index.js",
+      "dist/next/client/index.js",
+      "dist/next/auth-gate/user.js",
+    ]) {
       const source = await readFile(join(PACKAGE, file), "utf-8");
       expect(source.startsWith('"use client";')).toBe(true);
     }

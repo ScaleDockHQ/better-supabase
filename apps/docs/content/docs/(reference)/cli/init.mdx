@@ -85,6 +85,19 @@ Add more with `--integration edge,mcp`. A project with only `edge` and `mcp` get
 
 Side effects: Writes files.
 
+### The Next.js files
+
+The `next` integration writes the layout that `pnpm check:app-architecture`
+holds the example app to: a synchronous `app/(app)/layout.tsx` with an
+`AuthGate`, a page that owns the `<Suspense>` and passes `params.then()` to a
+feature, `features/auth` and `features/account` with `*-queries.ts`
+(`server-only`), `*-actions.ts` (`'use server'`) and `*-cache.ts` (pure tags),
+and async components that export their `*Skeleton`. It also writes
+`app/manifest.ts`, `public/sw.js` and `public/offline.html`, and lists
+`NEXT_PUBLIC_VAPID_PUBLIC_KEY` and `VAPID_PRIVATE_KEY` in `.env.example`
+without values. The proxy matcher skips `html` and `webmanifest`. Existing
+files stay yours: `init` skips them unless you pass `--force`.
+
 ## Conventions
 
 The convention flags set what [Create](https://app.bettersupabase.com/create)
@@ -320,16 +333,16 @@ or a new package in a workspace gets its glue. When `--integration` names
 integrations the config doesn't list yet, `add` prints the `adapters`
 entry to paste.
 
-| Integration | Writes                                                                                                                                  |
-| ----------- | --------------------------------------------------------------------------------------------------------------------------------------- |
-| `client`    | `lib/supabase/client.ts` with the framework's public env variables                                                                      |
-| `next`      | `lib/supabase/server.ts` (with `import "server-only"`) and `proxy.ts`                                                                   |
-| `react`     | `providers.tsx` (`app/providers.tsx` in Next.js) and `lib/hooks.ts`                                                                     |
-| `hono`      | `server.ts`, which creates `bsb` and adds the middleware and error handler                                                              |
-| `orpc`      | `router.ts`, which creates `bsb` and adds the auth middleware                                                                           |
-| `edge`      | `supabase/functions/api` (`server.ts` creates `bsb`) plus `supabase/functions/_shared/supabase.ts`                                      |
-| `expo`      | `lib/supabase/expo.ts` (`bsb` for API routes), `lib/supabase/client.native.ts` (the session in secure storage) and `app/+middleware.ts` |
-| `mcp`       | `supabase/functions/mcp`, an MCP server as an Edge Function (`server.ts` creates `bsb`)                                                 |
+| Integration | Writes                                                                                                                                                                                                           |
+| ----------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `client`    | `lib/supabase/client.ts` with the framework's public env variables                                                                                                                                               |
+| `next`      | `lib/supabase/server.ts` (with `import "server-only"`), `proxy.ts`, the feature-sliced `app/`, `features/` and `components/` files, and the PWA files (`app/manifest.ts`, `public/sw.js`, `public/offline.html`) |
+| `react`     | `providers.tsx` (`app/providers.tsx` in Next.js) and `lib/hooks.ts`                                                                                                                                              |
+| `hono`      | `server.ts`, which creates `bsb` and adds the middleware and error handler                                                                                                                                       |
+| `orpc`      | `router.ts`, which creates `bsb` and adds the auth middleware                                                                                                                                                    |
+| `edge`      | `supabase/functions/api` (`server.ts` creates `bsb`) plus `supabase/functions/_shared/supabase.ts`                                                                                                               |
+| `expo`      | `lib/supabase/expo.ts` (`bsb` for API routes), `lib/supabase/client.native.ts` (the session in secure storage) and `app/+middleware.ts`                                                                          |
+| `mcp`       | `supabase/functions/mcp`, an MCP server as an Edge Function (`server.ts` creates `bsb`)                                                                                                                          |
 
 Relative imports follow your `tsconfig.json`: they keep `.ts` when
 `allowImportingTsExtensions` or `rewriteRelativeImportExtensions` is on.

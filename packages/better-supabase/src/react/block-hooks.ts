@@ -12,6 +12,7 @@ import type {
   BlockQueryOptions,
   BlockQueryState,
 } from "../blocks/block-controller.ts";
+import type { Controller } from "../blocks/controller.ts";
 import type {
   BlockEvent,
   BlockEventPattern,
@@ -41,6 +42,29 @@ export function useBlockQuery<
   args: BlockArgsOf<C, K>,
   options: BlockQueryOptions = {},
 ): BlockQueryState<BlockDataOf<C, K>> & BlockQueryActions {
+  return useBlockQueryController(client, method, args, options).view;
+}
+
+/**
+ * `useBlockQuery` with its controller, for a binding that drives
+ * `controller.actions.setOffline` (`better-supabase/next/client`). `offline` is
+ * not a dependency: it only seeds a controller made for other reasons.
+ */
+export function useBlockQueryController<
+  C extends object,
+  const K extends BlockMethodName<C>,
+>(
+  client: C,
+  method: K,
+  args: BlockArgsOf<C, K>,
+  options: BlockQueryOptions = {},
+): {
+  readonly controller: Controller<
+    BlockQueryState<BlockDataOf<C, K>>,
+    BlockQueryActions
+  >;
+  readonly view: BlockQueryState<BlockDataOf<C, K>> & BlockQueryActions;
+} {
   return useController(
     () => createBlockQuery(client, method, args, options),
     [
@@ -51,7 +75,7 @@ export function useBlockQuery<
       options.engine,
       options.engine === undefined ? undefined : options.instance,
     ],
-  ).view;
+  );
 }
 
 /** Calls a write method of any block client and tracks its state. */
@@ -64,6 +88,25 @@ export function useBlockMutation<
   options: BlockEngineOptions = {},
 ): BlockMutationState<BlockDataOf<C, K>> &
   BlockMutationActions<BlockArgsOf<C, K>, BlockDataOf<C, K>> {
+  return useBlockMutationController(client, method, options).view;
+}
+
+/** `useBlockMutation` with its controller; see `useBlockQueryController`. */
+export function useBlockMutationController<
+  C extends object,
+  const K extends BlockMethodName<C>,
+>(
+  client: C,
+  method: K,
+  options: BlockEngineOptions = {},
+): {
+  readonly controller: Controller<
+    BlockMutationState<BlockDataOf<C, K>>,
+    BlockMutationActions<BlockArgsOf<C, K>, BlockDataOf<C, K>>
+  >;
+  readonly view: BlockMutationState<BlockDataOf<C, K>> &
+    BlockMutationActions<BlockArgsOf<C, K>, BlockDataOf<C, K>>;
+} {
   return useController(
     () => createBlockMutation(client, method, options),
     [
@@ -72,7 +115,7 @@ export function useBlockMutation<
       options.engine,
       options.engine === undefined ? undefined : options.instance,
     ],
-  ).view;
+  );
 }
 
 /**
