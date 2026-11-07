@@ -1,4 +1,6 @@
 {
+  "roots": ["apps/examples/nextjs/src"],
+  "pendingRoots": ["tests/init-fixture/nextjs/src"],
   "suspenseInFeatures": {
     "features/billing/components/billing-overview.tsx": "PlanGrid shows the plan picker with the seeded plans while the managed picker reads the subscription",
     "features/care/components/client-dossier.tsx": "each dossier tab is its own sibling boundary under one tab list",

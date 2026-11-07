@@ -17,6 +17,13 @@ export interface Finding {
 }
 
 interface Allow {
+  /** Roots that must exist; each holds `app/`, `features/` and `components/`. */
+  readonly roots: readonly string[];
+  /**
+   * Roots checked as soon as the directory exists (the `init` fixture, once
+   * `init` writes this layout), so a new one cannot land with findings.
+   */
+  readonly pendingRoots: readonly string[];
   /** Composite sections that nest sibling boundaries, with the reason. */
   readonly suspenseInFeatures: Readonly<Record<string, string>>;
   /** Files where connection() is allowed without a comment, with the reason. */
@@ -24,7 +31,6 @@ interface Allow {
   readonly findings: readonly string[];
 }
 
-const DEFAULT_ROOTS = ["apps/examples/nextjs/src"];
 const ALLOW_FILE = "scripts/app-architecture-allow.json";
 const SKIPPED = new Set(["node_modules", ".next", "dist", ".turbo"]);
 
@@ -319,9 +325,17 @@ const run = (): void => {
   const allow = JSON.parse(readFileSync(ALLOW_FILE, "utf-8")) as Allow;
   const listed = new Set(allow.findings);
 
-  const all = (roots.length > 0 ? roots : DEFAULT_ROOTS).flatMap((root) =>
-    checkRoot(root, allow),
-  );
+  const missing = allow.roots.filter((root) => !existsSync(root));
+
+  const checked =
+    roots.length > 0
+      ? roots
+      : [
+          ...allow.roots,
+          ...allow.pendingRoots.filter((root) => existsSync(root)),
+        ];
+
+  const all = checked.flatMap((root) => checkRoot(root, allow));
 
   const keyOf = (finding: Finding): string => `${finding.rule} ${finding.file}`;
 
@@ -330,6 +344,10 @@ const run = (): void => {
     console.log(JSON.stringify(keys, null, 2));
 
     return;
+  }
+
+  for (const root of missing) {
+    console.error(`${ALLOW_FILE}: the root ${root} does not exist`);
   }
 
   const fresh = all.filter((finding) => !listed.has(keyOf(finding)));
@@ -344,7 +362,7 @@ const run = (): void => {
     console.error(`${ALLOW_FILE}: "${key}" no longer matches; remove it`);
   }
 
-  if (fresh.length > 0 || stale.length > 0) {
+  if (fresh.length > 0 || stale.length > 0 || missing.length > 0) {
     exit(1);
   }
 

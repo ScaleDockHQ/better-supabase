@@ -1,11 +1,19 @@
+import { execFileSync } from "node:child_process";
 import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { dirname, join, resolve } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
 import { checkRoot } from "./check-app-architecture.ts";
 
-const allow = { suspenseInFeatures: {}, connection: {}, findings: [] };
+const allow = {
+  roots: [],
+  pendingRoots: [],
+  suspenseInFeatures: {},
+  connection: {},
+  findings: [],
+};
+
 const dirs: string[] = [];
 
 const project = (files: Record<string, string>): string => {
@@ -113,5 +121,37 @@ export async function Notes() {
 export function NotesSkeleton() { return null; }`,
       }),
     ).toEqual([]);
+  });
+
+  it("checks a pending root as soon as it exists and fails on a missing root", () => {
+    const root = project({
+      "scripts/app-architecture-allow.json": JSON.stringify({
+        roots: ["app-src"],
+        pendingRoots: ["init-src"],
+        suspenseInFeatures: {},
+        connection: {},
+        findings: [],
+      }),
+      "app-src/features/notes/notes-queries.ts": `import "server-only";`,
+      "init-src/app/page.tsx": `export default async function Page() { return null; }`,
+    });
+
+    const run = (): string => {
+      try {
+        return execFileSync(
+          "node",
+          [resolve("scripts/check-app-architecture.ts")],
+          { cwd: root, encoding: "utf-8", stdio: "pipe" },
+        );
+      } catch (error) {
+        return String((error as { stderr?: string }).stderr);
+      }
+    };
+
+    expect(run()).toContain("[async-page]");
+    rmSync(join(root, "init-src"), { recursive: true });
+    expect(run()).toContain("app architecture: 0 findings");
+    rmSync(join(root, "app-src"), { recursive: true });
+    expect(run()).toContain("the root app-src does not exist");
   });
 });

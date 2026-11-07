@@ -49,11 +49,10 @@ touched 13 more files and their callers; those stay in the allow list.
 
 ## Consequences
 
-The example stays a template the `init` fixture can copy. The `init` fixture is
-not a root yet; pass its path to the script (`node
-scripts/check-app-architecture.ts <root>`) and add it to the default roots when
-`init` emits this shape. Still open: the 13 sub-concept files in the allow
-list, the skeleton of each section (35 sections point at the skeleton of the
-component they wrap), `cacheLife("max")` where every write calls `updateTag`,
-the `<domain>-cache.ts` tag contracts, the `prefetch()` and `navigation()`
-gates and the `instant()` end-to-end tests.
+The example stays a template the `init` fixture can copy. The allow file lists
+`roots` (the example app) and `pendingRoots` (`tests/init-fixture/nextjs/src`,
+checked as soon as it exists), and `node scripts/check-app-architecture.ts
+<root>` checks one path. The sub-concept files, the section skeletons, the tag
+contracts, the cache lives, the prefetch gates, the `instant` tests and the
+interaction fixes are ADR 0311 to 0315. The library work is specified in
+`docs/agents/nextjs.md` (ADR 0316).
