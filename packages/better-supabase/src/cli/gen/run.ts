@@ -154,7 +154,7 @@ export async function runGen(options: GenOptions): Promise<CommandResult> {
       manifestPath(config.root, file.path),
     );
 
-  const notice = (await generationNotices(snapshot, warnings, notices))
+  const notice = (await generationNotices(snapshot, warnings, notices, config))
     .map((line) => `\n${line}`)
     .join("");
 

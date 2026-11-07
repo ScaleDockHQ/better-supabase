@@ -382,6 +382,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0269: Close the fields and work gaps of the base layer.
 - 0290: CLI contract 3 follows the Vercel CLI design guidelines.
 - 0291: Memoize the adoption scan on disk, watch with `dev`, and purge the cache with `cache purge`.
+- 0292: Give each first-party generator a subpath and declare its library as a peer.
 
 ## Pre-release pins
 
