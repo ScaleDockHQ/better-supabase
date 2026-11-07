@@ -239,6 +239,7 @@ const NAMES: BlockSqlNames = {
         incoming: "incoming",
         available: "available",
         reorderPoint: "reorder_point",
+        reorderQuantity: "reorder_quantity",
         updatedAt: "updated_at",
       },
     },
@@ -365,7 +366,8 @@ create table if not exists ${t("locations")} (
   ${l("active")} boolean not null default true,
   ${l("createdAt")} timestamptz not null default now(),
   ${l("updatedAt")} timestamptz not null default now(),
-  unique (${l("tenant")}, ${l("code")})
+  unique (${l("tenant")}, ${l("code")}),
+  unique (${l("id")}, ${l("tenant")})
 );
 ${lockTable(t("locations"), { read: true })}
 ${read("locations")}
@@ -431,6 +433,7 @@ create table if not exists ${t("levels")} (
   ${lv("incoming")} ${QUANTITY} not null default 0 check (${lv("incoming")} >= 0),
   ${lv("available")} ${QUANTITY} generated always as (${lv("onHand")} - ${lv("reserved")} - ${lv("held")}) stored,
   ${lv("reorderPoint")} ${QUANTITY} check (${lv("reorderPoint")} >= 0),
+  ${lv("reorderQuantity")} ${QUANTITY} constraint bsb_stock_levels_reorder_quantity check (${lv("reorderQuantity")} > 0),
   ${lv("updatedAt")} timestamptz not null default now(),
   primary key (${lv("variant")}, ${lv("location")})
 );
@@ -449,7 +452,8 @@ create table if not exists ${t("reservations")} (
   ${r("referenceId")} text,
   ${r("expiresAt")} timestamptz not null,
   ${r("createdAt")} timestamptz not null default now(),
-  ${r("updatedAt")} timestamptz not null default now()
+  ${r("updatedAt")} timestamptz not null default now(),
+  unique (${r("id")}, ${r("tenant")})
 );
 create index if not exists stock_reservations_active_idx on ${t("reservations")} (${r("expiresAt")}) where ${r("status")} = 'active';
 create index if not exists stock_reservations_level_idx on ${t("reservations")} (${r("variant")}, ${r("location")});
@@ -469,7 +473,8 @@ create table if not exists ${t("transfers")} (
   ${tr("createdAt")} timestamptz not null default now(),
   ${tr("shippedAt")} timestamptz,
   ${tr("receivedAt")} timestamptz,
-  check (${tr("from")} <> ${tr("to")})
+  check (${tr("from")} <> ${tr("to")}),
+  unique (${tr("id")}, ${tr("tenant")})
 );
 create index if not exists stock_transfers_from_idx on ${t("transfers")} (${tr("from")});
 create index if not exists stock_transfers_to_idx on ${t("transfers")} (${tr("to")});
@@ -506,7 +511,8 @@ create table if not exists ${t("purchaseOrders")} (
   ${po("createdAt")} timestamptz not null default now(),
   ${po("updatedAt")} timestamptz not null default now(),
   ${po("placedAt")} timestamptz,${shipping}
-  check ((${po("supplierType")} is null) = (${po("supplierId")} is null))
+  check ((${po("supplierType")} is null) = (${po("supplierId")} is null)),
+  unique (${po("id")}, ${po("tenant")})
 );
 create index if not exists ${ctx.naming.rename("purchase_orders_location_idx")} on ${t("purchaseOrders")} (${po("location")});
 create index if not exists ${ctx.naming.rename("purchase_orders_status_idx")} on ${t("purchaseOrders")} (${po("tenant")}, ${po("status")});
@@ -646,6 +652,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
       returns: "boolean",
     },
     {
+      name: "set_reorder_quantity",
+      args: ["uuid", "uuid", "numeric"],
+      returns: "boolean",
+    },
+    {
       name: "reserve_stock",
       args: ["uuid", "uuid", "numeric", "text", "text", "timestamptz"],
       returns: "jsonb",
@@ -665,6 +676,11 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
     },
     { name: "save_lot", args: ["uuid", "text", "date"], returns: "jsonb" },
     { name: "stock_detail", args: ["uuid", "uuid"], returns: "jsonb" },
+    {
+      name: "pick_serials",
+      args: ["uuid", "uuid", "integer", "uuid"],
+      returns: "jsonb",
+    },
     { name: "expiring_lots", args: ["{id}", "date"], returns: "jsonb" },
     { name: "expire_lots", args: ["{id}", "date"], returns: "integer" },
     { name: "stock_valuation", args: ["uuid"], returns: "jsonb" },
@@ -794,13 +810,13 @@ export const INVENTORY: BlockSqlDefinition = {
     {
       from: 1,
       description:
-        "Stock movements move onto the ledger block: each movement becomes a ledger transaction between the variant's stock account and a counter account, and stock_movements is dropped.",
+        "Stock movements move onto the ledger block: each movement becomes a ledger transaction between the stock account and a counter account, and stock_movements is dropped.",
       sql: stockMovementsUpgrade,
     },
     {
       from: 2,
       description:
-        "Quantities become numeric with a unit and scale per variant, posted to the ledger in base units. Adds lots, serial numbers, expiry, bins, weighted average cost and allocations with backorders; stock already on hand stays outside any bin or lot, so no data moves.",
+        "Quantities become numeric with a unit and scale per variant. Adds lots, serials, expiry, bins, average cost and allocations; stock on hand stays outside any bin or lot.",
       sql: () => "",
     },
     {

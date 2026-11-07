@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:adbb9b4108af7ce67a1035b579fc6d2dae196cf093620286e3c0c7b319bf5f0c
+-- @bsb-hash sha256:8e56585d792619cd0e5f234711fcf65c5e906b5b6faa72f8c988cf58be0f289a
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -21,7 +21,8 @@ create table "better_supabase"."inventory_locations" (
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  unique ("tenant_id", "code")
+  unique ("tenant_id", "code"),
+  unique ("id", "tenant_id")
 );
 alter table "better_supabase"."inventory_locations" enable row level security;
 revoke all on "better_supabase"."inventory_locations" from public, anon, authenticated;
@@ -41,6 +42,7 @@ create table "better_supabase"."stock_levels" (
   "incoming" numeric(20, 6) not null default 0 check ("incoming" >= 0),
   "available" numeric(20, 6) generated always as ("on_hand" - "reserved" - "held") stored,
   "reorder_point" numeric(20, 6) check ("reorder_point" >= 0),
+  "reorder_quantity" numeric(20, 6) constraint bsb_stock_levels_reorder_quantity check ("reorder_quantity" > 0),
   "updated_at" timestamptz not null default now(),
   primary key ("variant_id", "location_id")
 );
@@ -64,7 +66,8 @@ create table "better_supabase"."stock_reservations" (
   "reference_id" text,
   "expires_at" timestamptz not null,
   "created_at" timestamptz not null default now(),
-  "updated_at" timestamptz not null default now()
+  "updated_at" timestamptz not null default now(),
+  unique ("id", "tenant_id")
 );
 create index stock_reservations_active_idx on "better_supabase"."stock_reservations" ("expires_at") where "status" = 'active';
 create index stock_reservations_level_idx on "better_supabase"."stock_reservations" ("variant_id", "location_id");
@@ -87,7 +90,8 @@ create table "better_supabase"."stock_transfers" (
   "created_at" timestamptz not null default now(),
   "shipped_at" timestamptz,
   "received_at" timestamptz,
-  check ("from_location_id" <> "to_location_id")
+  check ("from_location_id" <> "to_location_id"),
+  unique ("id", "tenant_id")
 );
 create index stock_transfers_from_idx on "better_supabase"."stock_transfers" ("from_location_id");
 create index stock_transfers_to_idx on "better_supabase"."stock_transfers" ("to_location_id");
@@ -133,7 +137,8 @@ create table "better_supabase"."purchase_orders" (
   "ship_to" jsonb check ("ship_to" is null or jsonb_typeof("ship_to") = 'object'),
   "origin_type" text,
   "origin_id" text,
-  check (("supplier_type" is null) = ("supplier_id" is null))
+  check (("supplier_type" is null) = ("supplier_id" is null)),
+  unique ("id", "tenant_id")
 );
 create index purchase_orders_location_idx on "better_supabase"."purchase_orders" ("location_id");
 create index purchase_orders_status_idx on "better_supabase"."purchase_orders" ("tenant_id", "status");
@@ -913,6 +918,39 @@ end;
 $$;
 revoke execute on function "better_supabase"."stock_detail"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."stock_detail"(uuid, uuid) to authenticated, service_role;
+
+create or replace function "better_supabase"."pick_serials"(variant uuid, location uuid, quantity integer, lot uuid default null)
+returns jsonb
+language plpgsql
+stable
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_serials jsonb;
+begin
+  select x."tenant_id" into v_tenant from "better_supabase"."inventory_locations" x where x."id" = pick_serials.location;
+  if v_tenant is null or not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.read'), false)) then
+    raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
+  end if;
+  if pick_serials.quantity is null or pick_serials.quantity <= 0 then
+    raise exception 'the quantity must be greater than zero' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
+  end if;
+  select jsonb_agg(z."serial" order by z."updated_at", z."serial") into v_serials from (
+    select y."serial", y."updated_at" from "better_supabase"."stock_serials" y
+    where y."variant_id" = pick_serials.variant and y."location_id" = pick_serials.location
+      and y."status" = 'in_stock' and (pick_serials.lot is null or y."lot_id" = pick_serials.lot)
+    order by y."updated_at", y."serial" limit pick_serials.quantity
+  ) z;
+  if coalesce(jsonb_array_length(v_serials), 0) < pick_serials.quantity then
+    raise exception 'not enough stock available' using errcode = '23514', hint = 'INVENTORY_INSUFFICIENT';
+  end if;
+  return v_serials;
+end;
+$$;
+revoke execute on function "better_supabase"."pick_serials"(uuid, uuid, integer, uuid) from public, anon;
+grant execute on function "better_supabase"."pick_serials"(uuid, uuid, integer, uuid) to authenticated, service_role;
 
 -- The lots with stock that expire on or before a date, soonest first.
 create or replace function "better_supabase"."expiring_lots"(tenant uuid, before date)
@@ -1716,6 +1754,42 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_reorder_point"(uuid, uuid, numeric) from public, anon;
 grant execute on function "better_supabase"."set_reorder_point"(uuid, uuid, numeric) to authenticated, service_role;
+
+create or replace function "better_supabase"."set_reorder_quantity"(variant uuid, location uuid, reorder_quantity numeric)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_active boolean;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select x."tenant_id", x."active" into v_tenant, v_active from "better_supabase"."inventory_locations" x where x."id" = set_reorder_quantity.location;
+  if v_tenant is null then
+    raise exception 'location not found' using errcode = 'P0002', hint = 'INVENTORY_LOCATION_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'inventory.manage'), false)) then
+    raise exception 'not allowed to change this inventory' using errcode = '42501', hint = 'INVENTORY_FORBIDDEN';
+  end if;
+  if not exists (select 1 from "better_supabase"."product_variants" cv where cv."id" = set_reorder_quantity.variant and cv."tenant_id" = v_tenant) then
+    raise exception 'variant not found in this organization' using errcode = 'P0002', hint = 'INVENTORY_VARIANT_NOT_FOUND';
+  end if;
+  if set_reorder_quantity.reorder_quantity is not null and set_reorder_quantity.reorder_quantity <= 0 then
+    raise exception 'the quantity must be greater than zero' using errcode = '22023', hint = 'INVENTORY_QUANTITY_INVALID';
+  end if;
+  insert into "better_supabase"."stock_levels" as x ("tenant_id", "variant_id", "location_id", "reorder_quantity")
+  values (v_tenant, set_reorder_quantity.variant, set_reorder_quantity.location, set_reorder_quantity.reorder_quantity)
+  on conflict ("variant_id", "location_id") do update
+    set "reorder_quantity" = excluded."reorder_quantity", "updated_at" = now();
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."set_reorder_quantity"(uuid, uuid, numeric) from public, anon;
+grant execute on function "better_supabase"."set_reorder_quantity"(uuid, uuid, numeric) to authenticated, service_role;
 
 -- What the books say is at a position now: a serial number counts 1 when it is
 -- in stock at the location; a bin or lot is that bucket; neither is the level's

@@ -175,6 +175,18 @@ export interface InventoryTracking {
     variantId: string;
     locationId: string;
   }): AsyncResult<StockLevelDetail>;
+  /**
+   * The serial numbers to take for a pick, the oldest in stock first,
+   * optionally from one lot. Nothing changes; pass them in the `detail` of
+   * `adjustStock`. Fails with `INVENTORY_INSUFFICIENT` when fewer are in
+   * stock.
+   */
+  pickSerials(input: {
+    variantId: string;
+    locationId: string;
+    quantity: number;
+    lotId?: string | undefined;
+  }): AsyncResult<readonly string[]>;
   /** Lots with stock that expire before `before` (`YYYY-MM-DD`). */
   expiringLots(input: {
     organizationId: string;
@@ -391,6 +403,17 @@ export function inventoryTracking(call: BlockCall): InventoryTracking {
             serials: stringsOf(row["serials"]),
           };
         },
+      ),
+    pickSerials: ({ variantId, locationId, quantity, lotId }) =>
+      call(
+        "pick_serials",
+        {
+          variant: variantId,
+          location: locationId,
+          quantity,
+          lot: lotId ?? null,
+        },
+        (value) => stringsOf(value),
       ),
     expiringLots: ({ organizationId, before }) =>
       call("expiring_lots", { tenant: organizationId, before }, (value) =>

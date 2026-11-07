@@ -174,6 +174,11 @@ variant with `allowBackorder` can go negative.
 available stock drops to it or below, the module emits
 `stock.reorder_point_reached`, once per crossing.
 
+`setReorderQuantity({ variantId, locationId, reorderQuantity })` stores how much
+to order when stock reaches that point (`null` clears it) in
+`stock_levels.reorder_quantity`, so a reorder job reads both numbers from the
+base table. It needs `inventory.manage`.
+
 A catalog variant or product with stock history can't be deleted
 (`CATALOG_VARIANT_IN_USE`, `CATALOG_PRODUCT_IN_USE`); archive it instead.
 
@@ -264,6 +269,12 @@ unit, and a serial can't be in stock twice. Without a bin or lot, stock leaves
 first-expiry-first-out: the lot that expires first, then the stock outside any
 lot. A sale or a transfer out skips hold bins and expired lots, and stock in a
 hold bin counts as `held`, so `available` is on hand minus reserved minus held.
+
+`pickSerials({ variantId, locationId, quantity, lotId? })` returns the serial
+numbers to take for a pick, the oldest in stock first, from one lot when you
+pass `lotId`. It changes nothing: pass the result in the `detail` of
+`adjustStock`. It fails with `INVENTORY_INSUFFICIENT` when fewer serials are in
+stock, and replaces app SQL that chose serials by hand.
 
 `expiringLots(organizationId, "2027-03-01")` lists the lots with stock that
 expire before a date. `expireLots(organizationId)` is a service function that
