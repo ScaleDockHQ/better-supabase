@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:97d494d0c63e647d55ee68b025dbb09d65104d93f2a34379d2ac33516ddbe3cf
+-- @bsb-hash sha256:c7faaa06e831f1c1ebca5afc9460cc269998ee2296edac93cde761429bc0648a
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,7 +29,7 @@ alter table "better_supabase"."pipelines" enable row level security;
 revoke all on "better_supabase"."pipelines" from public, anon, authenticated;
 grant select on "better_supabase"."pipelines" to authenticated;
 grant all on "better_supabase"."pipelines" to service_role;
-create policy pipelines_read on "better_supabase"."pipelines"
+create policy bsb_pipelines_read on "better_supabase"."pipelines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
@@ -58,7 +58,7 @@ alter table "better_supabase"."pipeline_stages" enable row level security;
 revoke all on "better_supabase"."pipeline_stages" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
 grant all on "better_supabase"."pipeline_stages" to service_role;
-create policy pipeline_stages_read on "better_supabase"."pipeline_stages"
+create policy bsb_pipeline_stages_read on "better_supabase"."pipeline_stages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
@@ -75,7 +75,7 @@ alter table "better_supabase"."pipeline_transitions" enable row level security;
 revoke all on "better_supabase"."pipeline_transitions" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_transitions" to authenticated;
 grant all on "better_supabase"."pipeline_transitions" to service_role;
-create policy pipeline_transitions_read on "better_supabase"."pipeline_transitions"
+create policy bsb_pipeline_transitions_read on "better_supabase"."pipeline_transitions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
@@ -104,7 +104,7 @@ revoke all on "better_supabase"."pipeline_stage_history" from public, anon, auth
 grant select on "better_supabase"."pipeline_stage_history" to authenticated;
 grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
-create policy pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
+create policy bsb_pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -668,7 +668,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:bcf3e2aab211c6328785abb72c36ebc7927a371a20900a89fd8af69fbfbfc07d
+-- @bsb-hash sha256:7c6331a871fcbf1c61c63faf1b8d7bc00a4a1d383ab2879245b835a75bdc4850
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -696,7 +696,7 @@ alter table "better_supabase"."pipelines" enable row level security;
 revoke all on "better_supabase"."pipelines" from public, anon, authenticated;
 grant select on "better_supabase"."pipelines" to authenticated;
 grant all on "better_supabase"."pipelines" to service_role;
-create policy pipelines_read on "better_supabase"."pipelines"
+create policy bsb_pipelines_read on "better_supabase"."pipelines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
@@ -725,7 +725,7 @@ alter table "better_supabase"."pipeline_stages" enable row level security;
 revoke all on "better_supabase"."pipeline_stages" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
 grant all on "better_supabase"."pipeline_stages" to service_role;
-create policy pipeline_stages_read on "better_supabase"."pipeline_stages"
+create policy bsb_pipeline_stages_read on "better_supabase"."pipeline_stages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
@@ -742,7 +742,7 @@ alter table "better_supabase"."pipeline_transitions" enable row level security;
 revoke all on "better_supabase"."pipeline_transitions" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_transitions" to authenticated;
 grant all on "better_supabase"."pipeline_transitions" to service_role;
-create policy pipeline_transitions_read on "better_supabase"."pipeline_transitions"
+create policy bsb_pipeline_transitions_read on "better_supabase"."pipeline_transitions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
@@ -771,7 +771,7 @@ revoke all on "better_supabase"."pipeline_stage_history" from public, anon, auth
 grant select on "better_supabase"."pipeline_stage_history" to authenticated;
 grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
-create policy pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
+create policy bsb_pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -2184,7 +2184,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:1413869619c829520392171e59cececa8f12dc3c547296536f0fc2783dd5cc9c
+-- @bsb-hash sha256:a3292123467936fc3e8f3671424048c70d2b270174f2bb540ef4e0dd9473ddfa
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2217,7 +2217,7 @@ alter table "app_private"."pipelines" enable row level security;
 revoke all on "app_private"."pipelines" from public, anon, authenticated;
 grant select on "app_private"."pipelines" to authenticated;
 grant all on "app_private"."pipelines" to service_role;
-create policy pipelines_read on "app_private"."pipelines"
+create policy bsb_pipelines_read on "app_private"."pipelines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
@@ -2246,7 +2246,7 @@ alter table "app_private"."pipeline_stages" enable row level security;
 revoke all on "app_private"."pipeline_stages" from public, anon, authenticated;
 grant select on "app_private"."pipeline_stages" to authenticated;
 grant all on "app_private"."pipeline_stages" to service_role;
-create policy pipeline_stages_read on "app_private"."pipeline_stages"
+create policy bsb_pipeline_stages_read on "app_private"."pipeline_stages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
@@ -2263,7 +2263,7 @@ alter table "app_private"."pipeline_transitions" enable row level security;
 revoke all on "app_private"."pipeline_transitions" from public, anon, authenticated;
 grant select on "app_private"."pipeline_transitions" to authenticated;
 grant all on "app_private"."pipeline_transitions" to service_role;
-create policy pipeline_transitions_read on "app_private"."pipeline_transitions"
+create policy bsb_pipeline_transitions_read on "app_private"."pipeline_transitions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
@@ -2292,7 +2292,7 @@ revoke all on "app_private"."pipeline_stage_history" from public, anon, authenti
 grant select on "app_private"."pipeline_stage_history" to authenticated;
 grant all on "app_private"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
-create policy pipeline_stage_history_read on "app_private"."pipeline_stage_history"
+create policy bsb_pipeline_stage_history_read on "app_private"."pipeline_stage_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -2856,7 +2856,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:b18c4ba0392363374123fa7cc823ceee32b3bb01f1d820e967941aa9b92c3d45
+-- @bsb-hash sha256:b77639159398aa316a381fe0bf983ccf1f568ae419890e2fc9d18ebb36488bb1
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2884,7 +2884,7 @@ alter table "better_supabase"."pipelines" enable row level security;
 revoke all on "better_supabase"."pipelines" from public, anon, authenticated;
 grant select on "better_supabase"."pipelines" to authenticated;
 grant all on "better_supabase"."pipelines" to service_role;
-create policy pipelines_read on "better_supabase"."pipelines"
+create policy bsb_pipelines_read on "better_supabase"."pipelines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
@@ -2913,7 +2913,7 @@ alter table "better_supabase"."pipeline_stages" enable row level security;
 revoke all on "better_supabase"."pipeline_stages" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
 grant all on "better_supabase"."pipeline_stages" to service_role;
-create policy pipeline_stages_read on "better_supabase"."pipeline_stages"
+create policy bsb_pipeline_stages_read on "better_supabase"."pipeline_stages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
@@ -2930,7 +2930,7 @@ alter table "better_supabase"."pipeline_transitions" enable row level security;
 revoke all on "better_supabase"."pipeline_transitions" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_transitions" to authenticated;
 grant all on "better_supabase"."pipeline_transitions" to service_role;
-create policy pipeline_transitions_read on "better_supabase"."pipeline_transitions"
+create policy bsb_pipeline_transitions_read on "better_supabase"."pipeline_transitions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
@@ -2959,7 +2959,7 @@ revoke all on "better_supabase"."pipeline_stage_history" from public, anon, auth
 grant select on "better_supabase"."pipeline_stage_history" to authenticated;
 grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
-create policy pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
+create policy bsb_pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -4290,7 +4290,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:adf63e1dd5700ba0537693e6c65a70ad2b0205d53efd41003365d3b697ab0856
+-- @bsb-hash sha256:6642ed3944cd8f68d60b48b603cc09056da641ec8f2b87aa7f9351bd699aaede
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4318,7 +4318,7 @@ alter table "better_supabase"."pipelines" enable row level security;
 revoke all on "better_supabase"."pipelines" from public, anon, authenticated;
 grant select on "better_supabase"."pipelines" to authenticated;
 grant all on "better_supabase"."pipelines" to service_role;
-create policy pipelines_read on "better_supabase"."pipelines"
+create policy bsb_pipelines_read on "better_supabase"."pipelines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
@@ -4347,7 +4347,7 @@ alter table "better_supabase"."pipeline_stages" enable row level security;
 revoke all on "better_supabase"."pipeline_stages" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
 grant all on "better_supabase"."pipeline_stages" to service_role;
-create policy pipeline_stages_read on "better_supabase"."pipeline_stages"
+create policy bsb_pipeline_stages_read on "better_supabase"."pipeline_stages"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
@@ -4364,7 +4364,7 @@ alter table "better_supabase"."pipeline_transitions" enable row level security;
 revoke all on "better_supabase"."pipeline_transitions" from public, anon, authenticated;
 grant select on "better_supabase"."pipeline_transitions" to authenticated;
 grant all on "better_supabase"."pipeline_transitions" to service_role;
-create policy pipeline_transitions_read on "better_supabase"."pipeline_transitions"
+create policy bsb_pipeline_transitions_read on "better_supabase"."pipeline_transitions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')));
 
@@ -4393,7 +4393,7 @@ revoke all on "better_supabase"."pipeline_stage_history" from public, anon, auth
 grant select on "better_supabase"."pipeline_stage_history" to authenticated;
 grant all on "better_supabase"."pipeline_stage_history" to service_role;
 -- A history row is visible to whoever can read its record.
-create policy pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
+create policy bsb_pipeline_stage_history_read on "better_supabase"."pipeline_stage_history"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('pipelines.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 

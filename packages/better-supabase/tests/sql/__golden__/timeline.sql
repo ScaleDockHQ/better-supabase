@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:da209f3874fa592c9c4524f30450654eaab212fff926221515adbecf0c089262
+-- @bsb-hash sha256:c23786ccea0f8273cda0c5e8db8a97c2ba513d66d2d4e077ccba2d3fc90315ca
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,7 +26,7 @@ alter table "better_supabase"."timeline_entries" enable row level security;
 revoke all on "better_supabase"."timeline_entries" from public, anon, authenticated;
 grant select on "better_supabase"."timeline_entries" to authenticated;
 grant all on "better_supabase"."timeline_entries" to service_role;
-create policy timeline_entries_read on "better_supabase"."timeline_entries"
+create policy bsb_timeline_entries_read on "better_supabase"."timeline_entries"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read')));
 
@@ -143,7 +143,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:1a1200ddb3150b6210203ef79de7b447f0453d6141cacbc33ad66000f3329ec6
+-- @bsb-hash sha256:b40a2be069ba6c89c9d1de0e994a0073d278e827289bd3b015c2e906f706f340
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -168,7 +168,7 @@ alter table "better_supabase"."timeline_entries" enable row level security;
 revoke all on "better_supabase"."timeline_entries" from public, anon, authenticated;
 grant select on "better_supabase"."timeline_entries" to authenticated;
 grant all on "better_supabase"."timeline_entries" to service_role;
-create policy timeline_entries_read on "better_supabase"."timeline_entries"
+create policy bsb_timeline_entries_read on "better_supabase"."timeline_entries"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read')));
 
@@ -288,7 +288,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:17a4b9a38d0fa1060d378a68bcbd73507f9c791a62e2d24c327f0bb46d9d56fe
+-- @bsb-hash sha256:4bd39644ba5ef0aa95343c491ba67b8dd876339eaaeb48d6b6f8346fcd3aef95
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -318,7 +318,7 @@ alter table "app_private"."timeline_entries" enable row level security;
 revoke all on "app_private"."timeline_entries" from public, anon, authenticated;
 grant select on "app_private"."timeline_entries" to authenticated;
 grant all on "app_private"."timeline_entries" to service_role;
-create policy timeline_entries_read on "app_private"."timeline_entries"
+create policy bsb_timeline_entries_read on "app_private"."timeline_entries"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read')));
 
@@ -435,7 +435,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:c2c21161efe8fddb43e648e4a6f06d0d415617d4ef727736db0aed07815d2d4c
+-- @bsb-hash sha256:b9c3e38b6b9ebff559bdcc032cc0d1386d65cdbf232f6b0836aa9a1195f05f97
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -460,7 +460,7 @@ alter table "better_supabase"."timeline_entries" enable row level security;
 revoke all on "better_supabase"."timeline_entries" from public, anon, authenticated;
 grant select on "better_supabase"."timeline_entries" to authenticated;
 grant all on "better_supabase"."timeline_entries" to service_role;
-create policy timeline_entries_read on "better_supabase"."timeline_entries"
+create policy bsb_timeline_entries_read on "better_supabase"."timeline_entries"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('timeline.read')));
 
@@ -741,7 +741,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:85e5d5c38a266edec4ad44b6dcd22ef4257cfd6b8f363a4beb3e0f9a37c5b1c9
+-- @bsb-hash sha256:3ebec0ce1939eeae8365c1afd8e9429df5420e8fff376a543fe78eaead57c95e
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -766,7 +766,7 @@ alter table "better_supabase"."timeline_entries" enable row level security;
 revoke all on "better_supabase"."timeline_entries" from public, anon, authenticated;
 grant select on "better_supabase"."timeline_entries" to authenticated;
 grant all on "better_supabase"."timeline_entries" to service_role;
-create policy timeline_entries_read on "better_supabase"."timeline_entries"
+create policy bsb_timeline_entries_read on "better_supabase"."timeline_entries"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('timeline.read')));
 

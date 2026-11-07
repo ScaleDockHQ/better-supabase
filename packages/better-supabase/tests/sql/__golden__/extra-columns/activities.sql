@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:1040de2c8ac61aa739d5a9ab41a0e1c5afae37b8b1deb8f2bcf4240e39564ccb
+-- @bsb-hash sha256:ef5a24bb0cbe5a0ae32f671ab8d66dba72c224d85a522b313cd9deaa0e0a77f1
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -57,10 +57,10 @@ grant select on "better_supabase"."engagement_subjects" to authenticated;
 grant all on "better_supabase"."engagement_subjects" to service_role;
 -- A link is visible when its record is; an engagement when one of its
 -- records is, or it has none. A guest of a record reads its subject notes.
-create policy engagement_subjects_read on "better_supabase"."engagement_subjects"
+create policy bsb_engagement_subjects_read on "better_supabase"."engagement_subjects"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
-create policy activities_read on "better_supabase"."activities"
+create policy bsb_activities_read on "better_supabase"."activities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" lx where lx."activity_id" = "id")

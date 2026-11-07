@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:e32d460625d3b6e1b3042e73cb6394f4ad0b797a2832f97f83e80d2cd56d2f4f
+-- @bsb-hash sha256:9067903f7ec1abeaa11f6c92ca928474ad6124e1e26e089b7fdc47a9a6a03fe0
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,7 @@ alter table "better_supabase"."periods" enable row level security;
 revoke all on "better_supabase"."periods" from public, anon, authenticated;
 grant select on "better_supabase"."periods" to authenticated;
 grant all on "better_supabase"."periods" to service_role;
-create policy periods_read on "better_supabase"."periods"
+create policy bsb_periods_read on "better_supabase"."periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')));
 
@@ -322,7 +322,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:1b0b6d342ac8999e848d54d1c478e1724cc3fda2ae53d7d80a5ae462e7267049
+-- @bsb-hash sha256:c42c0616a90cab85c4e04b60340119a8d4f58695f8afdbb708bef242e4f82ef0
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -349,7 +349,7 @@ alter table "better_supabase"."periods" enable row level security;
 revoke all on "better_supabase"."periods" from public, anon, authenticated;
 grant select on "better_supabase"."periods" to authenticated;
 grant all on "better_supabase"."periods" to service_role;
-create policy periods_read on "better_supabase"."periods"
+create policy bsb_periods_read on "better_supabase"."periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')));
 
@@ -718,7 +718,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:97343e3fca06ec84df3d8460f4645ce93696cd84428bdd05dabaf96b5baed5c3
+-- @bsb-hash sha256:007e8776a35720b07082ab25cdb194b6a3a3040123fcf3439fbb15d22591f70c
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -750,7 +750,7 @@ alter table "app_private"."periods" enable row level security;
 revoke all on "app_private"."periods" from public, anon, authenticated;
 grant select on "app_private"."periods" to authenticated;
 grant all on "app_private"."periods" to service_role;
-create policy periods_read on "app_private"."periods"
+create policy bsb_periods_read on "app_private"."periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')));
 
@@ -1044,7 +1044,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:295aa579b1badb3f1c0f2798610ac0d80ce3b73e30029cd619796a334ab7ae86
+-- @bsb-hash sha256:4b659f1e91ca93327e5de662a8b98a62e9c650c06a707eb393b3f44c1ce02af1
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1071,7 +1071,7 @@ alter table "better_supabase"."periods" enable row level security;
 revoke all on "better_supabase"."periods" from public, anon, authenticated;
 grant select on "better_supabase"."periods" to authenticated;
 grant all on "better_supabase"."periods" to service_role;
-create policy periods_read on "better_supabase"."periods"
+create policy bsb_periods_read on "better_supabase"."periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('periods.read')));
 
@@ -1762,7 +1762,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:276de116997e3f4c4eef3c0712e4a02764cf390d1c87baddfa7fedd0d19bf407
+-- @bsb-hash sha256:0c4e7d057e3ec9309745ff2afbc4f402a1b31621e3ccc7e39392c7239ca19062
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1789,7 +1789,7 @@ alter table "better_supabase"."periods" enable row level security;
 revoke all on "better_supabase"."periods" from public, anon, authenticated;
 grant select on "better_supabase"."periods" to authenticated;
 grant all on "better_supabase"."periods" to service_role;
-create policy periods_read on "better_supabase"."periods"
+create policy bsb_periods_read on "better_supabase"."periods"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('periods.read')));
 

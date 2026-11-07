@@ -1,6 +1,6 @@
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:f71604285f2f1c1024fcfc9d080ee070f4284a67f647efc8c2b9fa58c11bf12d
+-- @bsb-hash sha256:ba5edcf997939af8fcf38a6e1c395f2d1de6c843a8e882c7cbef0db6e4a9e4ad
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -32,7 +32,7 @@ alter table "better_supabase"."referral_codes" enable row level security;
 revoke all on "better_supabase"."referral_codes" from public, anon, authenticated;
 grant select on "better_supabase"."referral_codes" to authenticated;
 grant all on "better_supabase"."referral_codes" to service_role;
-create policy referral_codes_read on "better_supabase"."referral_codes"
+create policy bsb_referral_codes_read on "better_supabase"."referral_codes"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
 
@@ -65,7 +65,7 @@ alter table "better_supabase"."referrals" enable row level security;
 revoke all on "better_supabase"."referrals" from public, anon, authenticated;
 grant select on "better_supabase"."referrals" to authenticated;
 grant all on "better_supabase"."referrals" to service_role;
-create policy referrals_read on "better_supabase"."referrals"
+create policy bsb_referrals_read on "better_supabase"."referrals"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('referrals.read')) or "referrer_id" = (select auth.uid())));
 

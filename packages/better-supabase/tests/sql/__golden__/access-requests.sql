@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:d9143ef45d16993220c573a36ebca290d59fa5d6db4141a68440b28e5928ac1c
+-- @bsb-hash sha256:ae63da800a267b3e58c7e50a293052d21c8710c451f8b334e3c15b35a3e8a583
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -27,7 +27,7 @@ alter table "better_supabase"."access_requests" enable row level security;
 revoke all on "better_supabase"."access_requests" from public, anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
-create policy access_requests_read on "better_supabase"."access_requests"
+create policy bsb_access_requests_read on "better_supabase"."access_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
@@ -341,7 +341,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:394dd9a33de883b00bbfe874ed4bc7c75b80f9fa7918192b45cebc15d110b6b5
+-- @bsb-hash sha256:f0c84336a40340b9839ea12cd88e5c5c1ac782fbc996dfbe7becf13fcb11e078
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -380,7 +380,7 @@ alter table "better_supabase"."access_requests" enable row level security;
 revoke all on "better_supabase"."access_requests" from public, anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
-create policy access_requests_read on "better_supabase"."access_requests"
+create policy bsb_access_requests_read on "better_supabase"."access_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
@@ -1044,7 +1044,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:d1799510c1bb07c38e0a8939a85860430e170e361a01a6aa5257e823868501bb
+-- @bsb-hash sha256:a8452f22346daf5f699e8a20c788c9b11ee0e34eaf0159b8ceb08cb23c21ca02
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1075,7 +1075,7 @@ alter table "app_private"."access_requests" enable row level security;
 revoke all on "app_private"."access_requests" from public, anon, authenticated;
 grant select on "app_private"."access_requests" to authenticated;
 grant all on "app_private"."access_requests" to service_role;
-create policy access_requests_read on "app_private"."access_requests"
+create policy bsb_access_requests_read on "app_private"."access_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
@@ -1389,7 +1389,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:950b9946cada6ff59c0ae6e49c33ac847a3f31812e16d94fd9da3916c8f4238c
+-- @bsb-hash sha256:625c0b52fa9be5e4208f1186fb241f47b07bab1da01c080eed24961f328f4d03
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1415,7 +1415,7 @@ alter table "better_supabase"."access_requests" enable row level security;
 revoke all on "better_supabase"."access_requests" from public, anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
-create policy access_requests_read on "better_supabase"."access_requests"
+create policy bsb_access_requests_read on "better_supabase"."access_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 
@@ -2118,7 +2118,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:cd6a05165bec288aba868b204a39c252ab7273176f63e66ad5be7497a8d7e25c
+-- @bsb-hash sha256:a5c1e643f9e875a36c7371742c89d4a55be0742addcdd72aa3f33b2a19bb393c
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2144,7 +2144,7 @@ alter table "better_supabase"."access_requests" enable row level security;
 revoke all on "better_supabase"."access_requests" from public, anon, authenticated;
 grant select on "better_supabase"."access_requests" to authenticated;
 grant all on "better_supabase"."access_requests" to service_role;
-create policy access_requests_read on "better_supabase"."access_requests"
+create policy bsb_access_requests_read on "better_supabase"."access_requests"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('access_requests.read')) or "user_id" = (select auth.uid()));
 

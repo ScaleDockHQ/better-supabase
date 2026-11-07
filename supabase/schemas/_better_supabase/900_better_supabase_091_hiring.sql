@@ -1,6 +1,6 @@
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:82cfb31b9a6861ad31124c6b951c55e313e8792082caca0281035da34d4122d2
+-- @bsb-hash sha256:29a4bf8159b569874b07809e9b15c54fd6dbcce34aa0ee474cb51f091005273a
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,7 @@ alter table "better_supabase"."job_openings" enable row level security;
 revoke all on "better_supabase"."job_openings" from public, anon, authenticated;
 grant select on "better_supabase"."job_openings" to authenticated;
 grant all on "better_supabase"."job_openings" to service_role;
-create policy jobs_read on "better_supabase"."job_openings"
+create policy bsb_jobs_read on "better_supabase"."job_openings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
 
@@ -57,7 +57,7 @@ alter table "better_supabase"."applications" enable row level security;
 revoke all on "better_supabase"."applications" from public, anon, authenticated;
 grant select on "better_supabase"."applications" to authenticated;
 grant all on "better_supabase"."applications" to service_role;
-create policy applications_read on "better_supabase"."applications"
+create policy bsb_applications_read on "better_supabase"."applications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
 
@@ -78,7 +78,7 @@ alter table "better_supabase"."application_scorecards" enable row level security
 revoke all on "better_supabase"."application_scorecards" from public, anon, authenticated;
 grant select on "better_supabase"."application_scorecards" to authenticated;
 grant all on "better_supabase"."application_scorecards" to service_role;
-create policy application_scorecards_read on "better_supabase"."application_scorecards"
+create policy bsb_application_scorecards_read on "better_supabase"."application_scorecards"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')));
 
@@ -100,7 +100,7 @@ alter table "better_supabase"."interviews" enable row level security;
 revoke all on "better_supabase"."interviews" from public, anon, authenticated;
 grant select on "better_supabase"."interviews" to authenticated;
 grant all on "better_supabase"."interviews" to service_role;
-create policy interviews_read on "better_supabase"."interviews"
+create policy bsb_interviews_read on "better_supabase"."interviews"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('hiring.read')) or (select auth.uid()) = any ("interviewer_user_ids"));
 

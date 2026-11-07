@@ -201,8 +201,8 @@ describe("state machine", () => {
       },
     });
 
-    expect(sql).toContain("create policy status_history_read");
-    expect(sql).toContain("create policy subject_lifecycles_read");
+    expect(sql).toContain("create policy bsb_status_history_read");
+    expect(sql).toContain("create policy bsb_subject_lifecycles_read");
     expect(sql).toContain(
       `when 'quote' then exists (select 1 from "public"."quotes" s where s."id" = ("better_supabase"."status_history"."subject_id")::uuid)`,
     );

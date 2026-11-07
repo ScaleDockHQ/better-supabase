@@ -1,6 +1,6 @@
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:a2d37febc9ae2e9355994d33477d1f227b12e78f02102136936d4aeec457736d
+-- @bsb-hash sha256:137233e91dabd4f963914cc9cf40a561a755189b8c8d54277495a9c10331e3c7
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -35,7 +35,7 @@ alter table "better_supabase"."guests" enable row level security;
 revoke all on "better_supabase"."guests" from public, anon, authenticated;
 grant select on "better_supabase"."guests" to authenticated;
 grant all on "better_supabase"."guests" to service_role;
-create policy guests_read on "better_supabase"."guests"
+create policy bsb_guests_read on "better_supabase"."guests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read')) or "user_id" = (select auth.uid()));
 
@@ -57,7 +57,7 @@ alter table "better_supabase"."guest_grants" enable row level security;
 revoke all on "better_supabase"."guest_grants" from public, anon, authenticated;
 grant select on "better_supabase"."guest_grants" to authenticated;
 grant all on "better_supabase"."guest_grants" to service_role;
-create policy guest_grants_read on "better_supabase"."guest_grants"
+create policy bsb_guest_grants_read on "better_supabase"."guest_grants"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('guests.read'))
     or "guest_id" in (select x."id" from "better_supabase"."guests" x where x."user_id" = (select auth.uid())));

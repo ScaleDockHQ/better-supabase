@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:4544b3d93bda722491758e0af02542dbe84eb4cea7964a08621fa098c78a1b31
+-- @bsb-hash sha256:4ed173676d24164bdeb7f777104e41647872c22fc4203084f5e89a29a0f72c87
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23,7 +23,7 @@ alter table "better_supabase"."teams" enable row level security;
 revoke all on "better_supabase"."teams" from public, anon, authenticated;
 grant select on "better_supabase"."teams" to authenticated;
 grant all on "better_supabase"."teams" to service_role;
-create policy teams_read on "better_supabase"."teams"
+create policy bsb_teams_read on "better_supabase"."teams"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
 
@@ -40,7 +40,7 @@ alter table "better_supabase"."team_members" enable row level security;
 revoke all on "better_supabase"."team_members" from public, anon, authenticated;
 grant select on "better_supabase"."team_members" to authenticated;
 grant all on "better_supabase"."team_members" to service_role;
-create policy team_members_read on "better_supabase"."team_members"
+create policy bsb_team_members_read on "better_supabase"."team_members"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('teams.read')));
 alter table "better_supabase"."team_members"

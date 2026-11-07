@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:480b924a11b42d18984a40c6108bd0aeb7ea0db874de3cb2c9a32640c6a0e072
+-- @bsb-hash sha256:57a1507ecc58525386aec1616a7c9c1143b834a24c80ea77bad793ab0b0f6150
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,7 @@ alter table "better_supabase"."advisory_products" enable row level security;
 revoke all on "better_supabase"."advisory_products" from public, anon, authenticated;
 grant select on "better_supabase"."advisory_products" to authenticated;
 grant all on "better_supabase"."advisory_products" to service_role;
-create policy advisory_products_read on "better_supabase"."advisory_products"
+create policy bsb_advisory_products_read on "better_supabase"."advisory_products"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')));
 
@@ -51,7 +51,7 @@ alter table "better_supabase"."advisory_product_versions" enable row level secur
 revoke all on "better_supabase"."advisory_product_versions" from public, anon, authenticated;
 grant select on "better_supabase"."advisory_product_versions" to authenticated;
 grant all on "better_supabase"."advisory_product_versions" to service_role;
-create policy advisory_product_versions_read on "better_supabase"."advisory_product_versions"
+create policy bsb_advisory_product_versions_read on "better_supabase"."advisory_product_versions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')));
 
@@ -77,7 +77,7 @@ alter table "better_supabase"."sbom_components" enable row level security;
 revoke all on "better_supabase"."sbom_components" from public, anon, authenticated;
 grant select on "better_supabase"."sbom_components" to authenticated;
 grant all on "better_supabase"."sbom_components" to service_role;
-create policy sbom_components_read on "better_supabase"."sbom_components"
+create policy bsb_sbom_components_read on "better_supabase"."sbom_components"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')));
 
@@ -115,7 +115,7 @@ alter table "better_supabase"."vulnerabilities" enable row level security;
 revoke all on "better_supabase"."vulnerabilities" from public, anon, authenticated;
 grant select on "better_supabase"."vulnerabilities" to authenticated;
 grant all on "better_supabase"."vulnerabilities" to service_role;
-create policy vulnerabilities_read on "better_supabase"."vulnerabilities"
+create policy bsb_vulnerabilities_read on "better_supabase"."vulnerabilities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')));
 
@@ -139,7 +139,7 @@ alter table "better_supabase"."vex_statements" enable row level security;
 revoke all on "better_supabase"."vex_statements" from public, anon, authenticated;
 grant select on "better_supabase"."vex_statements" to authenticated;
 grant all on "better_supabase"."vex_statements" to service_role;
-create policy vex_statements_read on "better_supabase"."vex_statements"
+create policy bsb_vex_statements_read on "better_supabase"."vex_statements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')));
 
@@ -169,7 +169,7 @@ alter table "better_supabase"."advisories" enable row level security;
 revoke all on "better_supabase"."advisories" from public, anon, authenticated;
 grant select on "better_supabase"."advisories" to authenticated;
 grant all on "better_supabase"."advisories" to service_role;
-create policy advisories_read on "better_supabase"."advisories"
+create policy bsb_advisories_read on "better_supabase"."advisories"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')));
 
@@ -185,7 +185,7 @@ alter table "better_supabase"."advisory_vulnerabilities" enable row level securi
 revoke all on "better_supabase"."advisory_vulnerabilities" from public, anon, authenticated;
 grant select on "better_supabase"."advisory_vulnerabilities" to authenticated;
 grant all on "better_supabase"."advisory_vulnerabilities" to service_role;
-create policy advisory_vulnerabilities_read on "better_supabase"."advisory_vulnerabilities"
+create policy bsb_advisory_vulnerabilities_read on "better_supabase"."advisory_vulnerabilities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('advisories.read')));
 

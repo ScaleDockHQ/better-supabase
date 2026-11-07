@@ -1,6 +1,6 @@
 -- better-supabase module: search
 -- @bsb-block search@2 managed
--- @bsb-hash sha256:5d0680e8dfc1c195d74aa294d7e70cc42cc41cf2fb21ae71baadd832137a759e
+-- @bsb-hash sha256:f1f901e8a2ce317220a16e06cefb1ef9cb8ff565a86fa07d40726b931f0b2547
 -- A search_documents index kept up by triggers from each config.subjects search entry, with search(q) as the caller (websearch, trigram prefixes, can_subject, hybrid with embeddings), and recents and favorites from the share-links user state.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,7 @@ create index search_documents_tsv_idx on "better_supabase"."search_documents" us
 create index search_documents_title_trgm_idx on "better_supabase"."search_documents" using gin ("title_search" extensions.gin_trgm_ops);
 create index search_documents_tenant_idx on "better_supabase"."search_documents" ("tenant_id", "subject_type");
 
-create policy search_documents_read on "better_supabase"."search_documents"
+create policy bsb_search_documents_read on "better_supabase"."search_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('search.read')));
 

@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:1ef013c28d819a65523f6f71f2a5265b9080d6dd9f0054a14528c880dfc38a85
+-- @bsb-hash sha256:febfa97c3ca1a5b23895080786fec0af7951c79b04d4fa4a0b8447d508dda351
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -76,7 +76,7 @@ alter table "better_supabase"."invoices" enable row level security;
 revoke all on "better_supabase"."invoices" from public, anon, authenticated;
 grant select on "better_supabase"."invoices" to authenticated;
 grant all on "better_supabase"."invoices" to service_role;
-create policy invoices_read on "better_supabase"."invoices"
+create policy bsb_invoices_read on "better_supabase"."invoices"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read'))) or (("tenant_id")::text, ('invoice')::text, ("id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or (("tenant_id")::text, ("company_type")::text, ("company_id"::text)::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g) or (("tenant_id")::text, ("contact_type")::text, ("contact_id"::text)::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g));
 
@@ -95,7 +95,7 @@ alter table "better_supabase"."invoice_charges" enable row level security;
 revoke all on "better_supabase"."invoice_charges" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_charges" to authenticated;
 grant all on "better_supabase"."invoice_charges" to service_role;
-create policy invoice_charges_read on "better_supabase"."invoice_charges"
+create policy bsb_invoice_charges_read on "better_supabase"."invoice_charges"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "invoice_id"));
 
@@ -116,7 +116,7 @@ alter table "better_supabase"."invoice_dunning_levels" enable row level security
 revoke all on "better_supabase"."invoice_dunning_levels" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_levels" to authenticated;
 grant all on "better_supabase"."invoice_dunning_levels" to service_role;
-create policy invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels"
+create policy bsb_invoice_dunning_levels_read on "better_supabase"."invoice_dunning_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -132,7 +132,7 @@ alter table "better_supabase"."invoice_dunning_runs" enable row level security;
 revoke all on "better_supabase"."invoice_dunning_runs" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_runs" to authenticated;
 grant all on "better_supabase"."invoice_dunning_runs" to service_role;
-create policy invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs"
+create policy bsb_invoice_dunning_runs_read on "better_supabase"."invoice_dunning_runs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -157,7 +157,7 @@ alter table "better_supabase"."invoice_dunning_run_items" enable row level secur
 revoke all on "better_supabase"."invoice_dunning_run_items" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_run_items" to authenticated;
 grant all on "better_supabase"."invoice_dunning_run_items" to service_role;
-create policy invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items"
+create policy bsb_invoice_dunning_run_items_read on "better_supabase"."invoice_dunning_run_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -181,7 +181,7 @@ alter table "better_supabase"."invoice_dunning_history" enable row level securit
 revoke all on "better_supabase"."invoice_dunning_history" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_dunning_history" to authenticated;
 grant all on "better_supabase"."invoice_dunning_history" to service_role;
-create policy invoice_dunning_history_read on "better_supabase"."invoice_dunning_history"
+create policy bsb_invoice_dunning_history_read on "better_supabase"."invoice_dunning_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -209,7 +209,7 @@ alter table "better_supabase"."invoice_allocations" enable row level security;
 revoke all on "better_supabase"."invoice_allocations" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_allocations" to authenticated;
 grant all on "better_supabase"."invoice_allocations" to service_role;
-create policy invoice_allocations_read on "better_supabase"."invoice_allocations"
+create policy bsb_invoice_allocations_read on "better_supabase"."invoice_allocations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -236,7 +236,7 @@ alter table "better_supabase"."invoice_line_sources" enable row level security;
 revoke all on "better_supabase"."invoice_line_sources" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_line_sources" to authenticated;
 grant all on "better_supabase"."invoice_line_sources" to service_role;
-create policy invoice_line_sources_read on "better_supabase"."invoice_line_sources"
+create policy bsb_invoice_line_sources_read on "better_supabase"."invoice_line_sources"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -256,7 +256,7 @@ alter table "better_supabase"."invoice_approval_levels" enable row level securit
 revoke all on "better_supabase"."invoice_approval_levels" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_approval_levels" to authenticated;
 grant all on "better_supabase"."invoice_approval_levels" to service_role;
-create policy invoice_approval_levels_read on "better_supabase"."invoice_approval_levels"
+create policy bsb_invoice_approval_levels_read on "better_supabase"."invoice_approval_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -275,7 +275,7 @@ alter table "better_supabase"."invoice_approvals" enable row level security;
 revoke all on "better_supabase"."invoice_approvals" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_approvals" to authenticated;
 grant all on "better_supabase"."invoice_approvals" to service_role;
-create policy invoice_approvals_read on "better_supabase"."invoice_approvals"
+create policy bsb_invoice_approvals_read on "better_supabase"."invoice_approvals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -296,7 +296,7 @@ alter table "better_supabase"."invoice_e_endpoints" enable row level security;
 revoke all on "better_supabase"."invoice_e_endpoints" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_e_endpoints" to authenticated;
 grant all on "better_supabase"."invoice_e_endpoints" to service_role;
-create policy invoice_e_endpoints_read on "better_supabase"."invoice_e_endpoints"
+create policy bsb_invoice_e_endpoints_read on "better_supabase"."invoice_e_endpoints"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -321,7 +321,7 @@ alter table "better_supabase"."e_invoice_deliveries" enable row level security;
 revoke all on "better_supabase"."e_invoice_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."e_invoice_deliveries" to authenticated;
 grant all on "better_supabase"."e_invoice_deliveries" to service_role;
-create policy e_invoice_deliveries_read on "better_supabase"."e_invoice_deliveries"
+create policy bsb_e_invoice_deliveries_read on "better_supabase"."e_invoice_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -803,7 +803,7 @@ alter table "better_supabase"."invoice_lines" enable row level security;
 revoke all on "better_supabase"."invoice_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_lines" to authenticated;
 grant all on "better_supabase"."invoice_lines" to service_role;
-create policy "invoice_lines_read" on "better_supabase"."invoice_lines" for select to authenticated
+create policy bsb_invoice_lines_read on "better_supabase"."invoice_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."invoices" x where x."id" = "parent_id"));
 
 -- Writes a record's totals from its counted lines: an optional line counts

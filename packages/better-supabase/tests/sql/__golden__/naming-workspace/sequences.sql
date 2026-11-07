@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:d35c53cd73a9476aa4ece61999f5033bd956a10eb01c187ec4de3a8a356c9bbb
+-- @bsb-hash sha256:146bdc91797b521e805286ad35755355031597e0d874b533dda96e69c9ca390b
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -53,7 +53,7 @@ alter table "better_supabase"."sequences" enable row level security;
 revoke all on "better_supabase"."sequences" from public, anon, authenticated;
 grant select on "better_supabase"."sequences" to authenticated;
 grant all on "better_supabase"."sequences" to service_role;
-create policy sequences_read on "better_supabase"."sequences"
+create policy bsb_sequences_read on "better_supabase"."sequences"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sequences.read')));
 

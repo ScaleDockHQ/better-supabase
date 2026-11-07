@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:c61360a1b659d535c0b0b546a7ad4354f8826cbf21f8912cd4ecdb434cd326cc
+-- @bsb-hash sha256:a38c1aebf9c014e66d70965333fbe1170265426ce2dc74d7cf4dc316d54e90ab
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -52,7 +52,7 @@ alter table "better_supabase"."workflow_runs" enable row level security;
 revoke all on "better_supabase"."workflow_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
-create policy workflow_runs_read on "better_supabase"."workflow_runs"
+create policy bsb_workflow_runs_read on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
@@ -82,7 +82,7 @@ alter table "better_supabase"."workflow_schedules" enable row level security;
 revoke all on "better_supabase"."workflow_schedules" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
-create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
+create policy bsb_workflow_schedules_read on "better_supabase"."workflow_schedules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 

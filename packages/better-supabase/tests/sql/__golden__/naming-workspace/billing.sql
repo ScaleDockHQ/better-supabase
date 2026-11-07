@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:122fb6e50cf5241a166336332dfa7e465ccc6a42ce72ae448e34beb6ee7eb4a2
+-- @bsb-hash sha256:51fb5de6ca10817c22cab1434cf069c1de993e12a8d7e84e6a512ea8f12ad1c0
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22,7 +22,7 @@ alter table "better_supabase"."billing_customers" enable row level security;
 revoke all on "better_supabase"."billing_customers" from public, anon, authenticated;
 grant select on "better_supabase"."billing_customers" to authenticated;
 grant all on "better_supabase"."billing_customers" to service_role;
-create policy billing_customers_read on "better_supabase"."billing_customers"
+create policy bsb_billing_customers_read on "better_supabase"."billing_customers"
   for select to authenticated
   using ("workspace_id" in (select better_supabase.tenant_ids_with('billing.read')));
 

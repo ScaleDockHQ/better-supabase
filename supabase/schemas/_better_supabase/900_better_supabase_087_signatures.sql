@@ -1,6 +1,6 @@
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:fe2c798ac4761b49a966eb76bc91f9e6d6d3ad67d3a0a7c11cebf384c70aac7f
+-- @bsb-hash sha256:423d8edb29bb4741737dfa8bcb5607edcfc45d794110f19da8a9a1769d095f88
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,7 @@ alter table "better_supabase"."signature_requests" enable row level security;
 revoke all on "better_supabase"."signature_requests" from public, anon, authenticated;
 grant select on "better_supabase"."signature_requests" to authenticated;
 grant all on "better_supabase"."signature_requests" to service_role;
-create policy signature_requests_read on "better_supabase"."signature_requests"
+create policy bsb_signature_requests_read on "better_supabase"."signature_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or (select auth.uid()) = any ("signers"));
 
@@ -55,7 +55,7 @@ alter table "better_supabase"."signatures" enable row level security;
 revoke all on "better_supabase"."signatures" from public, anon, authenticated;
 grant select on "better_supabase"."signatures" to authenticated;
 grant all on "better_supabase"."signatures" to service_role;
-create policy signatures_read on "better_supabase"."signatures"
+create policy bsb_signatures_read on "better_supabase"."signatures"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('signatures.read')) or "signer" = (select auth.uid()));
 

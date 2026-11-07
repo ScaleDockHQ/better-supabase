@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:ecb4f4983d5f9aa1c623e43236b6f21bcfa0b771b2f594ef1a18cb361c04c990
+-- @bsb-hash sha256:fd88e1d7e6644450e672e008e911a782c1a873aede95210ed02838f507af228e
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -27,7 +27,7 @@ alter table "better_supabase"."maintenance_meters" enable row level security;
 revoke all on "better_supabase"."maintenance_meters" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meters" to authenticated;
 grant all on "better_supabase"."maintenance_meters" to service_role;
-create policy maintenance_meters_read on "better_supabase"."maintenance_meters"
+create policy bsb_maintenance_meters_read on "better_supabase"."maintenance_meters"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -45,7 +45,7 @@ alter table "better_supabase"."maintenance_meter_readings" enable row level secu
 revoke all on "better_supabase"."maintenance_meter_readings" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meter_readings" to authenticated;
 grant all on "better_supabase"."maintenance_meter_readings" to service_role;
-create policy maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings"
+create policy bsb_maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -94,7 +94,7 @@ alter table "better_supabase"."maintenance_plans" enable row level security;
 revoke all on "better_supabase"."maintenance_plans" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plans" to authenticated;
 grant all on "better_supabase"."maintenance_plans" to service_role;
-create policy maintenance_plans_read on "better_supabase"."maintenance_plans"
+create policy bsb_maintenance_plans_read on "better_supabase"."maintenance_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -113,7 +113,7 @@ alter table "better_supabase"."maintenance_plan_parts" enable row level security
 revoke all on "better_supabase"."maintenance_plan_parts" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plan_parts" to authenticated;
 grant all on "better_supabase"."maintenance_plan_parts" to service_role;
-create policy maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts"
+create policy bsb_maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -137,7 +137,7 @@ alter table "better_supabase"."maintenance_calibrations" enable row level securi
 revoke all on "better_supabase"."maintenance_calibrations" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_calibrations" to authenticated;
 grant all on "better_supabase"."maintenance_calibrations" to service_role;
-create policy maintenance_calibrations_read on "better_supabase"."maintenance_calibrations"
+create policy bsb_maintenance_calibrations_read on "better_supabase"."maintenance_calibrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -944,7 +944,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:7020aa8617390f590b8617fec1dec6c5b18bcd4e0d03bd8df61b92853f21768a
+-- @bsb-hash sha256:00a8489cfba8f24a0f3ddbee332daa9ed762077fbdf75938bc960659af075d5d
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -970,7 +970,7 @@ alter table "better_supabase"."maintenance_meters" enable row level security;
 revoke all on "better_supabase"."maintenance_meters" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meters" to authenticated;
 grant all on "better_supabase"."maintenance_meters" to service_role;
-create policy maintenance_meters_read on "better_supabase"."maintenance_meters"
+create policy bsb_maintenance_meters_read on "better_supabase"."maintenance_meters"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -988,7 +988,7 @@ alter table "better_supabase"."maintenance_meter_readings" enable row level secu
 revoke all on "better_supabase"."maintenance_meter_readings" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meter_readings" to authenticated;
 grant all on "better_supabase"."maintenance_meter_readings" to service_role;
-create policy maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings"
+create policy bsb_maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -1037,7 +1037,7 @@ alter table "better_supabase"."maintenance_plans" enable row level security;
 revoke all on "better_supabase"."maintenance_plans" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plans" to authenticated;
 grant all on "better_supabase"."maintenance_plans" to service_role;
-create policy maintenance_plans_read on "better_supabase"."maintenance_plans"
+create policy bsb_maintenance_plans_read on "better_supabase"."maintenance_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -1056,7 +1056,7 @@ alter table "better_supabase"."maintenance_plan_parts" enable row level security
 revoke all on "better_supabase"."maintenance_plan_parts" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plan_parts" to authenticated;
 grant all on "better_supabase"."maintenance_plan_parts" to service_role;
-create policy maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts"
+create policy bsb_maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -1080,7 +1080,7 @@ alter table "better_supabase"."maintenance_calibrations" enable row level securi
 revoke all on "better_supabase"."maintenance_calibrations" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_calibrations" to authenticated;
 grant all on "better_supabase"."maintenance_calibrations" to service_role;
-create policy maintenance_calibrations_read on "better_supabase"."maintenance_calibrations"
+create policy bsb_maintenance_calibrations_read on "better_supabase"."maintenance_calibrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -1994,7 +1994,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:92c72032bae6d922c8b29968eedc3341363b3470a3d66610b67d43aced3c989a
+-- @bsb-hash sha256:cb05a696bbdc9b9b9a173439feff4737dd3f5495c214272c86280ac8be734a5e
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2025,7 +2025,7 @@ alter table "app_private"."maintenance_meters" enable row level security;
 revoke all on "app_private"."maintenance_meters" from public, anon, authenticated;
 grant select on "app_private"."maintenance_meters" to authenticated;
 grant all on "app_private"."maintenance_meters" to service_role;
-create policy maintenance_meters_read on "app_private"."maintenance_meters"
+create policy bsb_maintenance_meters_read on "app_private"."maintenance_meters"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -2043,7 +2043,7 @@ alter table "app_private"."maintenance_meter_readings" enable row level security
 revoke all on "app_private"."maintenance_meter_readings" from public, anon, authenticated;
 grant select on "app_private"."maintenance_meter_readings" to authenticated;
 grant all on "app_private"."maintenance_meter_readings" to service_role;
-create policy maintenance_meter_readings_read on "app_private"."maintenance_meter_readings"
+create policy bsb_maintenance_meter_readings_read on "app_private"."maintenance_meter_readings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -2092,7 +2092,7 @@ alter table "app_private"."maintenance_plans" enable row level security;
 revoke all on "app_private"."maintenance_plans" from public, anon, authenticated;
 grant select on "app_private"."maintenance_plans" to authenticated;
 grant all on "app_private"."maintenance_plans" to service_role;
-create policy maintenance_plans_read on "app_private"."maintenance_plans"
+create policy bsb_maintenance_plans_read on "app_private"."maintenance_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -2111,7 +2111,7 @@ alter table "app_private"."maintenance_plan_parts" enable row level security;
 revoke all on "app_private"."maintenance_plan_parts" from public, anon, authenticated;
 grant select on "app_private"."maintenance_plan_parts" to authenticated;
 grant all on "app_private"."maintenance_plan_parts" to service_role;
-create policy maintenance_plan_parts_read on "app_private"."maintenance_plan_parts"
+create policy bsb_maintenance_plan_parts_read on "app_private"."maintenance_plan_parts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -2135,7 +2135,7 @@ alter table "app_private"."maintenance_calibrations" enable row level security;
 revoke all on "app_private"."maintenance_calibrations" from public, anon, authenticated;
 grant select on "app_private"."maintenance_calibrations" to authenticated;
 grant all on "app_private"."maintenance_calibrations" to service_role;
-create policy maintenance_calibrations_read on "app_private"."maintenance_calibrations"
+create policy bsb_maintenance_calibrations_read on "app_private"."maintenance_calibrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -2942,7 +2942,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:392ba51b024585c8ba6867844a016cfcaad4263c10e505d580f331aedcdbd236
+-- @bsb-hash sha256:5c10802a544305eeb14dbc92cd43d1397fe62aa3792ec83dcd51ab189cb0cf23
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2968,7 +2968,7 @@ alter table "better_supabase"."maintenance_meters" enable row level security;
 revoke all on "better_supabase"."maintenance_meters" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meters" to authenticated;
 grant all on "better_supabase"."maintenance_meters" to service_role;
-create policy maintenance_meters_read on "better_supabase"."maintenance_meters"
+create policy bsb_maintenance_meters_read on "better_supabase"."maintenance_meters"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -2986,7 +2986,7 @@ alter table "better_supabase"."maintenance_meter_readings" enable row level secu
 revoke all on "better_supabase"."maintenance_meter_readings" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meter_readings" to authenticated;
 grant all on "better_supabase"."maintenance_meter_readings" to service_role;
-create policy maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings"
+create policy bsb_maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -3035,7 +3035,7 @@ alter table "better_supabase"."maintenance_plans" enable row level security;
 revoke all on "better_supabase"."maintenance_plans" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plans" to authenticated;
 grant all on "better_supabase"."maintenance_plans" to service_role;
-create policy maintenance_plans_read on "better_supabase"."maintenance_plans"
+create policy bsb_maintenance_plans_read on "better_supabase"."maintenance_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -3054,7 +3054,7 @@ alter table "better_supabase"."maintenance_plan_parts" enable row level security
 revoke all on "better_supabase"."maintenance_plan_parts" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plan_parts" to authenticated;
 grant all on "better_supabase"."maintenance_plan_parts" to service_role;
-create policy maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts"
+create policy bsb_maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -3078,7 +3078,7 @@ alter table "better_supabase"."maintenance_calibrations" enable row level securi
 revoke all on "better_supabase"."maintenance_calibrations" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_calibrations" to authenticated;
 grant all on "better_supabase"."maintenance_calibrations" to service_role;
-create policy maintenance_calibrations_read on "better_supabase"."maintenance_calibrations"
+create policy bsb_maintenance_calibrations_read on "better_supabase"."maintenance_calibrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -4907,7 +4907,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:05f0b8dfbef972b2cd87635b3193d7f562dc7223fd3eb3517aafd7d6d9ad5e75
+-- @bsb-hash sha256:e7224aa22fcc9ade75aa9199bf641de6616561f6019a320f845412c5dbb72d3f
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4933,7 +4933,7 @@ alter table "better_supabase"."maintenance_meters" enable row level security;
 revoke all on "better_supabase"."maintenance_meters" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meters" to authenticated;
 grant all on "better_supabase"."maintenance_meters" to service_role;
-create policy maintenance_meters_read on "better_supabase"."maintenance_meters"
+create policy bsb_maintenance_meters_read on "better_supabase"."maintenance_meters"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -4951,7 +4951,7 @@ alter table "better_supabase"."maintenance_meter_readings" enable row level secu
 revoke all on "better_supabase"."maintenance_meter_readings" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_meter_readings" to authenticated;
 grant all on "better_supabase"."maintenance_meter_readings" to service_role;
-create policy maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings"
+create policy bsb_maintenance_meter_readings_read on "better_supabase"."maintenance_meter_readings"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -5000,7 +5000,7 @@ alter table "better_supabase"."maintenance_plans" enable row level security;
 revoke all on "better_supabase"."maintenance_plans" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plans" to authenticated;
 grant all on "better_supabase"."maintenance_plans" to service_role;
-create policy maintenance_plans_read on "better_supabase"."maintenance_plans"
+create policy bsb_maintenance_plans_read on "better_supabase"."maintenance_plans"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -5019,7 +5019,7 @@ alter table "better_supabase"."maintenance_plan_parts" enable row level security
 revoke all on "better_supabase"."maintenance_plan_parts" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_plan_parts" to authenticated;
 grant all on "better_supabase"."maintenance_plan_parts" to service_role;
-create policy maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts"
+create policy bsb_maintenance_plan_parts_read on "better_supabase"."maintenance_plan_parts"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 
@@ -5043,7 +5043,7 @@ alter table "better_supabase"."maintenance_calibrations" enable row level securi
 revoke all on "better_supabase"."maintenance_calibrations" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_calibrations" to authenticated;
 grant all on "better_supabase"."maintenance_calibrations" to service_role;
-create policy maintenance_calibrations_read on "better_supabase"."maintenance_calibrations"
+create policy bsb_maintenance_calibrations_read on "better_supabase"."maintenance_calibrations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('maintenance.read')));
 

@@ -1,6 +1,6 @@
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:541bcf572abf20e01c7e2a795d4a4c2f0ece6c9c337447b71702c46ea8d6ca2c
+-- @bsb-hash sha256:3f226e156b01f52859a66933935b814cce098693669a1787c3a2b62249516ed9
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,7 +26,7 @@ alter table "better_supabase"."control_frameworks" enable row level security;
 revoke all on "better_supabase"."control_frameworks" from public, anon, authenticated;
 grant select on "better_supabase"."control_frameworks" to authenticated;
 grant all on "better_supabase"."control_frameworks" to service_role;
-create policy control_frameworks_read on "better_supabase"."control_frameworks"
+create policy bsb_control_frameworks_read on "better_supabase"."control_frameworks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
@@ -54,7 +54,7 @@ alter table "better_supabase"."controls" enable row level security;
 revoke all on "better_supabase"."controls" from public, anon, authenticated;
 grant select on "better_supabase"."controls" to authenticated;
 grant all on "better_supabase"."controls" to service_role;
-create policy controls_read on "better_supabase"."controls"
+create policy bsb_controls_read on "better_supabase"."controls"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
@@ -82,7 +82,7 @@ alter table "better_supabase"."evidence_tasks" enable row level security;
 revoke all on "better_supabase"."evidence_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."evidence_tasks" to authenticated;
 grant all on "better_supabase"."evidence_tasks" to service_role;
-create policy evidence_tasks_read on "better_supabase"."evidence_tasks"
+create policy bsb_evidence_tasks_read on "better_supabase"."evidence_tasks"
   for select to authenticated
   using ("assignee_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
@@ -108,7 +108,7 @@ alter table "better_supabase"."control_evidence" enable row level security;
 revoke all on "better_supabase"."control_evidence" from public, anon, authenticated;
 grant select on "better_supabase"."control_evidence" to authenticated;
 grant all on "better_supabase"."control_evidence" to service_role;
-create policy control_evidence_read on "better_supabase"."control_evidence"
+create policy bsb_control_evidence_read on "better_supabase"."control_evidence"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 
@@ -134,7 +134,7 @@ alter table "better_supabase"."compliance_policies" enable row level security;
 revoke all on "better_supabase"."compliance_policies" from public, anon, authenticated;
 grant select on "better_supabase"."compliance_policies" to authenticated;
 grant all on "better_supabase"."compliance_policies" to service_role;
-create policy compliance_policies_read on "better_supabase"."compliance_policies"
+create policy bsb_compliance_policies_read on "better_supabase"."compliance_policies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('compliance.read')));
 

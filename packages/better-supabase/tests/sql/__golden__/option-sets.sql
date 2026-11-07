@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:f9864a73fa3d4c75a00b978af1dfe7e1c068fe1c07b8c901262437f929dbb46b
+-- @bsb-hash sha256:bcf31a95748e42a027850559af2d71c6613fd967e539f908cb9ce323b931aee9
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -30,7 +30,7 @@ alter table "better_supabase"."option_sets" enable row level security;
 revoke all on "better_supabase"."option_sets" from public, anon, authenticated;
 grant select on "better_supabase"."option_sets" to authenticated;
 grant all on "better_supabase"."option_sets" to service_role;
-create policy option_sets_read on "better_supabase"."option_sets"
+create policy bsb_option_sets_read on "better_supabase"."option_sets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('option_sets.read')));
 
@@ -57,7 +57,7 @@ alter table "better_supabase"."option_set_items" enable row level security;
 revoke all on "better_supabase"."option_set_items" from public, anon, authenticated;
 grant select on "better_supabase"."option_set_items" to authenticated;
 grant all on "better_supabase"."option_set_items" to service_role;
-create policy option_set_items_read on "better_supabase"."option_set_items"
+create policy bsb_option_set_items_read on "better_supabase"."option_set_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('option_sets.read')));
 
@@ -429,7 +429,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:4e5ba939c7f06b18b4c21c1161ce5043b2e7beeaf98a0b97cf7998a86964a446
+-- @bsb-hash sha256:f2f956d766acb930e2a3b437a31da3ff9161161d98c03f1c3588a2ec3406e729
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -458,7 +458,7 @@ alter table "better_supabase"."option_sets" enable row level security;
 revoke all on "better_supabase"."option_sets" from public, anon, authenticated;
 grant select on "better_supabase"."option_sets" to authenticated;
 grant all on "better_supabase"."option_sets" to service_role;
-create policy option_sets_read on "better_supabase"."option_sets"
+create policy bsb_option_sets_read on "better_supabase"."option_sets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('option_sets.read')));
 
@@ -485,7 +485,7 @@ alter table "better_supabase"."option_set_items" enable row level security;
 revoke all on "better_supabase"."option_set_items" from public, anon, authenticated;
 grant select on "better_supabase"."option_set_items" to authenticated;
 grant all on "better_supabase"."option_set_items" to service_role;
-create policy option_set_items_read on "better_supabase"."option_set_items"
+create policy bsb_option_set_items_read on "better_supabase"."option_set_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('option_sets.read')));
 
@@ -990,7 +990,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:cae3362b85f9ee6e9a813b4d69bd017e56995f564d07ce7a71a80dac16bda2db
+-- @bsb-hash sha256:73b6efeaa69aee1fbcfb71578f6ed8d392a6351567d808de684c97f4467268d3
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1024,7 +1024,7 @@ alter table "app_private"."option_sets" enable row level security;
 revoke all on "app_private"."option_sets" from public, anon, authenticated;
 grant select on "app_private"."option_sets" to authenticated;
 grant all on "app_private"."option_sets" to service_role;
-create policy option_sets_read on "app_private"."option_sets"
+create policy bsb_option_sets_read on "app_private"."option_sets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('option_sets.read')));
 
@@ -1051,7 +1051,7 @@ alter table "app_private"."option_set_items" enable row level security;
 revoke all on "app_private"."option_set_items" from public, anon, authenticated;
 grant select on "app_private"."option_set_items" to authenticated;
 grant all on "app_private"."option_set_items" to service_role;
-create policy option_set_items_read on "app_private"."option_set_items"
+create policy bsb_option_set_items_read on "app_private"."option_set_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('option_sets.read')));
 
@@ -1423,7 +1423,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:501e0ed66239df12e0ccb762d0f07578fec5306d76d6022bc9b94f67dc2de0b2
+-- @bsb-hash sha256:cc092c4f91822157e33168a9b5f0a46723fcf2ad3b568e75279306db1661c419
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1452,7 +1452,7 @@ alter table "better_supabase"."option_sets" enable row level security;
 revoke all on "better_supabase"."option_sets" from public, anon, authenticated;
 grant select on "better_supabase"."option_sets" to authenticated;
 grant all on "better_supabase"."option_sets" to service_role;
-create policy option_sets_read on "better_supabase"."option_sets"
+create policy bsb_option_sets_read on "better_supabase"."option_sets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('option_sets.read')));
 
@@ -1479,7 +1479,7 @@ alter table "better_supabase"."option_set_items" enable row level security;
 revoke all on "better_supabase"."option_set_items" from public, anon, authenticated;
 grant select on "better_supabase"."option_set_items" to authenticated;
 grant all on "better_supabase"."option_set_items" to service_role;
-create policy option_set_items_read on "better_supabase"."option_set_items"
+create policy bsb_option_set_items_read on "better_supabase"."option_set_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('option_sets.read')));
 
@@ -2343,7 +2343,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:d53d5f106517ca06620254c9b58054a26c872b6cbab6a0c9683656c9a43e5457
+-- @bsb-hash sha256:b3f5861dfb0822a37b0281fee914e51238b35898a0a754562f1beff2f2117309
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2372,7 +2372,7 @@ alter table "better_supabase"."option_sets" enable row level security;
 revoke all on "better_supabase"."option_sets" from public, anon, authenticated;
 grant select on "better_supabase"."option_sets" to authenticated;
 grant all on "better_supabase"."option_sets" to service_role;
-create policy option_sets_read on "better_supabase"."option_sets"
+create policy bsb_option_sets_read on "better_supabase"."option_sets"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('option_sets.read')));
 
@@ -2399,7 +2399,7 @@ alter table "better_supabase"."option_set_items" enable row level security;
 revoke all on "better_supabase"."option_set_items" from public, anon, authenticated;
 grant select on "better_supabase"."option_set_items" to authenticated;
 grant all on "better_supabase"."option_set_items" to service_role;
-create policy option_set_items_read on "better_supabase"."option_set_items"
+create policy bsb_option_set_items_read on "better_supabase"."option_set_items"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('option_sets.read')));
 

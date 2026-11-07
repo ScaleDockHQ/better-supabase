@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:57ae8c35c3546a92023aa308181f892014efa5d624263ac04fdad7679f5de0eb
+-- @bsb-hash sha256:eb5cb099c43ef08e5c18258f319d4ceaf54e10adaae2c45d13ba47a472d98d59
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -50,7 +50,7 @@ alter table "better_supabase"."shipments" enable row level security;
 revoke all on "better_supabase"."shipments" from public, anon, authenticated;
 grant select on "better_supabase"."shipments" to authenticated;
 grant all on "better_supabase"."shipments" to service_role;
-create policy shipments_read on "better_supabase"."shipments"
+create policy bsb_shipments_read on "better_supabase"."shipments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 create table "better_supabase"."shipment_packages" (
@@ -69,7 +69,7 @@ alter table "better_supabase"."shipment_packages" enable row level security;
 revoke all on "better_supabase"."shipment_packages" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_packages" to authenticated;
 grant all on "better_supabase"."shipment_packages" to service_role;
-create policy shipment_packages_read on "better_supabase"."shipment_packages"
+create policy bsb_shipment_packages_read on "better_supabase"."shipment_packages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 
@@ -97,7 +97,7 @@ alter table "better_supabase"."shipment_tracking_events" enable row level securi
 revoke all on "better_supabase"."shipment_tracking_events" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_tracking_events" to authenticated;
 grant all on "better_supabase"."shipment_tracking_events" to service_role;
-create policy shipment_tracking_events_read on "better_supabase"."shipment_tracking_events"
+create policy bsb_shipment_tracking_events_read on "better_supabase"."shipment_tracking_events"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 -- Tracking events are append-only: a correction is a later event.
@@ -142,7 +142,7 @@ alter table "better_supabase"."shipment_lines" enable row level security;
 revoke all on "better_supabase"."shipment_lines" from public, anon, authenticated;
 grant select on "better_supabase"."shipment_lines" to authenticated;
 grant all on "better_supabase"."shipment_lines" to service_role;
-create policy shipment_lines_read on "better_supabase"."shipment_lines"
+create policy bsb_shipment_lines_read on "better_supabase"."shipment_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shipments.read')));
 -- Creates a draft shipment in tenant from from_address to to_address with its

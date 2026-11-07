@@ -1,6 +1,6 @@
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:37b174e2e1e69da576e499b21231f0978d9054222d8ac3ba22085a5310bbadc0
+-- @bsb-hash sha256:27f37dae07725b62d9c60bc386e8187baceaf32e04ef41897a4e553eaab614ac
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -47,10 +47,10 @@ alter table "better_supabase"."forecast_snapshot_deals" enable row level securit
 revoke all on "better_supabase"."forecast_snapshot_deals" from public, anon, authenticated;
 grant select on "better_supabase"."forecast_snapshot_deals" to authenticated;
 grant all on "better_supabase"."forecast_snapshot_deals" to service_role;
-create policy forecast_snapshots_read on "better_supabase"."forecast_snapshots"
+create policy bsb_forecast_snapshots_read on "better_supabase"."forecast_snapshots"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
-create policy forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals"
+create policy bsb_forecast_snapshot_deals_read on "better_supabase"."forecast_snapshot_deals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('forecasts.read')));
 

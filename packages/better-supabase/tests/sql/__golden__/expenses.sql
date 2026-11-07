@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:7cc74552111a83d542c4848f183ed3212880d9d9b8d9395ce63c461879a2661e
+-- @bsb-hash sha256:927ae8ad556c12007b834bcc4fd7444c3c51ce192f6117de1ddd12e558f7f2ef
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,7 @@ alter table "better_supabase"."expense_categories" enable row level security;
 revoke all on "better_supabase"."expense_categories" from public, anon, authenticated;
 grant select on "better_supabase"."expense_categories" to authenticated;
 grant all on "better_supabase"."expense_categories" to service_role;
-create policy expense_categories_read on "better_supabase"."expense_categories"
+create policy bsb_expense_categories_read on "better_supabase"."expense_categories"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
@@ -61,7 +61,7 @@ alter table "better_supabase"."expense_reports" enable row level security;
 revoke all on "better_supabase"."expense_reports" from public, anon, authenticated;
 grant select on "better_supabase"."expense_reports" to authenticated;
 grant all on "better_supabase"."expense_reports" to service_role;
-create policy expense_reports_read on "better_supabase"."expense_reports"
+create policy bsb_expense_reports_read on "better_supabase"."expense_reports"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
@@ -86,7 +86,7 @@ alter table "better_supabase"."expense_lines" enable row level security;
 revoke all on "better_supabase"."expense_lines" from public, anon, authenticated;
 grant select on "better_supabase"."expense_lines" to authenticated;
 grant all on "better_supabase"."expense_lines" to service_role;
-create policy expense_lines_read on "better_supabase"."expense_lines"
+create policy bsb_expense_lines_read on "better_supabase"."expense_lines"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."expense_reports" p where p."id" = "report_id" and p."user_id" = (select auth.uid()))
     or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
@@ -769,7 +769,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:fd640c2f9b1a11b09512e32369d02175b3c479b960935ed3c73938d10ce80cac
+-- @bsb-hash sha256:436068005222eff58d1d0245467d03e9d5e18978b1be626037c87410bb383a0c
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -799,7 +799,7 @@ alter table "better_supabase"."expense_categories" enable row level security;
 revoke all on "better_supabase"."expense_categories" from public, anon, authenticated;
 grant select on "better_supabase"."expense_categories" to authenticated;
 grant all on "better_supabase"."expense_categories" to service_role;
-create policy expense_categories_read on "better_supabase"."expense_categories"
+create policy bsb_expense_categories_read on "better_supabase"."expense_categories"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
@@ -829,7 +829,7 @@ alter table "better_supabase"."expense_reports" enable row level security;
 revoke all on "better_supabase"."expense_reports" from public, anon, authenticated;
 grant select on "better_supabase"."expense_reports" to authenticated;
 grant all on "better_supabase"."expense_reports" to service_role;
-create policy expense_reports_read on "better_supabase"."expense_reports"
+create policy bsb_expense_reports_read on "better_supabase"."expense_reports"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
@@ -854,7 +854,7 @@ alter table "better_supabase"."expense_lines" enable row level security;
 revoke all on "better_supabase"."expense_lines" from public, anon, authenticated;
 grant select on "better_supabase"."expense_lines" to authenticated;
 grant all on "better_supabase"."expense_lines" to service_role;
-create policy expense_lines_read on "better_supabase"."expense_lines"
+create policy bsb_expense_lines_read on "better_supabase"."expense_lines"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."expense_reports" p where p."id" = "report_id" and p."user_id" = (select auth.uid()))
     or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
@@ -1642,7 +1642,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:1295c0d5682871d08958c608ade7b5abf3dbf828f1d56dc2735de48be753ff0e
+-- @bsb-hash sha256:5fc37565fb018dbc6d7966252d73441e59a44fba3790d32bb4a4eafc20f6ed6a
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1677,7 +1677,7 @@ alter table "app_private"."expense_categories" enable row level security;
 revoke all on "app_private"."expense_categories" from public, anon, authenticated;
 grant select on "app_private"."expense_categories" to authenticated;
 grant all on "app_private"."expense_categories" to service_role;
-create policy expense_categories_read on "app_private"."expense_categories"
+create policy bsb_expense_categories_read on "app_private"."expense_categories"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
@@ -1707,7 +1707,7 @@ alter table "app_private"."expense_reports" enable row level security;
 revoke all on "app_private"."expense_reports" from public, anon, authenticated;
 grant select on "app_private"."expense_reports" to authenticated;
 grant all on "app_private"."expense_reports" to service_role;
-create policy expense_reports_read on "app_private"."expense_reports"
+create policy bsb_expense_reports_read on "app_private"."expense_reports"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
@@ -1732,7 +1732,7 @@ alter table "app_private"."expense_lines" enable row level security;
 revoke all on "app_private"."expense_lines" from public, anon, authenticated;
 grant select on "app_private"."expense_lines" to authenticated;
 grant all on "app_private"."expense_lines" to service_role;
-create policy expense_lines_read on "app_private"."expense_lines"
+create policy bsb_expense_lines_read on "app_private"."expense_lines"
   for select to authenticated
   using (exists (select 1 from "app_private"."expense_reports" p where p."id" = "report_id" and p."user_id" = (select auth.uid()))
     or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
@@ -2415,7 +2415,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:75e8179958201e131401a056a7e1f89ba15ae1bd8171100d56aecb9f7b52390b
+-- @bsb-hash sha256:72cacd3304509576de0eb625884a1006e0cfff75d5ad93e206f2f1041416a055
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2445,7 +2445,7 @@ alter table "better_supabase"."expense_categories" enable row level security;
 revoke all on "better_supabase"."expense_categories" from public, anon, authenticated;
 grant select on "better_supabase"."expense_categories" to authenticated;
 grant all on "better_supabase"."expense_categories" to service_role;
-create policy expense_categories_read on "better_supabase"."expense_categories"
+create policy bsb_expense_categories_read on "better_supabase"."expense_categories"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
@@ -2475,7 +2475,7 @@ alter table "better_supabase"."expense_reports" enable row level security;
 revoke all on "better_supabase"."expense_reports" from public, anon, authenticated;
 grant select on "better_supabase"."expense_reports" to authenticated;
 grant all on "better_supabase"."expense_reports" to service_role;
-create policy expense_reports_read on "better_supabase"."expense_reports"
+create policy bsb_expense_reports_read on "better_supabase"."expense_reports"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
@@ -2500,7 +2500,7 @@ alter table "better_supabase"."expense_lines" enable row level security;
 revoke all on "better_supabase"."expense_lines" from public, anon, authenticated;
 grant select on "better_supabase"."expense_lines" to authenticated;
 grant all on "better_supabase"."expense_lines" to service_role;
-create policy expense_lines_read on "better_supabase"."expense_lines"
+create policy bsb_expense_lines_read on "better_supabase"."expense_lines"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."expense_reports" p where p."id" = "report_id" and p."user_id" = (select auth.uid()))
     or "tenant_id" in (select better_supabase.tenant_ids_with('expenses.read')));
@@ -4068,7 +4068,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:bac5497ed61784d2d0df2db17d46582095995f064691cf9586936347d30993f6
+-- @bsb-hash sha256:9e6737e1c4fc02810ac315838c40e6d357a809c3bf68eaf1262f0959001e9400
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4098,7 +4098,7 @@ alter table "better_supabase"."expense_categories" enable row level security;
 revoke all on "better_supabase"."expense_categories" from public, anon, authenticated;
 grant select on "better_supabase"."expense_categories" to authenticated;
 grant all on "better_supabase"."expense_categories" to service_role;
-create policy expense_categories_read on "better_supabase"."expense_categories"
+create policy bsb_expense_categories_read on "better_supabase"."expense_categories"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
@@ -4128,7 +4128,7 @@ alter table "better_supabase"."expense_reports" enable row level security;
 revoke all on "better_supabase"."expense_reports" from public, anon, authenticated;
 grant select on "better_supabase"."expense_reports" to authenticated;
 grant all on "better_supabase"."expense_reports" to service_role;
-create policy expense_reports_read on "better_supabase"."expense_reports"
+create policy bsb_expense_reports_read on "better_supabase"."expense_reports"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('expenses.read')));
 
@@ -4153,7 +4153,7 @@ alter table "better_supabase"."expense_lines" enable row level security;
 revoke all on "better_supabase"."expense_lines" from public, anon, authenticated;
 grant select on "better_supabase"."expense_lines" to authenticated;
 grant all on "better_supabase"."expense_lines" to service_role;
-create policy expense_lines_read on "better_supabase"."expense_lines"
+create policy bsb_expense_lines_read on "better_supabase"."expense_lines"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."expense_reports" p where p."id" = "report_id" and p."user_id" = (select auth.uid()))
     or "org_id" in (select better_supabase.tenant_ids_with('expenses.read')));

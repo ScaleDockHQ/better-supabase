@@ -1,6 +1,6 @@
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:96e26dd0e657ce0ddfc041d412c38497a31811635f60f396d884680e38c6b7fe
+-- @bsb-hash sha256:b5d68b3252257ee747f2235a35c60011a8722fcf4ecbba253073c4dfb9703a5e
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -76,10 +76,10 @@ alter table "better_supabase"."medication_orders" enable row level security;
 revoke all on "better_supabase"."medication_orders" from public, anon, authenticated;
 grant select on "better_supabase"."medication_orders" to authenticated;
 grant all on "better_supabase"."medication_orders" to service_role;
-create policy medication_orders_read on "better_supabase"."medication_orders"
+create policy bsb_medication_orders_read on "better_supabase"."medication_orders"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false)) or (("tenant_id")::text, ("subject_type")::text, ("subject_id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g));
-create policy medications_read on "better_supabase"."medications"
+create policy bsb_medications_read on "better_supabase"."medications"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('medications.read'))) or exists (select 1 from "better_supabase"."medication_orders" x where x."tenant_id" = "better_supabase"."medications"."tenant_id" and x."medication_id" = "better_supabase"."medications"."id" and (("tenant_id")::text, (x."subject_type")::text, (x."subject_id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)));
 
@@ -109,7 +109,7 @@ alter table "better_supabase"."medication_administrations" enable row level secu
 revoke all on "better_supabase"."medication_administrations" from public, anon, authenticated;
 grant select on "better_supabase"."medication_administrations" to authenticated;
 grant all on "better_supabase"."medication_administrations" to service_role;
-create policy medication_administrations_read on "better_supabase"."medication_administrations"
+create policy bsb_medication_administrations_read on "better_supabase"."medication_administrations"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and exists (select 1 from "better_supabase"."medication_orders" x where x."id" = "order_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false))) or exists (select 1 from "better_supabase"."medication_orders" x where x."id" = "order_id" and ((x."tenant_id")::text, (x."subject_type")::text, (x."subject_id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g)));
 

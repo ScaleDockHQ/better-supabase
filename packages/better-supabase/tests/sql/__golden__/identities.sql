@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:59967d09003751015cf3898f3ce0226dbf8045a68dc9201249303f1fa8c73db8
+-- @bsb-hash sha256:7d1fa3223a25607020648d55ed572c9fea85b95efc314b87852ca606c35973b5
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,10 +31,10 @@ alter table "better_supabase"."identity_links" enable row level security;
 revoke all on "better_supabase"."identity_links" from public, anon, authenticated;
 grant select, delete on "better_supabase"."identity_links" to authenticated;
 grant all on "better_supabase"."identity_links" to service_role;
-create policy identity_links_own_read on "better_supabase"."identity_links"
+create policy bsb_identity_links_own_read on "better_supabase"."identity_links"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-create policy identity_links_own_delete on "better_supabase"."identity_links"
+create policy bsb_identity_links_own_delete on "better_supabase"."identity_links"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
@@ -280,7 +280,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:59967d09003751015cf3898f3ce0226dbf8045a68dc9201249303f1fa8c73db8
+-- @bsb-hash sha256:7d1fa3223a25607020648d55ed572c9fea85b95efc314b87852ca606c35973b5
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -310,10 +310,10 @@ alter table "better_supabase"."identity_links" enable row level security;
 revoke all on "better_supabase"."identity_links" from public, anon, authenticated;
 grant select, delete on "better_supabase"."identity_links" to authenticated;
 grant all on "better_supabase"."identity_links" to service_role;
-create policy identity_links_own_read on "better_supabase"."identity_links"
+create policy bsb_identity_links_own_read on "better_supabase"."identity_links"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-create policy identity_links_own_delete on "better_supabase"."identity_links"
+create policy bsb_identity_links_own_delete on "better_supabase"."identity_links"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
@@ -559,7 +559,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:f3323bf39bd991c6139cab25b1556289a4819649f8891f703e3db5ae5d63e3ad
+-- @bsb-hash sha256:cf055e90061369812dda11f7be6be55e3a4f390a58eba80851178b8fe9e6a732
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -594,10 +594,10 @@ alter table "app_private"."identity_links" enable row level security;
 revoke all on "app_private"."identity_links" from public, anon, authenticated;
 grant select, delete on "app_private"."identity_links" to authenticated;
 grant all on "app_private"."identity_links" to service_role;
-create policy identity_links_own_read on "app_private"."identity_links"
+create policy bsb_identity_links_own_read on "app_private"."identity_links"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-create policy identity_links_own_delete on "app_private"."identity_links"
+create policy bsb_identity_links_own_delete on "app_private"."identity_links"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
@@ -843,7 +843,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:f5de91804e6145e79c22916fe842317e43869ffb1f779b2233bf226a43f9829b
+-- @bsb-hash sha256:99b782a2902396fc4aafd3bb764525f0d0e6ee6b60672f8eefdf87dfc242ec2c
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -873,10 +873,10 @@ alter table "better_supabase"."identity_links" enable row level security;
 revoke all on "better_supabase"."identity_links" from public, anon, authenticated;
 grant select, delete on "better_supabase"."identity_links" to authenticated;
 grant all on "better_supabase"."identity_links" to service_role;
-create policy identity_links_own_read on "better_supabase"."identity_links"
+create policy bsb_identity_links_own_read on "better_supabase"."identity_links"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-create policy identity_links_own_delete on "better_supabase"."identity_links"
+create policy bsb_identity_links_own_delete on "better_supabase"."identity_links"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 

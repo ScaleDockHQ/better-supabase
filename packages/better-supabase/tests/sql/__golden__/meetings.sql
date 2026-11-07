@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:b785e41d364b8a1b14f8e943048117c4f65d284373ad0aaad4a82687c052bcf9
+-- @bsb-hash sha256:f28d681d4d653a1425b64906c85e8c7613164c202307ad91daf6363227b1adb4
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -67,10 +67,10 @@ as $$
 $$;
 revoke execute on function "better_supabase"."meeting_role"(uuid) from public, anon;
 grant execute on function "better_supabase"."meeting_role"(uuid) to authenticated, service_role;
-create policy meetings_read on "better_supabase"."meetings"
+create policy bsb_meetings_read on "better_supabase"."meetings"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("id") is not null);
-create policy meeting_attendees_read on "better_supabase"."meeting_attendees"
+create policy bsb_meeting_attendees_read on "better_supabase"."meeting_attendees"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
@@ -96,7 +96,7 @@ alter table "better_supabase"."meeting_agenda_items" enable row level security;
 revoke all on "better_supabase"."meeting_agenda_items" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_agenda_items" to authenticated;
 grant all on "better_supabase"."meeting_agenda_items" to service_role;
-create policy meeting_agenda_items_read on "better_supabase"."meeting_agenda_items"
+create policy bsb_meeting_agenda_items_read on "better_supabase"."meeting_agenda_items"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
@@ -121,7 +121,7 @@ alter table "better_supabase"."meeting_decisions" enable row level security;
 revoke all on "better_supabase"."meeting_decisions" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_decisions" to authenticated;
 grant all on "better_supabase"."meeting_decisions" to service_role;
-create policy meeting_decisions_read on "better_supabase"."meeting_decisions"
+create policy bsb_meeting_decisions_read on "better_supabase"."meeting_decisions"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
@@ -145,7 +145,7 @@ alter table "better_supabase"."meeting_action_items" enable row level security;
 revoke all on "better_supabase"."meeting_action_items" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_action_items" to authenticated;
 grant all on "better_supabase"."meeting_action_items" to service_role;
-create policy meeting_action_items_read on "better_supabase"."meeting_action_items"
+create policy bsb_meeting_action_items_read on "better_supabase"."meeting_action_items"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
@@ -1102,7 +1102,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:b0e7c4f0849e68889e2a6f27b5aa77257b1bff799eda5f2cf70a74f3807bc377
+-- @bsb-hash sha256:36234a47abff6ab8d6a645f3602da8aa307a3cce924196f09c371f22dcfdae12
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1168,10 +1168,10 @@ as $$
 $$;
 revoke execute on function "better_supabase"."meeting_role"(uuid) from public, anon;
 grant execute on function "better_supabase"."meeting_role"(uuid) to authenticated, service_role;
-create policy meetings_read on "better_supabase"."meetings"
+create policy bsb_meetings_read on "better_supabase"."meetings"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("id") is not null);
-create policy meeting_attendees_read on "better_supabase"."meeting_attendees"
+create policy bsb_meeting_attendees_read on "better_supabase"."meeting_attendees"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
@@ -1197,7 +1197,7 @@ alter table "better_supabase"."meeting_agenda_items" enable row level security;
 revoke all on "better_supabase"."meeting_agenda_items" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_agenda_items" to authenticated;
 grant all on "better_supabase"."meeting_agenda_items" to service_role;
-create policy meeting_agenda_items_read on "better_supabase"."meeting_agenda_items"
+create policy bsb_meeting_agenda_items_read on "better_supabase"."meeting_agenda_items"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
@@ -1222,7 +1222,7 @@ alter table "better_supabase"."meeting_decisions" enable row level security;
 revoke all on "better_supabase"."meeting_decisions" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_decisions" to authenticated;
 grant all on "better_supabase"."meeting_decisions" to service_role;
-create policy meeting_decisions_read on "better_supabase"."meeting_decisions"
+create policy bsb_meeting_decisions_read on "better_supabase"."meeting_decisions"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
@@ -1246,7 +1246,7 @@ alter table "better_supabase"."meeting_action_items" enable row level security;
 revoke all on "better_supabase"."meeting_action_items" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_action_items" to authenticated;
 grant all on "better_supabase"."meeting_action_items" to service_role;
-create policy meeting_action_items_read on "better_supabase"."meeting_action_items"
+create policy bsb_meeting_action_items_read on "better_supabase"."meeting_action_items"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
@@ -2331,7 +2331,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:ce60e347df3acb035ec5117e4b0a134eb3935ddba13a7a91e076ba9724d98a5e
+-- @bsb-hash sha256:2ff2a29474b3c7484d6ed879bf884eb5c4fad3bb0c87b9d3dcdab4c2caad3315
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2402,10 +2402,10 @@ as $$
 $$;
 revoke execute on function "app_private"."meeting_role"(uuid) from public, anon;
 grant execute on function "app_private"."meeting_role"(uuid) to authenticated, service_role;
-create policy meetings_read on "app_private"."meetings"
+create policy bsb_meetings_read on "app_private"."meetings"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "app_private"."meeting_role"("id") is not null);
-create policy meeting_attendees_read on "app_private"."meeting_attendees"
+create policy bsb_meeting_attendees_read on "app_private"."meeting_attendees"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "app_private"."meeting_role"("meeting_id") is not null);
 
@@ -2431,7 +2431,7 @@ alter table "app_private"."meeting_agenda_items" enable row level security;
 revoke all on "app_private"."meeting_agenda_items" from public, anon, authenticated;
 grant select on "app_private"."meeting_agenda_items" to authenticated;
 grant all on "app_private"."meeting_agenda_items" to service_role;
-create policy meeting_agenda_items_read on "app_private"."meeting_agenda_items"
+create policy bsb_meeting_agenda_items_read on "app_private"."meeting_agenda_items"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "app_private"."meeting_role"("meeting_id") is not null);
 
@@ -2456,7 +2456,7 @@ alter table "app_private"."meeting_decisions" enable row level security;
 revoke all on "app_private"."meeting_decisions" from public, anon, authenticated;
 grant select on "app_private"."meeting_decisions" to authenticated;
 grant all on "app_private"."meeting_decisions" to service_role;
-create policy meeting_decisions_read on "app_private"."meeting_decisions"
+create policy bsb_meeting_decisions_read on "app_private"."meeting_decisions"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "app_private"."meeting_role"("meeting_id") is not null);
 
@@ -2480,7 +2480,7 @@ alter table "app_private"."meeting_action_items" enable row level security;
 revoke all on "app_private"."meeting_action_items" from public, anon, authenticated;
 grant select on "app_private"."meeting_action_items" to authenticated;
 grant all on "app_private"."meeting_action_items" to service_role;
-create policy meeting_action_items_read on "app_private"."meeting_action_items"
+create policy bsb_meeting_action_items_read on "app_private"."meeting_action_items"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "app_private"."meeting_role"("meeting_id") is not null);
 
@@ -3437,7 +3437,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:25e79d7aec064d298ac6f396d7b9c19adc2a7c9f005b3285c20270b8cdc4e076
+-- @bsb-hash sha256:c7e0a57e4c9845b29c196f84eddec1edcdb68124de6dc44a04d64c2d715322c2
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3503,10 +3503,10 @@ as $$
 $$;
 revoke execute on function "better_supabase"."meeting_role"(uuid) from public, anon;
 grant execute on function "better_supabase"."meeting_role"(uuid) to authenticated, service_role;
-create policy meetings_read on "better_supabase"."meetings"
+create policy bsb_meetings_read on "better_supabase"."meetings"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("id") is not null);
-create policy meeting_attendees_read on "better_supabase"."meeting_attendees"
+create policy bsb_meeting_attendees_read on "better_supabase"."meeting_attendees"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
@@ -3532,7 +3532,7 @@ alter table "better_supabase"."meeting_agenda_items" enable row level security;
 revoke all on "better_supabase"."meeting_agenda_items" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_agenda_items" to authenticated;
 grant all on "better_supabase"."meeting_agenda_items" to service_role;
-create policy meeting_agenda_items_read on "better_supabase"."meeting_agenda_items"
+create policy bsb_meeting_agenda_items_read on "better_supabase"."meeting_agenda_items"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
@@ -3557,7 +3557,7 @@ alter table "better_supabase"."meeting_decisions" enable row level security;
 revoke all on "better_supabase"."meeting_decisions" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_decisions" to authenticated;
 grant all on "better_supabase"."meeting_decisions" to service_role;
-create policy meeting_decisions_read on "better_supabase"."meeting_decisions"
+create policy bsb_meeting_decisions_read on "better_supabase"."meeting_decisions"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
@@ -3581,7 +3581,7 @@ alter table "better_supabase"."meeting_action_items" enable row level security;
 revoke all on "better_supabase"."meeting_action_items" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_action_items" to authenticated;
 grant all on "better_supabase"."meeting_action_items" to service_role;
-create policy meeting_action_items_read on "better_supabase"."meeting_action_items"
+create policy bsb_meeting_action_items_read on "better_supabase"."meeting_action_items"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
@@ -5777,7 +5777,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:6df29becd75d429f642b11a93b9dd31463ca71df9da76e1b63115fc6183725ea
+-- @bsb-hash sha256:cbb40aedb0055763aaeb20e9a47d28aaeac047cf6d6d47f662063b4d0f2637b5
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5843,10 +5843,10 @@ as $$
 $$;
 revoke execute on function "better_supabase"."meeting_role"(uuid) from public, anon;
 grant execute on function "better_supabase"."meeting_role"(uuid) to authenticated, service_role;
-create policy meetings_read on "better_supabase"."meetings"
+create policy bsb_meetings_read on "better_supabase"."meetings"
   for select to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("id") is not null);
-create policy meeting_attendees_read on "better_supabase"."meeting_attendees"
+create policy bsb_meeting_attendees_read on "better_supabase"."meeting_attendees"
   for select to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
@@ -5872,7 +5872,7 @@ alter table "better_supabase"."meeting_agenda_items" enable row level security;
 revoke all on "better_supabase"."meeting_agenda_items" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_agenda_items" to authenticated;
 grant all on "better_supabase"."meeting_agenda_items" to service_role;
-create policy meeting_agenda_items_read on "better_supabase"."meeting_agenda_items"
+create policy bsb_meeting_agenda_items_read on "better_supabase"."meeting_agenda_items"
   for select to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
@@ -5897,7 +5897,7 @@ alter table "better_supabase"."meeting_decisions" enable row level security;
 revoke all on "better_supabase"."meeting_decisions" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_decisions" to authenticated;
 grant all on "better_supabase"."meeting_decisions" to service_role;
-create policy meeting_decisions_read on "better_supabase"."meeting_decisions"
+create policy bsb_meeting_decisions_read on "better_supabase"."meeting_decisions"
   for select to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 
@@ -5921,7 +5921,7 @@ alter table "better_supabase"."meeting_action_items" enable row level security;
 revoke all on "better_supabase"."meeting_action_items" from public, anon, authenticated;
 grant select on "better_supabase"."meeting_action_items" to authenticated;
 grant all on "better_supabase"."meeting_action_items" to service_role;
-create policy meeting_action_items_read on "better_supabase"."meeting_action_items"
+create policy bsb_meeting_action_items_read on "better_supabase"."meeting_action_items"
   for select to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('meetings.read'))) or "better_supabase"."meeting_role"("meeting_id") is not null);
 

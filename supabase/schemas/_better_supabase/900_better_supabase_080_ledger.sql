@@ -1,6 +1,6 @@
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:c6b58ce9e4b8cd87180be2dfbd7e9725132e44e25999ee3074aa80b718922067
+-- @bsb-hash sha256:1c0b5a8227e4240c84412bcfaa63cb4c56d3bef8f5043e7563d4550fb56196be
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -122,7 +122,7 @@ end;
 $$;
 revoke execute on function "better_supabase"."ledger_read_grants"() from public, anon;
 grant execute on function "better_supabase"."ledger_read_grants"() to authenticated, service_role;
-create policy ledger_accounts_read on "better_supabase"."ledger_accounts"
+create policy bsb_ledger_accounts_read on "better_supabase"."ledger_accounts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
     or "owner_id" = (select auth.uid())
@@ -131,7 +131,7 @@ alter table "better_supabase"."ledger_transactions" enable row level security;
 revoke all on "better_supabase"."ledger_transactions" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_transactions" to authenticated;
 grant all on "better_supabase"."ledger_transactions" to service_role;
-create policy ledger_transactions_read on "better_supabase"."ledger_transactions"
+create policy bsb_ledger_transactions_read on "better_supabase"."ledger_transactions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('ledger.read'))
     or exists (select 1 from "better_supabase"."ledger_entries" y where y."transaction_id" = "id"));
@@ -139,21 +139,21 @@ alter table "better_supabase"."ledger_entries" enable row level security;
 revoke all on "better_supabase"."ledger_entries" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_entries" to authenticated;
 grant all on "better_supabase"."ledger_entries" to service_role;
-create policy ledger_entries_read on "better_supabase"."ledger_entries"
+create policy bsb_ledger_entries_read on "better_supabase"."ledger_entries"
   for select to authenticated
   using ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y));
 alter table "better_supabase"."ledger_balances" enable row level security;
 revoke all on "better_supabase"."ledger_balances" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_balances" to authenticated;
 grant all on "better_supabase"."ledger_balances" to service_role;
-create policy ledger_balances_read on "better_supabase"."ledger_balances"
+create policy bsb_ledger_balances_read on "better_supabase"."ledger_balances"
   for select to authenticated
   using ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y));
 alter table "better_supabase"."ledger_holds" enable row level security;
 revoke all on "better_supabase"."ledger_holds" from public, anon, authenticated;
 grant select on "better_supabase"."ledger_holds" to authenticated;
 grant all on "better_supabase"."ledger_holds" to service_role;
-create policy ledger_holds_read on "better_supabase"."ledger_holds"
+create policy bsb_ledger_holds_read on "better_supabase"."ledger_holds"
   for select to authenticated
   using ("account_id" in (select y."id" from "better_supabase"."ledger_accounts" y));
 

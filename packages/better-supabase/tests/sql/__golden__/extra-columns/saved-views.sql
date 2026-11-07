@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_067_saved_views.sql
 -- better-supabase module: saved-views
 -- @bsb-block saved-views@2 managed
--- @bsb-hash sha256:a9037fb6b6224296a3970f1a4cc4d87f7bc89931f1be15bad0dfe65bd30a09f1
+-- @bsb-hash sha256:ec8b33d98d8988ad487928f484fcfabf08edd8aa66d77f54baca2557a5c004be
 -- Named, ranked list states (filters, sort, columns, grouping, density) for one user, a team or the whole tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,7 @@ revoke all on "better_supabase"."saved_views" from public, anon, authenticated;
 grant select on "better_supabase"."saved_views" to authenticated;
 grant all on "better_supabase"."saved_views" to service_role;
 
-create policy saved_views_read on "better_supabase"."saved_views"
+create policy bsb_saved_views_read on "better_supabase"."saved_views"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('saved_views.read'))
   and (
@@ -54,7 +54,7 @@ alter table "better_supabase"."saved_view_preferences" enable row level security
 revoke all on "better_supabase"."saved_view_preferences" from public, anon, authenticated;
 grant select on "better_supabase"."saved_view_preferences" to authenticated;
 grant all on "better_supabase"."saved_view_preferences" to service_role;
-create policy saved_view_preferences_read on "better_supabase"."saved_view_preferences"
+create policy bsb_saved_view_preferences_read on "better_supabase"."saved_view_preferences"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 create or replace function "better_supabase"."save_view"(tenant uuid, list text, name text, kind text, scope text, team text, state jsonb, view_id uuid, fields jsonb default null)

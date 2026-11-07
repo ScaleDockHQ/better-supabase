@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:75cbed2dfcc72856e749139807e0af6c0b77f5e0fee188f96b87efa39353b2ae
+-- @bsb-hash sha256:f15adc17c3a7f46480f4d13dd5201d1f3f162d8638f42797c296fb1478b77017
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -60,7 +60,7 @@ alter table "better_supabase"."memories" enable row level security;
 revoke all on "better_supabase"."memories" from public, anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
-create policy memories_read on "better_supabase"."memories"
+create policy bsb_memories_read on "better_supabase"."memories"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or ("owner_id" is null and "organization_id" in (select better_supabase.tenant_ids_with('memory.read')))) and "deleted_at" is null);
 
@@ -82,7 +82,7 @@ alter table "better_supabase"."memory_message_embeddings" enable row level secur
 revoke all on "better_supabase"."memory_message_embeddings" from public, anon, authenticated;
 grant select on "better_supabase"."memory_message_embeddings" to authenticated;
 grant all on "better_supabase"."memory_message_embeddings" to service_role;
-create policy memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
+create policy bsb_memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -1098,7 +1098,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:57bafe9debce889f42a55bf973deba8b33f7ea9808136186f6f7f06dd0bcc771
+-- @bsb-hash sha256:3e9463130c620b0263e860c89c35d6ed348c33bb61522f64e2a4d34d6016a310
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1157,7 +1157,7 @@ alter table "better_supabase"."memories" enable row level security;
 revoke all on "better_supabase"."memories" from public, anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
-create policy memories_read on "better_supabase"."memories"
+create policy bsb_memories_read on "better_supabase"."memories"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or ("owner_id" is null and "organization_id" in (select better_supabase.tenant_ids_with('memory.read')))) and "deleted_at" is null);
 
@@ -1179,7 +1179,7 @@ alter table "better_supabase"."memory_message_embeddings" enable row level secur
 revoke all on "better_supabase"."memory_message_embeddings" from public, anon, authenticated;
 grant select on "better_supabase"."memory_message_embeddings" to authenticated;
 grant all on "better_supabase"."memory_message_embeddings" to service_role;
-create policy memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
+create policy bsb_memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -2201,7 +2201,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:894ae028aaf36aadfe5cb35183887999c7c82dbc7c621da00df24bca00e9a27c
+-- @bsb-hash sha256:990c3c1c6d4f0b7febdf061d43e390b421aad95795083ff4d211e27bf620ef03
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2265,7 +2265,7 @@ alter table "app_private"."memories" enable row level security;
 revoke all on "app_private"."memories" from public, anon, authenticated;
 grant select on "app_private"."memories" to authenticated;
 grant all on "app_private"."memories" to service_role;
-create policy memories_read on "app_private"."memories"
+create policy bsb_memories_read on "app_private"."memories"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or ("owner_id" is null and "organization_id" in (select better_supabase.tenant_ids_with('memory.read')))) and "deleted_at" is null);
 
@@ -2287,7 +2287,7 @@ alter table "app_private"."memory_message_embeddings" enable row level security;
 revoke all on "app_private"."memory_message_embeddings" from public, anon, authenticated;
 grant select on "app_private"."memory_message_embeddings" to authenticated;
 grant all on "app_private"."memory_message_embeddings" to service_role;
-create policy memory_message_embeddings_read on "app_private"."memory_message_embeddings"
+create policy bsb_memory_message_embeddings_read on "app_private"."memory_message_embeddings"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -3303,7 +3303,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:798fc7cab6f263f767708ffe1b9aa73e5c12a1fdc57980517ad797fa734ea270
+-- @bsb-hash sha256:499294a122859b612ed84aa99730699038534d6ade92d467d1d86804290df8d8
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3362,7 +3362,7 @@ alter table "better_supabase"."memories" enable row level security;
 revoke all on "better_supabase"."memories" from public, anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
-create policy memories_read on "better_supabase"."memories"
+create policy bsb_memories_read on "better_supabase"."memories"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or ("owner_id" is null and "organization_id" in (select better_supabase.tenant_ids_with('memory.read')))) and "deleted_at" is null);
 
@@ -3384,7 +3384,7 @@ alter table "better_supabase"."memory_message_embeddings" enable row level secur
 revoke all on "better_supabase"."memory_message_embeddings" from public, anon, authenticated;
 grant select on "better_supabase"."memory_message_embeddings" to authenticated;
 grant all on "better_supabase"."memory_message_embeddings" to service_role;
-create policy memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
+create policy bsb_memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -5676,7 +5676,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:41f29b6f4d578310e6a6f4d5f54c8f256adb7113d2768f1bd3d3603d57343973
+-- @bsb-hash sha256:8223d1f8d60c70fef6484b72dcbd47f000a321f41710ece3208f839f1f72a62e
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5735,7 +5735,7 @@ alter table "better_supabase"."memories" enable row level security;
 revoke all on "better_supabase"."memories" from public, anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
-create policy memories_read on "better_supabase"."memories"
+create policy bsb_memories_read on "better_supabase"."memories"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or ("owner_id" is null and "org_id" in (select better_supabase.tenant_ids_with('memory.read')))) and "deleted_at" is null);
 
@@ -5757,7 +5757,7 @@ alter table "better_supabase"."memory_message_embeddings" enable row level secur
 revoke all on "better_supabase"."memory_message_embeddings" from public, anon, authenticated;
 grant select on "better_supabase"."memory_message_embeddings" to authenticated;
 grant all on "better_supabase"."memory_message_embeddings" to service_role;
-create policy memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
+create policy bsb_memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 

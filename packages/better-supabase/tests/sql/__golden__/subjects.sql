@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:c6de0d71004aff5813532ab24428f699b4f365d4d29515b9dadf975d35b89b04
+-- @bsb-hash sha256:d3b1d57c5c6bba1351fb8b8b304aff053a9d63cf2e20707abeb9c19d14778ebe
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -266,7 +266,7 @@ grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, 
 -- A caller reads their own record team rows, those of their teams, every row
 -- of a tenant where they hold subjects.manage, and the team of a record they
 -- can read.
-create policy subject_members_read on "better_supabase"."subject_members"
+create policy bsb_subject_members_read on "better_supabase"."subject_members"
   for select to authenticated
   using ("user_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('subjects.manage'))
@@ -689,7 +689,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:4a77e5cbb358cc0f0a3e206f0660119d90de73ebdcf8652fb28831297171de31
+-- @bsb-hash sha256:cf3cb206150240bef1a370fc86041971a62167767ff33d90fa3a24503cfd4dd7
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -982,7 +982,7 @@ grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, 
 -- A caller reads their own record team rows, those of their teams, every row
 -- of a tenant where they hold subjects.manage, and the team of a record they
 -- can read.
-create policy subject_members_read on "better_supabase"."subject_members"
+create policy bsb_subject_members_read on "better_supabase"."subject_members"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or ("team_id" is not null and "team_id" in (select "better_supabase"."team_ids_of"((select auth.uid()))))
     or "tenant_id" in (select better_supabase.tenant_ids_with('subjects.manage'))
@@ -1534,7 +1534,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:b58ffe6a56a2ac0f6671df683c83476f3e2cfc84306f3dcd035c29ff2bfb95e6
+-- @bsb-hash sha256:cdf92b464151bf232a1be61b45c02dc95af8d5b0c6bf6977736b47a942f413a8
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1804,7 +1804,7 @@ grant execute on function "app_private"."can_subject_for"(uuid, text, text, text
 -- A caller reads their own record team rows, those of their teams, every row
 -- of a tenant where they hold subjects.manage, and the team of a record they
 -- can read.
-create policy subject_members_read on "app_private"."subject_members"
+create policy bsb_subject_members_read on "app_private"."subject_members"
   for select to authenticated
   using ("user_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('subjects.manage'))
@@ -2227,7 +2227,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:806c95a39eaeb7329f2ed1b67959621d00f147f5bb2016b2d8ade2fcfa5707af
+-- @bsb-hash sha256:39f6063c275383f82c927282a4d54ca9754d939e81d02511322e28628c25f09f
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2492,7 +2492,7 @@ grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, 
 -- A caller reads their own record team rows, those of their teams, every row
 -- of a tenant where they hold subjects.manage, and the team of a record they
 -- can read.
-create policy subject_members_read on "better_supabase"."subject_members"
+create policy bsb_subject_members_read on "better_supabase"."subject_members"
   for select to authenticated
   using ("user_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('subjects.manage'))
@@ -3752,7 +3752,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_065_subjects.sql
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:6a6652738078acbb6406408b1bc9a4924f87bc84229de718f1c8972c30c4a2da
+-- @bsb-hash sha256:e065dd15554bd6185a5ce4d9d4fb5026955e82e02536c96c4e48b7c545327644
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4017,7 +4017,7 @@ grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, 
 -- A caller reads their own record team rows, those of their teams, every row
 -- of a tenant where they hold subjects.manage, and the team of a record they
 -- can read.
-create policy subject_members_read on "better_supabase"."subject_members"
+create policy bsb_subject_members_read on "better_supabase"."subject_members"
   for select to authenticated
   using ("user_id" = (select auth.uid())
     or "org_id" in (select better_supabase.tenant_ids_with('subjects.manage'))

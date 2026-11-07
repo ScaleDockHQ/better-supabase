@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@1 managed
--- @bsb-hash sha256:f429a042f3b3f0ea313194df9c2e3f92d03dddc39a841306440011f446782573
+-- @bsb-hash sha256:2bdfed33b9f257667112ca60cfe2bdb4590952be1df22f3406a6761ed7579a93
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash and a citation per rule, and the deadlines computed from a subject's facts: due on a date or unknown with the facts still missing, recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23,7 +23,7 @@ alter table "better_supabase"."deadline_rule_sets" enable row level security;
 revoke all on "better_supabase"."deadline_rule_sets" from public, anon, authenticated;
 grant select on "better_supabase"."deadline_rule_sets" to authenticated;
 grant all on "better_supabase"."deadline_rule_sets" to service_role;
-create policy deadline_rule_sets_read on "better_supabase"."deadline_rule_sets"
+create policy bsb_deadline_rule_sets_read on "better_supabase"."deadline_rule_sets"
   for select to authenticated
   using (true);
 
@@ -47,7 +47,7 @@ alter table "better_supabase"."deadline_rule_versions" enable row level security
 revoke all on "better_supabase"."deadline_rule_versions" from public, anon, authenticated;
 grant select on "better_supabase"."deadline_rule_versions" to authenticated;
 grant all on "better_supabase"."deadline_rule_versions" to service_role;
-create policy deadline_rule_versions_read on "better_supabase"."deadline_rule_versions"
+create policy bsb_deadline_rule_versions_read on "better_supabase"."deadline_rule_versions"
   for select to authenticated
   using ("status" = 'approved');
 
@@ -101,7 +101,7 @@ alter table "better_supabase"."deadlines" enable row level security;
 revoke all on "better_supabase"."deadlines" from public, anon, authenticated;
 grant select on "better_supabase"."deadlines" to authenticated;
 grant all on "better_supabase"."deadlines" to service_role;
-create policy deadlines_read on "better_supabase"."deadlines"
+create policy bsb_deadlines_read on "better_supabase"."deadlines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')));
 

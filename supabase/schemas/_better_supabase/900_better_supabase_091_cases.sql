@@ -1,6 +1,6 @@
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:d90d2dac75f146694473d758bae00f6b818bd85d5cf81e70e35dafea6920e4ba
+-- @bsb-hash sha256:fa34190b81e4857b5dbae09c79e5da47528460a8f4af52ca5ab1a6f6ad5a3a44
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -36,7 +36,7 @@ alter table "better_supabase"."case_kinds" enable row level security;
 revoke all on "better_supabase"."case_kinds" from public, anon, authenticated;
 grant select on "better_supabase"."case_kinds" to authenticated;
 grant all on "better_supabase"."case_kinds" to service_role;
-create policy case_kinds_read on "better_supabase"."case_kinds"
+create policy bsb_case_kinds_read on "better_supabase"."case_kinds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -92,7 +92,7 @@ alter table "better_supabase"."cases" enable row level security;
 revoke all on "better_supabase"."cases" from public, anon, authenticated;
 grant select on "better_supabase"."cases" to authenticated;
 grant all on "better_supabase"."cases" to service_role;
-create policy cases_read on "better_supabase"."cases"
+create policy bsb_cases_read on "better_supabase"."cases"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -115,7 +115,7 @@ alter table "better_supabase"."case_actions" enable row level security;
 revoke all on "better_supabase"."case_actions" from public, anon, authenticated;
 grant select on "better_supabase"."case_actions" to authenticated;
 grant all on "better_supabase"."case_actions" to service_role;
-create policy case_actions_read on "better_supabase"."case_actions"
+create policy bsb_case_actions_read on "better_supabase"."case_actions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:cb5193b43f90cb10bd55d68c71735f43f2b83c75d5428157140e94fd07d41f28
+-- @bsb-hash sha256:10fcba16c1645e79fbf57c6ca6b58bd7befb70764bdf7cc5f088069a51b664fc
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -185,7 +185,7 @@ alter table "better_supabase"."document_templates" enable row level security;
 revoke all on "better_supabase"."document_templates" from public, anon, authenticated;
 grant select on "better_supabase"."document_templates" to authenticated;
 grant all on "better_supabase"."document_templates" to service_role;
-create policy document_templates_read on "better_supabase"."document_templates"
+create policy bsb_document_templates_read on "better_supabase"."document_templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
@@ -210,7 +210,7 @@ alter table "better_supabase"."document_text_blocks" enable row level security;
 revoke all on "better_supabase"."document_text_blocks" from public, anon, authenticated;
 grant select on "better_supabase"."document_text_blocks" to authenticated;
 grant all on "better_supabase"."document_text_blocks" to service_role;
-create policy document_text_blocks_read on "better_supabase"."document_text_blocks"
+create policy bsb_document_text_blocks_read on "better_supabase"."document_text_blocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
@@ -241,7 +241,7 @@ grant select on "better_supabase"."rendered_documents" to authenticated;
 grant all on "better_supabase"."rendered_documents" to service_role;
 -- A snapshot shows to someone who can read the document it froze; a statement
 -- has no row of its own, so it shows to the template managers.
-create policy rendered_documents_read on "better_supabase"."rendered_documents"
+create policy bsb_rendered_documents_read on "better_supabase"."rendered_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("tenant_id", "document_type", "document_id") end));
 
@@ -1161,7 +1161,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:9eb50716bc6dbd2fb80b95772eff6caf958439ac9202de3a0a4b83a44a3cd966
+-- @bsb-hash sha256:c47269ca795d13728ab4f3ed8c5eceaf8444a8ec18421d111d4bb414251b7cc5
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1799,7 +1799,7 @@ alter table "better_supabase"."document_templates" enable row level security;
 revoke all on "better_supabase"."document_templates" from public, anon, authenticated;
 grant select on "better_supabase"."document_templates" to authenticated;
 grant all on "better_supabase"."document_templates" to service_role;
-create policy document_templates_read on "better_supabase"."document_templates"
+create policy bsb_document_templates_read on "better_supabase"."document_templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
@@ -1824,7 +1824,7 @@ alter table "better_supabase"."document_text_blocks" enable row level security;
 revoke all on "better_supabase"."document_text_blocks" from public, anon, authenticated;
 grant select on "better_supabase"."document_text_blocks" to authenticated;
 grant all on "better_supabase"."document_text_blocks" to service_role;
-create policy document_text_blocks_read on "better_supabase"."document_text_blocks"
+create policy bsb_document_text_blocks_read on "better_supabase"."document_text_blocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
@@ -1855,7 +1855,7 @@ grant select on "better_supabase"."rendered_documents" to authenticated;
 grant all on "better_supabase"."rendered_documents" to service_role;
 -- A snapshot shows to someone who can read the document it froze; a statement
 -- has no row of its own, so it shows to the template managers.
-create policy rendered_documents_read on "better_supabase"."rendered_documents"
+create policy bsb_rendered_documents_read on "better_supabase"."rendered_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("tenant_id", "document_type", "document_id") end));
 
@@ -2860,7 +2860,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:09a077000c21eef4d0058a8e6b8ea9946a6f1fb51f860a0d8528dfbfa6b971fa
+-- @bsb-hash sha256:c83abafde264ee03df17fb8753cbafdef0bb24fd7246cbc79fa52f393865347d
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3049,7 +3049,7 @@ alter table "app_private"."document_templates" enable row level security;
 revoke all on "app_private"."document_templates" from public, anon, authenticated;
 grant select on "app_private"."document_templates" to authenticated;
 grant all on "app_private"."document_templates" to service_role;
-create policy document_templates_read on "app_private"."document_templates"
+create policy bsb_document_templates_read on "app_private"."document_templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
@@ -3074,7 +3074,7 @@ alter table "app_private"."document_text_blocks" enable row level security;
 revoke all on "app_private"."document_text_blocks" from public, anon, authenticated;
 grant select on "app_private"."document_text_blocks" to authenticated;
 grant all on "app_private"."document_text_blocks" to service_role;
-create policy document_text_blocks_read on "app_private"."document_text_blocks"
+create policy bsb_document_text_blocks_read on "app_private"."document_text_blocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
@@ -3105,7 +3105,7 @@ grant select on "app_private"."rendered_documents" to authenticated;
 grant all on "app_private"."rendered_documents" to service_role;
 -- A snapshot shows to someone who can read the document it froze; a statement
 -- has no row of its own, so it shows to the template managers.
-create policy rendered_documents_read on "app_private"."rendered_documents"
+create policy bsb_rendered_documents_read on "app_private"."rendered_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "app_private"."document_visible"("tenant_id", "document_type", "document_id") end));
 
@@ -4025,7 +4025,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:7b4239e1c7388b22fb775d6ae80eae4064d1618d14272cbc21fc4806b8a6c058
+-- @bsb-hash sha256:ee53ac50250bfe9781159c126b0e211475892abacfb885f0215115a8abd7fd57
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4209,7 +4209,7 @@ alter table "better_supabase"."document_templates" enable row level security;
 revoke all on "better_supabase"."document_templates" from public, anon, authenticated;
 grant select on "better_supabase"."document_templates" to authenticated;
 grant all on "better_supabase"."document_templates" to service_role;
-create policy document_templates_read on "better_supabase"."document_templates"
+create policy bsb_document_templates_read on "better_supabase"."document_templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
@@ -4234,7 +4234,7 @@ alter table "better_supabase"."document_text_blocks" enable row level security;
 revoke all on "better_supabase"."document_text_blocks" from public, anon, authenticated;
 grant select on "better_supabase"."document_text_blocks" to authenticated;
 grant all on "better_supabase"."document_text_blocks" to service_role;
-create policy document_text_blocks_read on "better_supabase"."document_text_blocks"
+create policy bsb_document_text_blocks_read on "better_supabase"."document_text_blocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
@@ -4265,7 +4265,7 @@ grant select on "better_supabase"."rendered_documents" to authenticated;
 grant all on "better_supabase"."rendered_documents" to service_role;
 -- A snapshot shows to someone who can read the document it froze; a statement
 -- has no row of its own, so it shows to the template managers.
-create policy rendered_documents_read on "better_supabase"."rendered_documents"
+create policy bsb_rendered_documents_read on "better_supabase"."rendered_documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "tenant_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("tenant_id", "document_type", "document_id") end));
 
@@ -6580,7 +6580,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:b4e39223f45617a364790052a7641c3ba09d9fcfc3520bcb03f40d877c9780bd
+-- @bsb-hash sha256:bd3226aa748df0402db9aeed502242815d011aa1a822f5243901a6adf5fca732
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6764,7 +6764,7 @@ alter table "better_supabase"."document_templates" enable row level security;
 revoke all on "better_supabase"."document_templates" from public, anon, authenticated;
 grant select on "better_supabase"."document_templates" to authenticated;
 grant all on "better_supabase"."document_templates" to service_role;
-create policy document_templates_read on "better_supabase"."document_templates"
+create policy bsb_document_templates_read on "better_supabase"."document_templates"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
@@ -6789,7 +6789,7 @@ alter table "better_supabase"."document_text_blocks" enable row level security;
 revoke all on "better_supabase"."document_text_blocks" from public, anon, authenticated;
 grant select on "better_supabase"."document_text_blocks" to authenticated;
 grant all on "better_supabase"."document_text_blocks" to service_role;
-create policy document_text_blocks_read on "better_supabase"."document_text_blocks"
+create policy bsb_document_text_blocks_read on "better_supabase"."document_text_blocks"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('document_templates.read')));
 
@@ -6820,7 +6820,7 @@ grant select on "better_supabase"."rendered_documents" to authenticated;
 grant all on "better_supabase"."rendered_documents" to service_role;
 -- A snapshot shows to someone who can read the document it froze; a statement
 -- has no row of its own, so it shows to the template managers.
-create policy rendered_documents_read on "better_supabase"."rendered_documents"
+create policy bsb_rendered_documents_read on "better_supabase"."rendered_documents"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('document_templates.read')) and (case when "document_type" = 'statement' then "org_id" in (select better_supabase.tenant_ids_with('document_templates.manage')) else "better_supabase"."document_visible"("org_id", "document_type", "document_id") end));
 

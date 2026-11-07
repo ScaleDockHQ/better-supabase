@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:ade156ebd378174fadf6a12f09ea0d0f12c48b12ab9131d8d0148c8d84676b9d
+-- @bsb-hash sha256:7657ea8b74802c89ea9e0d48c3f6b38bb225d659478d61a060fb33fb165d92ec
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -39,7 +39,7 @@ alter table "better_supabase"."shift_templates" enable row level security;
 revoke all on "better_supabase"."shift_templates" from public, anon, authenticated;
 grant select on "better_supabase"."shift_templates" to authenticated;
 grant all on "better_supabase"."shift_templates" to service_role;
-create policy shift_templates_read on "better_supabase"."shift_templates"
+create policy bsb_shift_templates_read on "better_supabase"."shift_templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shifts.read')));
 
@@ -75,7 +75,7 @@ alter table "better_supabase"."shifts" enable row level security;
 revoke all on "better_supabase"."shifts" from public, anon, authenticated;
 grant select on "better_supabase"."shifts" to authenticated;
 grant all on "better_supabase"."shifts" to service_role;
-create policy shifts_read on "better_supabase"."shifts"
+create policy bsb_shifts_read on "better_supabase"."shifts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('shifts.write')) or ("status" <> 'draft' and "tenant_id" in (select better_supabase.tenant_ids_with('shifts.read'))));
 
@@ -107,7 +107,7 @@ alter table "better_supabase"."shift_assignments" enable row level security;
 revoke all on "better_supabase"."shift_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."shift_assignments" to authenticated;
 grant all on "better_supabase"."shift_assignments" to service_role;
-create policy shift_assignments_read on "better_supabase"."shift_assignments"
+create policy bsb_shift_assignments_read on "better_supabase"."shift_assignments"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('shifts.read')));
 
@@ -133,7 +133,7 @@ alter table "better_supabase"."shift_swaps" enable row level security;
 revoke all on "better_supabase"."shift_swaps" from public, anon, authenticated;
 grant select on "better_supabase"."shift_swaps" to authenticated;
 grant all on "better_supabase"."shift_swaps" to service_role;
-create policy shift_swaps_read on "better_supabase"."shift_swaps"
+create policy bsb_shift_swaps_read on "better_supabase"."shift_swaps"
   for select to authenticated
   using ("from_user_id" = (select auth.uid()) or "to_user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('shifts.manage')));
 
@@ -157,7 +157,7 @@ alter table "better_supabase"."shift_availability" enable row level security;
 revoke all on "better_supabase"."shift_availability" from public, anon, authenticated;
 grant select on "better_supabase"."shift_availability" to authenticated;
 grant all on "better_supabase"."shift_availability" to service_role;
-create policy shift_availability_read on "better_supabase"."shift_availability"
+create policy bsb_shift_availability_read on "better_supabase"."shift_availability"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('shifts.write')));
 

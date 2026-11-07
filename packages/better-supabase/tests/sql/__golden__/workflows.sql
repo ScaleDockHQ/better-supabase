@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:58cd99b37e894302baccdbd684d0db0f16fc04919e7ddd2a56a064c608887283
+-- @bsb-hash sha256:8132f5c0298fc8f48cad9cfc31165169575ded4517715b265a132b1b52e70052
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -52,7 +52,7 @@ alter table "better_supabase"."workflow_runs" enable row level security;
 revoke all on "better_supabase"."workflow_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
-create policy workflow_runs_read on "better_supabase"."workflow_runs"
+create policy bsb_workflow_runs_read on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
@@ -82,7 +82,7 @@ alter table "better_supabase"."workflow_schedules" enable row level security;
 revoke all on "better_supabase"."workflow_schedules" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
-create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
+create policy bsb_workflow_schedules_read on "better_supabase"."workflow_schedules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
@@ -1033,7 +1033,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:b781372dfb5ecba6d42ea775ac901e62c09246526f37b6a84f1b4a0bdcb2e69f
+-- @bsb-hash sha256:8f2c91b45cb8521ca6085bd7c596081ae732f6165a0e430b6c9d643c9dc99362
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1084,7 +1084,7 @@ alter table "better_supabase"."workflow_runs" enable row level security;
 revoke all on "better_supabase"."workflow_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
-create policy workflow_runs_read on "better_supabase"."workflow_runs"
+create policy bsb_workflow_runs_read on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
@@ -1114,7 +1114,7 @@ alter table "better_supabase"."workflow_schedules" enable row level security;
 revoke all on "better_supabase"."workflow_schedules" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
-create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
+create policy bsb_workflow_schedules_read on "better_supabase"."workflow_schedules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
@@ -2079,7 +2079,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:caecdaf603328be3ab2b8084779084150f3d333f41a4f44c371ccb2149e08a1e
+-- @bsb-hash sha256:c183c47cd63d7ab5e2ec1a100d6ac6a870cff6d1e4fbbf19eaa7c3b845ad9f9e
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2135,7 +2135,7 @@ alter table "app_private"."workflow_runs" enable row level security;
 revoke all on "app_private"."workflow_runs" from public, anon, authenticated;
 grant select on "app_private"."workflow_runs" to authenticated;
 grant all on "app_private"."workflow_runs" to service_role;
-create policy workflow_runs_read on "app_private"."workflow_runs"
+create policy bsb_workflow_runs_read on "app_private"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
@@ -2165,7 +2165,7 @@ alter table "app_private"."workflow_schedules" enable row level security;
 revoke all on "app_private"."workflow_schedules" from public, anon, authenticated;
 grant select on "app_private"."workflow_schedules" to authenticated;
 grant all on "app_private"."workflow_schedules" to service_role;
-create policy workflow_schedules_read on "app_private"."workflow_schedules"
+create policy bsb_workflow_schedules_read on "app_private"."workflow_schedules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
@@ -3116,7 +3116,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:997dd8f3770cd065da67db2254042d8eee6d6e0ffaf4c25b6e6666aa566a7d36
+-- @bsb-hash sha256:09184bb27b174d2d2a9f71c44fd97d8f3e9d9484d05bbcbda6ef6a9fdbd8d851
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3167,7 +3167,7 @@ alter table "better_supabase"."workflow_runs" enable row level security;
 revoke all on "better_supabase"."workflow_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
-create policy workflow_runs_read on "better_supabase"."workflow_runs"
+create policy bsb_workflow_runs_read on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
@@ -3197,7 +3197,7 @@ alter table "better_supabase"."workflow_schedules" enable row level security;
 revoke all on "better_supabase"."workflow_schedules" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
-create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
+create policy bsb_workflow_schedules_read on "better_supabase"."workflow_schedules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 
@@ -5348,7 +5348,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:b5315ca1bca0ee376a934283dbb50eab687a7e299a28c634ebce50b3b6370b3e
+-- @bsb-hash sha256:ed3c4be38d7c9f78ae12684f301d2d55d9b83641fa2343084def657cbf309f56
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5399,7 +5399,7 @@ alter table "better_supabase"."workflow_runs" enable row level security;
 revoke all on "better_supabase"."workflow_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
-create policy workflow_runs_read on "better_supabase"."workflow_runs"
+create policy bsb_workflow_runs_read on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
     or "org_id" in (select better_supabase.tenant_ids_with('workflows.read')));
@@ -5429,7 +5429,7 @@ alter table "better_supabase"."workflow_schedules" enable row level security;
 revoke all on "better_supabase"."workflow_schedules" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
-create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
+create policy bsb_workflow_schedules_read on "better_supabase"."workflow_schedules"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 

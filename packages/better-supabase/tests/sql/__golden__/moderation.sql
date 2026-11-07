@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:16b7743f4d587616ab6d4f25e0ee98dcfd2ff8d48492ca3bbf56afe8a8f10957
+-- @bsb-hash sha256:5147246f1129b9ab2b0040b434c140b776b9b6d078dd0222b8248ac9cf28fecd
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -149,28 +149,28 @@ alter table "better_supabase"."moderation_items" enable row level security;
 revoke all on "better_supabase"."moderation_items" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_items" to authenticated;
 grant all on "better_supabase"."moderation_items" to service_role;
-create policy moderation_items_read on "better_supabase"."moderation_items"
+create policy bsb_moderation_items_read on "better_supabase"."moderation_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_reports" enable row level security;
 revoke all on "better_supabase"."moderation_reports" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_reports" to authenticated;
 grant all on "better_supabase"."moderation_reports" to service_role;
-create policy moderation_reports_read on "better_supabase"."moderation_reports"
+create policy bsb_moderation_reports_read on "better_supabase"."moderation_reports"
   for select to authenticated
   using ("reporter_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_actions" enable row level security;
 revoke all on "better_supabase"."moderation_actions" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_actions" to authenticated;
 grant all on "better_supabase"."moderation_actions" to service_role;
-create policy moderation_actions_read on "better_supabase"."moderation_actions"
+create policy bsb_moderation_actions_read on "better_supabase"."moderation_actions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_bans" enable row level security;
 revoke all on "better_supabase"."moderation_bans" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_bans" to authenticated;
 grant all on "better_supabase"."moderation_bans" to service_role;
-create policy moderation_bans_read on "better_supabase"."moderation_bans"
+create policy bsb_moderation_bans_read on "better_supabase"."moderation_bans"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
@@ -178,28 +178,28 @@ alter table "better_supabase"."moderation_statements" enable row level security;
 revoke all on "better_supabase"."moderation_statements" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_statements" to authenticated;
 grant all on "better_supabase"."moderation_statements" to service_role;
-create policy moderation_statements_read on "better_supabase"."moderation_statements"
+create policy bsb_moderation_statements_read on "better_supabase"."moderation_statements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_notices" enable row level security;
 revoke all on "better_supabase"."moderation_notices" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_notices" to authenticated;
 grant all on "better_supabase"."moderation_notices" to service_role;
-create policy moderation_notices_read on "better_supabase"."moderation_notices"
+create policy bsb_moderation_notices_read on "better_supabase"."moderation_notices"
   for select to authenticated
   using ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_flaggers" enable row level security;
 revoke all on "better_supabase"."moderation_flaggers" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_flaggers" to authenticated;
 grant all on "better_supabase"."moderation_flaggers" to service_role;
-create policy moderation_flaggers_read on "better_supabase"."moderation_flaggers"
+create policy bsb_moderation_flaggers_read on "better_supabase"."moderation_flaggers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_appeals" enable row level security;
 revoke all on "better_supabase"."moderation_appeals" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_appeals" to authenticated;
 grant all on "better_supabase"."moderation_appeals" to service_role;
-create policy moderation_appeals_read on "better_supabase"."moderation_appeals"
+create policy bsb_moderation_appeals_read on "better_supabase"."moderation_appeals"
   for select to authenticated
   using ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
@@ -1196,7 +1196,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:4a4e207499e4112e2217a24aa3be6eb3fbd18feb279121438836f20ebb901a1a
+-- @bsb-hash sha256:b3acdad03495620ea5c683de7483fb71fb469fd3eebf8cfb083592430ad693f0
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1344,28 +1344,28 @@ alter table "better_supabase"."moderation_items" enable row level security;
 revoke all on "better_supabase"."moderation_items" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_items" to authenticated;
 grant all on "better_supabase"."moderation_items" to service_role;
-create policy moderation_items_read on "better_supabase"."moderation_items"
+create policy bsb_moderation_items_read on "better_supabase"."moderation_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_reports" enable row level security;
 revoke all on "better_supabase"."moderation_reports" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_reports" to authenticated;
 grant all on "better_supabase"."moderation_reports" to service_role;
-create policy moderation_reports_read on "better_supabase"."moderation_reports"
+create policy bsb_moderation_reports_read on "better_supabase"."moderation_reports"
   for select to authenticated
   using ("reporter_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_actions" enable row level security;
 revoke all on "better_supabase"."moderation_actions" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_actions" to authenticated;
 grant all on "better_supabase"."moderation_actions" to service_role;
-create policy moderation_actions_read on "better_supabase"."moderation_actions"
+create policy bsb_moderation_actions_read on "better_supabase"."moderation_actions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_bans" enable row level security;
 revoke all on "better_supabase"."moderation_bans" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_bans" to authenticated;
 grant all on "better_supabase"."moderation_bans" to service_role;
-create policy moderation_bans_read on "better_supabase"."moderation_bans"
+create policy bsb_moderation_bans_read on "better_supabase"."moderation_bans"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
@@ -1373,28 +1373,28 @@ alter table "better_supabase"."moderation_statements" enable row level security;
 revoke all on "better_supabase"."moderation_statements" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_statements" to authenticated;
 grant all on "better_supabase"."moderation_statements" to service_role;
-create policy moderation_statements_read on "better_supabase"."moderation_statements"
+create policy bsb_moderation_statements_read on "better_supabase"."moderation_statements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_notices" enable row level security;
 revoke all on "better_supabase"."moderation_notices" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_notices" to authenticated;
 grant all on "better_supabase"."moderation_notices" to service_role;
-create policy moderation_notices_read on "better_supabase"."moderation_notices"
+create policy bsb_moderation_notices_read on "better_supabase"."moderation_notices"
   for select to authenticated
   using ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_flaggers" enable row level security;
 revoke all on "better_supabase"."moderation_flaggers" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_flaggers" to authenticated;
 grant all on "better_supabase"."moderation_flaggers" to service_role;
-create policy moderation_flaggers_read on "better_supabase"."moderation_flaggers"
+create policy bsb_moderation_flaggers_read on "better_supabase"."moderation_flaggers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_appeals" enable row level security;
 revoke all on "better_supabase"."moderation_appeals" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_appeals" to authenticated;
 grant all on "better_supabase"."moderation_appeals" to service_role;
-create policy moderation_appeals_read on "better_supabase"."moderation_appeals"
+create policy bsb_moderation_appeals_read on "better_supabase"."moderation_appeals"
   for select to authenticated
   using ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
@@ -2491,7 +2491,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:ec55086a10ff0052aed1a89b744aa313f8762037fe1d81add26c76e76dee37f6
+-- @bsb-hash sha256:bb3b6a1464dca2fdf8794e407e1ae0414b8e4213c6f2310494c69a64a70e4520
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2644,28 +2644,28 @@ alter table "app_private"."moderation_items" enable row level security;
 revoke all on "app_private"."moderation_items" from public, anon, authenticated;
 grant select on "app_private"."moderation_items" to authenticated;
 grant all on "app_private"."moderation_items" to service_role;
-create policy moderation_items_read on "app_private"."moderation_items"
+create policy bsb_moderation_items_read on "app_private"."moderation_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "app_private"."moderation_reports" enable row level security;
 revoke all on "app_private"."moderation_reports" from public, anon, authenticated;
 grant select on "app_private"."moderation_reports" to authenticated;
 grant all on "app_private"."moderation_reports" to service_role;
-create policy moderation_reports_read on "app_private"."moderation_reports"
+create policy bsb_moderation_reports_read on "app_private"."moderation_reports"
   for select to authenticated
   using ("reporter_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "app_private"."moderation_actions" enable row level security;
 revoke all on "app_private"."moderation_actions" from public, anon, authenticated;
 grant select on "app_private"."moderation_actions" to authenticated;
 grant all on "app_private"."moderation_actions" to service_role;
-create policy moderation_actions_read on "app_private"."moderation_actions"
+create policy bsb_moderation_actions_read on "app_private"."moderation_actions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "app_private"."moderation_bans" enable row level security;
 revoke all on "app_private"."moderation_bans" from public, anon, authenticated;
 grant select on "app_private"."moderation_bans" to authenticated;
 grant all on "app_private"."moderation_bans" to service_role;
-create policy moderation_bans_read on "app_private"."moderation_bans"
+create policy bsb_moderation_bans_read on "app_private"."moderation_bans"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
@@ -2673,28 +2673,28 @@ alter table "app_private"."moderation_statements" enable row level security;
 revoke all on "app_private"."moderation_statements" from public, anon, authenticated;
 grant select on "app_private"."moderation_statements" to authenticated;
 grant all on "app_private"."moderation_statements" to service_role;
-create policy moderation_statements_read on "app_private"."moderation_statements"
+create policy bsb_moderation_statements_read on "app_private"."moderation_statements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "app_private"."moderation_notices" enable row level security;
 revoke all on "app_private"."moderation_notices" from public, anon, authenticated;
 grant select on "app_private"."moderation_notices" to authenticated;
 grant all on "app_private"."moderation_notices" to service_role;
-create policy moderation_notices_read on "app_private"."moderation_notices"
+create policy bsb_moderation_notices_read on "app_private"."moderation_notices"
   for select to authenticated
   using ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "app_private"."moderation_flaggers" enable row level security;
 revoke all on "app_private"."moderation_flaggers" from public, anon, authenticated;
 grant select on "app_private"."moderation_flaggers" to authenticated;
 grant all on "app_private"."moderation_flaggers" to service_role;
-create policy moderation_flaggers_read on "app_private"."moderation_flaggers"
+create policy bsb_moderation_flaggers_read on "app_private"."moderation_flaggers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "app_private"."moderation_appeals" enable row level security;
 revoke all on "app_private"."moderation_appeals" from public, anon, authenticated;
 grant select on "app_private"."moderation_appeals" to authenticated;
 grant all on "app_private"."moderation_appeals" to service_role;
-create policy moderation_appeals_read on "app_private"."moderation_appeals"
+create policy bsb_moderation_appeals_read on "app_private"."moderation_appeals"
   for select to authenticated
   using ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
@@ -3691,7 +3691,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:b8a00e68dfa6ee4b22ee0d04efcc3f51ce39a2641981caeffd986f8f0fa82873
+-- @bsb-hash sha256:d82c41c185096118d3632886c9464d4d5a0495ad7f7a8a958fb5019101c9b73d
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3839,28 +3839,28 @@ alter table "better_supabase"."moderation_items" enable row level security;
 revoke all on "better_supabase"."moderation_items" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_items" to authenticated;
 grant all on "better_supabase"."moderation_items" to service_role;
-create policy moderation_items_read on "better_supabase"."moderation_items"
+create policy bsb_moderation_items_read on "better_supabase"."moderation_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_reports" enable row level security;
 revoke all on "better_supabase"."moderation_reports" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_reports" to authenticated;
 grant all on "better_supabase"."moderation_reports" to service_role;
-create policy moderation_reports_read on "better_supabase"."moderation_reports"
+create policy bsb_moderation_reports_read on "better_supabase"."moderation_reports"
   for select to authenticated
   using ("reporter_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_actions" enable row level security;
 revoke all on "better_supabase"."moderation_actions" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_actions" to authenticated;
 grant all on "better_supabase"."moderation_actions" to service_role;
-create policy moderation_actions_read on "better_supabase"."moderation_actions"
+create policy bsb_moderation_actions_read on "better_supabase"."moderation_actions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_bans" enable row level security;
 revoke all on "better_supabase"."moderation_bans" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_bans" to authenticated;
 grant all on "better_supabase"."moderation_bans" to service_role;
-create policy moderation_bans_read on "better_supabase"."moderation_bans"
+create policy bsb_moderation_bans_read on "better_supabase"."moderation_bans"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
@@ -3868,28 +3868,28 @@ alter table "better_supabase"."moderation_statements" enable row level security;
 revoke all on "better_supabase"."moderation_statements" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_statements" to authenticated;
 grant all on "better_supabase"."moderation_statements" to service_role;
-create policy moderation_statements_read on "better_supabase"."moderation_statements"
+create policy bsb_moderation_statements_read on "better_supabase"."moderation_statements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_notices" enable row level security;
 revoke all on "better_supabase"."moderation_notices" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_notices" to authenticated;
 grant all on "better_supabase"."moderation_notices" to service_role;
-create policy moderation_notices_read on "better_supabase"."moderation_notices"
+create policy bsb_moderation_notices_read on "better_supabase"."moderation_notices"
   for select to authenticated
   using ("notifier_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_flaggers" enable row level security;
 revoke all on "better_supabase"."moderation_flaggers" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_flaggers" to authenticated;
 grant all on "better_supabase"."moderation_flaggers" to service_role;
-create policy moderation_flaggers_read on "better_supabase"."moderation_flaggers"
+create policy bsb_moderation_flaggers_read on "better_supabase"."moderation_flaggers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_appeals" enable row level security;
 revoke all on "better_supabase"."moderation_appeals" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_appeals" to authenticated;
 grant all on "better_supabase"."moderation_appeals" to service_role;
-create policy moderation_appeals_read on "better_supabase"."moderation_appeals"
+create policy bsb_moderation_appeals_read on "better_supabase"."moderation_appeals"
   for select to authenticated
   using ("appellant_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
@@ -6227,7 +6227,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_108_moderation.sql
 -- better-supabase module: moderation
 -- @bsb-block moderation@2 managed
--- @bsb-hash sha256:f0ee657fceb1ada23d201179d905cff742c9ab69c9a9e802d3b8f51f54df8702
+-- @bsb-hash sha256:a10ca1cf4fe08bfbf3674b4160b68608713c98ca954cb35e9608cb09afc79e3c
 -- Reports on any subject, a review queue, decisions (approve, hide, remove, restore, ban) with a log, user bans and an automatic hide threshold. Reviews moderate through it, and it hides and removes messages, comments included.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6375,28 +6375,28 @@ alter table "better_supabase"."moderation_items" enable row level security;
 revoke all on "better_supabase"."moderation_items" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_items" to authenticated;
 grant all on "better_supabase"."moderation_items" to service_role;
-create policy moderation_items_read on "better_supabase"."moderation_items"
+create policy bsb_moderation_items_read on "better_supabase"."moderation_items"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_reports" enable row level security;
 revoke all on "better_supabase"."moderation_reports" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_reports" to authenticated;
 grant all on "better_supabase"."moderation_reports" to service_role;
-create policy moderation_reports_read on "better_supabase"."moderation_reports"
+create policy bsb_moderation_reports_read on "better_supabase"."moderation_reports"
   for select to authenticated
   using ("reporter_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_actions" enable row level security;
 revoke all on "better_supabase"."moderation_actions" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_actions" to authenticated;
 grant all on "better_supabase"."moderation_actions" to service_role;
-create policy moderation_actions_read on "better_supabase"."moderation_actions"
+create policy bsb_moderation_actions_read on "better_supabase"."moderation_actions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_bans" enable row level security;
 revoke all on "better_supabase"."moderation_bans" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_bans" to authenticated;
 grant all on "better_supabase"."moderation_bans" to service_role;
-create policy moderation_bans_read on "better_supabase"."moderation_bans"
+create policy bsb_moderation_bans_read on "better_supabase"."moderation_bans"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 
@@ -6404,28 +6404,28 @@ alter table "better_supabase"."moderation_statements" enable row level security;
 revoke all on "better_supabase"."moderation_statements" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_statements" to authenticated;
 grant all on "better_supabase"."moderation_statements" to service_role;
-create policy moderation_statements_read on "better_supabase"."moderation_statements"
+create policy bsb_moderation_statements_read on "better_supabase"."moderation_statements"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_notices" enable row level security;
 revoke all on "better_supabase"."moderation_notices" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_notices" to authenticated;
 grant all on "better_supabase"."moderation_notices" to service_role;
-create policy moderation_notices_read on "better_supabase"."moderation_notices"
+create policy bsb_moderation_notices_read on "better_supabase"."moderation_notices"
   for select to authenticated
   using ("notifier_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_flaggers" enable row level security;
 revoke all on "better_supabase"."moderation_flaggers" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_flaggers" to authenticated;
 grant all on "better_supabase"."moderation_flaggers" to service_role;
-create policy moderation_flaggers_read on "better_supabase"."moderation_flaggers"
+create policy bsb_moderation_flaggers_read on "better_supabase"."moderation_flaggers"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 alter table "better_supabase"."moderation_appeals" enable row level security;
 revoke all on "better_supabase"."moderation_appeals" from public, anon, authenticated;
 grant select on "better_supabase"."moderation_appeals" to authenticated;
 grant all on "better_supabase"."moderation_appeals" to service_role;
-create policy moderation_appeals_read on "better_supabase"."moderation_appeals"
+create policy bsb_moderation_appeals_read on "better_supabase"."moderation_appeals"
   for select to authenticated
   using ("appellant_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('moderation.read')));
 

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:3ce54aeae0ccbfeeb39c2a6fa90445a3b98bcb9325b98894f8e868182e38ae94
+-- @bsb-hash sha256:b288026287ee8a1326066b1904147f9bd3b2c7dc6da851b8ff0788c2bbdd73fb
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -48,7 +48,7 @@ alter table "better_supabase"."care_plans" enable row level security;
 revoke all on "better_supabase"."care_plans" from public, anon, authenticated;
 grant select on "better_supabase"."care_plans" to authenticated;
 grant all on "better_supabase"."care_plans" to service_role;
-create policy care_plans_read on "better_supabase"."care_plans"
+create policy bsb_care_plans_read on "better_supabase"."care_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('care_plans.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."care_plans"."subject_type", "better_supabase"."care_plans"."subject_id"::text, 'read'), false));
 
@@ -73,7 +73,7 @@ alter table "better_supabase"."care_plan_problems" enable row level security;
 revoke all on "better_supabase"."care_plan_problems" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_problems" to authenticated;
 grant all on "better_supabase"."care_plan_problems" to service_role;
-create policy care_plan_problems_read on "better_supabase"."care_plan_problems"
+create policy bsb_care_plan_problems_read on "better_supabase"."care_plan_problems"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_problems"."plan_id"));
 
@@ -98,7 +98,7 @@ alter table "better_supabase"."care_plan_goals" enable row level security;
 revoke all on "better_supabase"."care_plan_goals" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_goals" to authenticated;
 grant all on "better_supabase"."care_plan_goals" to service_role;
-create policy care_plan_goals_read on "better_supabase"."care_plan_goals"
+create policy bsb_care_plan_goals_read on "better_supabase"."care_plan_goals"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_goals"."plan_id"));
 
@@ -148,7 +148,7 @@ alter table "better_supabase"."care_plan_actions" enable row level security;
 revoke all on "better_supabase"."care_plan_actions" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_actions" to authenticated;
 grant all on "better_supabase"."care_plan_actions" to service_role;
-create policy care_plan_actions_read on "better_supabase"."care_plan_actions"
+create policy bsb_care_plan_actions_read on "better_supabase"."care_plan_actions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_actions"."plan_id"));
 
@@ -171,7 +171,7 @@ alter table "better_supabase"."care_plan_evaluations" enable row level security;
 revoke all on "better_supabase"."care_plan_evaluations" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_evaluations" to authenticated;
 grant all on "better_supabase"."care_plan_evaluations" to service_role;
-create policy care_plan_evaluations_read on "better_supabase"."care_plan_evaluations"
+create policy bsb_care_plan_evaluations_read on "better_supabase"."care_plan_evaluations"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_evaluations"."plan_id"));
 

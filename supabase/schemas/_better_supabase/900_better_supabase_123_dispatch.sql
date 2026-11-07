@@ -1,6 +1,6 @@
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:5bd3840712b5879fe02ad19ddfe353315869b8e65b515c8c2681b3546e818943
+-- @bsb-hash sha256:c70c1d3b6841ba2bc3a43f3160f6333bf187cf334ca02d3ae8de2a4619d871d9
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -54,7 +54,7 @@ alter table "better_supabase"."work_orders" enable row level security;
 revoke all on "better_supabase"."work_orders" from public, anon, authenticated;
 grant select on "better_supabase"."work_orders" to authenticated;
 grant all on "better_supabase"."work_orders" to service_role;
-create policy work_orders_read on "better_supabase"."work_orders"
+create policy bsb_work_orders_read on "better_supabase"."work_orders"
   for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- A technician's plan for one day: the work orders in the order they drive to
@@ -74,7 +74,7 @@ alter table "better_supabase"."dispatch_routes" enable row level security;
 revoke all on "better_supabase"."dispatch_routes" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_routes" to authenticated;
 grant all on "better_supabase"."dispatch_routes" to service_role;
-create policy dispatch_routes_read on "better_supabase"."dispatch_routes"
+create policy bsb_dispatch_routes_read on "better_supabase"."dispatch_routes"
   for select to authenticated
   using ("technician_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 create table "better_supabase"."dispatch_route_stops" (
@@ -91,7 +91,7 @@ alter table "better_supabase"."dispatch_route_stops" enable row level security;
 revoke all on "better_supabase"."dispatch_route_stops" from public, anon, authenticated;
 grant select on "better_supabase"."dispatch_route_stops" to authenticated;
 grant all on "better_supabase"."dispatch_route_stops" to service_role;
-create policy dispatch_route_stops_read on "better_supabase"."dispatch_route_stops"
+create policy bsb_dispatch_route_stops_read on "better_supabase"."dispatch_route_stops"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 -- The parts a job used: free text, or an asset, or a catalog variant taken
@@ -117,7 +117,7 @@ alter table "better_supabase"."work_order_parts" enable row level security;
 revoke all on "better_supabase"."work_order_parts" from public, anon, authenticated;
 grant select on "better_supabase"."work_order_parts" to authenticated;
 grant all on "better_supabase"."work_order_parts" to service_role;
-create policy work_order_parts_read on "better_supabase"."work_order_parts"
+create policy bsb_work_order_parts_read on "better_supabase"."work_order_parts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dispatch.read')));
 alter table "better_supabase"."work_orders" add constraint "work_orders_location_fkey"

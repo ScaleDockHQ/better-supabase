@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:5a5d3b914d51356559e6c55f428aeee9feca727b409abad0dc7455bee242f325
+-- @bsb-hash sha256:1c1856da7b19f7c00ad0c5c8b627d8034fe41a532b2c35e2f793ec3198a67343
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1952,7 +1952,7 @@ grant execute on function "better_supabase"."can_subject_for"(uuid, text, text, 
 -- A caller reads their own record team rows, those of their teams, every row
 -- of a tenant where they hold subjects.manage, and the team of a record they
 -- can read.
-create policy subject_members_read on "better_supabase"."subject_members"
+create policy bsb_subject_members_read on "better_supabase"."subject_members"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or ("team_id" is not null and "team_id" in (select "better_supabase"."team_ids_of"((select auth.uid()))))
     or "tenant_id" in (select better_supabase.tenant_ids_with('subjects.manage'))

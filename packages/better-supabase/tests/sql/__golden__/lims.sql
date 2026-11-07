@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_164_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:d5244b383333520f22828a570513d7a12530dc207f39f22d504b78e90ebcf0c9
+-- @bsb-hash sha256:4b689883395c2d56e733f38ec0c75fa0c18e642ffcc17a03d6a384b5c13e0727
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -30,7 +30,7 @@ alter table "better_supabase"."lims_methods" enable row level security;
 revoke all on "better_supabase"."lims_methods" from public, anon, authenticated;
 grant select on "better_supabase"."lims_methods" to authenticated;
 grant all on "better_supabase"."lims_methods" to service_role;
-create policy lims_methods_read on "better_supabase"."lims_methods"
+create policy bsb_lims_methods_read on "better_supabase"."lims_methods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -60,7 +60,7 @@ alter table "better_supabase"."lims_samples" enable row level security;
 revoke all on "better_supabase"."lims_samples" from public, anon, authenticated;
 grant select on "better_supabase"."lims_samples" to authenticated;
 grant all on "better_supabase"."lims_samples" to service_role;
-create policy lims_samples_read on "better_supabase"."lims_samples"
+create policy bsb_lims_samples_read on "better_supabase"."lims_samples"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -89,7 +89,7 @@ alter table "better_supabase"."lims_results" enable row level security;
 revoke all on "better_supabase"."lims_results" from public, anon, authenticated;
 grant select on "better_supabase"."lims_results" to authenticated;
 grant all on "better_supabase"."lims_results" to service_role;
-create policy lims_results_read on "better_supabase"."lims_results"
+create policy bsb_lims_results_read on "better_supabase"."lims_results"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -651,7 +651,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_164_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:323403358b3fe2408b628bd450f85961c9a6034647fc0b4d89e72743c77e4559
+-- @bsb-hash sha256:8fdc62720fa7b1d2b0fdac058a42190be3105e160fdd2c876e4cd26b404b4329
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -680,7 +680,7 @@ alter table "better_supabase"."lims_methods" enable row level security;
 revoke all on "better_supabase"."lims_methods" from public, anon, authenticated;
 grant select on "better_supabase"."lims_methods" to authenticated;
 grant all on "better_supabase"."lims_methods" to service_role;
-create policy lims_methods_read on "better_supabase"."lims_methods"
+create policy bsb_lims_methods_read on "better_supabase"."lims_methods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -710,7 +710,7 @@ alter table "better_supabase"."lims_samples" enable row level security;
 revoke all on "better_supabase"."lims_samples" from public, anon, authenticated;
 grant select on "better_supabase"."lims_samples" to authenticated;
 grant all on "better_supabase"."lims_samples" to service_role;
-create policy lims_samples_read on "better_supabase"."lims_samples"
+create policy bsb_lims_samples_read on "better_supabase"."lims_samples"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -739,7 +739,7 @@ alter table "better_supabase"."lims_results" enable row level security;
 revoke all on "better_supabase"."lims_results" from public, anon, authenticated;
 grant select on "better_supabase"."lims_results" to authenticated;
 grant all on "better_supabase"."lims_results" to service_role;
-create policy lims_results_read on "better_supabase"."lims_results"
+create policy bsb_lims_results_read on "better_supabase"."lims_results"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -1401,7 +1401,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_164_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:cc1cd70695de0329d10e9d863b82ab0641e4c727103fa303f609857344ce4c67
+-- @bsb-hash sha256:d0155029d59d055608945501f1e2467f16fa1fcc2fb8336d4f6d43c4f21c835b
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1435,7 +1435,7 @@ alter table "app_private"."lims_methods" enable row level security;
 revoke all on "app_private"."lims_methods" from public, anon, authenticated;
 grant select on "app_private"."lims_methods" to authenticated;
 grant all on "app_private"."lims_methods" to service_role;
-create policy lims_methods_read on "app_private"."lims_methods"
+create policy bsb_lims_methods_read on "app_private"."lims_methods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -1465,7 +1465,7 @@ alter table "app_private"."lims_samples" enable row level security;
 revoke all on "app_private"."lims_samples" from public, anon, authenticated;
 grant select on "app_private"."lims_samples" to authenticated;
 grant all on "app_private"."lims_samples" to service_role;
-create policy lims_samples_read on "app_private"."lims_samples"
+create policy bsb_lims_samples_read on "app_private"."lims_samples"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -1494,7 +1494,7 @@ alter table "app_private"."lims_results" enable row level security;
 revoke all on "app_private"."lims_results" from public, anon, authenticated;
 grant select on "app_private"."lims_results" to authenticated;
 grant all on "app_private"."lims_results" to service_role;
-create policy lims_results_read on "app_private"."lims_results"
+create policy bsb_lims_results_read on "app_private"."lims_results"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -2056,7 +2056,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_164_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:ec150bc853846dd8d62bdb4e31361d1322f31ca30c788bcacf25f68a98a49667
+-- @bsb-hash sha256:79d881e98fe0632ea5939e97a73493702dbd9062fea476ac493b7eb59c3dbce2
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2085,7 +2085,7 @@ alter table "better_supabase"."lims_methods" enable row level security;
 revoke all on "better_supabase"."lims_methods" from public, anon, authenticated;
 grant select on "better_supabase"."lims_methods" to authenticated;
 grant all on "better_supabase"."lims_methods" to service_role;
-create policy lims_methods_read on "better_supabase"."lims_methods"
+create policy bsb_lims_methods_read on "better_supabase"."lims_methods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -2115,7 +2115,7 @@ alter table "better_supabase"."lims_samples" enable row level security;
 revoke all on "better_supabase"."lims_samples" from public, anon, authenticated;
 grant select on "better_supabase"."lims_samples" to authenticated;
 grant all on "better_supabase"."lims_samples" to service_role;
-create policy lims_samples_read on "better_supabase"."lims_samples"
+create policy bsb_lims_samples_read on "better_supabase"."lims_samples"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -2144,7 +2144,7 @@ alter table "better_supabase"."lims_results" enable row level security;
 revoke all on "better_supabase"."lims_results" from public, anon, authenticated;
 grant select on "better_supabase"."lims_results" to authenticated;
 grant all on "better_supabase"."lims_results" to service_role;
-create policy lims_results_read on "better_supabase"."lims_results"
+create policy bsb_lims_results_read on "better_supabase"."lims_results"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -3457,7 +3457,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_164_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:6fa300a3fcc1f11701ddf8aa02e5d8ed7374820bbd41129a68811410671b5f15
+-- @bsb-hash sha256:13b8ac0266e64bd4c25d52fd4b078a34b006e558c58254849bbabff80ffd3ab5
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3486,7 +3486,7 @@ alter table "better_supabase"."lims_methods" enable row level security;
 revoke all on "better_supabase"."lims_methods" from public, anon, authenticated;
 grant select on "better_supabase"."lims_methods" to authenticated;
 grant all on "better_supabase"."lims_methods" to service_role;
-create policy lims_methods_read on "better_supabase"."lims_methods"
+create policy bsb_lims_methods_read on "better_supabase"."lims_methods"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -3516,7 +3516,7 @@ alter table "better_supabase"."lims_samples" enable row level security;
 revoke all on "better_supabase"."lims_samples" from public, anon, authenticated;
 grant select on "better_supabase"."lims_samples" to authenticated;
 grant all on "better_supabase"."lims_samples" to service_role;
-create policy lims_samples_read on "better_supabase"."lims_samples"
+create policy bsb_lims_samples_read on "better_supabase"."lims_samples"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -3545,7 +3545,7 @@ alter table "better_supabase"."lims_results" enable row level security;
 revoke all on "better_supabase"."lims_results" from public, anon, authenticated;
 grant select on "better_supabase"."lims_results" to authenticated;
 grant all on "better_supabase"."lims_results" to service_role;
-create policy lims_results_read on "better_supabase"."lims_results"
+create policy bsb_lims_results_read on "better_supabase"."lims_results"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('lims.read')));
 

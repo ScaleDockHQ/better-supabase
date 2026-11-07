@@ -1,6 +1,6 @@
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:599b168417e19c2715607bd855408af8e2cc59f2838ff47a48f46ddcbc953970
+-- @bsb-hash sha256:e125d1af9e145d10ae64f7846ba55e1d7f32a6916f0f3d29eb2cbb8bf7503a65
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,7 @@ alter table "better_supabase"."work_centers" enable row level security;
 revoke all on "better_supabase"."work_centers" from public, anon, authenticated;
 grant select on "better_supabase"."work_centers" to authenticated;
 grant all on "better_supabase"."work_centers" to service_role;
-create policy work_centers_read on "better_supabase"."work_centers"
+create policy bsb_work_centers_read on "better_supabase"."work_centers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
 
@@ -60,7 +60,7 @@ alter table "better_supabase"."boms" enable row level security;
 revoke all on "better_supabase"."boms" from public, anon, authenticated;
 grant select on "better_supabase"."boms" to authenticated;
 grant all on "better_supabase"."boms" to service_role;
-create policy boms_read on "better_supabase"."boms"
+create policy bsb_boms_read on "better_supabase"."boms"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
 
@@ -89,7 +89,7 @@ alter table "better_supabase"."bom_operations" enable row level security;
 revoke all on "better_supabase"."bom_operations" from public, anon, authenticated;
 grant select on "better_supabase"."bom_operations" to authenticated;
 grant all on "better_supabase"."bom_operations" to service_role;
-create policy bom_operations_read on "better_supabase"."bom_operations"
+create policy bsb_bom_operations_read on "better_supabase"."bom_operations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
 
@@ -114,7 +114,7 @@ alter table "better_supabase"."bom_components" enable row level security;
 revoke all on "better_supabase"."bom_components" from public, anon, authenticated;
 grant select on "better_supabase"."bom_components" to authenticated;
 grant all on "better_supabase"."bom_components" to service_role;
-create policy bom_components_read on "better_supabase"."bom_components"
+create policy bsb_bom_components_read on "better_supabase"."bom_components"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
 
@@ -161,7 +161,7 @@ alter table "better_supabase"."production_orders" enable row level security;
 revoke all on "better_supabase"."production_orders" from public, anon, authenticated;
 grant select on "better_supabase"."production_orders" to authenticated;
 grant all on "better_supabase"."production_orders" to service_role;
-create policy production_orders_read on "better_supabase"."production_orders"
+create policy bsb_production_orders_read on "better_supabase"."production_orders"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
 
@@ -195,7 +195,7 @@ alter table "better_supabase"."production_order_operations" enable row level sec
 revoke all on "better_supabase"."production_order_operations" from public, anon, authenticated;
 grant select on "better_supabase"."production_order_operations" to authenticated;
 grant all on "better_supabase"."production_order_operations" to service_role;
-create policy production_order_operations_read on "better_supabase"."production_order_operations"
+create policy bsb_production_order_operations_read on "better_supabase"."production_order_operations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
 
@@ -224,7 +224,7 @@ alter table "better_supabase"."production_consumptions" enable row level securit
 revoke all on "better_supabase"."production_consumptions" from public, anon, authenticated;
 grant select on "better_supabase"."production_consumptions" to authenticated;
 grant all on "better_supabase"."production_consumptions" to service_role;
-create policy production_consumptions_read on "better_supabase"."production_consumptions"
+create policy bsb_production_consumptions_read on "better_supabase"."production_consumptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
 
@@ -247,7 +247,7 @@ alter table "better_supabase"."stock_lot_links" enable row level security;
 revoke all on "better_supabase"."stock_lot_links" from public, anon, authenticated;
 grant select on "better_supabase"."stock_lot_links" to authenticated;
 grant all on "better_supabase"."stock_lot_links" to service_role;
-create policy stock_lot_links_read on "better_supabase"."stock_lot_links"
+create policy bsb_stock_lot_links_read on "better_supabase"."stock_lot_links"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('manufacturing.read')));
 

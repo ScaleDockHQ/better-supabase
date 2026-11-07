@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:53e25f7f28346ad59b9937b655d47e9654f4dec6a3b6ff28397a9f4870b0ec2b
+-- @bsb-hash sha256:f497e7aa11934e95edd7ac7d4eecce0cbf6f520562337bf035e40f4e06c86c59
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22,7 +22,7 @@ alter table "better_supabase"."lead_score_checks" enable row level security;
 revoke all on "better_supabase"."lead_score_checks" from public, anon, authenticated;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
-create policy lead_score_checks_read on "better_supabase"."lead_score_checks"
+create policy bsb_lead_score_checks_read on "better_supabase"."lead_score_checks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
 
@@ -210,7 +210,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:08e6fe27544bbb5daf64129ccb2b31df6b183cc1681ce2b4ed6c1eae486adc2d
+-- @bsb-hash sha256:293dcc99e1aa42247288822da7408bdac66e93020d49c3cb3b0ac2c68450a72c
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -231,7 +231,7 @@ alter table "better_supabase"."lead_score_checks" enable row level security;
 revoke all on "better_supabase"."lead_score_checks" from public, anon, authenticated;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
-create policy lead_score_checks_read on "better_supabase"."lead_score_checks"
+create policy bsb_lead_score_checks_read on "better_supabase"."lead_score_checks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
 
@@ -504,7 +504,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:27f6a4fe4c90a4a3f688148413b29018bba5eef0be68c60e2ec6a26ad2b248d2
+-- @bsb-hash sha256:8ad46466831b6195f9838d0611d089c492ca37b3a6795e9d228d019d65a4481d
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -530,7 +530,7 @@ alter table "app_private"."lead_score_checks" enable row level security;
 revoke all on "app_private"."lead_score_checks" from public, anon, authenticated;
 grant select on "app_private"."lead_score_checks" to authenticated;
 grant all on "app_private"."lead_score_checks" to service_role;
-create policy lead_score_checks_read on "app_private"."lead_score_checks"
+create policy bsb_lead_score_checks_read on "app_private"."lead_score_checks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
 
@@ -718,7 +718,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:9edc9074b67d8059978888c329129788cb7041d82199a190fbf3e906e1d01882
+-- @bsb-hash sha256:2ef435d7add6ca954661dcfe23233776a9bd969ec3217ccd8fa0a59f1b6d3b65
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -739,7 +739,7 @@ alter table "better_supabase"."lead_score_checks" enable row level security;
 revoke all on "better_supabase"."lead_score_checks" from public, anon, authenticated;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
-create policy lead_score_checks_read on "better_supabase"."lead_score_checks"
+create policy bsb_lead_score_checks_read on "better_supabase"."lead_score_checks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('scores.compute')));
 
@@ -1166,7 +1166,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_139_lead_scoring.sql
 -- better-supabase module: lead-scoring
 -- @bsb-block lead-scoring@1 managed
--- @bsb-hash sha256:e8177823285095e88e237200e322429992218e43619a1921da71128b1cdc5b4f
+-- @bsb-hash sha256:994ae194d6d4f63646b19e9fb985b8e5488f2e943d525c7d414ad8b958e1bb49
 -- Scores people, and optionally companies, under a tenant-editable score model. Each record's columns, enrichment status, segments and mail opens, clicks and replies feed the model, and the record is scored again when any of them change.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1187,7 +1187,7 @@ alter table "better_supabase"."lead_score_checks" enable row level security;
 revoke all on "better_supabase"."lead_score_checks" from public, anon, authenticated;
 grant select on "better_supabase"."lead_score_checks" to authenticated;
 grant all on "better_supabase"."lead_score_checks" to service_role;
-create policy lead_score_checks_read on "better_supabase"."lead_score_checks"
+create policy bsb_lead_score_checks_read on "better_supabase"."lead_score_checks"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('scores.compute')));
 

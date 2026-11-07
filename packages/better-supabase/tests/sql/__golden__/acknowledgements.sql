@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:57ab78bda9882faaf2198775b008822e60be517cf76924a81da500018a4b30de
+-- @bsb-hash sha256:716fe2b20fae68f05dc23fd526d72d80abaf69cfc3a49b48b52c3bb690ede0a4
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,7 @@ alter table "better_supabase"."acknowledgement_assignments" enable row level sec
 revoke all on "better_supabase"."acknowledgement_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgement_assignments" to authenticated;
 grant all on "better_supabase"."acknowledgement_assignments" to service_role;
-create policy acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments"
+create policy bsb_acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
@@ -51,7 +51,7 @@ alter table "better_supabase"."acknowledgements" enable row level security;
 revoke all on "better_supabase"."acknowledgements" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgements" to authenticated;
 grant all on "better_supabase"."acknowledgements" to service_role;
-create policy acknowledgements_read on "better_supabase"."acknowledgements"
+create policy bsb_acknowledgements_read on "better_supabase"."acknowledgements"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
@@ -617,7 +617,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:7d874d170679c56788b6722b905cefd4fbec76c1fdac1fa1ca994e2f2c433e06
+-- @bsb-hash sha256:5770d135160a6b9bf17ad24e268f94065b21cfcb8c9a4ad56024a62cbd96921b
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -644,7 +644,7 @@ alter table "better_supabase"."acknowledgement_assignments" enable row level sec
 revoke all on "better_supabase"."acknowledgement_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgement_assignments" to authenticated;
 grant all on "better_supabase"."acknowledgement_assignments" to service_role;
-create policy acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments"
+create policy bsb_acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
@@ -667,7 +667,7 @@ alter table "better_supabase"."acknowledgements" enable row level security;
 revoke all on "better_supabase"."acknowledgements" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgements" to authenticated;
 grant all on "better_supabase"."acknowledgements" to service_role;
-create policy acknowledgements_read on "better_supabase"."acknowledgements"
+create policy bsb_acknowledgements_read on "better_supabase"."acknowledgements"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
@@ -1332,7 +1332,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:28510cc8521ef9f05b5a2822d499f985b1af2824178cda7bc95906c627fc7ec5
+-- @bsb-hash sha256:65e7c248277133803cc2864043026b3f97f5274460df033171a4fa0b4ca583c9
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1364,7 +1364,7 @@ alter table "app_private"."acknowledgement_assignments" enable row level securit
 revoke all on "app_private"."acknowledgement_assignments" from public, anon, authenticated;
 grant select on "app_private"."acknowledgement_assignments" to authenticated;
 grant all on "app_private"."acknowledgement_assignments" to service_role;
-create policy acknowledgement_assignments_read on "app_private"."acknowledgement_assignments"
+create policy bsb_acknowledgement_assignments_read on "app_private"."acknowledgement_assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
@@ -1387,7 +1387,7 @@ alter table "app_private"."acknowledgements" enable row level security;
 revoke all on "app_private"."acknowledgements" from public, anon, authenticated;
 grant select on "app_private"."acknowledgements" to authenticated;
 grant all on "app_private"."acknowledgements" to service_role;
-create policy acknowledgements_read on "app_private"."acknowledgements"
+create policy bsb_acknowledgements_read on "app_private"."acknowledgements"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
@@ -1953,7 +1953,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:a1678948ba0ca044152c1cf59425173b87297a3bf7ff9a290a897be41f02cf3b
+-- @bsb-hash sha256:62515d8f1fd30107f82fbb39769524509d8892b53471e5b2c6e2964a32798e7b
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1980,7 +1980,7 @@ alter table "better_supabase"."acknowledgement_assignments" enable row level sec
 revoke all on "better_supabase"."acknowledgement_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgement_assignments" to authenticated;
 grant all on "better_supabase"."acknowledgement_assignments" to service_role;
-create policy acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments"
+create policy bsb_acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
@@ -2003,7 +2003,7 @@ alter table "better_supabase"."acknowledgements" enable row level security;
 revoke all on "better_supabase"."acknowledgements" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgements" to authenticated;
 grant all on "better_supabase"."acknowledgements" to service_role;
-create policy acknowledgements_read on "better_supabase"."acknowledgements"
+create policy bsb_acknowledgements_read on "better_supabase"."acknowledgements"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
@@ -3259,7 +3259,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:21e2c01adf443cb4c6e1e30b2ff1ab5e4b4af8b39c9476abefd8d4efa5d5257f
+-- @bsb-hash sha256:981f4f169a626e063c3dd0d9b9703c0a8736b6dc6fa7d46bf242d10ccb8209a8
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3286,7 +3286,7 @@ alter table "better_supabase"."acknowledgement_assignments" enable row level sec
 revoke all on "better_supabase"."acknowledgement_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgement_assignments" to authenticated;
 grant all on "better_supabase"."acknowledgement_assignments" to service_role;
-create policy acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments"
+create policy bsb_acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
@@ -3309,7 +3309,7 @@ alter table "better_supabase"."acknowledgements" enable row level security;
 revoke all on "better_supabase"."acknowledgements" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgements" to authenticated;
 grant all on "better_supabase"."acknowledgements" to service_role;
-create policy acknowledgements_read on "better_supabase"."acknowledgements"
+create policy bsb_acknowledgements_read on "better_supabase"."acknowledgements"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 

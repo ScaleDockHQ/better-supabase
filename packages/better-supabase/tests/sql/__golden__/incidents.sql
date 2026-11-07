@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:c4e2e16b88cb83580a59bf30bf4f08e9664d45409ea94fdb408d8fd58f741573
+-- @bsb-hash sha256:bfc073d675d64da4365fe93673556d3b25b2dddf56056799e929f4dca1673143
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -30,7 +30,7 @@ alter table "better_supabase"."incident_status_components" enable row level secu
 revoke all on "better_supabase"."incident_status_components" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_components" to authenticated;
 grant all on "better_supabase"."incident_status_components" to service_role;
-create policy incident_status_components_read on "better_supabase"."incident_status_components"
+create policy bsb_incident_status_components_read on "better_supabase"."incident_status_components"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -51,7 +51,7 @@ alter table "better_supabase"."incident_status_component_history" enable row lev
 revoke all on "better_supabase"."incident_status_component_history" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_component_history" to authenticated;
 grant all on "better_supabase"."incident_status_component_history" to service_role;
-create policy incident_status_component_history_read on "better_supabase"."incident_status_component_history"
+create policy bsb_incident_status_component_history_read on "better_supabase"."incident_status_component_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -82,7 +82,7 @@ alter table "better_supabase"."incidents" enable row level security;
 revoke all on "better_supabase"."incidents" from public, anon, authenticated;
 grant select on "better_supabase"."incidents" to authenticated;
 grant all on "better_supabase"."incidents" to service_role;
-create policy incidents_read on "better_supabase"."incidents"
+create policy bsb_incidents_read on "better_supabase"."incidents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -105,7 +105,7 @@ alter table "better_supabase"."incident_updates" enable row level security;
 revoke all on "better_supabase"."incident_updates" from public, anon, authenticated;
 grant select on "better_supabase"."incident_updates" to authenticated;
 grant all on "better_supabase"."incident_updates" to service_role;
-create policy incident_updates_read on "better_supabase"."incident_updates"
+create policy bsb_incident_updates_read on "better_supabase"."incident_updates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -124,7 +124,7 @@ alter table "better_supabase"."incident_impacts" enable row level security;
 revoke all on "better_supabase"."incident_impacts" from public, anon, authenticated;
 grant select on "better_supabase"."incident_impacts" to authenticated;
 grant all on "better_supabase"."incident_impacts" to service_role;
-create policy incident_impacts_read on "better_supabase"."incident_impacts"
+create policy bsb_incident_impacts_read on "better_supabase"."incident_impacts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -149,7 +149,7 @@ alter table "better_supabase"."incident_postmortems" enable row level security;
 revoke all on "better_supabase"."incident_postmortems" from public, anon, authenticated;
 grant select on "better_supabase"."incident_postmortems" to authenticated;
 grant all on "better_supabase"."incident_postmortems" to service_role;
-create policy incident_postmortems_read on "better_supabase"."incident_postmortems"
+create policy bsb_incident_postmortems_read on "better_supabase"."incident_postmortems"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -169,7 +169,7 @@ alter table "better_supabase"."incident_status_pages" enable row level security;
 revoke all on "better_supabase"."incident_status_pages" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_pages" to authenticated;
 grant all on "better_supabase"."incident_status_pages" to service_role;
-create policy incident_status_pages_read on "better_supabase"."incident_status_pages"
+create policy bsb_incident_status_pages_read on "better_supabase"."incident_status_pages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -193,7 +193,7 @@ alter table "better_supabase"."incident_regulatory_profiles" enable row level se
 revoke all on "better_supabase"."incident_regulatory_profiles" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_profiles" to authenticated;
 grant all on "better_supabase"."incident_regulatory_profiles" to service_role;
-create policy incident_regulatory_profiles_read on "better_supabase"."incident_regulatory_profiles"
+create policy bsb_incident_regulatory_profiles_read on "better_supabase"."incident_regulatory_profiles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -219,7 +219,7 @@ alter table "better_supabase"."incident_regulatory_filings" enable row level sec
 revoke all on "better_supabase"."incident_regulatory_filings" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_filings" to authenticated;
 grant all on "better_supabase"."incident_regulatory_filings" to service_role;
-create policy incident_regulatory_filings_read on "better_supabase"."incident_regulatory_filings"
+create policy bsb_incident_regulatory_filings_read on "better_supabase"."incident_regulatory_filings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -1258,7 +1258,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:3d817a80c3f1036a604dcb1061600f6434a3b63e74eb1026f157612c7fca4b58
+-- @bsb-hash sha256:d73cee8f0246080fb4fc995f384f1934a22503a86c7e61818d539109ac221edb
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1287,7 +1287,7 @@ alter table "better_supabase"."incident_status_components" enable row level secu
 revoke all on "better_supabase"."incident_status_components" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_components" to authenticated;
 grant all on "better_supabase"."incident_status_components" to service_role;
-create policy incident_status_components_read on "better_supabase"."incident_status_components"
+create policy bsb_incident_status_components_read on "better_supabase"."incident_status_components"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -1308,7 +1308,7 @@ alter table "better_supabase"."incident_status_component_history" enable row lev
 revoke all on "better_supabase"."incident_status_component_history" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_component_history" to authenticated;
 grant all on "better_supabase"."incident_status_component_history" to service_role;
-create policy incident_status_component_history_read on "better_supabase"."incident_status_component_history"
+create policy bsb_incident_status_component_history_read on "better_supabase"."incident_status_component_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -1339,7 +1339,7 @@ alter table "better_supabase"."incidents" enable row level security;
 revoke all on "better_supabase"."incidents" from public, anon, authenticated;
 grant select on "better_supabase"."incidents" to authenticated;
 grant all on "better_supabase"."incidents" to service_role;
-create policy incidents_read on "better_supabase"."incidents"
+create policy bsb_incidents_read on "better_supabase"."incidents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -1362,7 +1362,7 @@ alter table "better_supabase"."incident_updates" enable row level security;
 revoke all on "better_supabase"."incident_updates" from public, anon, authenticated;
 grant select on "better_supabase"."incident_updates" to authenticated;
 grant all on "better_supabase"."incident_updates" to service_role;
-create policy incident_updates_read on "better_supabase"."incident_updates"
+create policy bsb_incident_updates_read on "better_supabase"."incident_updates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -1381,7 +1381,7 @@ alter table "better_supabase"."incident_impacts" enable row level security;
 revoke all on "better_supabase"."incident_impacts" from public, anon, authenticated;
 grant select on "better_supabase"."incident_impacts" to authenticated;
 grant all on "better_supabase"."incident_impacts" to service_role;
-create policy incident_impacts_read on "better_supabase"."incident_impacts"
+create policy bsb_incident_impacts_read on "better_supabase"."incident_impacts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -1406,7 +1406,7 @@ alter table "better_supabase"."incident_postmortems" enable row level security;
 revoke all on "better_supabase"."incident_postmortems" from public, anon, authenticated;
 grant select on "better_supabase"."incident_postmortems" to authenticated;
 grant all on "better_supabase"."incident_postmortems" to service_role;
-create policy incident_postmortems_read on "better_supabase"."incident_postmortems"
+create policy bsb_incident_postmortems_read on "better_supabase"."incident_postmortems"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -1426,7 +1426,7 @@ alter table "better_supabase"."incident_postmortem_actions" enable row level sec
 revoke all on "better_supabase"."incident_postmortem_actions" from public, anon, authenticated;
 grant select on "better_supabase"."incident_postmortem_actions" to authenticated;
 grant all on "better_supabase"."incident_postmortem_actions" to service_role;
-create policy incident_postmortem_actions_read on "better_supabase"."incident_postmortem_actions"
+create policy bsb_incident_postmortem_actions_read on "better_supabase"."incident_postmortem_actions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -1446,7 +1446,7 @@ alter table "better_supabase"."incident_status_pages" enable row level security;
 revoke all on "better_supabase"."incident_status_pages" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_pages" to authenticated;
 grant all on "better_supabase"."incident_status_pages" to service_role;
-create policy incident_status_pages_read on "better_supabase"."incident_status_pages"
+create policy bsb_incident_status_pages_read on "better_supabase"."incident_status_pages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -1470,7 +1470,7 @@ alter table "better_supabase"."incident_regulatory_profiles" enable row level se
 revoke all on "better_supabase"."incident_regulatory_profiles" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_profiles" to authenticated;
 grant all on "better_supabase"."incident_regulatory_profiles" to service_role;
-create policy incident_regulatory_profiles_read on "better_supabase"."incident_regulatory_profiles"
+create policy bsb_incident_regulatory_profiles_read on "better_supabase"."incident_regulatory_profiles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -1496,7 +1496,7 @@ alter table "better_supabase"."incident_regulatory_filings" enable row level sec
 revoke all on "better_supabase"."incident_regulatory_filings" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_filings" to authenticated;
 grant all on "better_supabase"."incident_regulatory_filings" to service_role;
-create policy incident_regulatory_filings_read on "better_supabase"."incident_regulatory_filings"
+create policy bsb_incident_regulatory_filings_read on "better_supabase"."incident_regulatory_filings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -2753,7 +2753,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:e203d454395e158252428913532e7150162f479d8a10b59b7a4947527154f533
+-- @bsb-hash sha256:a8a2bb7973db6f0d0a2135ca71c04fd1300e382491219b8bf9119846ccd5547c
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2787,7 +2787,7 @@ alter table "app_private"."incident_status_components" enable row level security
 revoke all on "app_private"."incident_status_components" from public, anon, authenticated;
 grant select on "app_private"."incident_status_components" to authenticated;
 grant all on "app_private"."incident_status_components" to service_role;
-create policy incident_status_components_read on "app_private"."incident_status_components"
+create policy bsb_incident_status_components_read on "app_private"."incident_status_components"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -2808,7 +2808,7 @@ alter table "app_private"."incident_status_component_history" enable row level s
 revoke all on "app_private"."incident_status_component_history" from public, anon, authenticated;
 grant select on "app_private"."incident_status_component_history" to authenticated;
 grant all on "app_private"."incident_status_component_history" to service_role;
-create policy incident_status_component_history_read on "app_private"."incident_status_component_history"
+create policy bsb_incident_status_component_history_read on "app_private"."incident_status_component_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -2839,7 +2839,7 @@ alter table "app_private"."incidents" enable row level security;
 revoke all on "app_private"."incidents" from public, anon, authenticated;
 grant select on "app_private"."incidents" to authenticated;
 grant all on "app_private"."incidents" to service_role;
-create policy incidents_read on "app_private"."incidents"
+create policy bsb_incidents_read on "app_private"."incidents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -2862,7 +2862,7 @@ alter table "app_private"."incident_updates" enable row level security;
 revoke all on "app_private"."incident_updates" from public, anon, authenticated;
 grant select on "app_private"."incident_updates" to authenticated;
 grant all on "app_private"."incident_updates" to service_role;
-create policy incident_updates_read on "app_private"."incident_updates"
+create policy bsb_incident_updates_read on "app_private"."incident_updates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -2881,7 +2881,7 @@ alter table "app_private"."incident_impacts" enable row level security;
 revoke all on "app_private"."incident_impacts" from public, anon, authenticated;
 grant select on "app_private"."incident_impacts" to authenticated;
 grant all on "app_private"."incident_impacts" to service_role;
-create policy incident_impacts_read on "app_private"."incident_impacts"
+create policy bsb_incident_impacts_read on "app_private"."incident_impacts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -2906,7 +2906,7 @@ alter table "app_private"."incident_postmortems" enable row level security;
 revoke all on "app_private"."incident_postmortems" from public, anon, authenticated;
 grant select on "app_private"."incident_postmortems" to authenticated;
 grant all on "app_private"."incident_postmortems" to service_role;
-create policy incident_postmortems_read on "app_private"."incident_postmortems"
+create policy bsb_incident_postmortems_read on "app_private"."incident_postmortems"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -2926,7 +2926,7 @@ alter table "app_private"."incident_status_pages" enable row level security;
 revoke all on "app_private"."incident_status_pages" from public, anon, authenticated;
 grant select on "app_private"."incident_status_pages" to authenticated;
 grant all on "app_private"."incident_status_pages" to service_role;
-create policy incident_status_pages_read on "app_private"."incident_status_pages"
+create policy bsb_incident_status_pages_read on "app_private"."incident_status_pages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -2950,7 +2950,7 @@ alter table "app_private"."incident_regulatory_profiles" enable row level securi
 revoke all on "app_private"."incident_regulatory_profiles" from public, anon, authenticated;
 grant select on "app_private"."incident_regulatory_profiles" to authenticated;
 grant all on "app_private"."incident_regulatory_profiles" to service_role;
-create policy incident_regulatory_profiles_read on "app_private"."incident_regulatory_profiles"
+create policy bsb_incident_regulatory_profiles_read on "app_private"."incident_regulatory_profiles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -2976,7 +2976,7 @@ alter table "app_private"."incident_regulatory_filings" enable row level securit
 revoke all on "app_private"."incident_regulatory_filings" from public, anon, authenticated;
 grant select on "app_private"."incident_regulatory_filings" to authenticated;
 grant all on "app_private"."incident_regulatory_filings" to service_role;
-create policy incident_regulatory_filings_read on "app_private"."incident_regulatory_filings"
+create policy bsb_incident_regulatory_filings_read on "app_private"."incident_regulatory_filings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -4015,7 +4015,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:fdd67396d0839f46a1e4769931de1a330aa0febe99a329f3fbb92e2bde600364
+-- @bsb-hash sha256:0d6c628b5a0287c9effbd56ec1c2357e2ac4075a56ee7629cb24193c48d9d72c
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4044,7 +4044,7 @@ alter table "better_supabase"."incident_status_components" enable row level secu
 revoke all on "better_supabase"."incident_status_components" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_components" to authenticated;
 grant all on "better_supabase"."incident_status_components" to service_role;
-create policy incident_status_components_read on "better_supabase"."incident_status_components"
+create policy bsb_incident_status_components_read on "better_supabase"."incident_status_components"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -4065,7 +4065,7 @@ alter table "better_supabase"."incident_status_component_history" enable row lev
 revoke all on "better_supabase"."incident_status_component_history" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_component_history" to authenticated;
 grant all on "better_supabase"."incident_status_component_history" to service_role;
-create policy incident_status_component_history_read on "better_supabase"."incident_status_component_history"
+create policy bsb_incident_status_component_history_read on "better_supabase"."incident_status_component_history"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -4096,7 +4096,7 @@ alter table "better_supabase"."incidents" enable row level security;
 revoke all on "better_supabase"."incidents" from public, anon, authenticated;
 grant select on "better_supabase"."incidents" to authenticated;
 grant all on "better_supabase"."incidents" to service_role;
-create policy incidents_read on "better_supabase"."incidents"
+create policy bsb_incidents_read on "better_supabase"."incidents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -4119,7 +4119,7 @@ alter table "better_supabase"."incident_updates" enable row level security;
 revoke all on "better_supabase"."incident_updates" from public, anon, authenticated;
 grant select on "better_supabase"."incident_updates" to authenticated;
 grant all on "better_supabase"."incident_updates" to service_role;
-create policy incident_updates_read on "better_supabase"."incident_updates"
+create policy bsb_incident_updates_read on "better_supabase"."incident_updates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -4138,7 +4138,7 @@ alter table "better_supabase"."incident_impacts" enable row level security;
 revoke all on "better_supabase"."incident_impacts" from public, anon, authenticated;
 grant select on "better_supabase"."incident_impacts" to authenticated;
 grant all on "better_supabase"."incident_impacts" to service_role;
-create policy incident_impacts_read on "better_supabase"."incident_impacts"
+create policy bsb_incident_impacts_read on "better_supabase"."incident_impacts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -4163,7 +4163,7 @@ alter table "better_supabase"."incident_postmortems" enable row level security;
 revoke all on "better_supabase"."incident_postmortems" from public, anon, authenticated;
 grant select on "better_supabase"."incident_postmortems" to authenticated;
 grant all on "better_supabase"."incident_postmortems" to service_role;
-create policy incident_postmortems_read on "better_supabase"."incident_postmortems"
+create policy bsb_incident_postmortems_read on "better_supabase"."incident_postmortems"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -4183,7 +4183,7 @@ alter table "better_supabase"."incident_status_pages" enable row level security;
 revoke all on "better_supabase"."incident_status_pages" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_pages" to authenticated;
 grant all on "better_supabase"."incident_status_pages" to service_role;
-create policy incident_status_pages_read on "better_supabase"."incident_status_pages"
+create policy bsb_incident_status_pages_read on "better_supabase"."incident_status_pages"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -4207,7 +4207,7 @@ alter table "better_supabase"."incident_regulatory_profiles" enable row level se
 revoke all on "better_supabase"."incident_regulatory_profiles" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_profiles" to authenticated;
 grant all on "better_supabase"."incident_regulatory_profiles" to service_role;
-create policy incident_regulatory_profiles_read on "better_supabase"."incident_regulatory_profiles"
+create policy bsb_incident_regulatory_profiles_read on "better_supabase"."incident_regulatory_profiles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -4233,7 +4233,7 @@ alter table "better_supabase"."incident_regulatory_filings" enable row level sec
 revoke all on "better_supabase"."incident_regulatory_filings" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_filings" to authenticated;
 grant all on "better_supabase"."incident_regulatory_filings" to service_role;
-create policy incident_regulatory_filings_read on "better_supabase"."incident_regulatory_filings"
+create policy bsb_incident_regulatory_filings_read on "better_supabase"."incident_regulatory_filings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -6677,7 +6677,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:c7870e2f685370ef00b87f54a80b7a85f973ce2d82f86a6bbd36342c7b0856b7
+-- @bsb-hash sha256:288f36a0a231e6af17077a22ec236490bee12786f8091ffd1d1a47a12d0fbcc2
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6706,7 +6706,7 @@ alter table "better_supabase"."incident_status_components" enable row level secu
 revoke all on "better_supabase"."incident_status_components" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_components" to authenticated;
 grant all on "better_supabase"."incident_status_components" to service_role;
-create policy incident_status_components_read on "better_supabase"."incident_status_components"
+create policy bsb_incident_status_components_read on "better_supabase"."incident_status_components"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -6727,7 +6727,7 @@ alter table "better_supabase"."incident_status_component_history" enable row lev
 revoke all on "better_supabase"."incident_status_component_history" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_component_history" to authenticated;
 grant all on "better_supabase"."incident_status_component_history" to service_role;
-create policy incident_status_component_history_read on "better_supabase"."incident_status_component_history"
+create policy bsb_incident_status_component_history_read on "better_supabase"."incident_status_component_history"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -6758,7 +6758,7 @@ alter table "better_supabase"."incidents" enable row level security;
 revoke all on "better_supabase"."incidents" from public, anon, authenticated;
 grant select on "better_supabase"."incidents" to authenticated;
 grant all on "better_supabase"."incidents" to service_role;
-create policy incidents_read on "better_supabase"."incidents"
+create policy bsb_incidents_read on "better_supabase"."incidents"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -6781,7 +6781,7 @@ alter table "better_supabase"."incident_updates" enable row level security;
 revoke all on "better_supabase"."incident_updates" from public, anon, authenticated;
 grant select on "better_supabase"."incident_updates" to authenticated;
 grant all on "better_supabase"."incident_updates" to service_role;
-create policy incident_updates_read on "better_supabase"."incident_updates"
+create policy bsb_incident_updates_read on "better_supabase"."incident_updates"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -6800,7 +6800,7 @@ alter table "better_supabase"."incident_impacts" enable row level security;
 revoke all on "better_supabase"."incident_impacts" from public, anon, authenticated;
 grant select on "better_supabase"."incident_impacts" to authenticated;
 grant all on "better_supabase"."incident_impacts" to service_role;
-create policy incident_impacts_read on "better_supabase"."incident_impacts"
+create policy bsb_incident_impacts_read on "better_supabase"."incident_impacts"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -6825,7 +6825,7 @@ alter table "better_supabase"."incident_postmortems" enable row level security;
 revoke all on "better_supabase"."incident_postmortems" from public, anon, authenticated;
 grant select on "better_supabase"."incident_postmortems" to authenticated;
 grant all on "better_supabase"."incident_postmortems" to service_role;
-create policy incident_postmortems_read on "better_supabase"."incident_postmortems"
+create policy bsb_incident_postmortems_read on "better_supabase"."incident_postmortems"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -6845,7 +6845,7 @@ alter table "better_supabase"."incident_status_pages" enable row level security;
 revoke all on "better_supabase"."incident_status_pages" from public, anon, authenticated;
 grant select on "better_supabase"."incident_status_pages" to authenticated;
 grant all on "better_supabase"."incident_status_pages" to service_role;
-create policy incident_status_pages_read on "better_supabase"."incident_status_pages"
+create policy bsb_incident_status_pages_read on "better_supabase"."incident_status_pages"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -6869,7 +6869,7 @@ alter table "better_supabase"."incident_regulatory_profiles" enable row level se
 revoke all on "better_supabase"."incident_regulatory_profiles" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_profiles" to authenticated;
 grant all on "better_supabase"."incident_regulatory_profiles" to service_role;
-create policy incident_regulatory_profiles_read on "better_supabase"."incident_regulatory_profiles"
+create policy bsb_incident_regulatory_profiles_read on "better_supabase"."incident_regulatory_profiles"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 
@@ -6895,7 +6895,7 @@ alter table "better_supabase"."incident_regulatory_filings" enable row level sec
 revoke all on "better_supabase"."incident_regulatory_filings" from public, anon, authenticated;
 grant select on "better_supabase"."incident_regulatory_filings" to authenticated;
 grant all on "better_supabase"."incident_regulatory_filings" to service_role;
-create policy incident_regulatory_filings_read on "better_supabase"."incident_regulatory_filings"
+create policy bsb_incident_regulatory_filings_read on "better_supabase"."incident_regulatory_filings"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('incidents.read')));
 

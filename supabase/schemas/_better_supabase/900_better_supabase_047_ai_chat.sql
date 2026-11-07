@@ -1,6 +1,6 @@
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:cf2c91a8b13f82cae60f78b32ef715690bdd2ecd85b1130548684dd1689ba421
+-- @bsb-hash sha256:c9ea7633db65b81ea66cd8b70f27229b9ed5f933aff6d46c436e1881e8294a37
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23,7 +23,7 @@ alter table "better_supabase"."ai_projects" enable row level security;
 revoke all on "better_supabase"."ai_projects" from public, anon, authenticated;
 grant all on "better_supabase"."ai_projects" to service_role;
 grant select on "better_supabase"."ai_projects" to authenticated;
-create policy ai_projects_owner_read on "better_supabase"."ai_projects"
+create policy bsb_ai_projects_owner_read on "better_supabase"."ai_projects"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
@@ -96,10 +96,10 @@ alter table "better_supabase"."ai_chat_participants" enable row level security;
 revoke all on "better_supabase"."ai_chat_participants" from public, anon, authenticated;
 grant all on "better_supabase"."ai_chat_participants" to service_role;
 grant select on "better_supabase"."ai_chat_participants" to authenticated;
-create policy ai_chat_participants_own_read on "better_supabase"."ai_chat_participants"
+create policy bsb_ai_chat_participants_own_read on "better_supabase"."ai_chat_participants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-create policy ai_chats_read on "better_supabase"."ai_chats"
+create policy bsb_ai_chats_read on "better_supabase"."ai_chats"
   for select to authenticated
   using ("owner_id" = (select auth.uid())
     or ("visibility" = 'organization' and "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.read')))
@@ -138,7 +138,7 @@ alter table "better_supabase"."ai_messages" enable row level security;
 revoke all on "better_supabase"."ai_messages" from public, anon, authenticated;
 grant all on "better_supabase"."ai_messages" to service_role;
 grant select on "better_supabase"."ai_messages" to authenticated;
-create policy ai_messages_read on "better_supabase"."ai_messages"
+create policy bsb_ai_messages_read on "better_supabase"."ai_messages"
   for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
@@ -168,7 +168,7 @@ alter table "better_supabase"."ai_runs" enable row level security;
 revoke all on "better_supabase"."ai_runs" from public, anon, authenticated;
 grant all on "better_supabase"."ai_runs" to service_role;
 grant select on "better_supabase"."ai_runs" to authenticated;
-create policy ai_runs_owner_read on "better_supabase"."ai_runs"
+create policy bsb_ai_runs_owner_read on "better_supabase"."ai_runs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
@@ -196,7 +196,7 @@ alter table "better_supabase"."ai_tool_approvals" enable row level security;
 revoke all on "better_supabase"."ai_tool_approvals" from public, anon, authenticated;
 grant all on "better_supabase"."ai_tool_approvals" to service_role;
 grant select on "better_supabase"."ai_tool_approvals" to authenticated;
-create policy ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals"
+create policy bsb_ai_tool_approvals_owner_read on "better_supabase"."ai_tool_approvals"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
@@ -233,7 +233,7 @@ alter table "better_supabase"."ai_pending_inputs" enable row level security;
 revoke all on "better_supabase"."ai_pending_inputs" from public, anon, authenticated;
 grant all on "better_supabase"."ai_pending_inputs" to service_role;
 grant select on "better_supabase"."ai_pending_inputs" to authenticated;
-create policy ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs"
+create policy bsb_ai_pending_inputs_owner_read on "better_supabase"."ai_pending_inputs"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
@@ -253,7 +253,7 @@ alter table "better_supabase"."ai_message_sources" enable row level security;
 revoke all on "better_supabase"."ai_message_sources" from public, anon, authenticated;
 grant all on "better_supabase"."ai_message_sources" to service_role;
 grant select on "better_supabase"."ai_message_sources" to authenticated;
-create policy ai_message_sources_read on "better_supabase"."ai_message_sources"
+create policy bsb_ai_message_sources_read on "better_supabase"."ai_message_sources"
   for select to authenticated
   using ("chat_id" in (select x."id" from "better_supabase"."ai_chats" x));
 
@@ -275,7 +275,7 @@ alter table "better_supabase"."ai_message_feedback" enable row level security;
 revoke all on "better_supabase"."ai_message_feedback" from public, anon, authenticated;
 grant all on "better_supabase"."ai_message_feedback" to service_role;
 grant select on "better_supabase"."ai_message_feedback" to authenticated;
-create policy ai_message_feedback_own_read on "better_supabase"."ai_message_feedback"
+create policy bsb_ai_message_feedback_own_read on "better_supabase"."ai_message_feedback"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -366,7 +366,7 @@ alter table "better_supabase"."ai_run_steps" enable row level security;
 revoke all on "better_supabase"."ai_run_steps" from public, anon, authenticated;
 grant all on "better_supabase"."ai_run_steps" to service_role;
 grant select on "better_supabase"."ai_run_steps" to authenticated;
-create policy ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
+create policy bsb_ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
@@ -2100,7 +2100,7 @@ alter table "better_supabase"."ai_sandboxes" enable row level security;
 revoke all on "better_supabase"."ai_sandboxes" from public, anon, authenticated;
 grant select on "better_supabase"."ai_sandboxes" to authenticated;
 grant all on "better_supabase"."ai_sandboxes" to service_role;
-create policy ai_sandboxes_read on "better_supabase"."ai_sandboxes"
+create policy bsb_ai_sandboxes_read on "better_supabase"."ai_sandboxes"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_chat.manage')));
 

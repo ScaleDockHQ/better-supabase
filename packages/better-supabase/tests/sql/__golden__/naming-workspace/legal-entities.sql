@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:2d74f31aacf8b444c46dedb7b5ea355e1c7cc2a67faf2a452295095743c34bd7
+-- @bsb-hash sha256:a6b861309cb68ba9cfd30ea8f58362379700deb38259b3e8d772800a5af8866c
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,7 +41,7 @@ alter table "better_supabase"."legal_entities" enable row level security;
 revoke all on "better_supabase"."legal_entities" from public, anon, authenticated;
 grant select on "better_supabase"."legal_entities" to authenticated;
 grant all on "better_supabase"."legal_entities" to service_role;
-create policy legal_entities_read on "better_supabase"."legal_entities"
+create policy bsb_legal_entities_read on "better_supabase"."legal_entities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
 
@@ -63,7 +63,7 @@ alter table "better_supabase"."legal_entity_settings" enable row level security;
 revoke all on "better_supabase"."legal_entity_settings" from public, anon, authenticated;
 grant select on "better_supabase"."legal_entity_settings" to authenticated;
 grant all on "better_supabase"."legal_entity_settings" to service_role;
-create policy legal_entity_settings_read on "better_supabase"."legal_entity_settings"
+create policy bsb_legal_entity_settings_read on "better_supabase"."legal_entity_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
 

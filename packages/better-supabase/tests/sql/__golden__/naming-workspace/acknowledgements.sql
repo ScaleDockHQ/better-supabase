@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:8aff955eed29ba9bd0fad47105d0f659a058e84b3a81ec2722fa16c70947d5ec
+-- @bsb-hash sha256:7b68740d2156f656ebbe67f4c7243e35e0c6878094069ba30681e98d9632f8f0
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,7 @@ alter table "better_supabase"."acknowledgement_assignments" enable row level sec
 revoke all on "better_supabase"."acknowledgement_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgement_assignments" to authenticated;
 grant all on "better_supabase"."acknowledgement_assignments" to service_role;
-create policy acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments"
+create policy bsb_acknowledgement_assignments_read on "better_supabase"."acknowledgement_assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 
@@ -51,7 +51,7 @@ alter table "better_supabase"."acknowledgements" enable row level security;
 revoke all on "better_supabase"."acknowledgements" from public, anon, authenticated;
 grant select on "better_supabase"."acknowledgements" to authenticated;
 grant all on "better_supabase"."acknowledgements" to service_role;
-create policy acknowledgements_read on "better_supabase"."acknowledgements"
+create policy bsb_acknowledgements_read on "better_supabase"."acknowledgements"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('acknowledgements.read')));
 

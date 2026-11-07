@@ -1,6 +1,6 @@
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:7c44057afb5424946fa1a04dc963c2dc4c5188d35b258bf8321f6648503354a5
+-- @bsb-hash sha256:3ce3e8b5f96b55d34509e6eca839f291cd0c3623e441005c9719084540db2da5
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,7 +38,7 @@ alter table "better_supabase"."inboxes" enable row level security;
 revoke all on "better_supabase"."inboxes" from public, anon, authenticated;
 grant select on "better_supabase"."inboxes" to authenticated;
 grant all on "better_supabase"."inboxes" to service_role;
-create policy inboxes_staff_read on "better_supabase"."inboxes"
+create policy bsb_inboxes_staff_read on "better_supabase"."inboxes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
@@ -54,7 +54,7 @@ alter table "better_supabase"."inbox_members" enable row level security;
 revoke all on "better_supabase"."inbox_members" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_members" to authenticated;
 grant all on "better_supabase"."inbox_members" to service_role;
-create policy inbox_members_staff_read on "better_supabase"."inbox_members"
+create policy bsb_inbox_members_staff_read on "better_supabase"."inbox_members"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."inboxes" i where i."id" = "inbox_id" and i."tenant_id" in (select better_supabase.tenant_ids_with('inbox.read'))));
 
@@ -118,7 +118,7 @@ alter table "better_supabase"."inbox_conversation_events" enable row level secur
 revoke all on "better_supabase"."inbox_conversation_events" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_conversation_events" to authenticated;
 grant all on "better_supabase"."inbox_conversation_events" to service_role;
-create policy inbox_conversation_events_staff_read on "better_supabase"."inbox_conversation_events"
+create policy bsb_inbox_conversation_events_staff_read on "better_supabase"."inbox_conversation_events"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
@@ -140,7 +140,7 @@ alter table "better_supabase"."inbox_message_details" enable row level security;
 revoke all on "better_supabase"."inbox_message_details" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_message_details" to authenticated;
 grant all on "better_supabase"."inbox_message_details" to service_role;
-create policy inbox_message_details_staff_read on "better_supabase"."inbox_message_details"
+create policy bsb_inbox_message_details_staff_read on "better_supabase"."inbox_message_details"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
@@ -170,7 +170,7 @@ alter table "better_supabase"."inbox_message_deliveries" enable row level securi
 revoke all on "better_supabase"."inbox_message_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_message_deliveries" to authenticated;
 grant all on "better_supabase"."inbox_message_deliveries" to service_role;
-create policy inbox_message_deliveries_staff_read on "better_supabase"."inbox_message_deliveries"
+create policy bsb_inbox_message_deliveries_staff_read on "better_supabase"."inbox_message_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
@@ -226,7 +226,7 @@ alter table "better_supabase"."inbox_message_templates" enable row level securit
 revoke all on "better_supabase"."inbox_message_templates" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_message_templates" to authenticated;
 grant all on "better_supabase"."inbox_message_templates" to service_role;
-create policy inbox_message_templates_staff_read on "better_supabase"."inbox_message_templates"
+create policy bsb_inbox_message_templates_staff_read on "better_supabase"."inbox_message_templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')));
 
@@ -253,7 +253,7 @@ alter table "better_supabase"."scheduled_inbox_messages" enable row level securi
 revoke all on "better_supabase"."scheduled_inbox_messages" from public, anon, authenticated;
 grant select on "better_supabase"."scheduled_inbox_messages" to authenticated;
 grant all on "better_supabase"."scheduled_inbox_messages" to service_role;
-create policy scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages"
+create policy bsb_scheduled_inbox_messages_author_read on "better_supabase"."scheduled_inbox_messages"
   for select to authenticated
   using ("author_id" = (select auth.uid()) and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
 
@@ -283,7 +283,7 @@ alter table "better_supabase"."inbox_drafts" enable row level security;
 revoke all on "better_supabase"."inbox_drafts" from public, anon, authenticated;
 grant select on "better_supabase"."inbox_drafts" to authenticated;
 grant all on "better_supabase"."inbox_drafts" to service_role;
-create policy inbox_drafts_read on "better_supabase"."inbox_drafts"
+create policy bsb_inbox_drafts_read on "better_supabase"."inbox_drafts"
   for select to authenticated
   using (("author_id" = (select auth.uid()) or "source" = 'ai') and "tenant_id" in (select better_supabase.tenant_ids_with('inbox.reply')));
 
@@ -368,7 +368,7 @@ $$;
 revoke execute on function "better_supabase"."inbox_can_conversation"(uuid, text) from public, anon, authenticated;
 grant execute on function "better_supabase"."inbox_can_conversation"(uuid, text) to authenticated, service_role;
 
-create policy conversations_read on "better_supabase"."inbox_conversations"
+create policy bsb_conversations_read on "better_supabase"."inbox_conversations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inbox.read')) or "contact_id" in (select "better_supabase"."inbox_contact_ids"()));
 

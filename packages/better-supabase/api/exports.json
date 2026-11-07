@@ -9255,6 +9255,7 @@
       "blockReadRoles",
       "blockSqlVersion",
       "blockTables",
+      "bsbPolicyName",
       "buildModel",
       "catalogPolicy",
       "checkedValueMaps",

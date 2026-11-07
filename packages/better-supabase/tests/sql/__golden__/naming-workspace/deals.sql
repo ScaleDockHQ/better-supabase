@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_deals.sql
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:ac4c5d9fddc963c91154407ee2047eb347225fb048dded7062bee47e38192cb3
+-- @bsb-hash sha256:640643c1f9eef9ef1764cddd7381aadd2ee3152166fd5e31bb6ff11092e8151c
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -100,13 +100,13 @@ grant all on "better_supabase"."deal_members" to service_role;
 -- A deal is visible to members with deals.read; with readAll off, only to
 -- its owner, its team and members with deals.manage. The team policy reads
 -- no deal, so the two policies don't recurse.
-create policy deals_read on "better_supabase"."deals"
+create policy bsb_deals_read on "better_supabase"."deals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
-create policy deal_contacts_read on "better_supabase"."deal_contacts"
+create policy bsb_deal_contacts_read on "better_supabase"."deal_contacts"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."deals" x where x."id" = "deal_id") and "better_supabase"."can_subject"("contact_type", "contact_id", 'read'));
-create policy deal_members_read on "better_supabase"."deal_members"
+create policy bsb_deal_members_read on "better_supabase"."deal_members"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('deals.read')));
 
@@ -604,7 +604,7 @@ alter table "better_supabase"."deal_lines" enable row level security;
 revoke all on "better_supabase"."deal_lines" from public, anon, authenticated;
 grant select on "better_supabase"."deal_lines" to authenticated;
 grant all on "better_supabase"."deal_lines" to service_role;
-create policy "deal_lines_read" on "better_supabase"."deal_lines" for select to authenticated
+create policy bsb_deal_lines_read on "better_supabase"."deal_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."deals" x where x."id" = "parent_id"));
 
 -- Writes a record's totals from its lines. A record without lines keeps

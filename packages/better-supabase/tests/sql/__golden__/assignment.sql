@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:6c29f4cb7c14d18ac06e87be868a194f9758e82bf6d8a51cf8ecc8c1d1ddbd42
+-- @bsb-hash sha256:a1d5e8adc7f1af9a88ca45c7b3297c78afb60927bb9336816f91ac0aedfe053f
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -58,13 +58,13 @@ alter table "better_supabase"."assignments" enable row level security;
 revoke all on "better_supabase"."assignments" from public, anon, authenticated;
 grant select on "better_supabase"."assignments" to authenticated;
 grant all on "better_supabase"."assignments" to service_role;
-create policy assignment_queues_read on "better_supabase"."assignment_queues"
+create policy bsb_assignment_queues_read on "better_supabase"."assignment_queues"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
-create policy assignment_queue_members_read on "better_supabase"."assignment_queue_members"
+create policy bsb_assignment_queue_members_read on "better_supabase"."assignment_queue_members"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
-create policy assignments_read on "better_supabase"."assignments"
+create policy bsb_assignments_read on "better_supabase"."assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 
@@ -419,7 +419,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:99aed0ec94ed8d272142ff274352da9f472c258b24a0f917822d8e78b925deae
+-- @bsb-hash sha256:f2b296fc55b6e6a686c38cf8a10f23188ba20b8c36d77291b4da9bcdde14f483
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -476,13 +476,13 @@ alter table "better_supabase"."assignments" enable row level security;
 revoke all on "better_supabase"."assignments" from public, anon, authenticated;
 grant select on "better_supabase"."assignments" to authenticated;
 grant all on "better_supabase"."assignments" to service_role;
-create policy assignment_queues_read on "better_supabase"."assignment_queues"
+create policy bsb_assignment_queues_read on "better_supabase"."assignment_queues"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
-create policy assignment_queue_members_read on "better_supabase"."assignment_queue_members"
+create policy bsb_assignment_queue_members_read on "better_supabase"."assignment_queue_members"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
-create policy assignments_read on "better_supabase"."assignments"
+create policy bsb_assignments_read on "better_supabase"."assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 
@@ -840,7 +840,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:99fef1c455f7221de3b2498fcbe95bbaa59d1957228bebf358f2fa32c91ca8db
+-- @bsb-hash sha256:f28c16263bb7ce34feb3cf617a1a458ce6b0720117208043165956dcb4e41e8a
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -902,13 +902,13 @@ alter table "app_private"."assignments" enable row level security;
 revoke all on "app_private"."assignments" from public, anon, authenticated;
 grant select on "app_private"."assignments" to authenticated;
 grant all on "app_private"."assignments" to service_role;
-create policy assignment_queues_read on "app_private"."assignment_queues"
+create policy bsb_assignment_queues_read on "app_private"."assignment_queues"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
-create policy assignment_queue_members_read on "app_private"."assignment_queue_members"
+create policy bsb_assignment_queue_members_read on "app_private"."assignment_queue_members"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
-create policy assignments_read on "app_private"."assignments"
+create policy bsb_assignments_read on "app_private"."assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 
@@ -1263,7 +1263,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:d10b46d1f3ef069d5e030339f3c3bb88cec73ac447833ab0750f4ad80aba951b
+-- @bsb-hash sha256:175f3a08ae613320c5e2a617f46f8c05dca6cd601c543e0dec61fd39da567361
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1320,13 +1320,13 @@ alter table "better_supabase"."assignments" enable row level security;
 revoke all on "better_supabase"."assignments" from public, anon, authenticated;
 grant select on "better_supabase"."assignments" to authenticated;
 grant all on "better_supabase"."assignments" to service_role;
-create policy assignment_queues_read on "better_supabase"."assignment_queues"
+create policy bsb_assignment_queues_read on "better_supabase"."assignment_queues"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
-create policy assignment_queue_members_read on "better_supabase"."assignment_queue_members"
+create policy bsb_assignment_queue_members_read on "better_supabase"."assignment_queue_members"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
-create policy assignments_read on "better_supabase"."assignments"
+create policy bsb_assignments_read on "better_supabase"."assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 
@@ -2152,7 +2152,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:23dd8b3daf527a560c247aa0fdd6f0846043720cd680f055a505fb142a603e8a
+-- @bsb-hash sha256:9866bcc66a289f25b200670ce93d56206d1e8c056890affa02df6cb68afe8358
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2209,13 +2209,13 @@ alter table "better_supabase"."assignments" enable row level security;
 revoke all on "better_supabase"."assignments" from public, anon, authenticated;
 grant select on "better_supabase"."assignments" to authenticated;
 grant all on "better_supabase"."assignments" to service_role;
-create policy assignment_queues_read on "better_supabase"."assignment_queues"
+create policy bsb_assignment_queues_read on "better_supabase"."assignment_queues"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('assignment.read')));
-create policy assignment_queue_members_read on "better_supabase"."assignment_queue_members"
+create policy bsb_assignment_queue_members_read on "better_supabase"."assignment_queue_members"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('assignment.read')));
-create policy assignments_read on "better_supabase"."assignments"
+create policy bsb_assignments_read on "better_supabase"."assignments"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('assignment.read')));
 

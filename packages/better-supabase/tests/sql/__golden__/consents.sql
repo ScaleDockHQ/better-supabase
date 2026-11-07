@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:c618439484cc753c2d32aa027dc26a826168f49b3a0c60cf4ede064136ccc1fb
+-- @bsb-hash sha256:38ab813a04c74923db6562320a906d913b3267af9c5be54637fc10a0c5ded692
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,7 @@ alter table "better_supabase"."consent_purposes" enable row level security;
 revoke all on "better_supabase"."consent_purposes" from public, anon, authenticated;
 grant select on "better_supabase"."consent_purposes" to authenticated;
 grant all on "better_supabase"."consent_purposes" to service_role;
-create policy consent_purposes_read on "better_supabase"."consent_purposes"
+create policy bsb_consent_purposes_read on "better_supabase"."consent_purposes"
   for select to authenticated
   using ("tenant_id" is null or "tenant_id" in (select better_supabase.member_organization_ids()));
 create table "better_supabase"."consents" (
@@ -65,7 +65,7 @@ alter table "better_supabase"."consents" enable row level security;
 revoke all on "better_supabase"."consents" from public, anon, authenticated;
 grant select on "better_supabase"."consents" to authenticated;
 grant all on "better_supabase"."consents" to service_role;
-create policy consents_read on "better_supabase"."consents"
+create policy bsb_consents_read on "better_supabase"."consents"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()));
 
@@ -89,7 +89,7 @@ alter table "better_supabase"."consent_signals" enable row level security;
 revoke all on "better_supabase"."consent_signals" from public, anon, authenticated;
 grant select on "better_supabase"."consent_signals" to authenticated;
 grant all on "better_supabase"."consent_signals" to service_role;
-create policy consent_signals_read on "better_supabase"."consent_signals"
+create policy bsb_consent_signals_read on "better_supabase"."consent_signals"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()));
 
@@ -112,7 +112,7 @@ alter table "better_supabase"."consent_receipts" enable row level security;
 revoke all on "better_supabase"."consent_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."consent_receipts" to authenticated;
 grant all on "better_supabase"."consent_receipts" to service_role;
-create policy consent_receipts_read on "better_supabase"."consent_receipts"
+create policy bsb_consent_receipts_read on "better_supabase"."consent_receipts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -1042,7 +1042,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:d85e8801c7e3157b21d713880443595bcd98c9e033106688d9589b339bcea2ee
+-- @bsb-hash sha256:78de5df6c71b69ea226b978b1d8806f6ddedc06091f44dec1c9b0c12d4cf6907
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1069,7 +1069,7 @@ alter table "better_supabase"."consent_purposes" enable row level security;
 revoke all on "better_supabase"."consent_purposes" from public, anon, authenticated;
 grant select on "better_supabase"."consent_purposes" to authenticated;
 grant all on "better_supabase"."consent_purposes" to service_role;
-create policy consent_purposes_read on "better_supabase"."consent_purposes"
+create policy bsb_consent_purposes_read on "better_supabase"."consent_purposes"
   for select to authenticated
   using ("tenant_id" is null or "tenant_id" in (select better_supabase.member_organization_ids()));
 create table "better_supabase"."consents" (
@@ -1106,7 +1106,7 @@ alter table "better_supabase"."consents" enable row level security;
 revoke all on "better_supabase"."consents" from public, anon, authenticated;
 grant select on "better_supabase"."consents" to authenticated;
 grant all on "better_supabase"."consents" to service_role;
-create policy consents_read on "better_supabase"."consents"
+create policy bsb_consents_read on "better_supabase"."consents"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()));
 
@@ -1130,7 +1130,7 @@ alter table "better_supabase"."consent_signals" enable row level security;
 revoke all on "better_supabase"."consent_signals" from public, anon, authenticated;
 grant select on "better_supabase"."consent_signals" to authenticated;
 grant all on "better_supabase"."consent_signals" to service_role;
-create policy consent_signals_read on "better_supabase"."consent_signals"
+create policy bsb_consent_signals_read on "better_supabase"."consent_signals"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()));
 
@@ -1153,7 +1153,7 @@ alter table "better_supabase"."consent_receipts" enable row level security;
 revoke all on "better_supabase"."consent_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."consent_receipts" to authenticated;
 grant all on "better_supabase"."consent_receipts" to service_role;
-create policy consent_receipts_read on "better_supabase"."consent_receipts"
+create policy bsb_consent_receipts_read on "better_supabase"."consent_receipts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -2304,7 +2304,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:117ffcc7be3ebb2590fb8bad798bedbc94744b16d96f3b243a8eb3e9651689e1
+-- @bsb-hash sha256:68654a3760b25f4966f2013c389ca31ea7c15ec767f756db0143f7092bb03087
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2336,7 +2336,7 @@ alter table "app_private"."consent_purposes" enable row level security;
 revoke all on "app_private"."consent_purposes" from public, anon, authenticated;
 grant select on "app_private"."consent_purposes" to authenticated;
 grant all on "app_private"."consent_purposes" to service_role;
-create policy consent_purposes_read on "app_private"."consent_purposes"
+create policy bsb_consent_purposes_read on "app_private"."consent_purposes"
   for select to authenticated
   using ("tenant_id" is null or "tenant_id" in (select better_supabase.member_organization_ids()));
 create table "app_private"."consents" (
@@ -2373,7 +2373,7 @@ alter table "app_private"."consents" enable row level security;
 revoke all on "app_private"."consents" from public, anon, authenticated;
 grant select on "app_private"."consents" to authenticated;
 grant all on "app_private"."consents" to service_role;
-create policy consents_read on "app_private"."consents"
+create policy bsb_consents_read on "app_private"."consents"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()));
 
@@ -2397,7 +2397,7 @@ alter table "app_private"."consent_signals" enable row level security;
 revoke all on "app_private"."consent_signals" from public, anon, authenticated;
 grant select on "app_private"."consent_signals" to authenticated;
 grant all on "app_private"."consent_signals" to service_role;
-create policy consent_signals_read on "app_private"."consent_signals"
+create policy bsb_consent_signals_read on "app_private"."consent_signals"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()));
 
@@ -2420,7 +2420,7 @@ alter table "app_private"."consent_receipts" enable row level security;
 revoke all on "app_private"."consent_receipts" from public, anon, authenticated;
 grant select on "app_private"."consent_receipts" to authenticated;
 grant all on "app_private"."consent_receipts" to service_role;
-create policy consent_receipts_read on "app_private"."consent_receipts"
+create policy bsb_consent_receipts_read on "app_private"."consent_receipts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -3350,7 +3350,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:cadff854f48155be760e3f36fa2cd350a8a7bbd984d5e6d8aa5bad6084362a78
+-- @bsb-hash sha256:d74388091f839cbd259b78e0b86f4d7b4fced7e9a3530c1eb8d4d01864d6d3df
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3377,7 +3377,7 @@ alter table "better_supabase"."consent_purposes" enable row level security;
 revoke all on "better_supabase"."consent_purposes" from public, anon, authenticated;
 grant select on "better_supabase"."consent_purposes" to authenticated;
 grant all on "better_supabase"."consent_purposes" to service_role;
-create policy consent_purposes_read on "better_supabase"."consent_purposes"
+create policy bsb_consent_purposes_read on "better_supabase"."consent_purposes"
   for select to authenticated
   using ("tenant_id" is null or "tenant_id" in (select better_supabase.member_organization_ids()));
 create table "better_supabase"."consents" (
@@ -3414,7 +3414,7 @@ alter table "better_supabase"."consents" enable row level security;
 revoke all on "better_supabase"."consents" from public, anon, authenticated;
 grant select on "better_supabase"."consents" to authenticated;
 grant all on "better_supabase"."consents" to service_role;
-create policy consents_read on "better_supabase"."consents"
+create policy bsb_consents_read on "better_supabase"."consents"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()));
 
@@ -3438,7 +3438,7 @@ alter table "better_supabase"."consent_signals" enable row level security;
 revoke all on "better_supabase"."consent_signals" from public, anon, authenticated;
 grant select on "better_supabase"."consent_signals" to authenticated;
 grant all on "better_supabase"."consent_signals" to service_role;
-create policy consent_signals_read on "better_supabase"."consent_signals"
+create policy bsb_consent_signals_read on "better_supabase"."consent_signals"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()));
 
@@ -3461,7 +3461,7 @@ alter table "better_supabase"."consent_receipts" enable row level security;
 revoke all on "better_supabase"."consent_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."consent_receipts" to authenticated;
 grant all on "better_supabase"."consent_receipts" to service_role;
-create policy consent_receipts_read on "better_supabase"."consent_receipts"
+create policy bsb_consent_receipts_read on "better_supabase"."consent_receipts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -5548,7 +5548,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:0142032622ebaa3c91bb15841147b18a03cea2c6d851b8c58523bcf685ff7843
+-- @bsb-hash sha256:f5bc62acbe67a60f484b48ce6ddb87554d697e665ff5c255d741297883ad50ca
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5575,7 +5575,7 @@ alter table "better_supabase"."consent_purposes" enable row level security;
 revoke all on "better_supabase"."consent_purposes" from public, anon, authenticated;
 grant select on "better_supabase"."consent_purposes" to authenticated;
 grant all on "better_supabase"."consent_purposes" to service_role;
-create policy consent_purposes_read on "better_supabase"."consent_purposes"
+create policy bsb_consent_purposes_read on "better_supabase"."consent_purposes"
   for select to authenticated
   using ("org_id" is null or "org_id" in (select better_supabase.member_organization_ids()));
 create table "better_supabase"."consents" (
@@ -5612,7 +5612,7 @@ alter table "better_supabase"."consents" enable row level security;
 revoke all on "better_supabase"."consents" from public, anon, authenticated;
 grant select on "better_supabase"."consents" to authenticated;
 grant all on "better_supabase"."consents" to service_role;
-create policy consents_read on "better_supabase"."consents"
+create policy bsb_consents_read on "better_supabase"."consents"
   for select to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "given_by_user_id" = (select auth.uid()));
 
@@ -5636,7 +5636,7 @@ alter table "better_supabase"."consent_signals" enable row level security;
 revoke all on "better_supabase"."consent_signals" from public, anon, authenticated;
 grant select on "better_supabase"."consent_signals" to authenticated;
 grant all on "better_supabase"."consent_signals" to service_role;
-create policy consent_signals_read on "better_supabase"."consent_signals"
+create policy bsb_consent_signals_read on "better_supabase"."consent_signals"
   for select to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or "created_by" = (select auth.uid()));
 
@@ -5659,7 +5659,7 @@ alter table "better_supabase"."consent_receipts" enable row level security;
 revoke all on "better_supabase"."consent_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."consent_receipts" to authenticated;
 grant all on "better_supabase"."consent_receipts" to service_role;
-create policy consent_receipts_read on "better_supabase"."consent_receipts"
+create policy bsb_consent_receipts_read on "better_supabase"."consent_receipts"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('consents.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:236b83972c4bebe765e5fdbb4d4984208345a5d975b46e0dfaa6dae12b2d8ae5
+-- @bsb-hash sha256:49e8c247c586ace625e11e50d863ce4e66b1a839a0514959ff3263c837e80e16
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -32,7 +32,7 @@ alter table "better_supabase"."donation_funds" enable row level security;
 revoke all on "better_supabase"."donation_funds" from public, anon, authenticated;
 grant select on "better_supabase"."donation_funds" to authenticated;
 grant all on "better_supabase"."donation_funds" to service_role;
-create policy donation_funds_read on "better_supabase"."donation_funds"
+create policy bsb_donation_funds_read on "better_supabase"."donation_funds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -66,7 +66,7 @@ alter table "better_supabase"."pledges" enable row level security;
 revoke all on "better_supabase"."pledges" from public, anon, authenticated;
 grant select on "better_supabase"."pledges" to authenticated;
 grant all on "better_supabase"."pledges" to service_role;
-create policy pledges_read on "better_supabase"."pledges"
+create policy bsb_pledges_read on "better_supabase"."pledges"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -94,7 +94,7 @@ alter table "better_supabase"."donation_receipts" enable row level security;
 revoke all on "better_supabase"."donation_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."donation_receipts" to authenticated;
 grant all on "better_supabase"."donation_receipts" to service_role;
-create policy donation_receipts_read on "better_supabase"."donation_receipts"
+create policy bsb_donation_receipts_read on "better_supabase"."donation_receipts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -136,7 +136,7 @@ alter table "better_supabase"."donations" enable row level security;
 revoke all on "better_supabase"."donations" from public, anon, authenticated;
 grant select on "better_supabase"."donations" to authenticated;
 grant all on "better_supabase"."donations" to service_role;
-create policy donations_read on "better_supabase"."donations"
+create policy bsb_donations_read on "better_supabase"."donations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -986,7 +986,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:7359c6067a92387e4a921f729a40472716e066a8af9bcc7c981b7114267cd02b
+-- @bsb-hash sha256:2d041a5b50cd148e52e6f3499d86902b81947c71998dcf4bd8e1621d4cde5be9
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1017,7 +1017,7 @@ alter table "better_supabase"."donation_funds" enable row level security;
 revoke all on "better_supabase"."donation_funds" from public, anon, authenticated;
 grant select on "better_supabase"."donation_funds" to authenticated;
 grant all on "better_supabase"."donation_funds" to service_role;
-create policy donation_funds_read on "better_supabase"."donation_funds"
+create policy bsb_donation_funds_read on "better_supabase"."donation_funds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -1051,7 +1051,7 @@ alter table "better_supabase"."pledges" enable row level security;
 revoke all on "better_supabase"."pledges" from public, anon, authenticated;
 grant select on "better_supabase"."pledges" to authenticated;
 grant all on "better_supabase"."pledges" to service_role;
-create policy pledges_read on "better_supabase"."pledges"
+create policy bsb_pledges_read on "better_supabase"."pledges"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -1079,7 +1079,7 @@ alter table "better_supabase"."donation_receipts" enable row level security;
 revoke all on "better_supabase"."donation_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."donation_receipts" to authenticated;
 grant all on "better_supabase"."donation_receipts" to service_role;
-create policy donation_receipts_read on "better_supabase"."donation_receipts"
+create policy bsb_donation_receipts_read on "better_supabase"."donation_receipts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -1121,7 +1121,7 @@ alter table "better_supabase"."donations" enable row level security;
 revoke all on "better_supabase"."donations" from public, anon, authenticated;
 grant select on "better_supabase"."donations" to authenticated;
 grant all on "better_supabase"."donations" to service_role;
-create policy donations_read on "better_supabase"."donations"
+create policy bsb_donations_read on "better_supabase"."donations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -2076,7 +2076,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:13fac87e19573c3f5956e22049b60e0696d0ac761feed6533d13af2e75bbc8a0
+-- @bsb-hash sha256:cdeb9dcfd88bf96c26d386e3b3e1e86cb2607b7b11c686a019f5290f14217fb1
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2112,7 +2112,7 @@ alter table "app_private"."donation_funds" enable row level security;
 revoke all on "app_private"."donation_funds" from public, anon, authenticated;
 grant select on "app_private"."donation_funds" to authenticated;
 grant all on "app_private"."donation_funds" to service_role;
-create policy donation_funds_read on "app_private"."donation_funds"
+create policy bsb_donation_funds_read on "app_private"."donation_funds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -2146,7 +2146,7 @@ alter table "app_private"."pledges" enable row level security;
 revoke all on "app_private"."pledges" from public, anon, authenticated;
 grant select on "app_private"."pledges" to authenticated;
 grant all on "app_private"."pledges" to service_role;
-create policy pledges_read on "app_private"."pledges"
+create policy bsb_pledges_read on "app_private"."pledges"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -2174,7 +2174,7 @@ alter table "app_private"."donation_receipts" enable row level security;
 revoke all on "app_private"."donation_receipts" from public, anon, authenticated;
 grant select on "app_private"."donation_receipts" to authenticated;
 grant all on "app_private"."donation_receipts" to service_role;
-create policy donation_receipts_read on "app_private"."donation_receipts"
+create policy bsb_donation_receipts_read on "app_private"."donation_receipts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -2216,7 +2216,7 @@ alter table "app_private"."donations" enable row level security;
 revoke all on "app_private"."donations" from public, anon, authenticated;
 grant select on "app_private"."donations" to authenticated;
 grant all on "app_private"."donations" to service_role;
-create policy donations_read on "app_private"."donations"
+create policy bsb_donations_read on "app_private"."donations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -3066,7 +3066,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:662036ce1e40d941cf13472da2cc1fac4f8367845fd58c7749b9d8f2ad6a6662
+-- @bsb-hash sha256:714979740230182cad1987c701ee4103ba2383c27e14effcaa420feccba67e4d
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3097,7 +3097,7 @@ alter table "better_supabase"."donation_funds" enable row level security;
 revoke all on "better_supabase"."donation_funds" from public, anon, authenticated;
 grant select on "better_supabase"."donation_funds" to authenticated;
 grant all on "better_supabase"."donation_funds" to service_role;
-create policy donation_funds_read on "better_supabase"."donation_funds"
+create policy bsb_donation_funds_read on "better_supabase"."donation_funds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -3131,7 +3131,7 @@ alter table "better_supabase"."pledges" enable row level security;
 revoke all on "better_supabase"."pledges" from public, anon, authenticated;
 grant select on "better_supabase"."pledges" to authenticated;
 grant all on "better_supabase"."pledges" to service_role;
-create policy pledges_read on "better_supabase"."pledges"
+create policy bsb_pledges_read on "better_supabase"."pledges"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -3159,7 +3159,7 @@ alter table "better_supabase"."donation_receipts" enable row level security;
 revoke all on "better_supabase"."donation_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."donation_receipts" to authenticated;
 grant all on "better_supabase"."donation_receipts" to service_role;
-create policy donation_receipts_read on "better_supabase"."donation_receipts"
+create policy bsb_donation_receipts_read on "better_supabase"."donation_receipts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -3201,7 +3201,7 @@ alter table "better_supabase"."donations" enable row level security;
 revoke all on "better_supabase"."donations" from public, anon, authenticated;
 grant select on "better_supabase"."donations" to authenticated;
 grant all on "better_supabase"."donations" to service_role;
-create policy donations_read on "better_supabase"."donations"
+create policy bsb_donations_read on "better_supabase"."donations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -5185,7 +5185,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_122_donations.sql
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:5977a0f57b30140cd9dfff7009f81cc8791145326af1932e93f6e92c57a27f75
+-- @bsb-hash sha256:3e930d987fc27a9a078628af17536f5cec11268fbc68dc6aae7ed99ee0fb7384
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5216,7 +5216,7 @@ alter table "better_supabase"."donation_funds" enable row level security;
 revoke all on "better_supabase"."donation_funds" from public, anon, authenticated;
 grant select on "better_supabase"."donation_funds" to authenticated;
 grant all on "better_supabase"."donation_funds" to service_role;
-create policy donation_funds_read on "better_supabase"."donation_funds"
+create policy bsb_donation_funds_read on "better_supabase"."donation_funds"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -5250,7 +5250,7 @@ alter table "better_supabase"."pledges" enable row level security;
 revoke all on "better_supabase"."pledges" from public, anon, authenticated;
 grant select on "better_supabase"."pledges" to authenticated;
 grant all on "better_supabase"."pledges" to service_role;
-create policy pledges_read on "better_supabase"."pledges"
+create policy bsb_pledges_read on "better_supabase"."pledges"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -5278,7 +5278,7 @@ alter table "better_supabase"."donation_receipts" enable row level security;
 revoke all on "better_supabase"."donation_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."donation_receipts" to authenticated;
 grant all on "better_supabase"."donation_receipts" to service_role;
-create policy donation_receipts_read on "better_supabase"."donation_receipts"
+create policy bsb_donation_receipts_read on "better_supabase"."donation_receipts"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('donations.read')));
 
@@ -5320,7 +5320,7 @@ alter table "better_supabase"."donations" enable row level security;
 revoke all on "better_supabase"."donations" from public, anon, authenticated;
 grant select on "better_supabase"."donations" to authenticated;
 grant all on "better_supabase"."donations" to service_role;
-create policy donations_read on "better_supabase"."donations"
+create policy bsb_donations_read on "better_supabase"."donations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('donations.read')));
 

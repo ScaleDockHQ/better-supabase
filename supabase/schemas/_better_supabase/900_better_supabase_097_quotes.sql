@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:6b152e50521cecadd15ba355fa4d84aad3f7541a04a77b3327fa91881fad52eb
+-- @bsb-hash sha256:ca9ab777e777d51d503c1c4bc7428b267d82531126673b9f31d587b651d122f1
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -69,7 +69,7 @@ alter table "better_supabase"."quotes" enable row level security;
 revoke all on "better_supabase"."quotes" from public, anon, authenticated;
 grant select on "better_supabase"."quotes" to authenticated;
 grant all on "better_supabase"."quotes" to service_role;
-create policy quotes_read on "better_supabase"."quotes"
+create policy bsb_quotes_read on "better_supabase"."quotes"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('quotes.read'))) or ("status" <> 'draft' and ((("tenant_id")::text, ('quote')::text, ("id"::text)::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) or (("tenant_id")::text, ("company_type")::text, ("company_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g) or (("tenant_id")::text, ("contact_type")::text, ("contact_id")::text) in (select g.tenant, g.party_type, g.party_id from better_supabase.portal_parties() g))));
 
@@ -89,7 +89,7 @@ alter table "better_supabase"."quote_versions" enable row level security;
 revoke all on "better_supabase"."quote_versions" from public, anon, authenticated;
 grant select on "better_supabase"."quote_versions" to authenticated;
 grant all on "better_supabase"."quote_versions" to service_role;
-create policy quote_versions_read on "better_supabase"."quote_versions"
+create policy bsb_quote_versions_read on "better_supabase"."quote_versions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."quotes" q where q."id" = "quote_id"));
 create or replace function better_supabase.bsb_quote_versions_frozen()
@@ -121,7 +121,7 @@ alter table "better_supabase"."quote_tax_lines" enable row level security;
 revoke all on "better_supabase"."quote_tax_lines" from public, anon, authenticated;
 grant select on "better_supabase"."quote_tax_lines" to authenticated;
 grant all on "better_supabase"."quote_tax_lines" to service_role;
-create policy quote_tax_lines_read on "better_supabase"."quote_tax_lines"
+create policy bsb_quote_tax_lines_read on "better_supabase"."quote_tax_lines"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."quotes" q where q."id" = "parent_id"));
 
@@ -549,7 +549,7 @@ alter table "better_supabase"."quote_lines" enable row level security;
 revoke all on "better_supabase"."quote_lines" from public, anon, authenticated;
 grant select on "better_supabase"."quote_lines" to authenticated;
 grant all on "better_supabase"."quote_lines" to service_role;
-create policy "quote_lines_read" on "better_supabase"."quote_lines" for select to authenticated
+create policy bsb_quote_lines_read on "better_supabase"."quote_lines" for select to authenticated
 using (exists (select 1 from "better_supabase"."quotes" x where x."id" = "parent_id"));
 
 -- Writes a record's totals from its counted lines: an optional line counts

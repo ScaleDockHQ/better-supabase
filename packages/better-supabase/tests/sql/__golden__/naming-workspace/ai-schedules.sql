@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:0b79ae83cf651f47bdc26a785d0b589eafa0b536d5cfd18758694485313ac21a
+-- @bsb-hash sha256:4a90372e213dc44678f2e32d1ff7f09b44a772ad102208da0d7a324e850d1321
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -32,7 +32,7 @@ alter table "better_supabase"."ai_scheduled_tasks" enable row level security;
 revoke all on "better_supabase"."ai_scheduled_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."ai_scheduled_tasks" to authenticated;
 grant all on "better_supabase"."ai_scheduled_tasks" to service_role;
-create policy ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks"
+create policy bsb_ai_scheduled_tasks_read on "better_supabase"."ai_scheduled_tasks"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
 
@@ -56,7 +56,7 @@ alter table "better_supabase"."ai_task_runs" enable row level security;
 revoke all on "better_supabase"."ai_task_runs" from public, anon, authenticated;
 grant select on "better_supabase"."ai_task_runs" to authenticated;
 grant all on "better_supabase"."ai_task_runs" to service_role;
-create policy ai_task_runs_read on "better_supabase"."ai_task_runs"
+create policy bsb_ai_task_runs_read on "better_supabase"."ai_task_runs"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai_schedules.manage')));
 

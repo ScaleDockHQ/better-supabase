@@ -1,6 +1,6 @@
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:cdb4dd8d47b06ef97e3b54a0d91dcf7e8e62bb285e2c6a8bd98ecb0018c1484b
+-- @bsb-hash sha256:17635799c0fb5c6b450bbca8a32fdcf4247edf8e4ac35d18201ea9ff417fcd20
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -40,7 +40,7 @@ alter table "better_supabase"."data_exports" enable row level security;
 revoke all on "better_supabase"."data_exports" from public, anon, authenticated;
 grant select on "better_supabase"."data_exports" to authenticated;
 grant all on "better_supabase"."data_exports" to service_role;
-create policy data_exports_read on "better_supabase"."data_exports"
+create policy bsb_data_exports_read on "better_supabase"."data_exports"
   for select to authenticated
   using ("requested_by" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 

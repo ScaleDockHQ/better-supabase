@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:2626519dc8ab504e9fea57b172e7364ecb555db06a34033f545435a44e5ff0bc
+-- @bsb-hash sha256:a005d8a9f518afc3cfde7bd2df0f9a0a1acd80eea19ea71d39db10e0c97285f9
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,7 +26,7 @@ alter table "better_supabase"."accounting_settings" enable row level security;
 revoke all on "better_supabase"."accounting_settings" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_settings" to authenticated;
 grant all on "better_supabase"."accounting_settings" to service_role;
-create policy accounting_settings_read on "better_supabase"."accounting_settings"
+create policy bsb_accounting_settings_read on "better_supabase"."accounting_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -60,7 +60,7 @@ alter table "better_supabase"."accounting_accounts" enable row level security;
 revoke all on "better_supabase"."accounting_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_accounts" to authenticated;
 grant all on "better_supabase"."accounting_accounts" to service_role;
-create policy accounting_accounts_read on "better_supabase"."accounting_accounts"
+create policy bsb_accounting_accounts_read on "better_supabase"."accounting_accounts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -76,7 +76,7 @@ alter table "better_supabase"."accounting_account_roles" enable row level securi
 revoke all on "better_supabase"."accounting_account_roles" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_account_roles" to authenticated;
 grant all on "better_supabase"."accounting_account_roles" to service_role;
-create policy accounting_account_roles_read on "better_supabase"."accounting_account_roles"
+create policy bsb_accounting_account_roles_read on "better_supabase"."accounting_account_roles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -103,7 +103,7 @@ alter table "better_supabase"."accounting_journals" enable row level security;
 revoke all on "better_supabase"."accounting_journals" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_journals" to authenticated;
 grant all on "better_supabase"."accounting_journals" to service_role;
-create policy accounting_journals_read on "better_supabase"."accounting_journals"
+create policy bsb_accounting_journals_read on "better_supabase"."accounting_journals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -130,7 +130,7 @@ alter table "better_supabase"."accounting_periods" enable row level security;
 revoke all on "better_supabase"."accounting_periods" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_periods" to authenticated;
 grant all on "better_supabase"."accounting_periods" to service_role;
-create policy accounting_periods_read on "better_supabase"."accounting_periods"
+create policy bsb_accounting_periods_read on "better_supabase"."accounting_periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -169,7 +169,7 @@ alter table "better_supabase"."accounting_entries" enable row level security;
 revoke all on "better_supabase"."accounting_entries" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entries" to authenticated;
 grant all on "better_supabase"."accounting_entries" to service_role;
-create policy accounting_entries_read on "better_supabase"."accounting_entries"
+create policy bsb_accounting_entries_read on "better_supabase"."accounting_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -186,7 +186,7 @@ alter table "better_supabase"."accounting_dimensions" enable row level security;
 revoke all on "better_supabase"."accounting_dimensions" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimensions" to authenticated;
 grant all on "better_supabase"."accounting_dimensions" to service_role;
-create policy accounting_dimensions_read on "better_supabase"."accounting_dimensions"
+create policy bsb_accounting_dimensions_read on "better_supabase"."accounting_dimensions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -203,7 +203,7 @@ alter table "better_supabase"."accounting_dimension_values" enable row level sec
 revoke all on "better_supabase"."accounting_dimension_values" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimension_values" to authenticated;
 grant all on "better_supabase"."accounting_dimension_values" to service_role;
-create policy accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
+create policy bsb_accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -222,7 +222,7 @@ alter table "better_supabase"."accounting_fx_rates" enable row level security;
 revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_fx_rates" to authenticated;
 grant all on "better_supabase"."accounting_fx_rates" to service_role;
-create policy accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
+create policy bsb_accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -257,7 +257,7 @@ alter table "better_supabase"."accounting_entry_lines" enable row level security
 revoke all on "better_supabase"."accounting_entry_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entry_lines" to authenticated;
 grant all on "better_supabase"."accounting_entry_lines" to service_role;
-create policy accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
+create policy bsb_accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -280,7 +280,7 @@ alter table "better_supabase"."accounting_opening_balances" enable row level sec
 revoke all on "better_supabase"."accounting_opening_balances" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_opening_balances" to authenticated;
 grant all on "better_supabase"."accounting_opening_balances" to service_role;
-create policy accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
+create policy bsb_accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -2690,7 +2690,7 @@ alter table "better_supabase"."accounting_budgets" enable row level security;
 revoke all on "better_supabase"."accounting_budgets" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budgets" to authenticated;
 grant all on "better_supabase"."accounting_budgets" to service_role;
-create policy accounting_budgets_read on "better_supabase"."accounting_budgets"
+create policy bsb_accounting_budgets_read on "better_supabase"."accounting_budgets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -2712,7 +2712,7 @@ alter table "better_supabase"."accounting_budget_lines" enable row level securit
 revoke all on "better_supabase"."accounting_budget_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budget_lines" to authenticated;
 grant all on "better_supabase"."accounting_budget_lines" to service_role;
-create policy accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
+create policy bsb_accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -3473,7 +3473,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:09148ab277a02e04f4b6456556cf725824bc8deac8c5aac018f2615d1697f86d
+-- @bsb-hash sha256:f908b050dabddb2a861844d30a291273e5b64b0aeb6ca7c5a2f498ad50239652
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3498,7 +3498,7 @@ alter table "better_supabase"."accounting_settings" enable row level security;
 revoke all on "better_supabase"."accounting_settings" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_settings" to authenticated;
 grant all on "better_supabase"."accounting_settings" to service_role;
-create policy accounting_settings_read on "better_supabase"."accounting_settings"
+create policy bsb_accounting_settings_read on "better_supabase"."accounting_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -3532,7 +3532,7 @@ alter table "better_supabase"."accounting_accounts" enable row level security;
 revoke all on "better_supabase"."accounting_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_accounts" to authenticated;
 grant all on "better_supabase"."accounting_accounts" to service_role;
-create policy accounting_accounts_read on "better_supabase"."accounting_accounts"
+create policy bsb_accounting_accounts_read on "better_supabase"."accounting_accounts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -3548,7 +3548,7 @@ alter table "better_supabase"."accounting_account_roles" enable row level securi
 revoke all on "better_supabase"."accounting_account_roles" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_account_roles" to authenticated;
 grant all on "better_supabase"."accounting_account_roles" to service_role;
-create policy accounting_account_roles_read on "better_supabase"."accounting_account_roles"
+create policy bsb_accounting_account_roles_read on "better_supabase"."accounting_account_roles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -3575,7 +3575,7 @@ alter table "better_supabase"."accounting_journals" enable row level security;
 revoke all on "better_supabase"."accounting_journals" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_journals" to authenticated;
 grant all on "better_supabase"."accounting_journals" to service_role;
-create policy accounting_journals_read on "better_supabase"."accounting_journals"
+create policy bsb_accounting_journals_read on "better_supabase"."accounting_journals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -3602,7 +3602,7 @@ alter table "better_supabase"."accounting_periods" enable row level security;
 revoke all on "better_supabase"."accounting_periods" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_periods" to authenticated;
 grant all on "better_supabase"."accounting_periods" to service_role;
-create policy accounting_periods_read on "better_supabase"."accounting_periods"
+create policy bsb_accounting_periods_read on "better_supabase"."accounting_periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -3641,7 +3641,7 @@ alter table "better_supabase"."accounting_entries" enable row level security;
 revoke all on "better_supabase"."accounting_entries" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entries" to authenticated;
 grant all on "better_supabase"."accounting_entries" to service_role;
-create policy accounting_entries_read on "better_supabase"."accounting_entries"
+create policy bsb_accounting_entries_read on "better_supabase"."accounting_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -3658,7 +3658,7 @@ alter table "better_supabase"."accounting_dimensions" enable row level security;
 revoke all on "better_supabase"."accounting_dimensions" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimensions" to authenticated;
 grant all on "better_supabase"."accounting_dimensions" to service_role;
-create policy accounting_dimensions_read on "better_supabase"."accounting_dimensions"
+create policy bsb_accounting_dimensions_read on "better_supabase"."accounting_dimensions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -3675,7 +3675,7 @@ alter table "better_supabase"."accounting_dimension_values" enable row level sec
 revoke all on "better_supabase"."accounting_dimension_values" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimension_values" to authenticated;
 grant all on "better_supabase"."accounting_dimension_values" to service_role;
-create policy accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
+create policy bsb_accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -3694,7 +3694,7 @@ alter table "better_supabase"."accounting_fx_rates" enable row level security;
 revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_fx_rates" to authenticated;
 grant all on "better_supabase"."accounting_fx_rates" to service_role;
-create policy accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
+create policy bsb_accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -3729,7 +3729,7 @@ alter table "better_supabase"."accounting_entry_lines" enable row level security
 revoke all on "better_supabase"."accounting_entry_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entry_lines" to authenticated;
 grant all on "better_supabase"."accounting_entry_lines" to service_role;
-create policy accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
+create policy bsb_accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -3752,7 +3752,7 @@ alter table "better_supabase"."accounting_opening_balances" enable row level sec
 revoke all on "better_supabase"."accounting_opening_balances" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_opening_balances" to authenticated;
 grant all on "better_supabase"."accounting_opening_balances" to service_role;
-create policy accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
+create policy bsb_accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -6316,7 +6316,7 @@ alter table "better_supabase"."accounting_budgets" enable row level security;
 revoke all on "better_supabase"."accounting_budgets" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budgets" to authenticated;
 grant all on "better_supabase"."accounting_budgets" to service_role;
-create policy accounting_budgets_read on "better_supabase"."accounting_budgets"
+create policy bsb_accounting_budgets_read on "better_supabase"."accounting_budgets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -6338,7 +6338,7 @@ alter table "better_supabase"."accounting_budget_lines" enable row level securit
 revoke all on "better_supabase"."accounting_budget_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budget_lines" to authenticated;
 grant all on "better_supabase"."accounting_budget_lines" to service_role;
-create policy accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
+create policy bsb_accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -7127,7 +7127,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:ccd08e60dd152dfddbbe5ec079f0c2d0c1f4a9865d282af7e313953a235405ee
+-- @bsb-hash sha256:53aa41fe3d54e257272c9616f67eebf62de6406ceeaa974c3601b6dee641f29f
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7157,7 +7157,7 @@ alter table "app_private"."accounting_settings" enable row level security;
 revoke all on "app_private"."accounting_settings" from public, anon, authenticated;
 grant select on "app_private"."accounting_settings" to authenticated;
 grant all on "app_private"."accounting_settings" to service_role;
-create policy accounting_settings_read on "app_private"."accounting_settings"
+create policy bsb_accounting_settings_read on "app_private"."accounting_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -7191,7 +7191,7 @@ alter table "app_private"."accounting_accounts" enable row level security;
 revoke all on "app_private"."accounting_accounts" from public, anon, authenticated;
 grant select on "app_private"."accounting_accounts" to authenticated;
 grant all on "app_private"."accounting_accounts" to service_role;
-create policy accounting_accounts_read on "app_private"."accounting_accounts"
+create policy bsb_accounting_accounts_read on "app_private"."accounting_accounts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -7207,7 +7207,7 @@ alter table "app_private"."accounting_account_roles" enable row level security;
 revoke all on "app_private"."accounting_account_roles" from public, anon, authenticated;
 grant select on "app_private"."accounting_account_roles" to authenticated;
 grant all on "app_private"."accounting_account_roles" to service_role;
-create policy accounting_account_roles_read on "app_private"."accounting_account_roles"
+create policy bsb_accounting_account_roles_read on "app_private"."accounting_account_roles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -7234,7 +7234,7 @@ alter table "app_private"."accounting_journals" enable row level security;
 revoke all on "app_private"."accounting_journals" from public, anon, authenticated;
 grant select on "app_private"."accounting_journals" to authenticated;
 grant all on "app_private"."accounting_journals" to service_role;
-create policy accounting_journals_read on "app_private"."accounting_journals"
+create policy bsb_accounting_journals_read on "app_private"."accounting_journals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -7261,7 +7261,7 @@ alter table "app_private"."accounting_periods" enable row level security;
 revoke all on "app_private"."accounting_periods" from public, anon, authenticated;
 grant select on "app_private"."accounting_periods" to authenticated;
 grant all on "app_private"."accounting_periods" to service_role;
-create policy accounting_periods_read on "app_private"."accounting_periods"
+create policy bsb_accounting_periods_read on "app_private"."accounting_periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -7300,7 +7300,7 @@ alter table "app_private"."accounting_entries" enable row level security;
 revoke all on "app_private"."accounting_entries" from public, anon, authenticated;
 grant select on "app_private"."accounting_entries" to authenticated;
 grant all on "app_private"."accounting_entries" to service_role;
-create policy accounting_entries_read on "app_private"."accounting_entries"
+create policy bsb_accounting_entries_read on "app_private"."accounting_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -7317,7 +7317,7 @@ alter table "app_private"."accounting_dimensions" enable row level security;
 revoke all on "app_private"."accounting_dimensions" from public, anon, authenticated;
 grant select on "app_private"."accounting_dimensions" to authenticated;
 grant all on "app_private"."accounting_dimensions" to service_role;
-create policy accounting_dimensions_read on "app_private"."accounting_dimensions"
+create policy bsb_accounting_dimensions_read on "app_private"."accounting_dimensions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -7334,7 +7334,7 @@ alter table "app_private"."accounting_dimension_values" enable row level securit
 revoke all on "app_private"."accounting_dimension_values" from public, anon, authenticated;
 grant select on "app_private"."accounting_dimension_values" to authenticated;
 grant all on "app_private"."accounting_dimension_values" to service_role;
-create policy accounting_dimension_values_read on "app_private"."accounting_dimension_values"
+create policy bsb_accounting_dimension_values_read on "app_private"."accounting_dimension_values"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -7353,7 +7353,7 @@ alter table "app_private"."accounting_fx_rates" enable row level security;
 revoke all on "app_private"."accounting_fx_rates" from public, anon, authenticated;
 grant select on "app_private"."accounting_fx_rates" to authenticated;
 grant all on "app_private"."accounting_fx_rates" to service_role;
-create policy accounting_fx_rates_read on "app_private"."accounting_fx_rates"
+create policy bsb_accounting_fx_rates_read on "app_private"."accounting_fx_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -7388,7 +7388,7 @@ alter table "app_private"."accounting_entry_lines" enable row level security;
 revoke all on "app_private"."accounting_entry_lines" from public, anon, authenticated;
 grant select on "app_private"."accounting_entry_lines" to authenticated;
 grant all on "app_private"."accounting_entry_lines" to service_role;
-create policy accounting_entry_lines_read on "app_private"."accounting_entry_lines"
+create policy bsb_accounting_entry_lines_read on "app_private"."accounting_entry_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -7411,7 +7411,7 @@ alter table "app_private"."accounting_opening_balances" enable row level securit
 revoke all on "app_private"."accounting_opening_balances" from public, anon, authenticated;
 grant select on "app_private"."accounting_opening_balances" to authenticated;
 grant all on "app_private"."accounting_opening_balances" to service_role;
-create policy accounting_opening_balances_read on "app_private"."accounting_opening_balances"
+create policy bsb_accounting_opening_balances_read on "app_private"."accounting_opening_balances"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -9821,7 +9821,7 @@ alter table "app_private"."accounting_budgets" enable row level security;
 revoke all on "app_private"."accounting_budgets" from public, anon, authenticated;
 grant select on "app_private"."accounting_budgets" to authenticated;
 grant all on "app_private"."accounting_budgets" to service_role;
-create policy accounting_budgets_read on "app_private"."accounting_budgets"
+create policy bsb_accounting_budgets_read on "app_private"."accounting_budgets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -9843,7 +9843,7 @@ alter table "app_private"."accounting_budget_lines" enable row level security;
 revoke all on "app_private"."accounting_budget_lines" from public, anon, authenticated;
 grant select on "app_private"."accounting_budget_lines" to authenticated;
 grant all on "app_private"."accounting_budget_lines" to service_role;
-create policy accounting_budget_lines_read on "app_private"."accounting_budget_lines"
+create policy bsb_accounting_budget_lines_read on "app_private"."accounting_budget_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -10604,7 +10604,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:6ce8e0778d6a2823cb98b8e4b43c84eb80a464bb554644db83128c370e24e076
+-- @bsb-hash sha256:3a7978ea90fa5eae04189b618cbf5609677a81193bf705b05cb07e43fe166a68
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10629,7 +10629,7 @@ alter table "better_supabase"."accounting_settings" enable row level security;
 revoke all on "better_supabase"."accounting_settings" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_settings" to authenticated;
 grant all on "better_supabase"."accounting_settings" to service_role;
-create policy accounting_settings_read on "better_supabase"."accounting_settings"
+create policy bsb_accounting_settings_read on "better_supabase"."accounting_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -10663,7 +10663,7 @@ alter table "better_supabase"."accounting_accounts" enable row level security;
 revoke all on "better_supabase"."accounting_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_accounts" to authenticated;
 grant all on "better_supabase"."accounting_accounts" to service_role;
-create policy accounting_accounts_read on "better_supabase"."accounting_accounts"
+create policy bsb_accounting_accounts_read on "better_supabase"."accounting_accounts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -10679,7 +10679,7 @@ alter table "better_supabase"."accounting_account_roles" enable row level securi
 revoke all on "better_supabase"."accounting_account_roles" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_account_roles" to authenticated;
 grant all on "better_supabase"."accounting_account_roles" to service_role;
-create policy accounting_account_roles_read on "better_supabase"."accounting_account_roles"
+create policy bsb_accounting_account_roles_read on "better_supabase"."accounting_account_roles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -10706,7 +10706,7 @@ alter table "better_supabase"."accounting_journals" enable row level security;
 revoke all on "better_supabase"."accounting_journals" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_journals" to authenticated;
 grant all on "better_supabase"."accounting_journals" to service_role;
-create policy accounting_journals_read on "better_supabase"."accounting_journals"
+create policy bsb_accounting_journals_read on "better_supabase"."accounting_journals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -10733,7 +10733,7 @@ alter table "better_supabase"."accounting_periods" enable row level security;
 revoke all on "better_supabase"."accounting_periods" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_periods" to authenticated;
 grant all on "better_supabase"."accounting_periods" to service_role;
-create policy accounting_periods_read on "better_supabase"."accounting_periods"
+create policy bsb_accounting_periods_read on "better_supabase"."accounting_periods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -10772,7 +10772,7 @@ alter table "better_supabase"."accounting_entries" enable row level security;
 revoke all on "better_supabase"."accounting_entries" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entries" to authenticated;
 grant all on "better_supabase"."accounting_entries" to service_role;
-create policy accounting_entries_read on "better_supabase"."accounting_entries"
+create policy bsb_accounting_entries_read on "better_supabase"."accounting_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -10789,7 +10789,7 @@ alter table "better_supabase"."accounting_dimensions" enable row level security;
 revoke all on "better_supabase"."accounting_dimensions" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimensions" to authenticated;
 grant all on "better_supabase"."accounting_dimensions" to service_role;
-create policy accounting_dimensions_read on "better_supabase"."accounting_dimensions"
+create policy bsb_accounting_dimensions_read on "better_supabase"."accounting_dimensions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -10806,7 +10806,7 @@ alter table "better_supabase"."accounting_dimension_values" enable row level sec
 revoke all on "better_supabase"."accounting_dimension_values" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimension_values" to authenticated;
 grant all on "better_supabase"."accounting_dimension_values" to service_role;
-create policy accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
+create policy bsb_accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -10825,7 +10825,7 @@ alter table "better_supabase"."accounting_fx_rates" enable row level security;
 revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_fx_rates" to authenticated;
 grant all on "better_supabase"."accounting_fx_rates" to service_role;
-create policy accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
+create policy bsb_accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -10860,7 +10860,7 @@ alter table "better_supabase"."accounting_entry_lines" enable row level security
 revoke all on "better_supabase"."accounting_entry_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entry_lines" to authenticated;
 grant all on "better_supabase"."accounting_entry_lines" to service_role;
-create policy accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
+create policy bsb_accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -10883,7 +10883,7 @@ alter table "better_supabase"."accounting_opening_balances" enable row level sec
 revoke all on "better_supabase"."accounting_opening_balances" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_opening_balances" to authenticated;
 grant all on "better_supabase"."accounting_opening_balances" to service_role;
-create policy accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
+create policy bsb_accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -13293,7 +13293,7 @@ alter table "better_supabase"."accounting_budgets" enable row level security;
 revoke all on "better_supabase"."accounting_budgets" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budgets" to authenticated;
 grant all on "better_supabase"."accounting_budgets" to service_role;
-create policy accounting_budgets_read on "better_supabase"."accounting_budgets"
+create policy bsb_accounting_budgets_read on "better_supabase"."accounting_budgets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -13315,7 +13315,7 @@ alter table "better_supabase"."accounting_budget_lines" enable row level securit
 revoke all on "better_supabase"."accounting_budget_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budget_lines" to authenticated;
 grant all on "better_supabase"."accounting_budget_lines" to service_role;
-create policy accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
+create policy bsb_accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -17955,7 +17955,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:396b90a62009a90867f010e7bba7ac5c42f03dc8b18f6a693d4f5b992abbb245
+-- @bsb-hash sha256:b0b53af7311b3d15aba2d83a07a505f162d3bb1a9c1d5eae6bff3cc2846f1822
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17980,7 +17980,7 @@ alter table "better_supabase"."accounting_settings" enable row level security;
 revoke all on "better_supabase"."accounting_settings" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_settings" to authenticated;
 grant all on "better_supabase"."accounting_settings" to service_role;
-create policy accounting_settings_read on "better_supabase"."accounting_settings"
+create policy bsb_accounting_settings_read on "better_supabase"."accounting_settings"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -18014,7 +18014,7 @@ alter table "better_supabase"."accounting_accounts" enable row level security;
 revoke all on "better_supabase"."accounting_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_accounts" to authenticated;
 grant all on "better_supabase"."accounting_accounts" to service_role;
-create policy accounting_accounts_read on "better_supabase"."accounting_accounts"
+create policy bsb_accounting_accounts_read on "better_supabase"."accounting_accounts"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -18030,7 +18030,7 @@ alter table "better_supabase"."accounting_account_roles" enable row level securi
 revoke all on "better_supabase"."accounting_account_roles" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_account_roles" to authenticated;
 grant all on "better_supabase"."accounting_account_roles" to service_role;
-create policy accounting_account_roles_read on "better_supabase"."accounting_account_roles"
+create policy bsb_accounting_account_roles_read on "better_supabase"."accounting_account_roles"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -18057,7 +18057,7 @@ alter table "better_supabase"."accounting_journals" enable row level security;
 revoke all on "better_supabase"."accounting_journals" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_journals" to authenticated;
 grant all on "better_supabase"."accounting_journals" to service_role;
-create policy accounting_journals_read on "better_supabase"."accounting_journals"
+create policy bsb_accounting_journals_read on "better_supabase"."accounting_journals"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -18084,7 +18084,7 @@ alter table "better_supabase"."accounting_periods" enable row level security;
 revoke all on "better_supabase"."accounting_periods" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_periods" to authenticated;
 grant all on "better_supabase"."accounting_periods" to service_role;
-create policy accounting_periods_read on "better_supabase"."accounting_periods"
+create policy bsb_accounting_periods_read on "better_supabase"."accounting_periods"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -18123,7 +18123,7 @@ alter table "better_supabase"."accounting_entries" enable row level security;
 revoke all on "better_supabase"."accounting_entries" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entries" to authenticated;
 grant all on "better_supabase"."accounting_entries" to service_role;
-create policy accounting_entries_read on "better_supabase"."accounting_entries"
+create policy bsb_accounting_entries_read on "better_supabase"."accounting_entries"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -18140,7 +18140,7 @@ alter table "better_supabase"."accounting_dimensions" enable row level security;
 revoke all on "better_supabase"."accounting_dimensions" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimensions" to authenticated;
 grant all on "better_supabase"."accounting_dimensions" to service_role;
-create policy accounting_dimensions_read on "better_supabase"."accounting_dimensions"
+create policy bsb_accounting_dimensions_read on "better_supabase"."accounting_dimensions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -18157,7 +18157,7 @@ alter table "better_supabase"."accounting_dimension_values" enable row level sec
 revoke all on "better_supabase"."accounting_dimension_values" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_dimension_values" to authenticated;
 grant all on "better_supabase"."accounting_dimension_values" to service_role;
-create policy accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
+create policy bsb_accounting_dimension_values_read on "better_supabase"."accounting_dimension_values"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -18176,7 +18176,7 @@ alter table "better_supabase"."accounting_fx_rates" enable row level security;
 revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_fx_rates" to authenticated;
 grant all on "better_supabase"."accounting_fx_rates" to service_role;
-create policy accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
+create policy bsb_accounting_fx_rates_read on "better_supabase"."accounting_fx_rates"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -18211,7 +18211,7 @@ alter table "better_supabase"."accounting_entry_lines" enable row level security
 revoke all on "better_supabase"."accounting_entry_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_entry_lines" to authenticated;
 grant all on "better_supabase"."accounting_entry_lines" to service_role;
-create policy accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
+create policy bsb_accounting_entry_lines_read on "better_supabase"."accounting_entry_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -18234,7 +18234,7 @@ alter table "better_supabase"."accounting_opening_balances" enable row level sec
 revoke all on "better_supabase"."accounting_opening_balances" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_opening_balances" to authenticated;
 grant all on "better_supabase"."accounting_opening_balances" to service_role;
-create policy accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
+create policy bsb_accounting_opening_balances_read on "better_supabase"."accounting_opening_balances"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -20644,7 +20644,7 @@ alter table "better_supabase"."accounting_budgets" enable row level security;
 revoke all on "better_supabase"."accounting_budgets" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budgets" to authenticated;
 grant all on "better_supabase"."accounting_budgets" to service_role;
-create policy accounting_budgets_read on "better_supabase"."accounting_budgets"
+create policy bsb_accounting_budgets_read on "better_supabase"."accounting_budgets"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 
@@ -20666,7 +20666,7 @@ alter table "better_supabase"."accounting_budget_lines" enable row level securit
 revoke all on "better_supabase"."accounting_budget_lines" from public, anon, authenticated;
 grant select on "better_supabase"."accounting_budget_lines" to authenticated;
 grant all on "better_supabase"."accounting_budget_lines" to service_role;
-create policy accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
+create policy bsb_accounting_budget_lines_read on "better_supabase"."accounting_budget_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('accounting.read')));
 

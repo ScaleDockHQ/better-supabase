@@ -236,6 +236,8 @@ export {
   widenedCommands,
 } from "./policy-cover.ts";
 
+export { bsbPolicyName } from "./policy-names.ts";
+
 export {
   catalogPolicy,
   maskSql,

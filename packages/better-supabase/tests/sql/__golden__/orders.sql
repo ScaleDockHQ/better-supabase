@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:d64955d0a4633fd9ed14bfdfa883bd9ba0cdc2fd096cf3b80c8393ddfcf50667
+-- @bsb-hash sha256:ac84e71ebc6ee2d6613b5bba46e4c721553f5cad4580cbb5263297ad4f8e88e9
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,7 @@ alter table "better_supabase"."order_shipping_rates" enable row level security;
 revoke all on "better_supabase"."order_shipping_rates" from public, anon, authenticated;
 grant select on "better_supabase"."order_shipping_rates" to authenticated;
 grant all on "better_supabase"."order_shipping_rates" to service_role;
-create policy order_shipping_rates_read on "better_supabase"."order_shipping_rates"
+create policy bsb_order_shipping_rates_read on "better_supabase"."order_shipping_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -55,7 +55,7 @@ alter table "better_supabase"."carts" enable row level security;
 revoke all on "better_supabase"."carts" from public, anon, authenticated;
 grant select on "better_supabase"."carts" to authenticated;
 grant all on "better_supabase"."carts" to service_role;
-create policy carts_read on "better_supabase"."carts"
+create policy bsb_carts_read on "better_supabase"."carts"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -75,7 +75,7 @@ alter table "better_supabase"."cart_lines" enable row level security;
 revoke all on "better_supabase"."cart_lines" from public, anon, authenticated;
 grant select on "better_supabase"."cart_lines" to authenticated;
 grant all on "better_supabase"."cart_lines" to service_role;
-create policy cart_lines_read on "better_supabase"."cart_lines"
+create policy bsb_cart_lines_read on "better_supabase"."cart_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
@@ -131,7 +131,7 @@ alter table "better_supabase"."orders" enable row level security;
 revoke all on "better_supabase"."orders" from public, anon, authenticated;
 grant select on "better_supabase"."orders" to authenticated;
 grant all on "better_supabase"."orders" to service_role;
-create policy orders_read on "better_supabase"."orders"
+create policy bsb_orders_read on "better_supabase"."orders"
   for select to authenticated
   using ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -170,7 +170,7 @@ alter table "better_supabase"."order_lines" enable row level security;
 revoke all on "better_supabase"."order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_lines" to authenticated;
 grant all on "better_supabase"."order_lines" to service_role;
-create policy order_lines_read on "better_supabase"."order_lines"
+create policy bsb_order_lines_read on "better_supabase"."order_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -194,7 +194,7 @@ alter table "better_supabase"."order_payments" enable row level security;
 revoke all on "better_supabase"."order_payments" from public, anon, authenticated;
 grant select on "better_supabase"."order_payments" to authenticated;
 grant all on "better_supabase"."order_payments" to service_role;
-create policy order_payments_read on "better_supabase"."order_payments"
+create policy bsb_order_payments_read on "better_supabase"."order_payments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -216,7 +216,7 @@ alter table "better_supabase"."order_fulfillments" enable row level security;
 revoke all on "better_supabase"."order_fulfillments" from public, anon, authenticated;
 grant select on "better_supabase"."order_fulfillments" to authenticated;
 grant all on "better_supabase"."order_fulfillments" to service_role;
-create policy order_fulfillments_read on "better_supabase"."order_fulfillments"
+create policy bsb_order_fulfillments_read on "better_supabase"."order_fulfillments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -233,7 +233,7 @@ alter table "better_supabase"."order_fulfillment_lines" enable row level securit
 revoke all on "better_supabase"."order_fulfillment_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_fulfillment_lines" to authenticated;
 grant all on "better_supabase"."order_fulfillment_lines" to service_role;
-create policy order_fulfillment_lines_read on "better_supabase"."order_fulfillment_lines"
+create policy bsb_order_fulfillment_lines_read on "better_supabase"."order_fulfillment_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -252,7 +252,7 @@ alter table "better_supabase"."order_returns" enable row level security;
 revoke all on "better_supabase"."order_returns" from public, anon, authenticated;
 grant select on "better_supabase"."order_returns" to authenticated;
 grant all on "better_supabase"."order_returns" to service_role;
-create policy order_returns_read on "better_supabase"."order_returns"
+create policy bsb_order_returns_read on "better_supabase"."order_returns"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -268,7 +268,7 @@ alter table "better_supabase"."order_return_lines" enable row level security;
 revoke all on "better_supabase"."order_return_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_return_lines" to authenticated;
 grant all on "better_supabase"."order_return_lines" to service_role;
-create policy order_return_lines_read on "better_supabase"."order_return_lines"
+create policy bsb_order_return_lines_read on "better_supabase"."order_return_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -294,7 +294,7 @@ alter table "better_supabase"."order_refunds" enable row level security;
 revoke all on "better_supabase"."order_refunds" from public, anon, authenticated;
 grant select on "better_supabase"."order_refunds" to authenticated;
 grant all on "better_supabase"."order_refunds" to service_role;
-create policy order_refunds_read on "better_supabase"."order_refunds"
+create policy bsb_order_refunds_read on "better_supabase"."order_refunds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -2419,7 +2419,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:997ed8f9a4200d914d5009e600c5578346f988fde5e947ff36b278a83219680f
+-- @bsb-hash sha256:a482096ea5155851e4661ecc64feae2cc8354cdb3d9141ad281c9020d0a7e59c
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2446,7 +2446,7 @@ alter table "better_supabase"."order_shipping_rates" enable row level security;
 revoke all on "better_supabase"."order_shipping_rates" from public, anon, authenticated;
 grant select on "better_supabase"."order_shipping_rates" to authenticated;
 grant all on "better_supabase"."order_shipping_rates" to service_role;
-create policy order_shipping_rates_read on "better_supabase"."order_shipping_rates"
+create policy bsb_order_shipping_rates_read on "better_supabase"."order_shipping_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -2473,7 +2473,7 @@ alter table "better_supabase"."carts" enable row level security;
 revoke all on "better_supabase"."carts" from public, anon, authenticated;
 grant select on "better_supabase"."carts" to authenticated;
 grant all on "better_supabase"."carts" to service_role;
-create policy carts_read on "better_supabase"."carts"
+create policy bsb_carts_read on "better_supabase"."carts"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -2493,7 +2493,7 @@ alter table "better_supabase"."cart_lines" enable row level security;
 revoke all on "better_supabase"."cart_lines" from public, anon, authenticated;
 grant select on "better_supabase"."cart_lines" to authenticated;
 grant all on "better_supabase"."cart_lines" to service_role;
-create policy cart_lines_read on "better_supabase"."cart_lines"
+create policy bsb_cart_lines_read on "better_supabase"."cart_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
@@ -2549,7 +2549,7 @@ alter table "better_supabase"."orders" enable row level security;
 revoke all on "better_supabase"."orders" from public, anon, authenticated;
 grant select on "better_supabase"."orders" to authenticated;
 grant all on "better_supabase"."orders" to service_role;
-create policy orders_read on "better_supabase"."orders"
+create policy bsb_orders_read on "better_supabase"."orders"
   for select to authenticated
   using ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -2588,7 +2588,7 @@ alter table "better_supabase"."order_lines" enable row level security;
 revoke all on "better_supabase"."order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_lines" to authenticated;
 grant all on "better_supabase"."order_lines" to service_role;
-create policy order_lines_read on "better_supabase"."order_lines"
+create policy bsb_order_lines_read on "better_supabase"."order_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -2612,7 +2612,7 @@ alter table "better_supabase"."order_payments" enable row level security;
 revoke all on "better_supabase"."order_payments" from public, anon, authenticated;
 grant select on "better_supabase"."order_payments" to authenticated;
 grant all on "better_supabase"."order_payments" to service_role;
-create policy order_payments_read on "better_supabase"."order_payments"
+create policy bsb_order_payments_read on "better_supabase"."order_payments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -2634,7 +2634,7 @@ alter table "better_supabase"."order_fulfillments" enable row level security;
 revoke all on "better_supabase"."order_fulfillments" from public, anon, authenticated;
 grant select on "better_supabase"."order_fulfillments" to authenticated;
 grant all on "better_supabase"."order_fulfillments" to service_role;
-create policy order_fulfillments_read on "better_supabase"."order_fulfillments"
+create policy bsb_order_fulfillments_read on "better_supabase"."order_fulfillments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -2651,7 +2651,7 @@ alter table "better_supabase"."order_fulfillment_lines" enable row level securit
 revoke all on "better_supabase"."order_fulfillment_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_fulfillment_lines" to authenticated;
 grant all on "better_supabase"."order_fulfillment_lines" to service_role;
-create policy order_fulfillment_lines_read on "better_supabase"."order_fulfillment_lines"
+create policy bsb_order_fulfillment_lines_read on "better_supabase"."order_fulfillment_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -2670,7 +2670,7 @@ alter table "better_supabase"."order_returns" enable row level security;
 revoke all on "better_supabase"."order_returns" from public, anon, authenticated;
 grant select on "better_supabase"."order_returns" to authenticated;
 grant all on "better_supabase"."order_returns" to service_role;
-create policy order_returns_read on "better_supabase"."order_returns"
+create policy bsb_order_returns_read on "better_supabase"."order_returns"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -2686,7 +2686,7 @@ alter table "better_supabase"."order_return_lines" enable row level security;
 revoke all on "better_supabase"."order_return_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_return_lines" to authenticated;
 grant all on "better_supabase"."order_return_lines" to service_role;
-create policy order_return_lines_read on "better_supabase"."order_return_lines"
+create policy bsb_order_return_lines_read on "better_supabase"."order_return_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -2712,7 +2712,7 @@ alter table "better_supabase"."order_refunds" enable row level security;
 revoke all on "better_supabase"."order_refunds" from public, anon, authenticated;
 grant select on "better_supabase"."order_refunds" to authenticated;
 grant all on "better_supabase"."order_refunds" to service_role;
-create policy order_refunds_read on "better_supabase"."order_refunds"
+create policy bsb_order_refunds_read on "better_supabase"."order_refunds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -5068,7 +5068,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:cecf6a23604b12b7ac57d32fa7107402d350dc2a2fc3709870498480d03f0e89
+-- @bsb-hash sha256:36a961550d10f611f14d323bc22a729b458bb98297fe5b4ce04f20b4be5e574e
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5100,7 +5100,7 @@ alter table "app_private"."order_shipping_rates" enable row level security;
 revoke all on "app_private"."order_shipping_rates" from public, anon, authenticated;
 grant select on "app_private"."order_shipping_rates" to authenticated;
 grant all on "app_private"."order_shipping_rates" to service_role;
-create policy order_shipping_rates_read on "app_private"."order_shipping_rates"
+create policy bsb_order_shipping_rates_read on "app_private"."order_shipping_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -5127,7 +5127,7 @@ alter table "app_private"."carts" enable row level security;
 revoke all on "app_private"."carts" from public, anon, authenticated;
 grant select on "app_private"."carts" to authenticated;
 grant all on "app_private"."carts" to service_role;
-create policy carts_read on "app_private"."carts"
+create policy bsb_carts_read on "app_private"."carts"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -5147,7 +5147,7 @@ alter table "app_private"."cart_lines" enable row level security;
 revoke all on "app_private"."cart_lines" from public, anon, authenticated;
 grant select on "app_private"."cart_lines" to authenticated;
 grant all on "app_private"."cart_lines" to service_role;
-create policy cart_lines_read on "app_private"."cart_lines"
+create policy bsb_cart_lines_read on "app_private"."cart_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
@@ -5203,7 +5203,7 @@ alter table "app_private"."orders" enable row level security;
 revoke all on "app_private"."orders" from public, anon, authenticated;
 grant select on "app_private"."orders" to authenticated;
 grant all on "app_private"."orders" to service_role;
-create policy orders_read on "app_private"."orders"
+create policy bsb_orders_read on "app_private"."orders"
   for select to authenticated
   using ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -5242,7 +5242,7 @@ alter table "app_private"."order_lines" enable row level security;
 revoke all on "app_private"."order_lines" from public, anon, authenticated;
 grant select on "app_private"."order_lines" to authenticated;
 grant all on "app_private"."order_lines" to service_role;
-create policy order_lines_read on "app_private"."order_lines"
+create policy bsb_order_lines_read on "app_private"."order_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -5266,7 +5266,7 @@ alter table "app_private"."order_payments" enable row level security;
 revoke all on "app_private"."order_payments" from public, anon, authenticated;
 grant select on "app_private"."order_payments" to authenticated;
 grant all on "app_private"."order_payments" to service_role;
-create policy order_payments_read on "app_private"."order_payments"
+create policy bsb_order_payments_read on "app_private"."order_payments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -5288,7 +5288,7 @@ alter table "app_private"."order_fulfillments" enable row level security;
 revoke all on "app_private"."order_fulfillments" from public, anon, authenticated;
 grant select on "app_private"."order_fulfillments" to authenticated;
 grant all on "app_private"."order_fulfillments" to service_role;
-create policy order_fulfillments_read on "app_private"."order_fulfillments"
+create policy bsb_order_fulfillments_read on "app_private"."order_fulfillments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -5305,7 +5305,7 @@ alter table "app_private"."order_fulfillment_lines" enable row level security;
 revoke all on "app_private"."order_fulfillment_lines" from public, anon, authenticated;
 grant select on "app_private"."order_fulfillment_lines" to authenticated;
 grant all on "app_private"."order_fulfillment_lines" to service_role;
-create policy order_fulfillment_lines_read on "app_private"."order_fulfillment_lines"
+create policy bsb_order_fulfillment_lines_read on "app_private"."order_fulfillment_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -5324,7 +5324,7 @@ alter table "app_private"."order_returns" enable row level security;
 revoke all on "app_private"."order_returns" from public, anon, authenticated;
 grant select on "app_private"."order_returns" to authenticated;
 grant all on "app_private"."order_returns" to service_role;
-create policy order_returns_read on "app_private"."order_returns"
+create policy bsb_order_returns_read on "app_private"."order_returns"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -5340,7 +5340,7 @@ alter table "app_private"."order_return_lines" enable row level security;
 revoke all on "app_private"."order_return_lines" from public, anon, authenticated;
 grant select on "app_private"."order_return_lines" to authenticated;
 grant all on "app_private"."order_return_lines" to service_role;
-create policy order_return_lines_read on "app_private"."order_return_lines"
+create policy bsb_order_return_lines_read on "app_private"."order_return_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -5366,7 +5366,7 @@ alter table "app_private"."order_refunds" enable row level security;
 revoke all on "app_private"."order_refunds" from public, anon, authenticated;
 grant select on "app_private"."order_refunds" to authenticated;
 grant all on "app_private"."order_refunds" to service_role;
-create policy order_refunds_read on "app_private"."order_refunds"
+create policy bsb_order_refunds_read on "app_private"."order_refunds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "app_private"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -7491,7 +7491,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:7c5c09cf867ab517a3c5c4a1932e311455fa386d80fb946c5bb4fe6e8b5df7a8
+-- @bsb-hash sha256:a2d5446642db126957bf5a342c392cb162a3bbd52216a1370363599559139cd2
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7518,7 +7518,7 @@ alter table "better_supabase"."order_shipping_rates" enable row level security;
 revoke all on "better_supabase"."order_shipping_rates" from public, anon, authenticated;
 grant select on "better_supabase"."order_shipping_rates" to authenticated;
 grant all on "better_supabase"."order_shipping_rates" to service_role;
-create policy order_shipping_rates_read on "better_supabase"."order_shipping_rates"
+create policy bsb_order_shipping_rates_read on "better_supabase"."order_shipping_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -7545,7 +7545,7 @@ alter table "better_supabase"."carts" enable row level security;
 revoke all on "better_supabase"."carts" from public, anon, authenticated;
 grant select on "better_supabase"."carts" to authenticated;
 grant all on "better_supabase"."carts" to service_role;
-create policy carts_read on "better_supabase"."carts"
+create policy bsb_carts_read on "better_supabase"."carts"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -7565,7 +7565,7 @@ alter table "better_supabase"."cart_lines" enable row level security;
 revoke all on "better_supabase"."cart_lines" from public, anon, authenticated;
 grant select on "better_supabase"."cart_lines" to authenticated;
 grant all on "better_supabase"."cart_lines" to service_role;
-create policy cart_lines_read on "better_supabase"."cart_lines"
+create policy bsb_cart_lines_read on "better_supabase"."cart_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
@@ -7621,7 +7621,7 @@ alter table "better_supabase"."orders" enable row level security;
 revoke all on "better_supabase"."orders" from public, anon, authenticated;
 grant select on "better_supabase"."orders" to authenticated;
 grant all on "better_supabase"."orders" to service_role;
-create policy orders_read on "better_supabase"."orders"
+create policy bsb_orders_read on "better_supabase"."orders"
   for select to authenticated
   using ("customer_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -7660,7 +7660,7 @@ alter table "better_supabase"."order_lines" enable row level security;
 revoke all on "better_supabase"."order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_lines" to authenticated;
 grant all on "better_supabase"."order_lines" to service_role;
-create policy order_lines_read on "better_supabase"."order_lines"
+create policy bsb_order_lines_read on "better_supabase"."order_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -7684,7 +7684,7 @@ alter table "better_supabase"."order_payments" enable row level security;
 revoke all on "better_supabase"."order_payments" from public, anon, authenticated;
 grant select on "better_supabase"."order_payments" to authenticated;
 grant all on "better_supabase"."order_payments" to service_role;
-create policy order_payments_read on "better_supabase"."order_payments"
+create policy bsb_order_payments_read on "better_supabase"."order_payments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -7706,7 +7706,7 @@ alter table "better_supabase"."order_fulfillments" enable row level security;
 revoke all on "better_supabase"."order_fulfillments" from public, anon, authenticated;
 grant select on "better_supabase"."order_fulfillments" to authenticated;
 grant all on "better_supabase"."order_fulfillments" to service_role;
-create policy order_fulfillments_read on "better_supabase"."order_fulfillments"
+create policy bsb_order_fulfillments_read on "better_supabase"."order_fulfillments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -7723,7 +7723,7 @@ alter table "better_supabase"."order_fulfillment_lines" enable row level securit
 revoke all on "better_supabase"."order_fulfillment_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_fulfillment_lines" to authenticated;
 grant all on "better_supabase"."order_fulfillment_lines" to service_role;
-create policy order_fulfillment_lines_read on "better_supabase"."order_fulfillment_lines"
+create policy bsb_order_fulfillment_lines_read on "better_supabase"."order_fulfillment_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -7742,7 +7742,7 @@ alter table "better_supabase"."order_returns" enable row level security;
 revoke all on "better_supabase"."order_returns" from public, anon, authenticated;
 grant select on "better_supabase"."order_returns" to authenticated;
 grant all on "better_supabase"."order_returns" to service_role;
-create policy order_returns_read on "better_supabase"."order_returns"
+create policy bsb_order_returns_read on "better_supabase"."order_returns"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -7758,7 +7758,7 @@ alter table "better_supabase"."order_return_lines" enable row level security;
 revoke all on "better_supabase"."order_return_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_return_lines" to authenticated;
 grant all on "better_supabase"."order_return_lines" to service_role;
-create policy order_return_lines_read on "better_supabase"."order_return_lines"
+create policy bsb_order_return_lines_read on "better_supabase"."order_return_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -7784,7 +7784,7 @@ alter table "better_supabase"."order_refunds" enable row level security;
 revoke all on "better_supabase"."order_refunds" from public, anon, authenticated;
 grant select on "better_supabase"."order_refunds" to authenticated;
 grant all on "better_supabase"."order_refunds" to service_role;
-create policy order_refunds_read on "better_supabase"."order_refunds"
+create policy bsb_order_refunds_read on "better_supabase"."order_refunds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -12608,7 +12608,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:04b86aad325ccf17f6573dee05f009cd544d1f63489265b9803e34a63c54e4c9
+-- @bsb-hash sha256:384e0ef5614ace2863e13d2c641061358b0f16bd9cc6c1717de2bb9c1461441b
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12635,7 +12635,7 @@ alter table "better_supabase"."order_shipping_rates" enable row level security;
 revoke all on "better_supabase"."order_shipping_rates" from public, anon, authenticated;
 grant select on "better_supabase"."order_shipping_rates" to authenticated;
 grant all on "better_supabase"."order_shipping_rates" to service_role;
-create policy order_shipping_rates_read on "better_supabase"."order_shipping_rates"
+create policy bsb_order_shipping_rates_read on "better_supabase"."order_shipping_rates"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -12662,7 +12662,7 @@ alter table "better_supabase"."carts" enable row level security;
 revoke all on "better_supabase"."carts" from public, anon, authenticated;
 grant select on "better_supabase"."carts" to authenticated;
 grant all on "better_supabase"."carts" to service_role;
-create policy carts_read on "better_supabase"."carts"
+create policy bsb_carts_read on "better_supabase"."carts"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -12682,7 +12682,7 @@ alter table "better_supabase"."cart_lines" enable row level security;
 revoke all on "better_supabase"."cart_lines" from public, anon, authenticated;
 grant select on "better_supabase"."cart_lines" to authenticated;
 grant all on "better_supabase"."cart_lines" to service_role;
-create policy cart_lines_read on "better_supabase"."cart_lines"
+create policy bsb_cart_lines_read on "better_supabase"."cart_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
@@ -12738,7 +12738,7 @@ alter table "better_supabase"."orders" enable row level security;
 revoke all on "better_supabase"."orders" from public, anon, authenticated;
 grant select on "better_supabase"."orders" to authenticated;
 grant all on "better_supabase"."orders" to service_role;
-create policy orders_read on "better_supabase"."orders"
+create policy bsb_orders_read on "better_supabase"."orders"
   for select to authenticated
   using ("customer_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -12777,7 +12777,7 @@ alter table "better_supabase"."order_lines" enable row level security;
 revoke all on "better_supabase"."order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_lines" to authenticated;
 grant all on "better_supabase"."order_lines" to service_role;
-create policy order_lines_read on "better_supabase"."order_lines"
+create policy bsb_order_lines_read on "better_supabase"."order_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -12801,7 +12801,7 @@ alter table "better_supabase"."order_payments" enable row level security;
 revoke all on "better_supabase"."order_payments" from public, anon, authenticated;
 grant select on "better_supabase"."order_payments" to authenticated;
 grant all on "better_supabase"."order_payments" to service_role;
-create policy order_payments_read on "better_supabase"."order_payments"
+create policy bsb_order_payments_read on "better_supabase"."order_payments"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -12823,7 +12823,7 @@ alter table "better_supabase"."order_fulfillments" enable row level security;
 revoke all on "better_supabase"."order_fulfillments" from public, anon, authenticated;
 grant select on "better_supabase"."order_fulfillments" to authenticated;
 grant all on "better_supabase"."order_fulfillments" to service_role;
-create policy order_fulfillments_read on "better_supabase"."order_fulfillments"
+create policy bsb_order_fulfillments_read on "better_supabase"."order_fulfillments"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -12840,7 +12840,7 @@ alter table "better_supabase"."order_fulfillment_lines" enable row level securit
 revoke all on "better_supabase"."order_fulfillment_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_fulfillment_lines" to authenticated;
 grant all on "better_supabase"."order_fulfillment_lines" to service_role;
-create policy order_fulfillment_lines_read on "better_supabase"."order_fulfillment_lines"
+create policy bsb_order_fulfillment_lines_read on "better_supabase"."order_fulfillment_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -12859,7 +12859,7 @@ alter table "better_supabase"."order_returns" enable row level security;
 revoke all on "better_supabase"."order_returns" from public, anon, authenticated;
 grant select on "better_supabase"."order_returns" to authenticated;
 grant all on "better_supabase"."order_returns" to service_role;
-create policy order_returns_read on "better_supabase"."order_returns"
+create policy bsb_order_returns_read on "better_supabase"."order_returns"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 
@@ -12875,7 +12875,7 @@ alter table "better_supabase"."order_return_lines" enable row level security;
 revoke all on "better_supabase"."order_return_lines" from public, anon, authenticated;
 grant select on "better_supabase"."order_return_lines" to authenticated;
 grant all on "better_supabase"."order_return_lines" to service_role;
-create policy order_return_lines_read on "better_supabase"."order_return_lines"
+create policy bsb_order_return_lines_read on "better_supabase"."order_return_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')));
 
@@ -12901,7 +12901,7 @@ alter table "better_supabase"."order_refunds" enable row level security;
 revoke all on "better_supabase"."order_refunds" from public, anon, authenticated;
 grant select on "better_supabase"."order_refunds" to authenticated;
 grant all on "better_supabase"."order_refunds" to service_role;
-create policy order_refunds_read on "better_supabase"."order_refunds"
+create policy bsb_order_refunds_read on "better_supabase"."order_refunds"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('orders.read')) or exists (select 1 from "better_supabase"."orders" o where o."id" = "order_id" and o."customer_id" = (select auth.uid())));
 

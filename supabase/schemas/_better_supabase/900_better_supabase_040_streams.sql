@@ -1,6 +1,6 @@
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:db3657013ceb5ec02a0d1b3af6356823d5626cdef1882a0efc1205ce2193d71c
+-- @bsb-hash sha256:b416f0b90455843ed109a488fd8d2609262e8c67a45ae5a79a2a1057c3b94db5
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,7 +26,7 @@ alter table "better_supabase"."streams" enable row level security;
 revoke all on "better_supabase"."streams" from public, anon, authenticated;
 grant select on "better_supabase"."streams" to authenticated;
 grant all on "better_supabase"."streams" to service_role;
-create policy streams_owner_read on "better_supabase"."streams"
+create policy bsb_streams_owner_read on "better_supabase"."streams"
   for select to authenticated
   using ("owner_id" = (select auth.uid()));
 
@@ -40,7 +40,7 @@ alter table "better_supabase"."stream_chunks" enable row level security;
 revoke all on "better_supabase"."stream_chunks" from public, anon, authenticated;
 grant select on "better_supabase"."stream_chunks" to authenticated;
 grant all on "better_supabase"."stream_chunks" to service_role;
-create policy stream_chunks_owner_read on "better_supabase"."stream_chunks"
+create policy bsb_stream_chunks_owner_read on "better_supabase"."stream_chunks"
   for select to authenticated
   using (exists (
     select 1 from "better_supabase"."streams" st

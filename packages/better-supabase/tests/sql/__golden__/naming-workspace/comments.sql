@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_033_comments.sql
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:3df0df64040bd5c79b5cdeabdc7d28e60a22043c18f2e8ab12f8dfa574a480a0
+-- @bsb-hash sha256:f980d955c8313f962cd64387ac9c52a0cd941a4fe27e80b8857f2c054de5267c
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -49,10 +49,10 @@ $$;
 revoke execute on function "better_supabase"."comment_message_readable"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."comment_message_readable"(uuid, uuid) to authenticated, service_role;
 
-create policy comment_tasks_read on "better_supabase"."comment_tasks"
+create policy bsb_comment_tasks_read on "better_supabase"."comment_tasks"
   for select to authenticated
   using ("better_supabase"."comment_message_readable"("message_id", "workspace_id"));
-create policy comment_tasks_insert on "better_supabase"."comment_tasks"
+create policy bsb_comment_tasks_insert on "better_supabase"."comment_tasks"
   for insert to authenticated
   with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "workspace_id")) and (select better_supabase.actor_may_write()));
 

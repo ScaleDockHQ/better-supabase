@@ -1,6 +1,6 @@
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:abcfb88181f0a86fec940f5316d01f32780e252316e301a05792125f895c61b6
+-- @bsb-hash sha256:265717a855c7c174cb491869148c94c8cfec6c0d8f5a5f1c9b33b04540c241a2
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,7 +29,7 @@ alter table "better_supabase"."lims_methods" enable row level security;
 revoke all on "better_supabase"."lims_methods" from public, anon, authenticated;
 grant select on "better_supabase"."lims_methods" to authenticated;
 grant all on "better_supabase"."lims_methods" to service_role;
-create policy lims_methods_read on "better_supabase"."lims_methods"
+create policy bsb_lims_methods_read on "better_supabase"."lims_methods"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -59,7 +59,7 @@ alter table "better_supabase"."lims_samples" enable row level security;
 revoke all on "better_supabase"."lims_samples" from public, anon, authenticated;
 grant select on "better_supabase"."lims_samples" to authenticated;
 grant all on "better_supabase"."lims_samples" to service_role;
-create policy lims_samples_read on "better_supabase"."lims_samples"
+create policy bsb_lims_samples_read on "better_supabase"."lims_samples"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 
@@ -88,7 +88,7 @@ alter table "better_supabase"."lims_results" enable row level security;
 revoke all on "better_supabase"."lims_results" from public, anon, authenticated;
 grant select on "better_supabase"."lims_results" to authenticated;
 grant all on "better_supabase"."lims_results" to service_role;
-create policy lims_results_read on "better_supabase"."lims_results"
+create policy bsb_lims_results_read on "better_supabase"."lims_results"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('lims.read')));
 

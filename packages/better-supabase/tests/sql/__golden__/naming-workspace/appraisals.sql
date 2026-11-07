@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:ca705f92739c11e04bb964d80851fb07097c06665639d9d1ac0246cf51372723
+-- @bsb-hash sha256:15f4d91696ba17304feb051a52672d967916218bc0d241b0d452397cc9f63fd9
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,7 +75,7 @@ alter table "better_supabase"."appraisal_cycles" enable row level security;
 revoke all on "better_supabase"."appraisal_cycles" from public, anon, authenticated;
 grant select on "better_supabase"."appraisal_cycles" to authenticated;
 grant all on "better_supabase"."appraisal_cycles" to service_role;
-create policy appraisal_cycles_read on "better_supabase"."appraisal_cycles"
+create policy bsb_appraisal_cycles_read on "better_supabase"."appraisal_cycles"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')));
 
@@ -110,7 +110,7 @@ alter table "better_supabase"."appraisals" enable row level security;
 revoke all on "better_supabase"."appraisals" from public, anon, authenticated;
 grant select on "better_supabase"."appraisals" to authenticated;
 grant all on "better_supabase"."appraisals" to service_role;
-create policy appraisals_read on "better_supabase"."appraisals"
+create policy bsb_appraisals_read on "better_supabase"."appraisals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')));
 
@@ -136,7 +136,7 @@ alter table "better_supabase"."appraisal_reviews" enable row level security;
 revoke all on "better_supabase"."appraisal_reviews" from public, anon, authenticated;
 grant select on "better_supabase"."appraisal_reviews" to authenticated;
 grant all on "better_supabase"."appraisal_reviews" to service_role;
-create policy appraisal_reviews_read on "better_supabase"."appraisal_reviews"
+create policy bsb_appraisal_reviews_read on "better_supabase"."appraisal_reviews"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')) and not "better_supabase"."appraisal_review_hidden"("id"));
 
@@ -158,7 +158,7 @@ alter table "better_supabase"."appraisal_calibrations" enable row level security
 revoke all on "better_supabase"."appraisal_calibrations" from public, anon, authenticated;
 grant select on "better_supabase"."appraisal_calibrations" to authenticated;
 grant all on "better_supabase"."appraisal_calibrations" to service_role;
-create policy appraisal_calibrations_read on "better_supabase"."appraisal_calibrations"
+create policy bsb_appraisal_calibrations_read on "better_supabase"."appraisal_calibrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')));
 
@@ -182,7 +182,7 @@ alter table "better_supabase"."appraisal_competencies" enable row level security
 revoke all on "better_supabase"."appraisal_competencies" from public, anon, authenticated;
 grant select on "better_supabase"."appraisal_competencies" to authenticated;
 grant all on "better_supabase"."appraisal_competencies" to service_role;
-create policy appraisal_competencies_read on "better_supabase"."appraisal_competencies"
+create policy bsb_appraisal_competencies_read on "better_supabase"."appraisal_competencies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')));
 
@@ -204,7 +204,7 @@ alter table "better_supabase"."appraisal_review_ratings" enable row level securi
 revoke all on "better_supabase"."appraisal_review_ratings" from public, anon, authenticated;
 grant select on "better_supabase"."appraisal_review_ratings" to authenticated;
 grant all on "better_supabase"."appraisal_review_ratings" to service_role;
-create policy appraisal_review_ratings_read on "better_supabase"."appraisal_review_ratings"
+create policy bsb_appraisal_review_ratings_read on "better_supabase"."appraisal_review_ratings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')) and not "better_supabase"."appraisal_review_hidden"("review_id"));
 
@@ -223,7 +223,7 @@ alter table "better_supabase"."appraisal_goals" enable row level security;
 revoke all on "better_supabase"."appraisal_goals" from public, anon, authenticated;
 grant select on "better_supabase"."appraisal_goals" to authenticated;
 grant all on "better_supabase"."appraisal_goals" to service_role;
-create policy appraisal_goals_read on "better_supabase"."appraisal_goals"
+create policy bsb_appraisal_goals_read on "better_supabase"."appraisal_goals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('appraisals.read')));
 

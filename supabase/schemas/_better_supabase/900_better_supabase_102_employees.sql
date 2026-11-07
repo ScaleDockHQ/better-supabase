@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:2948e0306708bd2b24cdbb70121f49053b70bdb88d4ecf4577b7af96dd9c3a0e
+-- @bsb-hash sha256:f80ec77fae96262658812f4ec4d0165a17360f224c3510bc3ebe569704664bb3
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,7 +41,7 @@ alter table "better_supabase"."employees" enable row level security;
 revoke all on "better_supabase"."employees" from public, anon, authenticated;
 grant select on "better_supabase"."employees" to authenticated;
 grant all on "better_supabase"."employees" to service_role;
-create policy employees_read on "better_supabase"."employees"
+create policy bsb_employees_read on "better_supabase"."employees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()));
 
@@ -68,7 +68,7 @@ alter table "better_supabase"."employee_private_details" enable row level securi
 revoke all on "better_supabase"."employee_private_details" from public, anon, authenticated;
 grant select on "better_supabase"."employee_private_details" to authenticated;
 grant all on "better_supabase"."employee_private_details" to service_role;
-create policy employee_private_details_read on "better_supabase"."employee_private_details"
+create policy bsb_employee_private_details_read on "better_supabase"."employee_private_details"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
@@ -95,7 +95,7 @@ alter table "better_supabase"."employee_contracts" enable row level security;
 revoke all on "better_supabase"."employee_contracts" from public, anon, authenticated;
 grant select on "better_supabase"."employee_contracts" to authenticated;
 grant all on "better_supabase"."employee_contracts" to service_role;
-create policy employee_contracts_read on "better_supabase"."employee_contracts"
+create policy bsb_employee_contracts_read on "better_supabase"."employee_contracts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())));

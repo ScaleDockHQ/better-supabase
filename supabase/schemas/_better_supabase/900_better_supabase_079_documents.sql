@@ -1,6 +1,6 @@
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:2a335e27e5b218bf57c9c1025f211d6dbb55d4357d6119bc0d145e734b7f7e13
+-- @bsb-hash sha256:bb5eb6de496d490b70a0f17af56e267bd69b6d7811e72a63d0582329a0a59a7f
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -21,7 +21,7 @@ alter table "better_supabase"."documents" enable row level security;
 revoke all on "better_supabase"."documents" from public, anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
-create policy documents_read on "better_supabase"."documents"
+create policy bsb_documents_read on "better_supabase"."documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')));
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:56103ffa032e0986eb523018b5b7e4e6225508a1b03b141b9dfadb1b806a02d3
+-- @bsb-hash sha256:0d536f34576bc0b0665dac0bb4592a7946b25a6b4671313e613cfa523c4bd5fc
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -30,7 +30,7 @@ alter table "better_supabase"."inspection_programs" enable row level security;
 revoke all on "better_supabase"."inspection_programs" from public, anon, authenticated;
 grant select on "better_supabase"."inspection_programs" to authenticated;
 grant all on "better_supabase"."inspection_programs" to service_role;
-create policy inspection_programs_read on "better_supabase"."inspection_programs"
+create policy bsb_inspection_programs_read on "better_supabase"."inspection_programs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read')));
 
@@ -112,10 +112,10 @@ as $$
 $$;
 revoke execute on function "better_supabase"."inspection_role"(uuid) from public, anon;
 grant execute on function "better_supabase"."inspection_role"(uuid) to authenticated, service_role;
-create policy inspections_read on "better_supabase"."inspections"
+create policy bsb_inspections_read on "better_supabase"."inspections"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("id") is not null);
-create policy inspection_members_read on "better_supabase"."inspection_members"
+create policy bsb_inspection_members_read on "better_supabase"."inspection_members"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("inspection_id") is not null);
 
@@ -146,7 +146,7 @@ alter table "better_supabase"."inspection_findings" enable row level security;
 revoke all on "better_supabase"."inspection_findings" from public, anon, authenticated;
 grant select on "better_supabase"."inspection_findings" to authenticated;
 grant all on "better_supabase"."inspection_findings" to service_role;
-create policy inspection_findings_read on "better_supabase"."inspection_findings"
+create policy bsb_inspection_findings_read on "better_supabase"."inspection_findings"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("inspection_id") is not null);
 
@@ -1244,7 +1244,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:e2de6eefc8de1951f5e2e4eba468c42323587bbf768a78ccbfb5cf8eb29c3d4d
+-- @bsb-hash sha256:068d001011e31e565d81988e7b6a592178c3fc77b608a44f7e6fd62dc82432f6
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1273,7 +1273,7 @@ alter table "better_supabase"."inspection_programs" enable row level security;
 revoke all on "better_supabase"."inspection_programs" from public, anon, authenticated;
 grant select on "better_supabase"."inspection_programs" to authenticated;
 grant all on "better_supabase"."inspection_programs" to service_role;
-create policy inspection_programs_read on "better_supabase"."inspection_programs"
+create policy bsb_inspection_programs_read on "better_supabase"."inspection_programs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read')));
 
@@ -1355,10 +1355,10 @@ as $$
 $$;
 revoke execute on function "better_supabase"."inspection_role"(uuid) from public, anon;
 grant execute on function "better_supabase"."inspection_role"(uuid) to authenticated, service_role;
-create policy inspections_read on "better_supabase"."inspections"
+create policy bsb_inspections_read on "better_supabase"."inspections"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("id") is not null);
-create policy inspection_members_read on "better_supabase"."inspection_members"
+create policy bsb_inspection_members_read on "better_supabase"."inspection_members"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("inspection_id") is not null);
 
@@ -1389,7 +1389,7 @@ alter table "better_supabase"."inspection_findings" enable row level security;
 revoke all on "better_supabase"."inspection_findings" from public, anon, authenticated;
 grant select on "better_supabase"."inspection_findings" to authenticated;
 grant all on "better_supabase"."inspection_findings" to service_role;
-create policy inspection_findings_read on "better_supabase"."inspection_findings"
+create policy bsb_inspection_findings_read on "better_supabase"."inspection_findings"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("inspection_id") is not null);
 
@@ -2799,7 +2799,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:0bc8b6045389d07c26d2a7e62a70bd0e18e000aba9ed7bac43340c747f23dcee
+-- @bsb-hash sha256:1c3d90d25fc04ba9d2894c5ddc5fa312f965210d2bad9301b443539fb332e0f4
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2833,7 +2833,7 @@ alter table "app_private"."inspection_programs" enable row level security;
 revoke all on "app_private"."inspection_programs" from public, anon, authenticated;
 grant select on "app_private"."inspection_programs" to authenticated;
 grant all on "app_private"."inspection_programs" to service_role;
-create policy inspection_programs_read on "app_private"."inspection_programs"
+create policy bsb_inspection_programs_read on "app_private"."inspection_programs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read')));
 
@@ -2915,10 +2915,10 @@ as $$
 $$;
 revoke execute on function "app_private"."inspection_role"(uuid) from public, anon;
 grant execute on function "app_private"."inspection_role"(uuid) to authenticated, service_role;
-create policy inspections_read on "app_private"."inspections"
+create policy bsb_inspections_read on "app_private"."inspections"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "app_private"."inspection_role"("id") is not null);
-create policy inspection_members_read on "app_private"."inspection_members"
+create policy bsb_inspection_members_read on "app_private"."inspection_members"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "app_private"."inspection_role"("inspection_id") is not null);
 
@@ -2949,7 +2949,7 @@ alter table "app_private"."inspection_findings" enable row level security;
 revoke all on "app_private"."inspection_findings" from public, anon, authenticated;
 grant select on "app_private"."inspection_findings" to authenticated;
 grant all on "app_private"."inspection_findings" to service_role;
-create policy inspection_findings_read on "app_private"."inspection_findings"
+create policy bsb_inspection_findings_read on "app_private"."inspection_findings"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "app_private"."inspection_role"("inspection_id") is not null);
 
@@ -4047,7 +4047,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:afc3245431384762c091d1330fdebd2ea8ef5d22041878dad8356dc6ad2f122b
+-- @bsb-hash sha256:bac0c2b86bb715cb97196e05fc50964807b8148eccd61b162d8ffd59832d47b4
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4076,7 +4076,7 @@ alter table "better_supabase"."inspection_programs" enable row level security;
 revoke all on "better_supabase"."inspection_programs" from public, anon, authenticated;
 grant select on "better_supabase"."inspection_programs" to authenticated;
 grant all on "better_supabase"."inspection_programs" to service_role;
-create policy inspection_programs_read on "better_supabase"."inspection_programs"
+create policy bsb_inspection_programs_read on "better_supabase"."inspection_programs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read')));
 
@@ -4158,10 +4158,10 @@ as $$
 $$;
 revoke execute on function "better_supabase"."inspection_role"(uuid) from public, anon;
 grant execute on function "better_supabase"."inspection_role"(uuid) to authenticated, service_role;
-create policy inspections_read on "better_supabase"."inspections"
+create policy bsb_inspections_read on "better_supabase"."inspections"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("id") is not null);
-create policy inspection_members_read on "better_supabase"."inspection_members"
+create policy bsb_inspection_members_read on "better_supabase"."inspection_members"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("inspection_id") is not null);
 
@@ -4192,7 +4192,7 @@ alter table "better_supabase"."inspection_findings" enable row level security;
 revoke all on "better_supabase"."inspection_findings" from public, anon, authenticated;
 grant select on "better_supabase"."inspection_findings" to authenticated;
 grant all on "better_supabase"."inspection_findings" to service_role;
-create policy inspection_findings_read on "better_supabase"."inspection_findings"
+create policy bsb_inspection_findings_read on "better_supabase"."inspection_findings"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("inspection_id") is not null);
 
@@ -6718,7 +6718,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:6591f2102227a6ec367c62d52f6f37b8194daef2ad9399337cf85a70584cf178
+-- @bsb-hash sha256:e8ee60b57b8d7306502d96ee2353d626e30bf7eedebdd4d9258610782bd32cf4
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6747,7 +6747,7 @@ alter table "better_supabase"."inspection_programs" enable row level security;
 revoke all on "better_supabase"."inspection_programs" from public, anon, authenticated;
 grant select on "better_supabase"."inspection_programs" to authenticated;
 grant all on "better_supabase"."inspection_programs" to service_role;
-create policy inspection_programs_read on "better_supabase"."inspection_programs"
+create policy bsb_inspection_programs_read on "better_supabase"."inspection_programs"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inspections.read')));
 
@@ -6829,10 +6829,10 @@ as $$
 $$;
 revoke execute on function "better_supabase"."inspection_role"(uuid) from public, anon;
 grant execute on function "better_supabase"."inspection_role"(uuid) to authenticated, service_role;
-create policy inspections_read on "better_supabase"."inspections"
+create policy bsb_inspections_read on "better_supabase"."inspections"
   for select to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("id") is not null);
-create policy inspection_members_read on "better_supabase"."inspection_members"
+create policy bsb_inspection_members_read on "better_supabase"."inspection_members"
   for select to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("inspection_id") is not null);
 
@@ -6863,7 +6863,7 @@ alter table "better_supabase"."inspection_findings" enable row level security;
 revoke all on "better_supabase"."inspection_findings" from public, anon, authenticated;
 grant select on "better_supabase"."inspection_findings" to authenticated;
 grant all on "better_supabase"."inspection_findings" to service_role;
-create policy inspection_findings_read on "better_supabase"."inspection_findings"
+create policy bsb_inspection_findings_read on "better_supabase"."inspection_findings"
   for select to authenticated
   using (("org_id" in (select better_supabase.tenant_ids_with('inspections.read'))) or "better_supabase"."inspection_role"("inspection_id") is not null);
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:0ff3508a0bc951fe6efc82664b668c68c8df9f750a2e351876412f1bbc02c644
+-- @bsb-hash sha256:892d9b7ab467e5630f44a0f681fa6d0c398774c09d99e37d38f3bc015923851a
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,7 @@ alter table "better_supabase"."bulk_runs" enable row level security;
 revoke all on "better_supabase"."bulk_runs" from public, anon, authenticated;
 grant select on "better_supabase"."bulk_runs" to authenticated;
 grant all on "better_supabase"."bulk_runs" to service_role;
-create policy bulk_runs_read on "better_supabase"."bulk_runs"
+create policy bsb_bulk_runs_read on "better_supabase"."bulk_runs"
   for select to authenticated
   using ("created_by" = (select auth.uid()));
 
@@ -254,7 +254,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:23c6e11c561e6236b1ef04431e799a76e55ebff5b672c298a1413d199813fb6f
+-- @bsb-hash sha256:d81ff76f2b12d0f6d475466912774149c489eca40623d6470fa78321f23ec2f6
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -281,7 +281,7 @@ alter table "better_supabase"."bulk_runs" enable row level security;
 revoke all on "better_supabase"."bulk_runs" from public, anon, authenticated;
 grant select on "better_supabase"."bulk_runs" to authenticated;
 grant all on "better_supabase"."bulk_runs" to service_role;
-create policy bulk_runs_read on "better_supabase"."bulk_runs"
+create policy bsb_bulk_runs_read on "better_supabase"."bulk_runs"
   for select to authenticated
   using ("created_by" = (select auth.uid()));
 
@@ -527,7 +527,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:fb78c2795a0900b822fb10b855670eee680789788deee35f5d53a9fdc197ccc3
+-- @bsb-hash sha256:9d9a6488f28947d401e5d5e15c2956afa9a6700ec02d8b503edbf72642bbb3d4
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -559,7 +559,7 @@ alter table "app_private"."bulk_runs" enable row level security;
 revoke all on "app_private"."bulk_runs" from public, anon, authenticated;
 grant select on "app_private"."bulk_runs" to authenticated;
 grant all on "app_private"."bulk_runs" to service_role;
-create policy bulk_runs_read on "app_private"."bulk_runs"
+create policy bsb_bulk_runs_read on "app_private"."bulk_runs"
   for select to authenticated
   using ("created_by" = (select auth.uid()));
 
@@ -785,7 +785,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:64cc4ed3a88f506f59425e068d3a995644164042b031ddd01ddf3440bc03ccb8
+-- @bsb-hash sha256:3d9fab96c1e97f716c18a34124d660b2618c442aaeca5f85e8065d2dc77cffb0
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -812,7 +812,7 @@ alter table "better_supabase"."bulk_runs" enable row level security;
 revoke all on "better_supabase"."bulk_runs" from public, anon, authenticated;
 grant select on "better_supabase"."bulk_runs" to authenticated;
 grant all on "better_supabase"."bulk_runs" to service_role;
-create policy bulk_runs_read on "better_supabase"."bulk_runs"
+create policy bsb_bulk_runs_read on "better_supabase"."bulk_runs"
   for select to authenticated
   using ("created_by" = (select auth.uid()));
 
@@ -1339,7 +1339,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:0ffb552c4f0487f257332b21d26dfd5bbf82eac8a1eb3dc261aeffa67c672b3b
+-- @bsb-hash sha256:1884a13223c6c3fcb3aa896d1444da8a657a633c83908585a533fa3f6c93e039
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1366,7 +1366,7 @@ alter table "better_supabase"."bulk_runs" enable row level security;
 revoke all on "better_supabase"."bulk_runs" from public, anon, authenticated;
 grant select on "better_supabase"."bulk_runs" to authenticated;
 grant all on "better_supabase"."bulk_runs" to service_role;
-create policy bulk_runs_read on "better_supabase"."bulk_runs"
+create policy bsb_bulk_runs_read on "better_supabase"."bulk_runs"
   for select to authenticated
   using ("created_by" = (select auth.uid()));
 

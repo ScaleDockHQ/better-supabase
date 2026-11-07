@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:83ee71170a6b4f2f495219f2fd1311899a471743b23ec08878288bcc90823640
+-- @bsb-hash sha256:ddc8186e74dccd37601878fd3c1d3f8a18f5f194615a5e42693c3dc761c42dbb
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -30,7 +30,7 @@ alter table "better_supabase"."goals" enable row level security;
 revoke all on "better_supabase"."goals" from public, anon, authenticated;
 grant select on "better_supabase"."goals" to authenticated;
 grant all on "better_supabase"."goals" to service_role;
-create policy goals_read on "better_supabase"."goals"
+create policy bsb_goals_read on "better_supabase"."goals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')));
 
@@ -141,7 +141,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:66e328d6aefd3729485a742a43e4fce38865cce49e12608ec7929398c3783af7
+-- @bsb-hash sha256:3fccf05956cc962fd5d56a57727ad1a657f28e1b82d52e0c5e0e56833af3a722
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -170,7 +170,7 @@ alter table "better_supabase"."goals" enable row level security;
 revoke all on "better_supabase"."goals" from public, anon, authenticated;
 grant select on "better_supabase"."goals" to authenticated;
 grant all on "better_supabase"."goals" to service_role;
-create policy goals_read on "better_supabase"."goals"
+create policy bsb_goals_read on "better_supabase"."goals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')));
 
@@ -298,7 +298,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:5ffae4bb90bbe396ab48db5578c737f6d7ad704997376176a4781e9e472b9ad8
+-- @bsb-hash sha256:5ee63802c0e1eab753e192fcacde39dd7f8671566b30940e56d8b76c0e2e2078
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -332,7 +332,7 @@ alter table "app_private"."goals" enable row level security;
 revoke all on "app_private"."goals" from public, anon, authenticated;
 grant select on "app_private"."goals" to authenticated;
 grant all on "app_private"."goals" to service_role;
-create policy goals_read on "app_private"."goals"
+create policy bsb_goals_read on "app_private"."goals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')));
 
@@ -443,7 +443,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:882a096e84d67f87aca1c652a3ec1dd71af72627559f23b220a0fe71c93f8c56
+-- @bsb-hash sha256:5164ef3ef92fc3aa3d53d92234784838e291d8725dd7c683224b0136ef355bc6
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -472,7 +472,7 @@ alter table "better_supabase"."goals" enable row level security;
 revoke all on "better_supabase"."goals" from public, anon, authenticated;
 grant select on "better_supabase"."goals" to authenticated;
 grant all on "better_supabase"."goals" to service_role;
-create policy goals_read on "better_supabase"."goals"
+create policy bsb_goals_read on "better_supabase"."goals"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('goals.read')));
 
@@ -743,7 +743,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:53b56480c381f385f419e4e70135dfc925ff06f41303f4d0853f5419b2cf575f
+-- @bsb-hash sha256:51396d4807d88998a54c019391cd830602c8e2ff4b08ea61fa9ae1732f79ccf3
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -772,7 +772,7 @@ alter table "better_supabase"."goals" enable row level security;
 revoke all on "better_supabase"."goals" from public, anon, authenticated;
 grant select on "better_supabase"."goals" to authenticated;
 grant all on "better_supabase"."goals" to service_role;
-create policy goals_read on "better_supabase"."goals"
+create policy bsb_goals_read on "better_supabase"."goals"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('goals.read')));
 

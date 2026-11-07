@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:373ed86cfc199aaf4dfafb19ea66469bc3e4ae16f93a85edc280364b4e05da33
+-- @bsb-hash sha256:148546400ea766bba9e475ba250ef93b9d8b546649e1628137b6f68448cdfc9a
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,7 @@ alter table "better_supabase"."inventory_locations" enable row level security;
 revoke all on "better_supabase"."inventory_locations" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_locations" to authenticated;
 grant all on "better_supabase"."inventory_locations" to service_role;
-create policy inventory_locations_read on "better_supabase"."inventory_locations"
+create policy bsb_inventory_locations_read on "better_supabase"."inventory_locations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -51,7 +51,7 @@ alter table "better_supabase"."stock_levels" enable row level security;
 revoke all on "better_supabase"."stock_levels" from public, anon, authenticated;
 grant select on "better_supabase"."stock_levels" to authenticated;
 grant all on "better_supabase"."stock_levels" to service_role;
-create policy stock_levels_read on "better_supabase"."stock_levels"
+create policy bsb_stock_levels_read on "better_supabase"."stock_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -76,7 +76,7 @@ alter table "better_supabase"."stock_reservations" enable row level security;
 revoke all on "better_supabase"."stock_reservations" from public, anon, authenticated;
 grant select on "better_supabase"."stock_reservations" to authenticated;
 grant all on "better_supabase"."stock_reservations" to service_role;
-create policy stock_reservations_read on "better_supabase"."stock_reservations"
+create policy bsb_stock_reservations_read on "better_supabase"."stock_reservations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -99,7 +99,7 @@ alter table "better_supabase"."stock_transfers" enable row level security;
 revoke all on "better_supabase"."stock_transfers" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfers" to authenticated;
 grant all on "better_supabase"."stock_transfers" to service_role;
-create policy stock_transfers_read on "better_supabase"."stock_transfers"
+create policy bsb_stock_transfers_read on "better_supabase"."stock_transfers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -117,7 +117,7 @@ alter table "better_supabase"."stock_transfer_lines" enable row level security;
 revoke all on "better_supabase"."stock_transfer_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfer_lines" to authenticated;
 grant all on "better_supabase"."stock_transfer_lines" to service_role;
-create policy stock_transfer_lines_read on "better_supabase"."stock_transfer_lines"
+create policy bsb_stock_transfer_lines_read on "better_supabase"."stock_transfer_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -146,7 +146,7 @@ alter table "better_supabase"."purchase_orders" enable row level security;
 revoke all on "better_supabase"."purchase_orders" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_orders" to authenticated;
 grant all on "better_supabase"."purchase_orders" to service_role;
-create policy purchase_orders_read on "better_supabase"."purchase_orders"
+create policy bsb_purchase_orders_read on "better_supabase"."purchase_orders"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -165,7 +165,7 @@ alter table "better_supabase"."purchase_order_lines" enable row level security;
 revoke all on "better_supabase"."purchase_order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
-create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+create policy bsb_purchase_order_lines_read on "better_supabase"."purchase_order_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -194,7 +194,7 @@ alter table "better_supabase"."purchase_requisitions" enable row level security;
 revoke all on "better_supabase"."purchase_requisitions" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_requisitions" to authenticated;
 grant all on "better_supabase"."purchase_requisitions" to service_role;
-create policy purchase_requisitions_read on "better_supabase"."purchase_requisitions"
+create policy bsb_purchase_requisitions_read on "better_supabase"."purchase_requisitions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -212,7 +212,7 @@ alter table "better_supabase"."purchase_requisition_lines" enable row level secu
 revoke all on "better_supabase"."purchase_requisition_lines" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_requisition_lines" to authenticated;
 grant all on "better_supabase"."purchase_requisition_lines" to service_role;
-create policy purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines"
+create policy bsb_purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -231,7 +231,7 @@ alter table "better_supabase"."inventory_receipts" enable row level security;
 revoke all on "better_supabase"."inventory_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_receipts" to authenticated;
 grant all on "better_supabase"."inventory_receipts" to service_role;
-create policy inventory_receipts_read on "better_supabase"."inventory_receipts"
+create policy bsb_inventory_receipts_read on "better_supabase"."inventory_receipts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -252,7 +252,7 @@ alter table "better_supabase"."inventory_receipt_lines" enable row level securit
 revoke all on "better_supabase"."inventory_receipt_lines" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_receipt_lines" to authenticated;
 grant all on "better_supabase"."inventory_receipt_lines" to service_role;
-create policy inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines"
+create policy bsb_inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -275,7 +275,7 @@ alter table "better_supabase"."stock_items" enable row level security;
 revoke all on "better_supabase"."stock_items" from public, anon, authenticated;
 grant select on "better_supabase"."stock_items" to authenticated;
 grant all on "better_supabase"."stock_items" to service_role;
-create policy stock_items_read on "better_supabase"."stock_items"
+create policy bsb_stock_items_read on "better_supabase"."stock_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -295,7 +295,7 @@ alter table "better_supabase"."stock_bins" enable row level security;
 revoke all on "better_supabase"."stock_bins" from public, anon, authenticated;
 grant select on "better_supabase"."stock_bins" to authenticated;
 grant all on "better_supabase"."stock_bins" to service_role;
-create policy stock_bins_read on "better_supabase"."stock_bins"
+create policy bsb_stock_bins_read on "better_supabase"."stock_bins"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -313,7 +313,7 @@ alter table "better_supabase"."stock_lots" enable row level security;
 revoke all on "better_supabase"."stock_lots" from public, anon, authenticated;
 grant select on "better_supabase"."stock_lots" to authenticated;
 grant all on "better_supabase"."stock_lots" to service_role;
-create policy stock_lots_read on "better_supabase"."stock_lots"
+create policy bsb_stock_lots_read on "better_supabase"."stock_lots"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -339,7 +339,7 @@ alter table "better_supabase"."stock_serials" enable row level security;
 revoke all on "better_supabase"."stock_serials" from public, anon, authenticated;
 grant select on "better_supabase"."stock_serials" to authenticated;
 grant all on "better_supabase"."stock_serials" to service_role;
-create policy stock_serials_read on "better_supabase"."stock_serials"
+create policy bsb_stock_serials_read on "better_supabase"."stock_serials"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -363,7 +363,7 @@ alter table "better_supabase"."stock_buckets" enable row level security;
 revoke all on "better_supabase"."stock_buckets" from public, anon, authenticated;
 grant select on "better_supabase"."stock_buckets" to authenticated;
 grant all on "better_supabase"."stock_buckets" to service_role;
-create policy stock_buckets_read on "better_supabase"."stock_buckets"
+create policy bsb_stock_buckets_read on "better_supabase"."stock_buckets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -392,7 +392,7 @@ alter table "better_supabase"."stock_allocations" enable row level security;
 revoke all on "better_supabase"."stock_allocations" from public, anon, authenticated;
 grant select on "better_supabase"."stock_allocations" to authenticated;
 grant all on "better_supabase"."stock_allocations" to service_role;
-create policy stock_allocations_read on "better_supabase"."stock_allocations"
+create policy bsb_stock_allocations_read on "better_supabase"."stock_allocations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -416,7 +416,7 @@ alter table "better_supabase"."stock_counts" enable row level security;
 revoke all on "better_supabase"."stock_counts" from public, anon, authenticated;
 grant select on "better_supabase"."stock_counts" to authenticated;
 grant all on "better_supabase"."stock_counts" to service_role;
-create policy stock_counts_read on "better_supabase"."stock_counts"
+create policy bsb_stock_counts_read on "better_supabase"."stock_counts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -445,7 +445,7 @@ alter table "better_supabase"."stock_count_lines" enable row level security;
 revoke all on "better_supabase"."stock_count_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_count_lines" to authenticated;
 grant all on "better_supabase"."stock_count_lines" to service_role;
-create policy stock_count_lines_read on "better_supabase"."stock_count_lines"
+create policy bsb_stock_count_lines_read on "better_supabase"."stock_count_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3378,7 +3378,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:8192c2c52913ff32b0a423343fe9ecca030aa528c672c91719767986f903dc75
+-- @bsb-hash sha256:30b6452670a897bfbe715f8b9295f94f4ad19e710cfe4dd3df40e504937c3231
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3405,7 +3405,7 @@ alter table "better_supabase"."inventory_locations" enable row level security;
 revoke all on "better_supabase"."inventory_locations" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_locations" to authenticated;
 grant all on "better_supabase"."inventory_locations" to service_role;
-create policy inventory_locations_read on "better_supabase"."inventory_locations"
+create policy bsb_inventory_locations_read on "better_supabase"."inventory_locations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3428,7 +3428,7 @@ alter table "better_supabase"."stock_levels" enable row level security;
 revoke all on "better_supabase"."stock_levels" from public, anon, authenticated;
 grant select on "better_supabase"."stock_levels" to authenticated;
 grant all on "better_supabase"."stock_levels" to service_role;
-create policy stock_levels_read on "better_supabase"."stock_levels"
+create policy bsb_stock_levels_read on "better_supabase"."stock_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3453,7 +3453,7 @@ alter table "better_supabase"."stock_reservations" enable row level security;
 revoke all on "better_supabase"."stock_reservations" from public, anon, authenticated;
 grant select on "better_supabase"."stock_reservations" to authenticated;
 grant all on "better_supabase"."stock_reservations" to service_role;
-create policy stock_reservations_read on "better_supabase"."stock_reservations"
+create policy bsb_stock_reservations_read on "better_supabase"."stock_reservations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3476,7 +3476,7 @@ alter table "better_supabase"."stock_transfers" enable row level security;
 revoke all on "better_supabase"."stock_transfers" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfers" to authenticated;
 grant all on "better_supabase"."stock_transfers" to service_role;
-create policy stock_transfers_read on "better_supabase"."stock_transfers"
+create policy bsb_stock_transfers_read on "better_supabase"."stock_transfers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3494,7 +3494,7 @@ alter table "better_supabase"."stock_transfer_lines" enable row level security;
 revoke all on "better_supabase"."stock_transfer_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfer_lines" to authenticated;
 grant all on "better_supabase"."stock_transfer_lines" to service_role;
-create policy stock_transfer_lines_read on "better_supabase"."stock_transfer_lines"
+create policy bsb_stock_transfer_lines_read on "better_supabase"."stock_transfer_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3523,7 +3523,7 @@ alter table "better_supabase"."purchase_orders" enable row level security;
 revoke all on "better_supabase"."purchase_orders" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_orders" to authenticated;
 grant all on "better_supabase"."purchase_orders" to service_role;
-create policy purchase_orders_read on "better_supabase"."purchase_orders"
+create policy bsb_purchase_orders_read on "better_supabase"."purchase_orders"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3542,7 +3542,7 @@ alter table "better_supabase"."purchase_order_lines" enable row level security;
 revoke all on "better_supabase"."purchase_order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
-create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+create policy bsb_purchase_order_lines_read on "better_supabase"."purchase_order_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3571,7 +3571,7 @@ alter table "better_supabase"."purchase_requisitions" enable row level security;
 revoke all on "better_supabase"."purchase_requisitions" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_requisitions" to authenticated;
 grant all on "better_supabase"."purchase_requisitions" to service_role;
-create policy purchase_requisitions_read on "better_supabase"."purchase_requisitions"
+create policy bsb_purchase_requisitions_read on "better_supabase"."purchase_requisitions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3589,7 +3589,7 @@ alter table "better_supabase"."purchase_requisition_lines" enable row level secu
 revoke all on "better_supabase"."purchase_requisition_lines" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_requisition_lines" to authenticated;
 grant all on "better_supabase"."purchase_requisition_lines" to service_role;
-create policy purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines"
+create policy bsb_purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3608,7 +3608,7 @@ alter table "better_supabase"."inventory_receipts" enable row level security;
 revoke all on "better_supabase"."inventory_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_receipts" to authenticated;
 grant all on "better_supabase"."inventory_receipts" to service_role;
-create policy inventory_receipts_read on "better_supabase"."inventory_receipts"
+create policy bsb_inventory_receipts_read on "better_supabase"."inventory_receipts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3629,7 +3629,7 @@ alter table "better_supabase"."inventory_receipt_lines" enable row level securit
 revoke all on "better_supabase"."inventory_receipt_lines" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_receipt_lines" to authenticated;
 grant all on "better_supabase"."inventory_receipt_lines" to service_role;
-create policy inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines"
+create policy bsb_inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3652,7 +3652,7 @@ alter table "better_supabase"."stock_items" enable row level security;
 revoke all on "better_supabase"."stock_items" from public, anon, authenticated;
 grant select on "better_supabase"."stock_items" to authenticated;
 grant all on "better_supabase"."stock_items" to service_role;
-create policy stock_items_read on "better_supabase"."stock_items"
+create policy bsb_stock_items_read on "better_supabase"."stock_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3672,7 +3672,7 @@ alter table "better_supabase"."stock_bins" enable row level security;
 revoke all on "better_supabase"."stock_bins" from public, anon, authenticated;
 grant select on "better_supabase"."stock_bins" to authenticated;
 grant all on "better_supabase"."stock_bins" to service_role;
-create policy stock_bins_read on "better_supabase"."stock_bins"
+create policy bsb_stock_bins_read on "better_supabase"."stock_bins"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3690,7 +3690,7 @@ alter table "better_supabase"."stock_lots" enable row level security;
 revoke all on "better_supabase"."stock_lots" from public, anon, authenticated;
 grant select on "better_supabase"."stock_lots" to authenticated;
 grant all on "better_supabase"."stock_lots" to service_role;
-create policy stock_lots_read on "better_supabase"."stock_lots"
+create policy bsb_stock_lots_read on "better_supabase"."stock_lots"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3716,7 +3716,7 @@ alter table "better_supabase"."stock_serials" enable row level security;
 revoke all on "better_supabase"."stock_serials" from public, anon, authenticated;
 grant select on "better_supabase"."stock_serials" to authenticated;
 grant all on "better_supabase"."stock_serials" to service_role;
-create policy stock_serials_read on "better_supabase"."stock_serials"
+create policy bsb_stock_serials_read on "better_supabase"."stock_serials"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3740,7 +3740,7 @@ alter table "better_supabase"."stock_buckets" enable row level security;
 revoke all on "better_supabase"."stock_buckets" from public, anon, authenticated;
 grant select on "better_supabase"."stock_buckets" to authenticated;
 grant all on "better_supabase"."stock_buckets" to service_role;
-create policy stock_buckets_read on "better_supabase"."stock_buckets"
+create policy bsb_stock_buckets_read on "better_supabase"."stock_buckets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3769,7 +3769,7 @@ alter table "better_supabase"."stock_allocations" enable row level security;
 revoke all on "better_supabase"."stock_allocations" from public, anon, authenticated;
 grant select on "better_supabase"."stock_allocations" to authenticated;
 grant all on "better_supabase"."stock_allocations" to service_role;
-create policy stock_allocations_read on "better_supabase"."stock_allocations"
+create policy bsb_stock_allocations_read on "better_supabase"."stock_allocations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3793,7 +3793,7 @@ alter table "better_supabase"."stock_counts" enable row level security;
 revoke all on "better_supabase"."stock_counts" from public, anon, authenticated;
 grant select on "better_supabase"."stock_counts" to authenticated;
 grant all on "better_supabase"."stock_counts" to service_role;
-create policy stock_counts_read on "better_supabase"."stock_counts"
+create policy bsb_stock_counts_read on "better_supabase"."stock_counts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -3822,7 +3822,7 @@ alter table "better_supabase"."stock_count_lines" enable row level security;
 revoke all on "better_supabase"."stock_count_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_count_lines" to authenticated;
 grant all on "better_supabase"."stock_count_lines" to service_role;
-create policy stock_count_lines_read on "better_supabase"."stock_count_lines"
+create policy bsb_stock_count_lines_read on "better_supabase"."stock_count_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -6822,7 +6822,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:645970d76cc81b7ff2a7dd11586357e8b434f7edb56db8807dce81ad79387f75
+-- @bsb-hash sha256:3835549405bde30f6d2fd00a543fa1a6106423913f29f0722ae70f0b11a9d699
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6854,7 +6854,7 @@ alter table "app_private"."inventory_locations" enable row level security;
 revoke all on "app_private"."inventory_locations" from public, anon, authenticated;
 grant select on "app_private"."inventory_locations" to authenticated;
 grant all on "app_private"."inventory_locations" to service_role;
-create policy inventory_locations_read on "app_private"."inventory_locations"
+create policy bsb_inventory_locations_read on "app_private"."inventory_locations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -6877,7 +6877,7 @@ alter table "app_private"."stock_levels" enable row level security;
 revoke all on "app_private"."stock_levels" from public, anon, authenticated;
 grant select on "app_private"."stock_levels" to authenticated;
 grant all on "app_private"."stock_levels" to service_role;
-create policy stock_levels_read on "app_private"."stock_levels"
+create policy bsb_stock_levels_read on "app_private"."stock_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -6902,7 +6902,7 @@ alter table "app_private"."stock_reservations" enable row level security;
 revoke all on "app_private"."stock_reservations" from public, anon, authenticated;
 grant select on "app_private"."stock_reservations" to authenticated;
 grant all on "app_private"."stock_reservations" to service_role;
-create policy stock_reservations_read on "app_private"."stock_reservations"
+create policy bsb_stock_reservations_read on "app_private"."stock_reservations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -6925,7 +6925,7 @@ alter table "app_private"."stock_transfers" enable row level security;
 revoke all on "app_private"."stock_transfers" from public, anon, authenticated;
 grant select on "app_private"."stock_transfers" to authenticated;
 grant all on "app_private"."stock_transfers" to service_role;
-create policy stock_transfers_read on "app_private"."stock_transfers"
+create policy bsb_stock_transfers_read on "app_private"."stock_transfers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -6943,7 +6943,7 @@ alter table "app_private"."stock_transfer_lines" enable row level security;
 revoke all on "app_private"."stock_transfer_lines" from public, anon, authenticated;
 grant select on "app_private"."stock_transfer_lines" to authenticated;
 grant all on "app_private"."stock_transfer_lines" to service_role;
-create policy stock_transfer_lines_read on "app_private"."stock_transfer_lines"
+create policy bsb_stock_transfer_lines_read on "app_private"."stock_transfer_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -6972,7 +6972,7 @@ alter table "app_private"."purchase_orders" enable row level security;
 revoke all on "app_private"."purchase_orders" from public, anon, authenticated;
 grant select on "app_private"."purchase_orders" to authenticated;
 grant all on "app_private"."purchase_orders" to service_role;
-create policy purchase_orders_read on "app_private"."purchase_orders"
+create policy bsb_purchase_orders_read on "app_private"."purchase_orders"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -6991,7 +6991,7 @@ alter table "app_private"."purchase_order_lines" enable row level security;
 revoke all on "app_private"."purchase_order_lines" from public, anon, authenticated;
 grant select on "app_private"."purchase_order_lines" to authenticated;
 grant all on "app_private"."purchase_order_lines" to service_role;
-create policy purchase_order_lines_read on "app_private"."purchase_order_lines"
+create policy bsb_purchase_order_lines_read on "app_private"."purchase_order_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -7020,7 +7020,7 @@ alter table "app_private"."purchase_requisitions" enable row level security;
 revoke all on "app_private"."purchase_requisitions" from public, anon, authenticated;
 grant select on "app_private"."purchase_requisitions" to authenticated;
 grant all on "app_private"."purchase_requisitions" to service_role;
-create policy purchase_requisitions_read on "app_private"."purchase_requisitions"
+create policy bsb_purchase_requisitions_read on "app_private"."purchase_requisitions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -7038,7 +7038,7 @@ alter table "app_private"."purchase_requisition_lines" enable row level security
 revoke all on "app_private"."purchase_requisition_lines" from public, anon, authenticated;
 grant select on "app_private"."purchase_requisition_lines" to authenticated;
 grant all on "app_private"."purchase_requisition_lines" to service_role;
-create policy purchase_requisition_lines_read on "app_private"."purchase_requisition_lines"
+create policy bsb_purchase_requisition_lines_read on "app_private"."purchase_requisition_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -7057,7 +7057,7 @@ alter table "app_private"."inventory_receipts" enable row level security;
 revoke all on "app_private"."inventory_receipts" from public, anon, authenticated;
 grant select on "app_private"."inventory_receipts" to authenticated;
 grant all on "app_private"."inventory_receipts" to service_role;
-create policy inventory_receipts_read on "app_private"."inventory_receipts"
+create policy bsb_inventory_receipts_read on "app_private"."inventory_receipts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -7078,7 +7078,7 @@ alter table "app_private"."inventory_receipt_lines" enable row level security;
 revoke all on "app_private"."inventory_receipt_lines" from public, anon, authenticated;
 grant select on "app_private"."inventory_receipt_lines" to authenticated;
 grant all on "app_private"."inventory_receipt_lines" to service_role;
-create policy inventory_receipt_lines_read on "app_private"."inventory_receipt_lines"
+create policy bsb_inventory_receipt_lines_read on "app_private"."inventory_receipt_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -7101,7 +7101,7 @@ alter table "app_private"."stock_items" enable row level security;
 revoke all on "app_private"."stock_items" from public, anon, authenticated;
 grant select on "app_private"."stock_items" to authenticated;
 grant all on "app_private"."stock_items" to service_role;
-create policy stock_items_read on "app_private"."stock_items"
+create policy bsb_stock_items_read on "app_private"."stock_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -7121,7 +7121,7 @@ alter table "app_private"."stock_bins" enable row level security;
 revoke all on "app_private"."stock_bins" from public, anon, authenticated;
 grant select on "app_private"."stock_bins" to authenticated;
 grant all on "app_private"."stock_bins" to service_role;
-create policy stock_bins_read on "app_private"."stock_bins"
+create policy bsb_stock_bins_read on "app_private"."stock_bins"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -7139,7 +7139,7 @@ alter table "app_private"."stock_lots" enable row level security;
 revoke all on "app_private"."stock_lots" from public, anon, authenticated;
 grant select on "app_private"."stock_lots" to authenticated;
 grant all on "app_private"."stock_lots" to service_role;
-create policy stock_lots_read on "app_private"."stock_lots"
+create policy bsb_stock_lots_read on "app_private"."stock_lots"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -7165,7 +7165,7 @@ alter table "app_private"."stock_serials" enable row level security;
 revoke all on "app_private"."stock_serials" from public, anon, authenticated;
 grant select on "app_private"."stock_serials" to authenticated;
 grant all on "app_private"."stock_serials" to service_role;
-create policy stock_serials_read on "app_private"."stock_serials"
+create policy bsb_stock_serials_read on "app_private"."stock_serials"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -7189,7 +7189,7 @@ alter table "app_private"."stock_buckets" enable row level security;
 revoke all on "app_private"."stock_buckets" from public, anon, authenticated;
 grant select on "app_private"."stock_buckets" to authenticated;
 grant all on "app_private"."stock_buckets" to service_role;
-create policy stock_buckets_read on "app_private"."stock_buckets"
+create policy bsb_stock_buckets_read on "app_private"."stock_buckets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -7218,7 +7218,7 @@ alter table "app_private"."stock_allocations" enable row level security;
 revoke all on "app_private"."stock_allocations" from public, anon, authenticated;
 grant select on "app_private"."stock_allocations" to authenticated;
 grant all on "app_private"."stock_allocations" to service_role;
-create policy stock_allocations_read on "app_private"."stock_allocations"
+create policy bsb_stock_allocations_read on "app_private"."stock_allocations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -7242,7 +7242,7 @@ alter table "app_private"."stock_counts" enable row level security;
 revoke all on "app_private"."stock_counts" from public, anon, authenticated;
 grant select on "app_private"."stock_counts" to authenticated;
 grant all on "app_private"."stock_counts" to service_role;
-create policy stock_counts_read on "app_private"."stock_counts"
+create policy bsb_stock_counts_read on "app_private"."stock_counts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -7271,7 +7271,7 @@ alter table "app_private"."stock_count_lines" enable row level security;
 revoke all on "app_private"."stock_count_lines" from public, anon, authenticated;
 grant select on "app_private"."stock_count_lines" to authenticated;
 grant all on "app_private"."stock_count_lines" to service_role;
-create policy stock_count_lines_read on "app_private"."stock_count_lines"
+create policy bsb_stock_count_lines_read on "app_private"."stock_count_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10204,7 +10204,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:f74c92e1ad6b3305b85793e909a1e9d47d5fef49a0575e843bf1ae407217695f
+-- @bsb-hash sha256:d653e1b857f7056aa01e93f2fac75bc8101dd91281e9d9f30a8b33bea925f2a4
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10231,7 +10231,7 @@ alter table "better_supabase"."inventory_locations" enable row level security;
 revoke all on "better_supabase"."inventory_locations" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_locations" to authenticated;
 grant all on "better_supabase"."inventory_locations" to service_role;
-create policy inventory_locations_read on "better_supabase"."inventory_locations"
+create policy bsb_inventory_locations_read on "better_supabase"."inventory_locations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10254,7 +10254,7 @@ alter table "better_supabase"."stock_levels" enable row level security;
 revoke all on "better_supabase"."stock_levels" from public, anon, authenticated;
 grant select on "better_supabase"."stock_levels" to authenticated;
 grant all on "better_supabase"."stock_levels" to service_role;
-create policy stock_levels_read on "better_supabase"."stock_levels"
+create policy bsb_stock_levels_read on "better_supabase"."stock_levels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10279,7 +10279,7 @@ alter table "better_supabase"."stock_reservations" enable row level security;
 revoke all on "better_supabase"."stock_reservations" from public, anon, authenticated;
 grant select on "better_supabase"."stock_reservations" to authenticated;
 grant all on "better_supabase"."stock_reservations" to service_role;
-create policy stock_reservations_read on "better_supabase"."stock_reservations"
+create policy bsb_stock_reservations_read on "better_supabase"."stock_reservations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10302,7 +10302,7 @@ alter table "better_supabase"."stock_transfers" enable row level security;
 revoke all on "better_supabase"."stock_transfers" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfers" to authenticated;
 grant all on "better_supabase"."stock_transfers" to service_role;
-create policy stock_transfers_read on "better_supabase"."stock_transfers"
+create policy bsb_stock_transfers_read on "better_supabase"."stock_transfers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10320,7 +10320,7 @@ alter table "better_supabase"."stock_transfer_lines" enable row level security;
 revoke all on "better_supabase"."stock_transfer_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfer_lines" to authenticated;
 grant all on "better_supabase"."stock_transfer_lines" to service_role;
-create policy stock_transfer_lines_read on "better_supabase"."stock_transfer_lines"
+create policy bsb_stock_transfer_lines_read on "better_supabase"."stock_transfer_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10349,7 +10349,7 @@ alter table "better_supabase"."purchase_orders" enable row level security;
 revoke all on "better_supabase"."purchase_orders" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_orders" to authenticated;
 grant all on "better_supabase"."purchase_orders" to service_role;
-create policy purchase_orders_read on "better_supabase"."purchase_orders"
+create policy bsb_purchase_orders_read on "better_supabase"."purchase_orders"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10368,7 +10368,7 @@ alter table "better_supabase"."purchase_order_lines" enable row level security;
 revoke all on "better_supabase"."purchase_order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
-create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+create policy bsb_purchase_order_lines_read on "better_supabase"."purchase_order_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10397,7 +10397,7 @@ alter table "better_supabase"."purchase_requisitions" enable row level security;
 revoke all on "better_supabase"."purchase_requisitions" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_requisitions" to authenticated;
 grant all on "better_supabase"."purchase_requisitions" to service_role;
-create policy purchase_requisitions_read on "better_supabase"."purchase_requisitions"
+create policy bsb_purchase_requisitions_read on "better_supabase"."purchase_requisitions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10415,7 +10415,7 @@ alter table "better_supabase"."purchase_requisition_lines" enable row level secu
 revoke all on "better_supabase"."purchase_requisition_lines" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_requisition_lines" to authenticated;
 grant all on "better_supabase"."purchase_requisition_lines" to service_role;
-create policy purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines"
+create policy bsb_purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10434,7 +10434,7 @@ alter table "better_supabase"."inventory_receipts" enable row level security;
 revoke all on "better_supabase"."inventory_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_receipts" to authenticated;
 grant all on "better_supabase"."inventory_receipts" to service_role;
-create policy inventory_receipts_read on "better_supabase"."inventory_receipts"
+create policy bsb_inventory_receipts_read on "better_supabase"."inventory_receipts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10455,7 +10455,7 @@ alter table "better_supabase"."inventory_receipt_lines" enable row level securit
 revoke all on "better_supabase"."inventory_receipt_lines" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_receipt_lines" to authenticated;
 grant all on "better_supabase"."inventory_receipt_lines" to service_role;
-create policy inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines"
+create policy bsb_inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10478,7 +10478,7 @@ alter table "better_supabase"."stock_items" enable row level security;
 revoke all on "better_supabase"."stock_items" from public, anon, authenticated;
 grant select on "better_supabase"."stock_items" to authenticated;
 grant all on "better_supabase"."stock_items" to service_role;
-create policy stock_items_read on "better_supabase"."stock_items"
+create policy bsb_stock_items_read on "better_supabase"."stock_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10498,7 +10498,7 @@ alter table "better_supabase"."stock_bins" enable row level security;
 revoke all on "better_supabase"."stock_bins" from public, anon, authenticated;
 grant select on "better_supabase"."stock_bins" to authenticated;
 grant all on "better_supabase"."stock_bins" to service_role;
-create policy stock_bins_read on "better_supabase"."stock_bins"
+create policy bsb_stock_bins_read on "better_supabase"."stock_bins"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10516,7 +10516,7 @@ alter table "better_supabase"."stock_lots" enable row level security;
 revoke all on "better_supabase"."stock_lots" from public, anon, authenticated;
 grant select on "better_supabase"."stock_lots" to authenticated;
 grant all on "better_supabase"."stock_lots" to service_role;
-create policy stock_lots_read on "better_supabase"."stock_lots"
+create policy bsb_stock_lots_read on "better_supabase"."stock_lots"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10542,7 +10542,7 @@ alter table "better_supabase"."stock_serials" enable row level security;
 revoke all on "better_supabase"."stock_serials" from public, anon, authenticated;
 grant select on "better_supabase"."stock_serials" to authenticated;
 grant all on "better_supabase"."stock_serials" to service_role;
-create policy stock_serials_read on "better_supabase"."stock_serials"
+create policy bsb_stock_serials_read on "better_supabase"."stock_serials"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10566,7 +10566,7 @@ alter table "better_supabase"."stock_buckets" enable row level security;
 revoke all on "better_supabase"."stock_buckets" from public, anon, authenticated;
 grant select on "better_supabase"."stock_buckets" to authenticated;
 grant all on "better_supabase"."stock_buckets" to service_role;
-create policy stock_buckets_read on "better_supabase"."stock_buckets"
+create policy bsb_stock_buckets_read on "better_supabase"."stock_buckets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10595,7 +10595,7 @@ alter table "better_supabase"."stock_allocations" enable row level security;
 revoke all on "better_supabase"."stock_allocations" from public, anon, authenticated;
 grant select on "better_supabase"."stock_allocations" to authenticated;
 grant all on "better_supabase"."stock_allocations" to service_role;
-create policy stock_allocations_read on "better_supabase"."stock_allocations"
+create policy bsb_stock_allocations_read on "better_supabase"."stock_allocations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10619,7 +10619,7 @@ alter table "better_supabase"."stock_counts" enable row level security;
 revoke all on "better_supabase"."stock_counts" from public, anon, authenticated;
 grant select on "better_supabase"."stock_counts" to authenticated;
 grant all on "better_supabase"."stock_counts" to service_role;
-create policy stock_counts_read on "better_supabase"."stock_counts"
+create policy bsb_stock_counts_read on "better_supabase"."stock_counts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -10648,7 +10648,7 @@ alter table "better_supabase"."stock_count_lines" enable row level security;
 revoke all on "better_supabase"."stock_count_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_count_lines" to authenticated;
 grant all on "better_supabase"."stock_count_lines" to service_role;
-create policy stock_count_lines_read on "better_supabase"."stock_count_lines"
+create policy bsb_stock_count_lines_read on "better_supabase"."stock_count_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17324,7 +17324,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:6d8c5a273ccac73c6f60a42e548379ff8a78307b7b63adaeabcf384d72ad86fb
+-- @bsb-hash sha256:35d1d4064cc1886c4b4bd6d117acfeb58be8b8b2f405889e175fdc579ba13941
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17351,7 +17351,7 @@ alter table "better_supabase"."inventory_locations" enable row level security;
 revoke all on "better_supabase"."inventory_locations" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_locations" to authenticated;
 grant all on "better_supabase"."inventory_locations" to service_role;
-create policy inventory_locations_read on "better_supabase"."inventory_locations"
+create policy bsb_inventory_locations_read on "better_supabase"."inventory_locations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17374,7 +17374,7 @@ alter table "better_supabase"."stock_levels" enable row level security;
 revoke all on "better_supabase"."stock_levels" from public, anon, authenticated;
 grant select on "better_supabase"."stock_levels" to authenticated;
 grant all on "better_supabase"."stock_levels" to service_role;
-create policy stock_levels_read on "better_supabase"."stock_levels"
+create policy bsb_stock_levels_read on "better_supabase"."stock_levels"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17399,7 +17399,7 @@ alter table "better_supabase"."stock_reservations" enable row level security;
 revoke all on "better_supabase"."stock_reservations" from public, anon, authenticated;
 grant select on "better_supabase"."stock_reservations" to authenticated;
 grant all on "better_supabase"."stock_reservations" to service_role;
-create policy stock_reservations_read on "better_supabase"."stock_reservations"
+create policy bsb_stock_reservations_read on "better_supabase"."stock_reservations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17422,7 +17422,7 @@ alter table "better_supabase"."stock_transfers" enable row level security;
 revoke all on "better_supabase"."stock_transfers" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfers" to authenticated;
 grant all on "better_supabase"."stock_transfers" to service_role;
-create policy stock_transfers_read on "better_supabase"."stock_transfers"
+create policy bsb_stock_transfers_read on "better_supabase"."stock_transfers"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17440,7 +17440,7 @@ alter table "better_supabase"."stock_transfer_lines" enable row level security;
 revoke all on "better_supabase"."stock_transfer_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_transfer_lines" to authenticated;
 grant all on "better_supabase"."stock_transfer_lines" to service_role;
-create policy stock_transfer_lines_read on "better_supabase"."stock_transfer_lines"
+create policy bsb_stock_transfer_lines_read on "better_supabase"."stock_transfer_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17469,7 +17469,7 @@ alter table "better_supabase"."purchase_orders" enable row level security;
 revoke all on "better_supabase"."purchase_orders" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_orders" to authenticated;
 grant all on "better_supabase"."purchase_orders" to service_role;
-create policy purchase_orders_read on "better_supabase"."purchase_orders"
+create policy bsb_purchase_orders_read on "better_supabase"."purchase_orders"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17488,7 +17488,7 @@ alter table "better_supabase"."purchase_order_lines" enable row level security;
 revoke all on "better_supabase"."purchase_order_lines" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_order_lines" to authenticated;
 grant all on "better_supabase"."purchase_order_lines" to service_role;
-create policy purchase_order_lines_read on "better_supabase"."purchase_order_lines"
+create policy bsb_purchase_order_lines_read on "better_supabase"."purchase_order_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17517,7 +17517,7 @@ alter table "better_supabase"."purchase_requisitions" enable row level security;
 revoke all on "better_supabase"."purchase_requisitions" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_requisitions" to authenticated;
 grant all on "better_supabase"."purchase_requisitions" to service_role;
-create policy purchase_requisitions_read on "better_supabase"."purchase_requisitions"
+create policy bsb_purchase_requisitions_read on "better_supabase"."purchase_requisitions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17535,7 +17535,7 @@ alter table "better_supabase"."purchase_requisition_lines" enable row level secu
 revoke all on "better_supabase"."purchase_requisition_lines" from public, anon, authenticated;
 grant select on "better_supabase"."purchase_requisition_lines" to authenticated;
 grant all on "better_supabase"."purchase_requisition_lines" to service_role;
-create policy purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines"
+create policy bsb_purchase_requisition_lines_read on "better_supabase"."purchase_requisition_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17554,7 +17554,7 @@ alter table "better_supabase"."inventory_receipts" enable row level security;
 revoke all on "better_supabase"."inventory_receipts" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_receipts" to authenticated;
 grant all on "better_supabase"."inventory_receipts" to service_role;
-create policy inventory_receipts_read on "better_supabase"."inventory_receipts"
+create policy bsb_inventory_receipts_read on "better_supabase"."inventory_receipts"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17575,7 +17575,7 @@ alter table "better_supabase"."inventory_receipt_lines" enable row level securit
 revoke all on "better_supabase"."inventory_receipt_lines" from public, anon, authenticated;
 grant select on "better_supabase"."inventory_receipt_lines" to authenticated;
 grant all on "better_supabase"."inventory_receipt_lines" to service_role;
-create policy inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines"
+create policy bsb_inventory_receipt_lines_read on "better_supabase"."inventory_receipt_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17598,7 +17598,7 @@ alter table "better_supabase"."stock_items" enable row level security;
 revoke all on "better_supabase"."stock_items" from public, anon, authenticated;
 grant select on "better_supabase"."stock_items" to authenticated;
 grant all on "better_supabase"."stock_items" to service_role;
-create policy stock_items_read on "better_supabase"."stock_items"
+create policy bsb_stock_items_read on "better_supabase"."stock_items"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17618,7 +17618,7 @@ alter table "better_supabase"."stock_bins" enable row level security;
 revoke all on "better_supabase"."stock_bins" from public, anon, authenticated;
 grant select on "better_supabase"."stock_bins" to authenticated;
 grant all on "better_supabase"."stock_bins" to service_role;
-create policy stock_bins_read on "better_supabase"."stock_bins"
+create policy bsb_stock_bins_read on "better_supabase"."stock_bins"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17636,7 +17636,7 @@ alter table "better_supabase"."stock_lots" enable row level security;
 revoke all on "better_supabase"."stock_lots" from public, anon, authenticated;
 grant select on "better_supabase"."stock_lots" to authenticated;
 grant all on "better_supabase"."stock_lots" to service_role;
-create policy stock_lots_read on "better_supabase"."stock_lots"
+create policy bsb_stock_lots_read on "better_supabase"."stock_lots"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17662,7 +17662,7 @@ alter table "better_supabase"."stock_serials" enable row level security;
 revoke all on "better_supabase"."stock_serials" from public, anon, authenticated;
 grant select on "better_supabase"."stock_serials" to authenticated;
 grant all on "better_supabase"."stock_serials" to service_role;
-create policy stock_serials_read on "better_supabase"."stock_serials"
+create policy bsb_stock_serials_read on "better_supabase"."stock_serials"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17686,7 +17686,7 @@ alter table "better_supabase"."stock_buckets" enable row level security;
 revoke all on "better_supabase"."stock_buckets" from public, anon, authenticated;
 grant select on "better_supabase"."stock_buckets" to authenticated;
 grant all on "better_supabase"."stock_buckets" to service_role;
-create policy stock_buckets_read on "better_supabase"."stock_buckets"
+create policy bsb_stock_buckets_read on "better_supabase"."stock_buckets"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17715,7 +17715,7 @@ alter table "better_supabase"."stock_allocations" enable row level security;
 revoke all on "better_supabase"."stock_allocations" from public, anon, authenticated;
 grant select on "better_supabase"."stock_allocations" to authenticated;
 grant all on "better_supabase"."stock_allocations" to service_role;
-create policy stock_allocations_read on "better_supabase"."stock_allocations"
+create policy bsb_stock_allocations_read on "better_supabase"."stock_allocations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17739,7 +17739,7 @@ alter table "better_supabase"."stock_counts" enable row level security;
 revoke all on "better_supabase"."stock_counts" from public, anon, authenticated;
 grant select on "better_supabase"."stock_counts" to authenticated;
 grant all on "better_supabase"."stock_counts" to service_role;
-create policy stock_counts_read on "better_supabase"."stock_counts"
+create policy bsb_stock_counts_read on "better_supabase"."stock_counts"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 
@@ -17768,7 +17768,7 @@ alter table "better_supabase"."stock_count_lines" enable row level security;
 revoke all on "better_supabase"."stock_count_lines" from public, anon, authenticated;
 grant select on "better_supabase"."stock_count_lines" to authenticated;
 grant all on "better_supabase"."stock_count_lines" to service_role;
-create policy stock_count_lines_read on "better_supabase"."stock_count_lines"
+create policy bsb_stock_count_lines_read on "better_supabase"."stock_count_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('inventory.read')));
 

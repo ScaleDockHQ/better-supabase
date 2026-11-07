@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:5b8edb848c6109eb2c89c8fc2749f53a7f20ed70e9c9e07ac07bf7792c90414e
+-- @bsb-hash sha256:3903aecbb1e6990220442378e0c8c55b7f74e365778ff628c3faac4a46ee1a41
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,7 +38,7 @@ alter table "better_supabase"."rfqs" enable row level security;
 revoke all on "better_supabase"."rfqs" from public, anon, authenticated;
 grant select on "better_supabase"."rfqs" to authenticated;
 grant all on "better_supabase"."rfqs" to service_role;
-create policy rfqs_read on "better_supabase"."rfqs"
+create policy bsb_rfqs_read on "better_supabase"."rfqs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -59,7 +59,7 @@ alter table "better_supabase"."rfq_lines" enable row level security;
 revoke all on "better_supabase"."rfq_lines" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_lines" to authenticated;
 grant all on "better_supabase"."rfq_lines" to service_role;
-create policy rfq_lines_read on "better_supabase"."rfq_lines"
+create policy bsb_rfq_lines_read on "better_supabase"."rfq_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -80,7 +80,7 @@ alter table "better_supabase"."rfq_suppliers" enable row level security;
 revoke all on "better_supabase"."rfq_suppliers" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_suppliers" to authenticated;
 grant all on "better_supabase"."rfq_suppliers" to service_role;
-create policy rfq_suppliers_read on "better_supabase"."rfq_suppliers"
+create policy bsb_rfq_suppliers_read on "better_supabase"."rfq_suppliers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -108,7 +108,7 @@ alter table "better_supabase"."rfq_quotes" enable row level security;
 revoke all on "better_supabase"."rfq_quotes" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_quotes" to authenticated;
 grant all on "better_supabase"."rfq_quotes" to service_role;
-create policy rfq_quotes_read on "better_supabase"."rfq_quotes"
+create policy bsb_rfq_quotes_read on "better_supabase"."rfq_quotes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -128,7 +128,7 @@ alter table "better_supabase"."rfq_quote_lines" enable row level security;
 revoke all on "better_supabase"."rfq_quote_lines" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_quote_lines" to authenticated;
 grant all on "better_supabase"."rfq_quote_lines" to service_role;
-create policy rfq_quote_lines_read on "better_supabase"."rfq_quote_lines"
+create policy bsb_rfq_quote_lines_read on "better_supabase"."rfq_quote_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -927,7 +927,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:fb3d7c4314c832de499644d88c304c980e49976fecc11e52395a399b91c7656f
+-- @bsb-hash sha256:974693fe8ac3f48def1dd141d81110a15069a1ef0df0b5065b3693c885998501
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -964,7 +964,7 @@ alter table "better_supabase"."rfqs" enable row level security;
 revoke all on "better_supabase"."rfqs" from public, anon, authenticated;
 grant select on "better_supabase"."rfqs" to authenticated;
 grant all on "better_supabase"."rfqs" to service_role;
-create policy rfqs_read on "better_supabase"."rfqs"
+create policy bsb_rfqs_read on "better_supabase"."rfqs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -985,7 +985,7 @@ alter table "better_supabase"."rfq_lines" enable row level security;
 revoke all on "better_supabase"."rfq_lines" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_lines" to authenticated;
 grant all on "better_supabase"."rfq_lines" to service_role;
-create policy rfq_lines_read on "better_supabase"."rfq_lines"
+create policy bsb_rfq_lines_read on "better_supabase"."rfq_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -1006,7 +1006,7 @@ alter table "better_supabase"."rfq_suppliers" enable row level security;
 revoke all on "better_supabase"."rfq_suppliers" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_suppliers" to authenticated;
 grant all on "better_supabase"."rfq_suppliers" to service_role;
-create policy rfq_suppliers_read on "better_supabase"."rfq_suppliers"
+create policy bsb_rfq_suppliers_read on "better_supabase"."rfq_suppliers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -1034,7 +1034,7 @@ alter table "better_supabase"."rfq_quotes" enable row level security;
 revoke all on "better_supabase"."rfq_quotes" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_quotes" to authenticated;
 grant all on "better_supabase"."rfq_quotes" to service_role;
-create policy rfq_quotes_read on "better_supabase"."rfq_quotes"
+create policy bsb_rfq_quotes_read on "better_supabase"."rfq_quotes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -1054,7 +1054,7 @@ alter table "better_supabase"."rfq_quote_lines" enable row level security;
 revoke all on "better_supabase"."rfq_quote_lines" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_quote_lines" to authenticated;
 grant all on "better_supabase"."rfq_quote_lines" to service_role;
-create policy rfq_quote_lines_read on "better_supabase"."rfq_quote_lines"
+create policy bsb_rfq_quote_lines_read on "better_supabase"."rfq_quote_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -1944,7 +1944,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:bba6ecb495dc3715c385c2cc0162c590c4d7cc3a7e8519ac12532914797f1a3d
+-- @bsb-hash sha256:47ab2e7df097352e40881afb3bc87ce8a4cff7adecf55190df6f7c6aabd53d2c
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1986,7 +1986,7 @@ alter table "app_private"."rfqs" enable row level security;
 revoke all on "app_private"."rfqs" from public, anon, authenticated;
 grant select on "app_private"."rfqs" to authenticated;
 grant all on "app_private"."rfqs" to service_role;
-create policy rfqs_read on "app_private"."rfqs"
+create policy bsb_rfqs_read on "app_private"."rfqs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -2007,7 +2007,7 @@ alter table "app_private"."rfq_lines" enable row level security;
 revoke all on "app_private"."rfq_lines" from public, anon, authenticated;
 grant select on "app_private"."rfq_lines" to authenticated;
 grant all on "app_private"."rfq_lines" to service_role;
-create policy rfq_lines_read on "app_private"."rfq_lines"
+create policy bsb_rfq_lines_read on "app_private"."rfq_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -2028,7 +2028,7 @@ alter table "app_private"."rfq_suppliers" enable row level security;
 revoke all on "app_private"."rfq_suppliers" from public, anon, authenticated;
 grant select on "app_private"."rfq_suppliers" to authenticated;
 grant all on "app_private"."rfq_suppliers" to service_role;
-create policy rfq_suppliers_read on "app_private"."rfq_suppliers"
+create policy bsb_rfq_suppliers_read on "app_private"."rfq_suppliers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -2056,7 +2056,7 @@ alter table "app_private"."rfq_quotes" enable row level security;
 revoke all on "app_private"."rfq_quotes" from public, anon, authenticated;
 grant select on "app_private"."rfq_quotes" to authenticated;
 grant all on "app_private"."rfq_quotes" to service_role;
-create policy rfq_quotes_read on "app_private"."rfq_quotes"
+create policy bsb_rfq_quotes_read on "app_private"."rfq_quotes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -2076,7 +2076,7 @@ alter table "app_private"."rfq_quote_lines" enable row level security;
 revoke all on "app_private"."rfq_quote_lines" from public, anon, authenticated;
 grant select on "app_private"."rfq_quote_lines" to authenticated;
 grant all on "app_private"."rfq_quote_lines" to service_role;
-create policy rfq_quote_lines_read on "app_private"."rfq_quote_lines"
+create policy bsb_rfq_quote_lines_read on "app_private"."rfq_quote_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -2875,7 +2875,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:9001a0a16bdee2709c8a670a1da64fc6c619d32b0c2d1af765e0fee28749f4b3
+-- @bsb-hash sha256:9044d84aabcca0a2fe3f41a450a262781096b2cac55861db6e943678766f1d64
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2912,7 +2912,7 @@ alter table "better_supabase"."rfqs" enable row level security;
 revoke all on "better_supabase"."rfqs" from public, anon, authenticated;
 grant select on "better_supabase"."rfqs" to authenticated;
 grant all on "better_supabase"."rfqs" to service_role;
-create policy rfqs_read on "better_supabase"."rfqs"
+create policy bsb_rfqs_read on "better_supabase"."rfqs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -2933,7 +2933,7 @@ alter table "better_supabase"."rfq_lines" enable row level security;
 revoke all on "better_supabase"."rfq_lines" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_lines" to authenticated;
 grant all on "better_supabase"."rfq_lines" to service_role;
-create policy rfq_lines_read on "better_supabase"."rfq_lines"
+create policy bsb_rfq_lines_read on "better_supabase"."rfq_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -2954,7 +2954,7 @@ alter table "better_supabase"."rfq_suppliers" enable row level security;
 revoke all on "better_supabase"."rfq_suppliers" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_suppliers" to authenticated;
 grant all on "better_supabase"."rfq_suppliers" to service_role;
-create policy rfq_suppliers_read on "better_supabase"."rfq_suppliers"
+create policy bsb_rfq_suppliers_read on "better_supabase"."rfq_suppliers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -2982,7 +2982,7 @@ alter table "better_supabase"."rfq_quotes" enable row level security;
 revoke all on "better_supabase"."rfq_quotes" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_quotes" to authenticated;
 grant all on "better_supabase"."rfq_quotes" to service_role;
-create policy rfq_quotes_read on "better_supabase"."rfq_quotes"
+create policy bsb_rfq_quotes_read on "better_supabase"."rfq_quotes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -3002,7 +3002,7 @@ alter table "better_supabase"."rfq_quote_lines" enable row level security;
 revoke all on "better_supabase"."rfq_quote_lines" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_quote_lines" to authenticated;
 grant all on "better_supabase"."rfq_quote_lines" to service_role;
-create policy rfq_quote_lines_read on "better_supabase"."rfq_quote_lines"
+create policy bsb_rfq_quote_lines_read on "better_supabase"."rfq_quote_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -4841,7 +4841,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:616644de619aac435871cf9cf5772c02e871e4c3e84f5f90a8f6802b620d7b09
+-- @bsb-hash sha256:18d1e91dda9aa36218ee45c56416fd8dafb9a216282623eed133fe7d1a44cc85
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4878,7 +4878,7 @@ alter table "better_supabase"."rfqs" enable row level security;
 revoke all on "better_supabase"."rfqs" from public, anon, authenticated;
 grant select on "better_supabase"."rfqs" to authenticated;
 grant all on "better_supabase"."rfqs" to service_role;
-create policy rfqs_read on "better_supabase"."rfqs"
+create policy bsb_rfqs_read on "better_supabase"."rfqs"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -4899,7 +4899,7 @@ alter table "better_supabase"."rfq_lines" enable row level security;
 revoke all on "better_supabase"."rfq_lines" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_lines" to authenticated;
 grant all on "better_supabase"."rfq_lines" to service_role;
-create policy rfq_lines_read on "better_supabase"."rfq_lines"
+create policy bsb_rfq_lines_read on "better_supabase"."rfq_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -4920,7 +4920,7 @@ alter table "better_supabase"."rfq_suppliers" enable row level security;
 revoke all on "better_supabase"."rfq_suppliers" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_suppliers" to authenticated;
 grant all on "better_supabase"."rfq_suppliers" to service_role;
-create policy rfq_suppliers_read on "better_supabase"."rfq_suppliers"
+create policy bsb_rfq_suppliers_read on "better_supabase"."rfq_suppliers"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -4948,7 +4948,7 @@ alter table "better_supabase"."rfq_quotes" enable row level security;
 revoke all on "better_supabase"."rfq_quotes" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_quotes" to authenticated;
 grant all on "better_supabase"."rfq_quotes" to service_role;
-create policy rfq_quotes_read on "better_supabase"."rfq_quotes"
+create policy bsb_rfq_quotes_read on "better_supabase"."rfq_quotes"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 
@@ -4968,7 +4968,7 @@ alter table "better_supabase"."rfq_quote_lines" enable row level security;
 revoke all on "better_supabase"."rfq_quote_lines" from public, anon, authenticated;
 grant select on "better_supabase"."rfq_quote_lines" to authenticated;
 grant all on "better_supabase"."rfq_quote_lines" to service_role;
-create policy rfq_quote_lines_read on "better_supabase"."rfq_quote_lines"
+create policy bsb_rfq_quote_lines_read on "better_supabase"."rfq_quote_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('rfqs.read')));
 

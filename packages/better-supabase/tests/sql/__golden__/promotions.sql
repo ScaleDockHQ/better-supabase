@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:12c4509df5ce4bf4c740485109233943c250528a873252e340c80b89cfa1f96a
+-- @bsb-hash sha256:88108695f726261c514ad9c712d5086c6f6f7642ff1c67e423ea791214cc18ce
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -42,7 +42,7 @@ alter table "better_supabase"."promotions" enable row level security;
 revoke all on "better_supabase"."promotions" from public, anon, authenticated;
 grant select on "better_supabase"."promotions" to authenticated;
 grant all on "better_supabase"."promotions" to service_role;
-create policy promotions_read on "better_supabase"."promotions"
+create policy bsb_promotions_read on "better_supabase"."promotions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
@@ -61,7 +61,7 @@ alter table "better_supabase"."promotion_codes" enable row level security;
 revoke all on "better_supabase"."promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_codes" to authenticated;
 grant all on "better_supabase"."promotion_codes" to service_role;
-create policy promotion_codes_read on "better_supabase"."promotion_codes"
+create policy bsb_promotion_codes_read on "better_supabase"."promotion_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
@@ -77,7 +77,7 @@ alter table "better_supabase"."cart_promotion_codes" enable row level security;
 revoke all on "better_supabase"."cart_promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."cart_promotion_codes" to authenticated;
 grant all on "better_supabase"."cart_promotion_codes" to service_role;
-create policy cart_promotion_codes_read on "better_supabase"."cart_promotion_codes"
+create policy bsb_cart_promotion_codes_read on "better_supabase"."cart_promotion_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
@@ -103,7 +103,7 @@ alter table "better_supabase"."promotion_redemptions" enable row level security;
 revoke all on "better_supabase"."promotion_redemptions" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_redemptions" to authenticated;
 grant all on "better_supabase"."promotion_redemptions" to service_role;
-create policy promotion_redemptions_read on "better_supabase"."promotion_redemptions"
+create policy bsb_promotion_redemptions_read on "better_supabase"."promotion_redemptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or "customer_id" = (select auth.uid()));
 
@@ -853,7 +853,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:8e5228b4293d3bed9ce01fbc213ed31036ce71ca6ac5478b24bebcd2ba354189
+-- @bsb-hash sha256:1f91fb6795d893d5e2c71e583820d757716efdcb7ea3aeca734ab061569ae052
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -894,7 +894,7 @@ alter table "better_supabase"."promotions" enable row level security;
 revoke all on "better_supabase"."promotions" from public, anon, authenticated;
 grant select on "better_supabase"."promotions" to authenticated;
 grant all on "better_supabase"."promotions" to service_role;
-create policy promotions_read on "better_supabase"."promotions"
+create policy bsb_promotions_read on "better_supabase"."promotions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
@@ -913,7 +913,7 @@ alter table "better_supabase"."promotion_codes" enable row level security;
 revoke all on "better_supabase"."promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_codes" to authenticated;
 grant all on "better_supabase"."promotion_codes" to service_role;
-create policy promotion_codes_read on "better_supabase"."promotion_codes"
+create policy bsb_promotion_codes_read on "better_supabase"."promotion_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
@@ -929,7 +929,7 @@ alter table "better_supabase"."cart_promotion_codes" enable row level security;
 revoke all on "better_supabase"."cart_promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."cart_promotion_codes" to authenticated;
 grant all on "better_supabase"."cart_promotion_codes" to service_role;
-create policy cart_promotion_codes_read on "better_supabase"."cart_promotion_codes"
+create policy bsb_cart_promotion_codes_read on "better_supabase"."cart_promotion_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
@@ -955,7 +955,7 @@ alter table "better_supabase"."promotion_redemptions" enable row level security;
 revoke all on "better_supabase"."promotion_redemptions" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_redemptions" to authenticated;
 grant all on "better_supabase"."promotion_redemptions" to service_role;
-create policy promotion_redemptions_read on "better_supabase"."promotion_redemptions"
+create policy bsb_promotion_redemptions_read on "better_supabase"."promotion_redemptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or "customer_id" = (select auth.uid()));
 
@@ -1708,7 +1708,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:a389e5c3f0c9994f9cb7ead1ec92d4dad64c28bd568a5b7f1e375a112081ac56
+-- @bsb-hash sha256:88713edb29b73485dfbbe598aa0d28560f1764bc0e00b5e7105cece40344e70e
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1754,7 +1754,7 @@ alter table "app_private"."promotions" enable row level security;
 revoke all on "app_private"."promotions" from public, anon, authenticated;
 grant select on "app_private"."promotions" to authenticated;
 grant all on "app_private"."promotions" to service_role;
-create policy promotions_read on "app_private"."promotions"
+create policy bsb_promotions_read on "app_private"."promotions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
@@ -1773,7 +1773,7 @@ alter table "app_private"."promotion_codes" enable row level security;
 revoke all on "app_private"."promotion_codes" from public, anon, authenticated;
 grant select on "app_private"."promotion_codes" to authenticated;
 grant all on "app_private"."promotion_codes" to service_role;
-create policy promotion_codes_read on "app_private"."promotion_codes"
+create policy bsb_promotion_codes_read on "app_private"."promotion_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
@@ -1789,7 +1789,7 @@ alter table "app_private"."cart_promotion_codes" enable row level security;
 revoke all on "app_private"."cart_promotion_codes" from public, anon, authenticated;
 grant select on "app_private"."cart_promotion_codes" to authenticated;
 grant all on "app_private"."cart_promotion_codes" to service_role;
-create policy cart_promotion_codes_read on "app_private"."cart_promotion_codes"
+create policy bsb_cart_promotion_codes_read on "app_private"."cart_promotion_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
@@ -1815,7 +1815,7 @@ alter table "app_private"."promotion_redemptions" enable row level security;
 revoke all on "app_private"."promotion_redemptions" from public, anon, authenticated;
 grant select on "app_private"."promotion_redemptions" to authenticated;
 grant all on "app_private"."promotion_redemptions" to service_role;
-create policy promotion_redemptions_read on "app_private"."promotion_redemptions"
+create policy bsb_promotion_redemptions_read on "app_private"."promotion_redemptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or "customer_id" = (select auth.uid()));
 
@@ -2565,7 +2565,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:613e0836f88b62e1c9c57340a25183e821b34df913d92af7c6ef96cf83045b04
+-- @bsb-hash sha256:7da0b262d901cbbcb00d41df2103e2b55340632144c887ee0a12075cbad525a1
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2606,7 +2606,7 @@ alter table "better_supabase"."promotions" enable row level security;
 revoke all on "better_supabase"."promotions" from public, anon, authenticated;
 grant select on "better_supabase"."promotions" to authenticated;
 grant all on "better_supabase"."promotions" to service_role;
-create policy promotions_read on "better_supabase"."promotions"
+create policy bsb_promotions_read on "better_supabase"."promotions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
@@ -2625,7 +2625,7 @@ alter table "better_supabase"."promotion_codes" enable row level security;
 revoke all on "better_supabase"."promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_codes" to authenticated;
 grant all on "better_supabase"."promotion_codes" to service_role;
-create policy promotion_codes_read on "better_supabase"."promotion_codes"
+create policy bsb_promotion_codes_read on "better_supabase"."promotion_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
@@ -2641,7 +2641,7 @@ alter table "better_supabase"."cart_promotion_codes" enable row level security;
 revoke all on "better_supabase"."cart_promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."cart_promotion_codes" to authenticated;
 grant all on "better_supabase"."cart_promotion_codes" to service_role;
-create policy cart_promotion_codes_read on "better_supabase"."cart_promotion_codes"
+create policy bsb_cart_promotion_codes_read on "better_supabase"."cart_promotion_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
@@ -2667,7 +2667,7 @@ alter table "better_supabase"."promotion_redemptions" enable row level security;
 revoke all on "better_supabase"."promotion_redemptions" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_redemptions" to authenticated;
 grant all on "better_supabase"."promotion_redemptions" to service_role;
-create policy promotion_redemptions_read on "better_supabase"."promotion_redemptions"
+create policy bsb_promotion_redemptions_read on "better_supabase"."promotion_redemptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('promotions.read')) or "customer_id" = (select auth.uid()));
 
@@ -4324,7 +4324,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:95ac4735de35193c1a97d44f149be759770091ad844c33d9a640c8d037d90a0b
+-- @bsb-hash sha256:f829edb2679d0fb9f969ea538658efda864da3ed5ef27cb1e1658955da98dc4b
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4365,7 +4365,7 @@ alter table "better_supabase"."promotions" enable row level security;
 revoke all on "better_supabase"."promotions" from public, anon, authenticated;
 grant select on "better_supabase"."promotions" to authenticated;
 grant all on "better_supabase"."promotions" to service_role;
-create policy promotions_read on "better_supabase"."promotions"
+create policy bsb_promotions_read on "better_supabase"."promotions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
@@ -4384,7 +4384,7 @@ alter table "better_supabase"."promotion_codes" enable row level security;
 revoke all on "better_supabase"."promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_codes" to authenticated;
 grant all on "better_supabase"."promotion_codes" to service_role;
-create policy promotion_codes_read on "better_supabase"."promotion_codes"
+create policy bsb_promotion_codes_read on "better_supabase"."promotion_codes"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('promotions.read')));
 
@@ -4400,7 +4400,7 @@ alter table "better_supabase"."cart_promotion_codes" enable row level security;
 revoke all on "better_supabase"."cart_promotion_codes" from public, anon, authenticated;
 grant select on "better_supabase"."cart_promotion_codes" to authenticated;
 grant all on "better_supabase"."cart_promotion_codes" to service_role;
-create policy cart_promotion_codes_read on "better_supabase"."cart_promotion_codes"
+create policy bsb_cart_promotion_codes_read on "better_supabase"."cart_promotion_codes"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('promotions.read')) or exists (select 1 from "better_supabase"."carts" x where x."id" = "cart_id" and x."user_id" = (select auth.uid())));
 
@@ -4426,7 +4426,7 @@ alter table "better_supabase"."promotion_redemptions" enable row level security;
 revoke all on "better_supabase"."promotion_redemptions" from public, anon, authenticated;
 grant select on "better_supabase"."promotion_redemptions" to authenticated;
 grant all on "better_supabase"."promotion_redemptions" to service_role;
-create policy promotion_redemptions_read on "better_supabase"."promotion_redemptions"
+create policy bsb_promotion_redemptions_read on "better_supabase"."promotion_redemptions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('promotions.read')) or "customer_id" = (select auth.uid()));
 

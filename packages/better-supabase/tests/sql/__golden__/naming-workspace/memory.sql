@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:305675a6c07e63f258072ec522bf4ba528cc96aca8b9734b6e205a4b78fb4a8a
+-- @bsb-hash sha256:755eac0558508980cf7bff803387e96fc782e5a2dee38fe09d63c906b5e1808f
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -60,7 +60,7 @@ alter table "better_supabase"."memories" enable row level security;
 revoke all on "better_supabase"."memories" from public, anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
-create policy memories_read on "better_supabase"."memories"
+create policy bsb_memories_read on "better_supabase"."memories"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or ("owner_id" is null and "workspace_id" in (select better_supabase.tenant_ids_with('memory.read')))) and "deleted_at" is null);
 
@@ -82,7 +82,7 @@ alter table "better_supabase"."memory_message_embeddings" enable row level secur
 revoke all on "better_supabase"."memory_message_embeddings" from public, anon, authenticated;
 grant select on "better_supabase"."memory_message_embeddings" to authenticated;
 grant all on "better_supabase"."memory_message_embeddings" to service_role;
-create policy memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
+create policy bsb_memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 

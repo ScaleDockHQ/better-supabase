@@ -9,6 +9,7 @@
 import type { Codemod } from "./codemod.ts";
 
 import naming from "../../api/naming.json" with { type: "json" };
+import { bsbPolicyName, readPolicies } from "../sql/index.ts";
 
 export type RenameKind =
   | "column"
@@ -109,6 +110,36 @@ function qualifiedOf(table: string): { schema: string; name: string } {
     : ["public", table];
 
   return { schema: schema!, name: name! };
+}
+
+/**
+ * The `alter policy` statements for the policies of `better_supabase` tables
+ * that `projectSql` creates without the `bsb_` prefix (ADR 0272). They follow
+ * from a rule, not from rows of the rename table, because a module writes
+ * hundreds of them.
+ */
+function generatedPolicyRenames(projectSql: string | undefined): string[] {
+  if (projectSql === undefined) {
+    return [];
+  }
+
+  const seen = new Set<string>();
+
+  return readPolicies(projectSql).flatMap(({ policy }): string[] => {
+    const { schema, name } = qualifiedOf(policy.table);
+    const to = bsbPolicyName(policy.name);
+    const key = `${policy.table}\u0000${policy.name}`;
+
+    if (schema !== "better_supabase" || to === policy.name || seen.has(key)) {
+      return [];
+    }
+
+    seen.add(key);
+
+    return [
+      `if exists (select 1 from pg_policies where schemaname = ${literal(schema)} and tablename = ${literal(name)} and policyname = ${literal(policy.name)}) then\n    alter policy ${quote(policy.name)} on ${quote(schema)}.${quote(name)} rename to ${quote(to)};\n  end if;`,
+    ];
+  });
 }
 
 /**
@@ -214,6 +245,8 @@ export function renameMigrationSql(
       }
     }
   });
+
+  statements.push(...generatedPolicyRenames(projectSql));
 
   if (statements.length === 0) {
     return undefined;

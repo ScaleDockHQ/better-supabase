@@ -16,7 +16,7 @@ describe("inbox drafts", () => {
     expect(sql).toContain("check (\"source\" in ('user', 'ai'))");
     expect(sql).toContain("inbox_drafts_author_check");
     expect(sql).toContain(`where "source" = 'user' and "status" = 'draft';`);
-    expect(sql).toContain("create policy inbox_drafts_read");
+    expect(sql).toContain("create policy bsb_inbox_drafts_read");
     expect(sql).toContain(`or "source" = 'ai') and`);
   });
 

@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
 -- @bsb-block facilities@5 managed tasks
--- @bsb-hash sha256:76f79a1b3013a669e0f27d9223416390437339f933829e913078b843108870f9
+-- @bsb-hash sha256:d6ce183d0846051dadd85a4b7f430db7afc9b24acd7ece974f6c9296e1c69326
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -50,7 +50,7 @@ alter table "better_supabase"."maintenance_requests" enable row level security;
 revoke all on "better_supabase"."maintenance_requests" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_requests" to authenticated;
 grant all on "better_supabase"."maintenance_requests" to service_role;
-create policy maintenance_requests_read on "better_supabase"."maintenance_requests"
+create policy bsb_maintenance_requests_read on "better_supabase"."maintenance_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('facilities.read')));
 
@@ -66,7 +66,7 @@ alter table "better_supabase"."maintenance_request_assignees" enable row level s
 revoke all on "better_supabase"."maintenance_request_assignees" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_request_assignees" to authenticated;
 grant all on "better_supabase"."maintenance_request_assignees" to service_role;
-create policy maintenance_request_assignees_read on "better_supabase"."maintenance_request_assignees"
+create policy bsb_maintenance_request_assignees_read on "better_supabase"."maintenance_request_assignees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('facilities.read')));
 
@@ -90,7 +90,7 @@ alter table "better_supabase"."maintenance_request_checklist_items" enable row l
 revoke all on "better_supabase"."maintenance_request_checklist_items" from public, anon, authenticated;
 grant select on "better_supabase"."maintenance_request_checklist_items" to authenticated;
 grant all on "better_supabase"."maintenance_request_checklist_items" to service_role;
-create policy maintenance_request_checklist_items_read on "better_supabase"."maintenance_request_checklist_items"
+create policy bsb_maintenance_request_checklist_items_read on "better_supabase"."maintenance_request_checklist_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('facilities.read')));
 

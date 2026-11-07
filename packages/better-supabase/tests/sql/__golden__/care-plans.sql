@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:d3711f75f5f31bd56620272e5919d82a4a2f2feb56b01cca3df7411bf2164f27
+-- @bsb-hash sha256:6068693f7f0ca08a09a10c3b4fbba0000b1f0c100fefb71ed76c8790fc3c5d8a
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -48,7 +48,7 @@ alter table "better_supabase"."care_plans" enable row level security;
 revoke all on "better_supabase"."care_plans" from public, anon, authenticated;
 grant select on "better_supabase"."care_plans" to authenticated;
 grant all on "better_supabase"."care_plans" to service_role;
-create policy care_plans_read on "better_supabase"."care_plans"
+create policy bsb_care_plans_read on "better_supabase"."care_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('care_plans.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."care_plans"."subject_type", "better_supabase"."care_plans"."subject_id"::text, 'read'), false));
 
@@ -73,7 +73,7 @@ alter table "better_supabase"."care_plan_problems" enable row level security;
 revoke all on "better_supabase"."care_plan_problems" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_problems" to authenticated;
 grant all on "better_supabase"."care_plan_problems" to service_role;
-create policy care_plan_problems_read on "better_supabase"."care_plan_problems"
+create policy bsb_care_plan_problems_read on "better_supabase"."care_plan_problems"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_problems"."plan_id"));
 
@@ -98,7 +98,7 @@ alter table "better_supabase"."care_plan_goals" enable row level security;
 revoke all on "better_supabase"."care_plan_goals" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_goals" to authenticated;
 grant all on "better_supabase"."care_plan_goals" to service_role;
-create policy care_plan_goals_read on "better_supabase"."care_plan_goals"
+create policy bsb_care_plan_goals_read on "better_supabase"."care_plan_goals"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_goals"."plan_id"));
 
@@ -148,7 +148,7 @@ alter table "better_supabase"."care_plan_actions" enable row level security;
 revoke all on "better_supabase"."care_plan_actions" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_actions" to authenticated;
 grant all on "better_supabase"."care_plan_actions" to service_role;
-create policy care_plan_actions_read on "better_supabase"."care_plan_actions"
+create policy bsb_care_plan_actions_read on "better_supabase"."care_plan_actions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_actions"."plan_id"));
 
@@ -171,7 +171,7 @@ alter table "better_supabase"."care_plan_evaluations" enable row level security;
 revoke all on "better_supabase"."care_plan_evaluations" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_evaluations" to authenticated;
 grant all on "better_supabase"."care_plan_evaluations" to service_role;
-create policy care_plan_evaluations_read on "better_supabase"."care_plan_evaluations"
+create policy bsb_care_plan_evaluations_read on "better_supabase"."care_plan_evaluations"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_evaluations"."plan_id"));
 
@@ -1494,7 +1494,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:5742a1e790d54db0ddab2703b14bf587cb381492d6a40f67d75e1c2e1d0bf41a
+-- @bsb-hash sha256:e2509aa7b9786b6ed9e427eb3a7482d7a63049af3b3681f2d5aa0265f14abfba
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1541,7 +1541,7 @@ alter table "better_supabase"."care_plans" enable row level security;
 revoke all on "better_supabase"."care_plans" from public, anon, authenticated;
 grant select on "better_supabase"."care_plans" to authenticated;
 grant all on "better_supabase"."care_plans" to service_role;
-create policy care_plans_read on "better_supabase"."care_plans"
+create policy bsb_care_plans_read on "better_supabase"."care_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('care_plans.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."care_plans"."subject_type", "better_supabase"."care_plans"."subject_id"::text, 'read'), false));
 
@@ -1566,7 +1566,7 @@ alter table "better_supabase"."care_plan_problems" enable row level security;
 revoke all on "better_supabase"."care_plan_problems" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_problems" to authenticated;
 grant all on "better_supabase"."care_plan_problems" to service_role;
-create policy care_plan_problems_read on "better_supabase"."care_plan_problems"
+create policy bsb_care_plan_problems_read on "better_supabase"."care_plan_problems"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_problems"."plan_id"));
 
@@ -1591,7 +1591,7 @@ alter table "better_supabase"."care_plan_goals" enable row level security;
 revoke all on "better_supabase"."care_plan_goals" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_goals" to authenticated;
 grant all on "better_supabase"."care_plan_goals" to service_role;
-create policy care_plan_goals_read on "better_supabase"."care_plan_goals"
+create policy bsb_care_plan_goals_read on "better_supabase"."care_plan_goals"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_goals"."plan_id"));
 
@@ -1641,7 +1641,7 @@ alter table "better_supabase"."care_plan_actions" enable row level security;
 revoke all on "better_supabase"."care_plan_actions" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_actions" to authenticated;
 grant all on "better_supabase"."care_plan_actions" to service_role;
-create policy care_plan_actions_read on "better_supabase"."care_plan_actions"
+create policy bsb_care_plan_actions_read on "better_supabase"."care_plan_actions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_actions"."plan_id"));
 
@@ -1664,7 +1664,7 @@ alter table "better_supabase"."care_plan_evaluations" enable row level security;
 revoke all on "better_supabase"."care_plan_evaluations" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_evaluations" to authenticated;
 grant all on "better_supabase"."care_plan_evaluations" to service_role;
-create policy care_plan_evaluations_read on "better_supabase"."care_plan_evaluations"
+create policy bsb_care_plan_evaluations_read on "better_supabase"."care_plan_evaluations"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_evaluations"."plan_id"));
 
@@ -3285,7 +3285,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:f1f4d418ea43abb12eefff39a4f992ef6e73c9e1aed7316385441074e724f2d6
+-- @bsb-hash sha256:2bf48c3914678c5a04f2bf8b6a2fe8e39104b121a71385158525c38bedcddf8e
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3337,7 +3337,7 @@ alter table "app_private"."care_plans" enable row level security;
 revoke all on "app_private"."care_plans" from public, anon, authenticated;
 grant select on "app_private"."care_plans" to authenticated;
 grant all on "app_private"."care_plans" to service_role;
-create policy care_plans_read on "app_private"."care_plans"
+create policy bsb_care_plans_read on "app_private"."care_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('care_plans.read')) and coalesce("better_supabase"."can_subject"("app_private"."care_plans"."subject_type", "app_private"."care_plans"."subject_id"::text, 'read'), false));
 
@@ -3362,7 +3362,7 @@ alter table "app_private"."care_plan_problems" enable row level security;
 revoke all on "app_private"."care_plan_problems" from public, anon, authenticated;
 grant select on "app_private"."care_plan_problems" to authenticated;
 grant all on "app_private"."care_plan_problems" to service_role;
-create policy care_plan_problems_read on "app_private"."care_plan_problems"
+create policy bsb_care_plan_problems_read on "app_private"."care_plan_problems"
   for select to authenticated
   using (exists (select 1 from "app_private"."care_plans" x where x."id" = "app_private"."care_plan_problems"."plan_id"));
 
@@ -3387,7 +3387,7 @@ alter table "app_private"."care_plan_goals" enable row level security;
 revoke all on "app_private"."care_plan_goals" from public, anon, authenticated;
 grant select on "app_private"."care_plan_goals" to authenticated;
 grant all on "app_private"."care_plan_goals" to service_role;
-create policy care_plan_goals_read on "app_private"."care_plan_goals"
+create policy bsb_care_plan_goals_read on "app_private"."care_plan_goals"
   for select to authenticated
   using (exists (select 1 from "app_private"."care_plans" x where x."id" = "app_private"."care_plan_goals"."plan_id"));
 
@@ -3437,7 +3437,7 @@ alter table "app_private"."care_plan_actions" enable row level security;
 revoke all on "app_private"."care_plan_actions" from public, anon, authenticated;
 grant select on "app_private"."care_plan_actions" to authenticated;
 grant all on "app_private"."care_plan_actions" to service_role;
-create policy care_plan_actions_read on "app_private"."care_plan_actions"
+create policy bsb_care_plan_actions_read on "app_private"."care_plan_actions"
   for select to authenticated
   using (exists (select 1 from "app_private"."care_plans" x where x."id" = "app_private"."care_plan_actions"."plan_id"));
 
@@ -3460,7 +3460,7 @@ alter table "app_private"."care_plan_evaluations" enable row level security;
 revoke all on "app_private"."care_plan_evaluations" from public, anon, authenticated;
 grant select on "app_private"."care_plan_evaluations" to authenticated;
 grant all on "app_private"."care_plan_evaluations" to service_role;
-create policy care_plan_evaluations_read on "app_private"."care_plan_evaluations"
+create policy bsb_care_plan_evaluations_read on "app_private"."care_plan_evaluations"
   for select to authenticated
   using (exists (select 1 from "app_private"."care_plans" x where x."id" = "app_private"."care_plan_evaluations"."plan_id"));
 
@@ -4783,7 +4783,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:90640170d45643cbefae46f2dbab52c634bc53d27ba32b848cae46052c58ab3c
+-- @bsb-hash sha256:ababbfe7c49323d979f762ee41b65184edc4251adf68c1331305bb8516c8b857
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4830,7 +4830,7 @@ alter table "better_supabase"."care_plans" enable row level security;
 revoke all on "better_supabase"."care_plans" from public, anon, authenticated;
 grant select on "better_supabase"."care_plans" to authenticated;
 grant all on "better_supabase"."care_plans" to service_role;
-create policy care_plans_read on "better_supabase"."care_plans"
+create policy bsb_care_plans_read on "better_supabase"."care_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('care_plans.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."care_plans"."subject_type", "better_supabase"."care_plans"."subject_id"::text, 'read'), false));
 
@@ -4855,7 +4855,7 @@ alter table "better_supabase"."care_plan_problems" enable row level security;
 revoke all on "better_supabase"."care_plan_problems" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_problems" to authenticated;
 grant all on "better_supabase"."care_plan_problems" to service_role;
-create policy care_plan_problems_read on "better_supabase"."care_plan_problems"
+create policy bsb_care_plan_problems_read on "better_supabase"."care_plan_problems"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_problems"."plan_id"));
 
@@ -4880,7 +4880,7 @@ alter table "better_supabase"."care_plan_goals" enable row level security;
 revoke all on "better_supabase"."care_plan_goals" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_goals" to authenticated;
 grant all on "better_supabase"."care_plan_goals" to service_role;
-create policy care_plan_goals_read on "better_supabase"."care_plan_goals"
+create policy bsb_care_plan_goals_read on "better_supabase"."care_plan_goals"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_goals"."plan_id"));
 
@@ -4930,7 +4930,7 @@ alter table "better_supabase"."care_plan_actions" enable row level security;
 revoke all on "better_supabase"."care_plan_actions" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_actions" to authenticated;
 grant all on "better_supabase"."care_plan_actions" to service_role;
-create policy care_plan_actions_read on "better_supabase"."care_plan_actions"
+create policy bsb_care_plan_actions_read on "better_supabase"."care_plan_actions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_actions"."plan_id"));
 
@@ -4953,7 +4953,7 @@ alter table "better_supabase"."care_plan_evaluations" enable row level security;
 revoke all on "better_supabase"."care_plan_evaluations" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_evaluations" to authenticated;
 grant all on "better_supabase"."care_plan_evaluations" to service_role;
-create policy care_plan_evaluations_read on "better_supabase"."care_plan_evaluations"
+create policy bsb_care_plan_evaluations_read on "better_supabase"."care_plan_evaluations"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_evaluations"."plan_id"));
 
@@ -7942,7 +7942,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:a1d0a6f22404b5000abbe966dc4fb1c9eba0ef76d6150c234f0b65cda2ed422b
+-- @bsb-hash sha256:2c27d5e925dec2b56518b19e9753b7c260102d5b9bd4e9c656cb6d078d8c2a4f
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7989,7 +7989,7 @@ alter table "better_supabase"."care_plans" enable row level security;
 revoke all on "better_supabase"."care_plans" from public, anon, authenticated;
 grant select on "better_supabase"."care_plans" to authenticated;
 grant all on "better_supabase"."care_plans" to service_role;
-create policy care_plans_read on "better_supabase"."care_plans"
+create policy bsb_care_plans_read on "better_supabase"."care_plans"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('care_plans.read')) and coalesce("better_supabase"."can_subject"("better_supabase"."care_plans"."subject_type", "better_supabase"."care_plans"."subject_id"::text, 'read'), false));
 
@@ -8014,7 +8014,7 @@ alter table "better_supabase"."care_plan_problems" enable row level security;
 revoke all on "better_supabase"."care_plan_problems" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_problems" to authenticated;
 grant all on "better_supabase"."care_plan_problems" to service_role;
-create policy care_plan_problems_read on "better_supabase"."care_plan_problems"
+create policy bsb_care_plan_problems_read on "better_supabase"."care_plan_problems"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_problems"."plan_id"));
 
@@ -8039,7 +8039,7 @@ alter table "better_supabase"."care_plan_goals" enable row level security;
 revoke all on "better_supabase"."care_plan_goals" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_goals" to authenticated;
 grant all on "better_supabase"."care_plan_goals" to service_role;
-create policy care_plan_goals_read on "better_supabase"."care_plan_goals"
+create policy bsb_care_plan_goals_read on "better_supabase"."care_plan_goals"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_goals"."plan_id"));
 
@@ -8089,7 +8089,7 @@ alter table "better_supabase"."care_plan_actions" enable row level security;
 revoke all on "better_supabase"."care_plan_actions" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_actions" to authenticated;
 grant all on "better_supabase"."care_plan_actions" to service_role;
-create policy care_plan_actions_read on "better_supabase"."care_plan_actions"
+create policy bsb_care_plan_actions_read on "better_supabase"."care_plan_actions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_actions"."plan_id"));
 
@@ -8112,7 +8112,7 @@ alter table "better_supabase"."care_plan_evaluations" enable row level security;
 revoke all on "better_supabase"."care_plan_evaluations" from public, anon, authenticated;
 grant select on "better_supabase"."care_plan_evaluations" to authenticated;
 grant all on "better_supabase"."care_plan_evaluations" to service_role;
-create policy care_plan_evaluations_read on "better_supabase"."care_plan_evaluations"
+create policy bsb_care_plan_evaluations_read on "better_supabase"."care_plan_evaluations"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."care_plans" x where x."id" = "better_supabase"."care_plan_evaluations"."plan_id"));
 

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:14f130a7709c862dd26e824d1eb54f5967f46ef0a266f4c5ce4e0b0a0a2cb200
+-- @bsb-hash sha256:c8ae81887bee7873e4e162a15b36dcfadb9f208d0e434cf3c297ee8c56c0ba8d
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -39,7 +39,7 @@ alter table "better_supabase"."care_rules" enable row level security;
 revoke all on "better_supabase"."care_rules" from public, anon, authenticated;
 grant select on "better_supabase"."care_rules" to authenticated;
 grant all on "better_supabase"."care_rules" to service_role;
-create policy care_rules_read on "better_supabase"."care_rules"
+create policy bsb_care_rules_read on "better_supabase"."care_rules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')));
 
@@ -74,7 +74,7 @@ alter table "better_supabase"."care_alerts" enable row level security;
 revoke all on "better_supabase"."care_alerts" from public, anon, authenticated;
 grant select on "better_supabase"."care_alerts" to authenticated;
 grant all on "better_supabase"."care_alerts" to service_role;
-create policy care_alerts_read on "better_supabase"."care_alerts"
+create policy bsb_care_alerts_read on "better_supabase"."care_alerts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('clinical_decision_support.read')));
 

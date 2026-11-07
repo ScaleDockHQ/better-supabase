@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_133_segments.sql
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:cfc8a6564117f11f8e9e0da01ade7d28cb6a081512610e42cde04c9619dfcef4
+-- @bsb-hash sha256:d29252cbcaf76b6b783d949be4524e5e2d9feedc2e2608ca0858e04b42c4b696
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -40,10 +40,10 @@ alter table "better_supabase"."segment_members" enable row level security;
 revoke all on "better_supabase"."segment_members" from public, anon, authenticated;
 grant select on "better_supabase"."segment_members" to authenticated;
 grant all on "better_supabase"."segment_members" to service_role;
-create policy segments_read on "better_supabase"."segments"
+create policy bsb_segments_read on "better_supabase"."segments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
-create policy segment_members_read on "better_supabase"."segment_members"
+create policy bsb_segment_members_read on "better_supabase"."segment_members"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('segments.read')));
 

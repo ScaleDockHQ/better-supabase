@@ -382,6 +382,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0269: Close the fields and work gaps of the base layer.
 - 0270: Close the platform and runtime gaps of the base layer.
 - 0271: Name every generated trigger bsb_*, and end unique and exclusion names in `_key` and `_excl`.
+- 0272: Name every generated policy bsb_*.
 - 0290: CLI contract 3 follows the Vercel CLI design guidelines.
 - 0291: Memoize the adoption scan on disk, watch with `dev`, and purge the cache with `cache purge`.
 - 0292: Give each first-party generator a subpath and declare its library as a peer.

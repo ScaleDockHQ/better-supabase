@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:a86250fabeea66528d939b73431932cfc0584f403aed4988417d8a07e4d79c31
+-- @bsb-hash sha256:326156fc7c50479903936afd156fa4e19f867c345098fb6132a7929b1b8322c2
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,21 +75,21 @@ alter table "better_supabase"."enrollment_programs" enable row level security;
 revoke all on "better_supabase"."enrollment_programs" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_programs" to authenticated;
 grant all on "better_supabase"."enrollment_programs" to service_role;
-create policy enrollment_programs_read on "better_supabase"."enrollment_programs"
+create policy bsb_enrollment_programs_read on "better_supabase"."enrollment_programs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollments" enable row level security;
 revoke all on "better_supabase"."enrollments" from public, anon, authenticated;
 grant select on "better_supabase"."enrollments" to authenticated;
 grant all on "better_supabase"."enrollments" to service_role;
-create policy enrollments_read on "better_supabase"."enrollments"
+create policy bsb_enrollments_read on "better_supabase"."enrollments"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollment_steps" enable row level security;
 revoke all on "better_supabase"."enrollment_steps" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_steps" to authenticated;
 grant all on "better_supabase"."enrollment_steps" to service_role;
-create policy enrollment_steps_read on "better_supabase"."enrollment_steps"
+create policy bsb_enrollment_steps_read on "better_supabase"."enrollment_steps"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"));
 
@@ -1092,7 +1092,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:9084b7237cfea2056df0cecd58995c6d93a3254a92d6a82178cc22885cb33efd
+-- @bsb-hash sha256:925627369c68da2d2007f428c70b390611f43d4ee6287b8138aa521feefebad7
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1166,21 +1166,21 @@ alter table "better_supabase"."enrollment_programs" enable row level security;
 revoke all on "better_supabase"."enrollment_programs" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_programs" to authenticated;
 grant all on "better_supabase"."enrollment_programs" to service_role;
-create policy enrollment_programs_read on "better_supabase"."enrollment_programs"
+create policy bsb_enrollment_programs_read on "better_supabase"."enrollment_programs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollments" enable row level security;
 revoke all on "better_supabase"."enrollments" from public, anon, authenticated;
 grant select on "better_supabase"."enrollments" to authenticated;
 grant all on "better_supabase"."enrollments" to service_role;
-create policy enrollments_read on "better_supabase"."enrollments"
+create policy bsb_enrollments_read on "better_supabase"."enrollments"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollment_steps" enable row level security;
 revoke all on "better_supabase"."enrollment_steps" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_steps" to authenticated;
 grant all on "better_supabase"."enrollment_steps" to service_role;
-create policy enrollment_steps_read on "better_supabase"."enrollment_steps"
+create policy bsb_enrollment_steps_read on "better_supabase"."enrollment_steps"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"));
 
@@ -2292,7 +2292,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:d55cf10855c2c7cea9e7d14008dfbe8cbefa8525edb615bffa1c66e735b1dafa
+-- @bsb-hash sha256:7e3f873f6073cb38eda92364480eff714c2f4433649ce5105139bd96086ecd35
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2371,21 +2371,21 @@ alter table "app_private"."enrollment_programs" enable row level security;
 revoke all on "app_private"."enrollment_programs" from public, anon, authenticated;
 grant select on "app_private"."enrollment_programs" to authenticated;
 grant all on "app_private"."enrollment_programs" to service_role;
-create policy enrollment_programs_read on "app_private"."enrollment_programs"
+create policy bsb_enrollment_programs_read on "app_private"."enrollment_programs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "app_private"."enrollments" enable row level security;
 revoke all on "app_private"."enrollments" from public, anon, authenticated;
 grant select on "app_private"."enrollments" to authenticated;
 grant all on "app_private"."enrollments" to service_role;
-create policy enrollments_read on "app_private"."enrollments"
+create policy bsb_enrollments_read on "app_private"."enrollments"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "app_private"."enrollment_steps" enable row level security;
 revoke all on "app_private"."enrollment_steps" from public, anon, authenticated;
 grant select on "app_private"."enrollment_steps" to authenticated;
 grant all on "app_private"."enrollment_steps" to service_role;
-create policy enrollment_steps_read on "app_private"."enrollment_steps"
+create policy bsb_enrollment_steps_read on "app_private"."enrollment_steps"
   for select to authenticated
   using (exists (select 1 from "app_private"."enrollments" x where x."id" = "app_private"."enrollment_steps"."enrollment_id"));
 
@@ -3388,7 +3388,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:a63ddc8ec3150d3c20970deca9d3063b31f921f1a079c8653ec7f3f81c4ec4d8
+-- @bsb-hash sha256:01aab325f6bb1351fec6425c025bf8252ef60fbc5a7f225a80be1893cb5d24ef
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3462,21 +3462,21 @@ alter table "better_supabase"."enrollment_programs" enable row level security;
 revoke all on "better_supabase"."enrollment_programs" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_programs" to authenticated;
 grant all on "better_supabase"."enrollment_programs" to service_role;
-create policy enrollment_programs_read on "better_supabase"."enrollment_programs"
+create policy bsb_enrollment_programs_read on "better_supabase"."enrollment_programs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollments" enable row level security;
 revoke all on "better_supabase"."enrollments" from public, anon, authenticated;
 grant select on "better_supabase"."enrollments" to authenticated;
 grant all on "better_supabase"."enrollments" to service_role;
-create policy enrollments_read on "better_supabase"."enrollments"
+create policy bsb_enrollments_read on "better_supabase"."enrollments"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollment_steps" enable row level security;
 revoke all on "better_supabase"."enrollment_steps" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_steps" to authenticated;
 grant all on "better_supabase"."enrollment_steps" to service_role;
-create policy enrollment_steps_read on "better_supabase"."enrollment_steps"
+create policy bsb_enrollment_steps_read on "better_supabase"."enrollment_steps"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"));
 
@@ -5684,7 +5684,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_036_enrollments.sql
 -- better-supabase module: enrollments
 -- @bsb-block enrollments@1 managed
--- @bsb-hash sha256:927eadd9f81fbcac333272a108d6dbcf62e74164e85714f34ebf01e412edbc8f
+-- @bsb-hash sha256:90cdc25ac167816970a5d7be8b9394982bd7ff3f82f3fc7edeb66108d58cd335
 -- Programs of steps per organization, and enrollments of a party, a member or any subject in them with step progress and completion. Onboarding checklists run on it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5758,21 +5758,21 @@ alter table "better_supabase"."enrollment_programs" enable row level security;
 revoke all on "better_supabase"."enrollment_programs" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_programs" to authenticated;
 grant all on "better_supabase"."enrollment_programs" to service_role;
-create policy enrollment_programs_read on "better_supabase"."enrollment_programs"
+create policy bsb_enrollment_programs_read on "better_supabase"."enrollment_programs"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollments" enable row level security;
 revoke all on "better_supabase"."enrollments" from public, anon, authenticated;
 grant select on "better_supabase"."enrollments" to authenticated;
 grant all on "better_supabase"."enrollments" to service_role;
-create policy enrollments_read on "better_supabase"."enrollments"
+create policy bsb_enrollments_read on "better_supabase"."enrollments"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('enrollments.read')));
 alter table "better_supabase"."enrollment_steps" enable row level security;
 revoke all on "better_supabase"."enrollment_steps" from public, anon, authenticated;
 grant select on "better_supabase"."enrollment_steps" to authenticated;
 grant all on "better_supabase"."enrollment_steps" to service_role;
-create policy enrollment_steps_read on "better_supabase"."enrollment_steps"
+create policy bsb_enrollment_steps_read on "better_supabase"."enrollment_steps"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."enrollments" x where x."id" = "better_supabase"."enrollment_steps"."enrollment_id"));
 

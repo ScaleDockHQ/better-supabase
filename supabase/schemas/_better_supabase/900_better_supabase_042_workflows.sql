@@ -1,6 +1,6 @@
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:f11f292590a0ad004156ce42dd6e02b5bb2532816f8441a72bbcb8c0fa5b0386
+-- @bsb-hash sha256:426b9ac87185314615e76bcc6a01dbccfbb98150de8075163cb95c1bd23d4b15
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -51,7 +51,7 @@ alter table "better_supabase"."workflow_runs" enable row level security;
 revoke all on "better_supabase"."workflow_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_runs" to authenticated;
 grant all on "better_supabase"."workflow_runs" to service_role;
-create policy workflow_runs_read on "better_supabase"."workflow_runs"
+create policy bsb_workflow_runs_read on "better_supabase"."workflow_runs"
   for select to authenticated
   using ("actor_id" = (select auth.uid())
     or "tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
@@ -81,7 +81,7 @@ alter table "better_supabase"."workflow_schedules" enable row level security;
 revoke all on "better_supabase"."workflow_schedules" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_schedules" to authenticated;
 grant all on "better_supabase"."workflow_schedules" to service_role;
-create policy workflow_schedules_read on "better_supabase"."workflow_schedules"
+create policy bsb_workflow_schedules_read on "better_supabase"."workflow_schedules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflows.read')));
 

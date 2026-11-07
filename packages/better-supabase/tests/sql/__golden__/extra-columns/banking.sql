@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_155_banking.sql
 -- better-supabase module: banking
 -- @bsb-block banking@1 managed
--- @bsb-hash sha256:39b0a8d73e3f421f6630fd8c25634fa2fc52415e014b538f24a1e0c285acbcc2
+-- @bsb-hash sha256:5dec526c4f6a927257c2e94f6c7be99fe1f7142ea7fb7a776b34cb47a4e98a82
 -- Bank accounts with imported CAMT.053, MT940 and feed statements, matches of each transaction to invoices, expense reports and accounting entries with suggestions from RF and Dutch payment references, bank rules that book or set aside what they match, and a reconciliation status per account against the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -32,7 +32,7 @@ alter table "better_supabase"."bank_accounts" enable row level security;
 revoke all on "better_supabase"."bank_accounts" from public, anon, authenticated;
 grant select on "better_supabase"."bank_accounts" to authenticated;
 grant all on "better_supabase"."bank_accounts" to service_role;
-create policy bank_accounts_read on "better_supabase"."bank_accounts"
+create policy bsb_bank_accounts_read on "better_supabase"."bank_accounts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
 
@@ -62,7 +62,7 @@ alter table "better_supabase"."bank_rules" enable row level security;
 revoke all on "better_supabase"."bank_rules" from public, anon, authenticated;
 grant select on "better_supabase"."bank_rules" to authenticated;
 grant all on "better_supabase"."bank_rules" to service_role;
-create policy bank_rules_read on "better_supabase"."bank_rules"
+create policy bsb_bank_rules_read on "better_supabase"."bank_rules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
 
@@ -93,7 +93,7 @@ alter table "better_supabase"."bank_statements" enable row level security;
 revoke all on "better_supabase"."bank_statements" from public, anon, authenticated;
 grant select on "better_supabase"."bank_statements" to authenticated;
 grant all on "better_supabase"."bank_statements" to service_role;
-create policy bank_statements_read on "better_supabase"."bank_statements"
+create policy bsb_bank_statements_read on "better_supabase"."bank_statements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
 
@@ -139,7 +139,7 @@ alter table "better_supabase"."bank_transactions" enable row level security;
 revoke all on "better_supabase"."bank_transactions" from public, anon, authenticated;
 grant select on "better_supabase"."bank_transactions" to authenticated;
 grant all on "better_supabase"."bank_transactions" to service_role;
-create policy bank_transactions_read on "better_supabase"."bank_transactions"
+create policy bsb_bank_transactions_read on "better_supabase"."bank_transactions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
 
@@ -162,7 +162,7 @@ alter table "better_supabase"."bank_matches" enable row level security;
 revoke all on "better_supabase"."bank_matches" from public, anon, authenticated;
 grant select on "better_supabase"."bank_matches" to authenticated;
 grant all on "better_supabase"."bank_matches" to service_role;
-create policy bank_matches_read on "better_supabase"."bank_matches"
+create policy bsb_bank_matches_read on "better_supabase"."bank_matches"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('banking.read')));
 

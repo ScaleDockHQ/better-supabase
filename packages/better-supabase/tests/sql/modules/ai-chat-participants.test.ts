@@ -32,7 +32,7 @@ describe("ai-chat participants", () => {
     expect(sql).toContain("pa.\"role\"::text in ('editor')");
     expect(
       sql.indexOf('"better_supabase"."ai_chat_participants" ('),
-    ).toBeLessThan(sql.indexOf("create policy ai_chats_read"));
+    ).toBeLessThan(sql.indexOf("create policy bsb_ai_chats_read"));
   });
 
   it("adds, removes and lists participants", () => {

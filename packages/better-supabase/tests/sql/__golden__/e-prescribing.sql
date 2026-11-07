@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:5b4f804061cd55e59a0801a41a8ee933af4adb29e0d67a681f3e17ecb9637d90
+-- @bsb-hash sha256:0ee9453f022c74cd919186e804a67a80fafbf707179f12cba83edf2a86d8103d
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -51,7 +51,7 @@ alter table "better_supabase"."prescriptions" enable row level security;
 revoke all on "better_supabase"."prescriptions" from public, anon, authenticated;
 grant select on "better_supabase"."prescriptions" to authenticated;
 grant all on "better_supabase"."prescriptions" to service_role;
-create policy prescriptions_read on "better_supabase"."prescriptions"
+create policy bsb_prescriptions_read on "better_supabase"."prescriptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('e_prescribing.read')));
 
@@ -419,7 +419,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:9c8e040f38492ee2e261eb065ce67e4609d10093b259cf34887be0e356d782ea
+-- @bsb-hash sha256:d08883e2fa49cd70d77dbd61655890668c644bfa281eced95970a5d6f7078607
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -469,7 +469,7 @@ alter table "better_supabase"."prescriptions" enable row level security;
 revoke all on "better_supabase"."prescriptions" from public, anon, authenticated;
 grant select on "better_supabase"."prescriptions" to authenticated;
 grant all on "better_supabase"."prescriptions" to service_role;
-create policy prescriptions_read on "better_supabase"."prescriptions"
+create policy bsb_prescriptions_read on "better_supabase"."prescriptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('e_prescribing.read')));
 
@@ -900,7 +900,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:11ec8c5756b4f007d2d59eeff8e7dd5f06f51e714161894a041aa21d4538f218
+-- @bsb-hash sha256:6b98cd3096569cafdb777c5d93ef2935d0d938df7941df3d22e919e93248b5c2
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -955,7 +955,7 @@ alter table "app_private"."prescriptions" enable row level security;
 revoke all on "app_private"."prescriptions" from public, anon, authenticated;
 grant select on "app_private"."prescriptions" to authenticated;
 grant all on "app_private"."prescriptions" to service_role;
-create policy prescriptions_read on "app_private"."prescriptions"
+create policy bsb_prescriptions_read on "app_private"."prescriptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('e_prescribing.read')));
 
@@ -1323,7 +1323,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:6a1a13cf132ae285cc3e3334de9750b44bffab556a3367b934caf10e82387480
+-- @bsb-hash sha256:9cb0684c60a8b63557e146c91ba62e428d5a955320ea64c0f8faaa656c32acba
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1373,7 +1373,7 @@ alter table "better_supabase"."prescriptions" enable row level security;
 revoke all on "better_supabase"."prescriptions" from public, anon, authenticated;
 grant select on "better_supabase"."prescriptions" to authenticated;
 grant all on "better_supabase"."prescriptions" to service_role;
-create policy prescriptions_read on "better_supabase"."prescriptions"
+create policy bsb_prescriptions_read on "better_supabase"."prescriptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('e_prescribing.read')));
 
@@ -2221,7 +2221,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:d4f1928c302551a1f76912a6b114bc096a006a993534962ea1927e38f57e28cf
+-- @bsb-hash sha256:ec49c6fe69d08fccc14fb20e0a81a6bc39734690bc0612902f5659b04c8161e4
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2271,7 +2271,7 @@ alter table "better_supabase"."prescriptions" enable row level security;
 revoke all on "better_supabase"."prescriptions" from public, anon, authenticated;
 grant select on "better_supabase"."prescriptions" to authenticated;
 grant all on "better_supabase"."prescriptions" to service_role;
-create policy prescriptions_read on "better_supabase"."prescriptions"
+create policy bsb_prescriptions_read on "better_supabase"."prescriptions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('e_prescribing.read')));
 

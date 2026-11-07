@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:d9e74b72c45f05c8d4b310af01aac2bb39f3c803ac01d7e7155fa9f61ee158e3
+-- @bsb-hash sha256:585041c42d8bf761b96c607c50d9f9da8aadf4a83cf3b1ce47da87e2d0d21402
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -33,7 +33,7 @@ alter table "better_supabase"."versions" enable row level security;
 revoke all on "better_supabase"."versions" from public, anon, authenticated;
 grant select on "better_supabase"."versions" to authenticated;
 grant all on "better_supabase"."versions" to service_role;
-create policy versions_read on "better_supabase"."versions"
+create policy bsb_versions_read on "better_supabase"."versions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
 

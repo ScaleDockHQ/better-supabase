@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:1a62a251e3cc2aa43637bdd25b19250f1e99b16fa83d288f8956071c046ff8a7
+-- @bsb-hash sha256:4a8d8d2f914cfcc216c3e9c81ea0833dc7e6a8bb2f26ca9d390716dd699ee2c3
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -21,17 +21,17 @@ alter table "better_supabase"."user_settings" enable row level security;
 revoke all on "better_supabase"."user_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."user_settings" to authenticated;
 grant all on "better_supabase"."user_settings" to service_role;
-create policy "user_settings_own_read" on "better_supabase"."user_settings"
+create policy bsb_user_settings_own_read on "better_supabase"."user_settings"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-create policy "user_settings_own_insert" on "better_supabase"."user_settings"
+create policy bsb_user_settings_own_insert on "better_supabase"."user_settings"
   for insert to authenticated
   with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-create policy "user_settings_own_update" on "better_supabase"."user_settings"
+create policy bsb_user_settings_own_update on "better_supabase"."user_settings"
   for update to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
   with check (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
-create policy "user_settings_own_delete" on "better_supabase"."user_settings"
+create policy bsb_user_settings_own_delete on "better_supabase"."user_settings"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
@@ -48,17 +48,17 @@ alter table "better_supabase"."workspace_settings" enable row level security;
 revoke all on "better_supabase"."workspace_settings" from public, anon, authenticated;
 grant select, insert, update, delete on "better_supabase"."workspace_settings" to authenticated;
 grant all on "better_supabase"."workspace_settings" to service_role;
-create policy workspace_settings_read on "better_supabase"."workspace_settings"
+create policy bsb_workspace_settings_read on "better_supabase"."workspace_settings"
   for select to authenticated
   using ("workspace_id" in (select better_supabase.tenant_ids_with('settings.read')));
-create policy workspace_settings_insert on "better_supabase"."workspace_settings"
+create policy bsb_workspace_settings_insert on "better_supabase"."workspace_settings"
   for insert to authenticated
   with check ((coalesce(better_supabase.can('tenant', "workspace_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
-create policy workspace_settings_update on "better_supabase"."workspace_settings"
+create policy bsb_workspace_settings_update on "better_supabase"."workspace_settings"
   for update to authenticated
   using (("workspace_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
   with check (("workspace_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
-create policy workspace_settings_delete on "better_supabase"."workspace_settings"
+create policy bsb_workspace_settings_delete on "better_supabase"."workspace_settings"
   for delete to authenticated
   using (("workspace_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
@@ -77,20 +77,20 @@ revoke all on "better_supabase"."platform_settings" from public, anon, authentic
 grant select on "better_supabase"."platform_settings" to anon;
 grant select, insert, update, delete on "better_supabase"."platform_settings" to authenticated;
 grant all on "better_supabase"."platform_settings" to service_role;
-create policy platform_settings_read on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_read on "better_supabase"."platform_settings"
   for select to authenticated
   using (true);
-create policy platform_settings_read_public on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_read_public on "better_supabase"."platform_settings"
   for select to anon
   using (false);
-create policy platform_settings_insert on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_insert on "better_supabase"."platform_settings"
   for insert to authenticated
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-create policy platform_settings_update on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_update on "better_supabase"."platform_settings"
   for update to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()))
   with check (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
-create policy platform_settings_delete on "better_supabase"."platform_settings"
+create policy bsb_platform_settings_delete on "better_supabase"."platform_settings"
   for delete to authenticated
   using (((select coalesce(better_supabase.is_platform('settings.manage'), false))) and (select better_supabase.actor_may_write()));
 

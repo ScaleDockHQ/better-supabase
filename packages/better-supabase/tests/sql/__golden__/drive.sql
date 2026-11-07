@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:648f54e05ca3fd3d06f851c1726137d242fa65a92a0cbcc89abae8f9f8a2c44d
+-- @bsb-hash sha256:bba136cbe92974130e390c6a99f0d4ec98b576ea92efc0a84da65745ca648991
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -338,7 +338,7 @@ revoke execute on function "better_supabase"."drive_readable_ids"() from public,
 grant execute on function "better_supabase"."drive_readable_ids"() to authenticated, service_role;
 
 
-create policy drive_nodes_read on "better_supabase"."drive_nodes"
+create policy bsb_drive_nodes_read on "better_supabase"."drive_nodes"
   for select to authenticated
   using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
 
@@ -1305,7 +1305,7 @@ alter table "better_supabase"."drive_node_texts" enable row level security;
 revoke all on "better_supabase"."drive_node_texts" from public, anon, authenticated;
 grant select on "better_supabase"."drive_node_texts" to authenticated;
 grant all on "better_supabase"."drive_node_texts" to service_role;
-create policy drive_node_texts_read on "better_supabase"."drive_node_texts"
+create policy bsb_drive_node_texts_read on "better_supabase"."drive_node_texts"
   for select to authenticated
   using ("better_supabase"."drive_can"("node_id", 'viewer'));
 
@@ -1508,7 +1508,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:2969ca1698e304089e9f15dff564f2daa03d60401053a133e711020c7c7bc19f
+-- @bsb-hash sha256:cddcba8e4de4fda5e36e14af0074683ad64e83ccf4eb08ace278ce3545ff7787
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1848,7 +1848,7 @@ revoke execute on function "better_supabase"."drive_readable_ids"() from public,
 grant execute on function "better_supabase"."drive_readable_ids"() to authenticated, service_role;
 
 
-create policy drive_nodes_read on "better_supabase"."drive_nodes"
+create policy bsb_drive_nodes_read on "better_supabase"."drive_nodes"
   for select to authenticated
   using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
 
@@ -2915,7 +2915,7 @@ alter table "better_supabase"."drive_node_texts" enable row level security;
 revoke all on "better_supabase"."drive_node_texts" from public, anon, authenticated;
 grant select on "better_supabase"."drive_node_texts" to authenticated;
 grant all on "better_supabase"."drive_node_texts" to service_role;
-create policy drive_node_texts_read on "better_supabase"."drive_node_texts"
+create policy bsb_drive_node_texts_read on "better_supabase"."drive_node_texts"
   for select to authenticated
   using ("better_supabase"."drive_can"("node_id", 'viewer'));
 
@@ -3164,7 +3164,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:6f565d2875e205d6edbd1075787b1b73e416df5661d08e6794256295af11f92c
+-- @bsb-hash sha256:b01ddf4964eab8c459270a4d92d232d4b182d9353e6fb44978fcbae3c951a191
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3506,7 +3506,7 @@ revoke execute on function "app_private"."drive_readable_ids"() from public, ano
 grant execute on function "app_private"."drive_readable_ids"() to authenticated, service_role;
 
 
-create policy drive_nodes_read on "app_private"."drive_nodes"
+create policy bsb_drive_nodes_read on "app_private"."drive_nodes"
   for select to authenticated
   using ("deleted_at" is null and "id" in (select "app_private"."drive_readable_ids"()));
 
@@ -4473,7 +4473,7 @@ alter table "app_private"."drive_node_texts" enable row level security;
 revoke all on "app_private"."drive_node_texts" from public, anon, authenticated;
 grant select on "app_private"."drive_node_texts" to authenticated;
 grant all on "app_private"."drive_node_texts" to service_role;
-create policy drive_node_texts_read on "app_private"."drive_node_texts"
+create policy bsb_drive_node_texts_read on "app_private"."drive_node_texts"
   for select to authenticated
   using ("app_private"."drive_can"("node_id", 'viewer'));
 
@@ -4676,7 +4676,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:62f9c8cbe8951f551f1d08569931a09d9ea154f2d465d215e6e08dc90a08ee6b
+-- @bsb-hash sha256:e97bce91e1bc140b5b5a6e83a19b175275e03b8a1a2677f830c14887c87d07e2
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5013,7 +5013,7 @@ revoke execute on function "better_supabase"."drive_readable_ids"() from public,
 grant execute on function "better_supabase"."drive_readable_ids"() to authenticated, service_role;
 
 
-create policy drive_nodes_read on "better_supabase"."drive_nodes"
+create policy bsb_drive_nodes_read on "better_supabase"."drive_nodes"
   for select to authenticated
   using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
 
@@ -5980,7 +5980,7 @@ alter table "better_supabase"."drive_node_texts" enable row level security;
 revoke all on "better_supabase"."drive_node_texts" from public, anon, authenticated;
 grant select on "better_supabase"."drive_node_texts" to authenticated;
 grant all on "better_supabase"."drive_node_texts" to service_role;
-create policy drive_node_texts_read on "better_supabase"."drive_node_texts"
+create policy bsb_drive_node_texts_read on "better_supabase"."drive_node_texts"
   for select to authenticated
   using ("better_supabase"."drive_can"("node_id", 'viewer'));
 
@@ -7897,7 +7897,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:3b7373f6c382fb0c7c58805410f03ae865bd828be449ec0187698bff5811761e
+-- @bsb-hash sha256:e49bc0c7e9db1691908c492a30a56aa2f7164922d12baaab7fb6d595f2768b14
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8234,7 +8234,7 @@ revoke execute on function "better_supabase"."drive_readable_ids"() from public,
 grant execute on function "better_supabase"."drive_readable_ids"() to authenticated, service_role;
 
 
-create policy drive_nodes_read on "better_supabase"."drive_nodes"
+create policy bsb_drive_nodes_read on "better_supabase"."drive_nodes"
   for select to authenticated
   using ("deleted_at" is null and "id" in (select "better_supabase"."drive_readable_ids"()));
 
@@ -9201,7 +9201,7 @@ alter table "better_supabase"."drive_node_texts" enable row level security;
 revoke all on "better_supabase"."drive_node_texts" from public, anon, authenticated;
 grant select on "better_supabase"."drive_node_texts" to authenticated;
 grant all on "better_supabase"."drive_node_texts" to service_role;
-create policy drive_node_texts_read on "better_supabase"."drive_node_texts"
+create policy bsb_drive_node_texts_read on "better_supabase"."drive_node_texts"
   for select to authenticated
   using ("better_supabase"."drive_can"("node_id", 'viewer'));
 

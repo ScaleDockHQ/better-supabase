@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:452783f07cbba670edb7effa138a7bf42b4e8584ed4fc4c562c2060fbf957482
+-- @bsb-hash sha256:cf7fac204d3ce4d7cdb8123ed18917dc07a2c8bae6b63627bafbffb947ba6c18
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,7 @@ alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from public, anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
-create policy approval_requests_read on "better_supabase"."approval_requests"
+create policy bsb_approval_requests_read on "better_supabase"."approval_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
@@ -53,7 +53,7 @@ alter table "better_supabase"."approval_decisions" enable row level security;
 revoke all on "better_supabase"."approval_decisions" from public, anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
-create policy approval_decisions_read on "better_supabase"."approval_decisions"
+create policy bsb_approval_decisions_read on "better_supabase"."approval_decisions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
@@ -80,7 +80,7 @@ alter table "better_supabase"."approval_items" enable row level security;
 revoke all on "better_supabase"."approval_items" from public, anon, authenticated;
 grant select on "better_supabase"."approval_items" to authenticated;
 grant all on "better_supabase"."approval_items" to service_role;
-create policy approval_items_read on "better_supabase"."approval_items"
+create policy bsb_approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
@@ -1413,7 +1413,7 @@ rollback;
 -- ==== with every module: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:0b54bb2f812fc51a50c12d26c52a843e73d4af6e2725c01219366fea76c9fcb8
+-- @bsb-hash sha256:2023679cfc1999c6cb92bc18607d27ed99f34489a465bca3bf53227a70c8685a
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1443,7 +1443,7 @@ alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from public, anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
-create policy approval_requests_read on "better_supabase"."approval_requests"
+create policy bsb_approval_requests_read on "better_supabase"."approval_requests"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) and not "subject_type" in ('support_request', 'ai_tool_approval')) or "requested_by" = (select auth.uid()));
 
@@ -1465,7 +1465,7 @@ alter table "better_supabase"."approval_decisions" enable row level security;
 revoke all on "better_supabase"."approval_decisions" from public, anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
-create policy approval_decisions_read on "better_supabase"."approval_decisions"
+create policy bsb_approval_decisions_read on "better_supabase"."approval_decisions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
@@ -1492,7 +1492,7 @@ alter table "better_supabase"."approval_items" enable row level security;
 revoke all on "better_supabase"."approval_items" from public, anon, authenticated;
 grant select on "better_supabase"."approval_items" to authenticated;
 grant all on "better_supabase"."approval_items" to service_role;
-create policy approval_items_read on "better_supabase"."approval_items"
+create policy bsb_approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
@@ -3140,7 +3140,7 @@ rollback;
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:f1fdbe9d7a6a23922087312b52d19b8ebeabb0f00bc308a3c1051f377c1269a0
+-- @bsb-hash sha256:3e6c0a1c407851da22e59248415c89c068aff6f735af25c1b87552ef478784a2
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3175,7 +3175,7 @@ alter table "app_private"."approval_requests" enable row level security;
 revoke all on "app_private"."approval_requests" from public, anon, authenticated;
 grant select on "app_private"."approval_requests" to authenticated;
 grant all on "app_private"."approval_requests" to service_role;
-create policy approval_requests_read on "app_private"."approval_requests"
+create policy bsb_approval_requests_read on "app_private"."approval_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
@@ -3197,7 +3197,7 @@ alter table "app_private"."approval_decisions" enable row level security;
 revoke all on "app_private"."approval_decisions" from public, anon, authenticated;
 grant select on "app_private"."approval_decisions" to authenticated;
 grant all on "app_private"."approval_decisions" to service_role;
-create policy approval_decisions_read on "app_private"."approval_decisions"
+create policy bsb_approval_decisions_read on "app_private"."approval_decisions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
@@ -3224,7 +3224,7 @@ alter table "app_private"."approval_items" enable row level security;
 revoke all on "app_private"."approval_items" from public, anon, authenticated;
 grant select on "app_private"."approval_items" to authenticated;
 grant all on "app_private"."approval_items" to service_role;
-create policy approval_items_read on "app_private"."approval_items"
+create policy bsb_approval_items_read on "app_private"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
@@ -4557,7 +4557,7 @@ rollback;
 -- ==== api schema: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:078a14deb325ab97c5a2a1e417e7dd6d638adbde11670ecad66f67b8d9f69453
+-- @bsb-hash sha256:e319dc22115243666a0fb96670cc20c85f98af421f26afe249ba036eb8aa6d47
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4587,7 +4587,7 @@ alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from public, anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
-create policy approval_requests_read on "better_supabase"."approval_requests"
+create policy bsb_approval_requests_read on "better_supabase"."approval_requests"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
@@ -4609,7 +4609,7 @@ alter table "better_supabase"."approval_decisions" enable row level security;
 revoke all on "better_supabase"."approval_decisions" from public, anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
-create policy approval_decisions_read on "better_supabase"."approval_decisions"
+create policy bsb_approval_decisions_read on "better_supabase"."approval_decisions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
@@ -4636,7 +4636,7 @@ alter table "better_supabase"."approval_items" enable row level security;
 revoke all on "better_supabase"."approval_items" from public, anon, authenticated;
 grant select on "better_supabase"."approval_items" to authenticated;
 grant all on "better_supabase"."approval_items" to service_role;
-create policy approval_items_read on "better_supabase"."approval_items"
+create policy bsb_approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
@@ -7566,7 +7566,7 @@ rollback;
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:0b2aeb2efcabc72ed6d4277c9e4a8eea0b1aa011d28acb048c790a67e7b348c6
+-- @bsb-hash sha256:15126f47550fb8a1302603f29a8698424166b0e53e33526ce0c769ec9a441a85
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7596,7 +7596,7 @@ alter table "better_supabase"."approval_requests" enable row level security;
 revoke all on "better_supabase"."approval_requests" from public, anon, authenticated;
 grant select on "better_supabase"."approval_requests" to authenticated;
 grant all on "better_supabase"."approval_requests" to service_role;
-create policy approval_requests_read on "better_supabase"."approval_requests"
+create policy bsb_approval_requests_read on "better_supabase"."approval_requests"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('approvals.read')) or "requested_by" = (select auth.uid()));
 
@@ -7618,7 +7618,7 @@ alter table "better_supabase"."approval_decisions" enable row level security;
 revoke all on "better_supabase"."approval_decisions" from public, anon, authenticated;
 grant select on "better_supabase"."approval_decisions" to authenticated;
 grant all on "better_supabase"."approval_decisions" to service_role;
-create policy approval_decisions_read on "better_supabase"."approval_decisions"
+create policy bsb_approval_decisions_read on "better_supabase"."approval_decisions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 
@@ -7645,7 +7645,7 @@ alter table "better_supabase"."approval_items" enable row level security;
 revoke all on "better_supabase"."approval_items" from public, anon, authenticated;
 grant select on "better_supabase"."approval_items" to authenticated;
 grant all on "better_supabase"."approval_items" to service_role;
-create policy approval_items_read on "better_supabase"."approval_items"
+create policy bsb_approval_items_read on "better_supabase"."approval_items"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('approvals.read')));
 

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_166_warehouse.sql
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:d6fe5b5c330229fdc64f7efcd9a91e5cb3672e4dac9cd90a2d42eeff1bf86e63
+-- @bsb-hash sha256:0708baf2fa849a1514c9d20fc6667c6654cf8fa245f2624cb36544a037b50f38
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,7 @@ alter table "better_supabase"."pick_waves" enable row level security;
 revoke all on "better_supabase"."pick_waves" from public, anon, authenticated;
 grant select on "better_supabase"."pick_waves" to authenticated;
 grant all on "better_supabase"."pick_waves" to service_role;
-create policy pick_waves_read on "better_supabase"."pick_waves"
+create policy bsb_pick_waves_read on "better_supabase"."pick_waves"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
@@ -62,7 +62,7 @@ alter table "better_supabase"."pick_lists" enable row level security;
 revoke all on "better_supabase"."pick_lists" from public, anon, authenticated;
 grant select on "better_supabase"."pick_lists" to authenticated;
 grant all on "better_supabase"."pick_lists" to service_role;
-create policy pick_lists_read on "better_supabase"."pick_lists"
+create policy bsb_pick_lists_read on "better_supabase"."pick_lists"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
@@ -94,7 +94,7 @@ alter table "better_supabase"."pick_lines" enable row level security;
 revoke all on "better_supabase"."pick_lines" from public, anon, authenticated;
 grant select on "better_supabase"."pick_lines" to authenticated;
 grant all on "better_supabase"."pick_lines" to service_role;
-create policy pick_lines_read on "better_supabase"."pick_lines"
+create policy bsb_pick_lines_read on "better_supabase"."pick_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
@@ -122,7 +122,7 @@ alter table "better_supabase"."count_plans" enable row level security;
 revoke all on "better_supabase"."count_plans" from public, anon, authenticated;
 grant select on "better_supabase"."count_plans" to authenticated;
 grant all on "better_supabase"."count_plans" to service_role;
-create policy count_plans_read on "better_supabase"."count_plans"
+create policy bsb_count_plans_read on "better_supabase"."count_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
@@ -148,7 +148,7 @@ alter table "better_supabase"."putaway_rules" enable row level security;
 revoke all on "better_supabase"."putaway_rules" from public, anon, authenticated;
 grant select on "better_supabase"."putaway_rules" to authenticated;
 grant all on "better_supabase"."putaway_rules" to service_role;
-create policy putaway_rules_read on "better_supabase"."putaway_rules"
+create policy bsb_putaway_rules_read on "better_supabase"."putaway_rules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
@@ -167,7 +167,7 @@ alter table "better_supabase"."bin_slots" enable row level security;
 revoke all on "better_supabase"."bin_slots" from public, anon, authenticated;
 grant select on "better_supabase"."bin_slots" to authenticated;
 grant all on "better_supabase"."bin_slots" to service_role;
-create policy bin_slots_read on "better_supabase"."bin_slots"
+create policy bsb_bin_slots_read on "better_supabase"."bin_slots"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 
@@ -185,7 +185,7 @@ alter table "better_supabase"."variant_sizes" enable row level security;
 revoke all on "better_supabase"."variant_sizes" from public, anon, authenticated;
 grant select on "better_supabase"."variant_sizes" to authenticated;
 grant all on "better_supabase"."variant_sizes" to service_role;
-create policy variant_sizes_read on "better_supabase"."variant_sizes"
+create policy bsb_variant_sizes_read on "better_supabase"."variant_sizes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('warehouse.read')));
 

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_177_e_prescribing.sql
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:e868b03bdcedd21ccec06492db646d5801b2e2041083eff365e6c89ac5257617
+-- @bsb-hash sha256:aeb412551cc64fb4bbf1fecdf655b63498f9afe164a2dd531754e3330d458813
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -51,7 +51,7 @@ alter table "better_supabase"."prescriptions" enable row level security;
 revoke all on "better_supabase"."prescriptions" from public, anon, authenticated;
 grant select on "better_supabase"."prescriptions" to authenticated;
 grant all on "better_supabase"."prescriptions" to service_role;
-create policy prescriptions_read on "better_supabase"."prescriptions"
+create policy bsb_prescriptions_read on "better_supabase"."prescriptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('e_prescribing.read')));
 

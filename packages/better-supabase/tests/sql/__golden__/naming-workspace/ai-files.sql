@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:bf152676957d2d7122901e2beff1bc2dafa222d7eb5551ab6c0842b82c713c78
+-- @bsb-hash sha256:3a4d5239109ad069bdad8313bfb57e40a4e9ff297d092d1b7241ade8b50cffa8
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -37,7 +37,7 @@ alter table "better_supabase"."ai_files" enable row level security;
 revoke all on "better_supabase"."ai_files" from public, anon, authenticated;
 grant select on "better_supabase"."ai_files" to authenticated;
 grant all on "better_supabase"."ai_files" to service_role;
-create policy ai_files_read on "better_supabase"."ai_files"
+create policy bsb_ai_files_read on "better_supabase"."ai_files"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
@@ -77,7 +77,7 @@ alter table "better_supabase"."ai_documents" enable row level security;
 revoke all on "better_supabase"."ai_documents" from public, anon, authenticated;
 grant select on "better_supabase"."ai_documents" to authenticated;
 grant all on "better_supabase"."ai_documents" to service_role;
-create policy ai_documents_read on "better_supabase"."ai_documents"
+create policy bsb_ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or false));
 
@@ -117,7 +117,7 @@ alter table "better_supabase"."ai_suggestions" enable row level security;
 revoke all on "better_supabase"."ai_suggestions" from public, anon, authenticated;
 grant select on "better_supabase"."ai_suggestions" to authenticated;
 grant all on "better_supabase"."ai_suggestions" to service_role;
-create policy ai_suggestions_read on "better_supabase"."ai_suggestions"
+create policy bsb_ai_suggestions_read on "better_supabase"."ai_suggestions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."ai_documents" doc where doc."id" = "document_id"));
 

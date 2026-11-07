@@ -67,14 +67,16 @@ describe("catalog module", () => {
 
   it("adds anon storefront policies only when the storefront is public", () => {
     expect(sqlOf()).not.toContain("to anon, authenticated\nusing");
-    expect(sqlOf()).not.toContain("drop policy if exists products_storefront");
+    expect(sqlOf()).not.toContain(
+      "drop policy if exists bsb_products_storefront",
+    );
 
     const open = sqlOf({
       modules: { catalog: { options: { storefront: "public" } } },
     });
 
     expect(open).toContain(
-      `create policy products_storefront on "better_supabase"."products"\n  for select to anon, authenticated`,
+      `create policy bsb_products_storefront on "better_supabase"."products"\n  for select to anon, authenticated`,
     );
     expect(open).toContain(
       `grant select on "better_supabase"."product_prices" to anon;`,

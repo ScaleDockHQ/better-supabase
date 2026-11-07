@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:1aea488e142722b7dd19ef5afd2027b3f8f136c9a2c5259a1538f41af4ffaddd
+-- @bsb-hash sha256:6b4e419ff5f2e0eb6e3cc8336dcdc3d7a7c7bc719a0f18dd6f15f6e31845434e
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -67,7 +67,7 @@ as $$
 $$;
 revoke execute on function "better_supabase"."is_conversation_member"(uuid) from public, anon;
 grant execute on function "better_supabase"."is_conversation_member"(uuid) to authenticated, service_role;
-create policy conversations_read on "better_supabase"."conversations"
+create policy bsb_conversations_read on "better_supabase"."conversations"
   for select to authenticated
   using (((("better_supabase"."conversations"."tenant_id" in (select better_supabase.tenant_ids_with('comments.read'))
     or ("better_supabase"."conversations"."access" = 'subject' and coalesce(case "better_supabase"."conversations"."subject_type" when 'project' then "better_supabase"."conversations"."subject_id" in (select t.id::text from centrakit.authz_project_ids_with('comments.read') as t(id)) else false end, false)))
@@ -78,7 +78,7 @@ create policy conversations_read on "better_supabase"."conversations"
       when 'subject' then coalesce("better_supabase"."can_subject"("better_supabase"."conversations"."subject_type", "better_supabase"."conversations"."subject_id", 'read'), false)
       else false
     end));
-create policy conversation_members_read on "better_supabase"."conversation_members"
+create policy bsb_conversation_members_read on "better_supabase"."conversation_members"
   for select to authenticated
   using ("user_id" = (select auth.uid())
   or exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
@@ -126,7 +126,7 @@ grant all on "better_supabase"."messages" to service_role;
 -- A message shows to whoever reads its conversation once it is sent; a
 -- scheduled one shows to its author only.
 
-create policy messages_read on "better_supabase"."messages"
+create policy bsb_messages_read on "better_supabase"."messages"
   for select to authenticated
   using (("sent_at" is not null or "author_id" = (select auth.uid()))
   and exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
@@ -145,7 +145,7 @@ alter table "better_supabase"."message_edits" enable row level security;
 revoke all on "better_supabase"."message_edits" from public, anon, authenticated;
 grant select on "better_supabase"."message_edits" to authenticated;
 grant all on "better_supabase"."message_edits" to service_role;
-create policy message_edits_read on "better_supabase"."message_edits"
+create policy bsb_message_edits_read on "better_supabase"."message_edits"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
@@ -166,7 +166,7 @@ alter table "better_supabase"."thread_reads" enable row level security;
 revoke all on "better_supabase"."thread_reads" from public, anon, authenticated;
 grant select on "better_supabase"."thread_reads" to authenticated;
 grant all on "better_supabase"."thread_reads" to service_role;
-create policy thread_reads_read on "better_supabase"."thread_reads"
+create policy bsb_thread_reads_read on "better_supabase"."thread_reads"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -187,7 +187,7 @@ alter table "better_supabase"."message_record_mentions" enable row level securit
 revoke all on "better_supabase"."message_record_mentions" from public, anon, authenticated;
 grant select on "better_supabase"."message_record_mentions" to authenticated;
 grant all on "better_supabase"."message_record_mentions" to service_role;
-create policy message_record_mentions_read on "better_supabase"."message_record_mentions"
+create policy bsb_message_record_mentions_read on "better_supabase"."message_record_mentions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."messages" m where m."id" = "message_id"));
 
@@ -211,7 +211,7 @@ alter table "better_supabase"."thread_summaries" enable row level security;
 revoke all on "better_supabase"."thread_summaries" from public, anon, authenticated;
 grant select on "better_supabase"."thread_summaries" to authenticated;
 grant all on "better_supabase"."thread_summaries" to service_role;
-create policy thread_summaries_read on "better_supabase"."thread_summaries"
+create policy bsb_thread_summaries_read on "better_supabase"."thread_summaries"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."conversations" c where c."id" = "conversation_id"));
 

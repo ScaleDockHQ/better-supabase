@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:451464662d716de90a559379ddad1dbd58deb0eb1e895f588d27a35ee03d8193
+-- @bsb-hash sha256:796de62e255960661b4082bfc49335a286cc40b33067c109c0a82fcc98181153
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -33,7 +33,7 @@ alter table "better_supabase"."qualification_types" enable row level security;
 revoke all on "better_supabase"."qualification_types" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_types" to authenticated;
 grant all on "better_supabase"."qualification_types" to service_role;
-create policy qualification_types_read on "better_supabase"."qualification_types"
+create policy bsb_qualification_types_read on "better_supabase"."qualification_types"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -54,7 +54,7 @@ alter table "better_supabase"."qualification_requirements" enable row level secu
 revoke all on "better_supabase"."qualification_requirements" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_requirements" to authenticated;
 grant all on "better_supabase"."qualification_requirements" to service_role;
-create policy qualification_requirements_read on "better_supabase"."qualification_requirements"
+create policy bsb_qualification_requirements_read on "better_supabase"."qualification_requirements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -90,7 +90,7 @@ alter table "better_supabase"."qualifications" enable row level security;
 revoke all on "better_supabase"."qualifications" from public, anon, authenticated;
 grant select on "better_supabase"."qualifications" to authenticated;
 grant all on "better_supabase"."qualifications" to service_role;
-create policy qualifications_read on "better_supabase"."qualifications"
+create policy bsb_qualifications_read on "better_supabase"."qualifications"
   for select to authenticated
   using (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')));
 
@@ -739,7 +739,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:f7eeb3f30130383c55fd2b65263ae4c1135a18634a8249fc30a2045c59b497cb
+-- @bsb-hash sha256:9fc0a9f76df68d656789c900a7c152371da77961124a7d422d4ed53a171403ce
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -771,7 +771,7 @@ alter table "better_supabase"."qualification_types" enable row level security;
 revoke all on "better_supabase"."qualification_types" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_types" to authenticated;
 grant all on "better_supabase"."qualification_types" to service_role;
-create policy qualification_types_read on "better_supabase"."qualification_types"
+create policy bsb_qualification_types_read on "better_supabase"."qualification_types"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -792,7 +792,7 @@ alter table "better_supabase"."qualification_requirements" enable row level secu
 revoke all on "better_supabase"."qualification_requirements" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_requirements" to authenticated;
 grant all on "better_supabase"."qualification_requirements" to service_role;
-create policy qualification_requirements_read on "better_supabase"."qualification_requirements"
+create policy bsb_qualification_requirements_read on "better_supabase"."qualification_requirements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -829,7 +829,7 @@ alter table "better_supabase"."qualifications" enable row level security;
 revoke all on "better_supabase"."qualifications" from public, anon, authenticated;
 grant select on "better_supabase"."qualifications" to authenticated;
 grant all on "better_supabase"."qualifications" to service_role;
-create policy qualifications_read on "better_supabase"."qualifications"
+create policy bsb_qualifications_read on "better_supabase"."qualifications"
   for select to authenticated
   using (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')));
 
@@ -1633,7 +1633,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:9d748657f8c5585155a9e39d223918849030b9682c9bbb2f078f49fd6a1f3cf4
+-- @bsb-hash sha256:ec9b7ffd5c5a5cb18f64292e88ff9f055318bf038509e9efeda5f08e46e4e0a5
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1670,7 +1670,7 @@ alter table "app_private"."qualification_types" enable row level security;
 revoke all on "app_private"."qualification_types" from public, anon, authenticated;
 grant select on "app_private"."qualification_types" to authenticated;
 grant all on "app_private"."qualification_types" to service_role;
-create policy qualification_types_read on "app_private"."qualification_types"
+create policy bsb_qualification_types_read on "app_private"."qualification_types"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -1691,7 +1691,7 @@ alter table "app_private"."qualification_requirements" enable row level security
 revoke all on "app_private"."qualification_requirements" from public, anon, authenticated;
 grant select on "app_private"."qualification_requirements" to authenticated;
 grant all on "app_private"."qualification_requirements" to service_role;
-create policy qualification_requirements_read on "app_private"."qualification_requirements"
+create policy bsb_qualification_requirements_read on "app_private"."qualification_requirements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -1727,7 +1727,7 @@ alter table "app_private"."qualifications" enable row level security;
 revoke all on "app_private"."qualifications" from public, anon, authenticated;
 grant select on "app_private"."qualifications" to authenticated;
 grant all on "app_private"."qualifications" to service_role;
-create policy qualifications_read on "app_private"."qualifications"
+create policy bsb_qualifications_read on "app_private"."qualifications"
   for select to authenticated
   using (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')));
 
@@ -2376,7 +2376,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:55cfd8822c6256bc80445defba78ff612ab0d21695b9b653237f567f17185b3b
+-- @bsb-hash sha256:34cfe572c4ca26d1ad1675cec0ed5f1a7b54b171b4eed593f9503452b867afca
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2408,7 +2408,7 @@ alter table "better_supabase"."qualification_types" enable row level security;
 revoke all on "better_supabase"."qualification_types" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_types" to authenticated;
 grant all on "better_supabase"."qualification_types" to service_role;
-create policy qualification_types_read on "better_supabase"."qualification_types"
+create policy bsb_qualification_types_read on "better_supabase"."qualification_types"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -2429,7 +2429,7 @@ alter table "better_supabase"."qualification_requirements" enable row level secu
 revoke all on "better_supabase"."qualification_requirements" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_requirements" to authenticated;
 grant all on "better_supabase"."qualification_requirements" to service_role;
-create policy qualification_requirements_read on "better_supabase"."qualification_requirements"
+create policy bsb_qualification_requirements_read on "better_supabase"."qualification_requirements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -2465,7 +2465,7 @@ alter table "better_supabase"."qualifications" enable row level security;
 revoke all on "better_supabase"."qualifications" from public, anon, authenticated;
 grant select on "better_supabase"."qualifications" to authenticated;
 grant all on "better_supabase"."qualifications" to service_role;
-create policy qualifications_read on "better_supabase"."qualifications"
+create policy bsb_qualifications_read on "better_supabase"."qualifications"
   for select to authenticated
   using (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "tenant_id" in (select better_supabase.tenant_ids_with('qualifications.read')));
 
@@ -3953,7 +3953,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:04a33c0385006004b5a8e3ddf7f09accc4ca61d8d1773ce3b877219012e8bd95
+-- @bsb-hash sha256:4cf00b65fbfe146397741f75d48780249b75f8d83b2642d042169ec0c83abb6d
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3985,7 +3985,7 @@ alter table "better_supabase"."qualification_types" enable row level security;
 revoke all on "better_supabase"."qualification_types" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_types" to authenticated;
 grant all on "better_supabase"."qualification_types" to service_role;
-create policy qualification_types_read on "better_supabase"."qualification_types"
+create policy bsb_qualification_types_read on "better_supabase"."qualification_types"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "org_id" in (select better_supabase.member_organization_ids()));
 
@@ -4006,7 +4006,7 @@ alter table "better_supabase"."qualification_requirements" enable row level secu
 revoke all on "better_supabase"."qualification_requirements" from public, anon, authenticated;
 grant select on "better_supabase"."qualification_requirements" to authenticated;
 grant all on "better_supabase"."qualification_requirements" to service_role;
-create policy qualification_requirements_read on "better_supabase"."qualification_requirements"
+create policy bsb_qualification_requirements_read on "better_supabase"."qualification_requirements"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('qualifications.read')) or "org_id" in (select better_supabase.member_organization_ids()));
 
@@ -4042,7 +4042,7 @@ alter table "better_supabase"."qualifications" enable row level security;
 revoke all on "better_supabase"."qualifications" from public, anon, authenticated;
 grant select on "better_supabase"."qualifications" to authenticated;
 grant all on "better_supabase"."qualifications" to service_role;
-create policy qualifications_read on "better_supabase"."qualifications"
+create policy bsb_qualifications_read on "better_supabase"."qualifications"
   for select to authenticated
   using (("holder_type" = 'member' and "holder_id" = (select auth.uid())::text) or "org_id" in (select better_supabase.tenant_ids_with('qualifications.read')));
 

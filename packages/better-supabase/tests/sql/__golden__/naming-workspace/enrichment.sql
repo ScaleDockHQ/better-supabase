@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:3fcde77b6cf136e9c06586fb21f7476cd63a77f65de02babbbc91420190c2dee
+-- @bsb-hash sha256:24c68bd2a171105e372b74bb9d4a866c88c697a9501b2d19320f98e4cb9bba7b
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,7 +29,7 @@ alter table "better_supabase"."enrichments" enable row level security;
 revoke all on "better_supabase"."enrichments" from public, anon, authenticated;
 grant select on "better_supabase"."enrichments" to authenticated;
 grant all on "better_supabase"."enrichments" to service_role;
-create policy enrichments_read on "better_supabase"."enrichments"
+create policy bsb_enrichments_read on "better_supabase"."enrichments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('enrichment.read')));
 

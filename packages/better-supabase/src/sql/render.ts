@@ -42,6 +42,7 @@ import { appTableSet, ownTablesCreatedBy } from "./pipeline/resolve.ts";
 import { rerunnableDdl, staticDdl } from "./pipeline/static.ts";
 import { withUnscopedFile } from "./pipeline/unscoped.ts";
 import { withoutCoveredPolicies } from "./policy-cover.ts";
+import { bsbPolicyNames } from "./policy-names.ts";
 import {
   checkMigrationOptions,
   checkModules,
@@ -78,9 +79,11 @@ export function moduleBody(
     layout.ownPolicies,
   );
 
-  return layout.rerunnable === true
-    ? rerunnableDdl(body)
-    : staticDdl(body, appTableSet(ctx));
+  return bsbPolicyNames(
+    layout.rerunnable === true
+      ? rerunnableDdl(body)
+      : staticDdl(body, appTableSet(ctx)),
+  );
 }
 
 /**
@@ -268,9 +271,11 @@ function moduleFiles(
   // The migrations workflow repeats every statement in each migration; the
   // others read the files as declarative DDL.
   const settled = (sql: string): string =>
-    layout.rerunnable === true
-      ? rerunnableDdl(sql)
-      : staticDdl(sql, appTableSet(ctx));
+    bsbPolicyNames(
+      layout.rerunnable === true
+        ? rerunnableDdl(sql)
+        : staticDdl(sql, appTableSet(ctx)),
+    );
 
   const file = (
     kind: BlockSqlFile["kind"],

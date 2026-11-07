@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:2521e8aa725be162d3e6c3d90b4e31adf021ec9c8cb42a968dd9daba867291fb
+-- @bsb-hash sha256:3e5db9b7b81a7338fb5b560cb7526dada6b119d6268ee2e4d11587941250e4d4
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,7 +46,7 @@ alter table "better_supabase"."observation_definitions" enable row level securit
 revoke all on "better_supabase"."observation_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."observation_definitions" to authenticated;
 grant all on "better_supabase"."observation_definitions" to service_role;
-create policy observation_definitions_read on "better_supabase"."observation_definitions"
+create policy bsb_observation_definitions_read on "better_supabase"."observation_definitions"
   for select to authenticated
   using ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -89,7 +89,7 @@ alter table "better_supabase"."observations" enable row level security;
 revoke all on "better_supabase"."observations" from public, anon, authenticated;
 grant select on "better_supabase"."observations" to authenticated;
 grant all on "better_supabase"."observations" to service_role;
-create policy observations_read on "better_supabase"."observations"
+create policy bsb_observations_read on "better_supabase"."observations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
@@ -1010,7 +1010,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:a9900b967dda061bd00d8bc21d45e039fb01fb623fa03b4ab0d4015a9d47f02d
+-- @bsb-hash sha256:4d16db8105c870f38b77ae0ee078132793928c1c65907cbea9a1601b668f3520
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1055,7 +1055,7 @@ alter table "better_supabase"."observation_definitions" enable row level securit
 revoke all on "better_supabase"."observation_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."observation_definitions" to authenticated;
 grant all on "better_supabase"."observation_definitions" to service_role;
-create policy observation_definitions_read on "better_supabase"."observation_definitions"
+create policy bsb_observation_definitions_read on "better_supabase"."observation_definitions"
   for select to authenticated
   using ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -1098,7 +1098,7 @@ alter table "better_supabase"."observations" enable row level security;
 revoke all on "better_supabase"."observations" from public, anon, authenticated;
 grant select on "better_supabase"."observations" to authenticated;
 grant all on "better_supabase"."observations" to service_role;
-create policy observations_read on "better_supabase"."observations"
+create policy bsb_observations_read on "better_supabase"."observations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
@@ -2237,7 +2237,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:b67705995e226521b76f4570067f67b53ae83e7f1202b428a14a32f5ea8d4a57
+-- @bsb-hash sha256:eb4b3a47fe882bfeba3398ef0aab469fb875e551794342a85b98f49e43575f5f
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2287,7 +2287,7 @@ alter table "app_private"."observation_definitions" enable row level security;
 revoke all on "app_private"."observation_definitions" from public, anon, authenticated;
 grant select on "app_private"."observation_definitions" to authenticated;
 grant all on "app_private"."observation_definitions" to service_role;
-create policy observation_definitions_read on "app_private"."observation_definitions"
+create policy bsb_observation_definitions_read on "app_private"."observation_definitions"
   for select to authenticated
   using ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -2330,7 +2330,7 @@ alter table "app_private"."observations" enable row level security;
 revoke all on "app_private"."observations" from public, anon, authenticated;
 grant select on "app_private"."observations" to authenticated;
 grant all on "app_private"."observations" to service_role;
-create policy observations_read on "app_private"."observations"
+create policy bsb_observations_read on "app_private"."observations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
@@ -3251,7 +3251,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:948b8a7346bb616d0169d0c69fc79130acac0422a3b19e692d1e74a829a3cab4
+-- @bsb-hash sha256:e8b0fbf201bdab1986f88d9d3252c316658f461a6e305d00f95f423651455a97
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3296,7 +3296,7 @@ alter table "better_supabase"."observation_definitions" enable row level securit
 revoke all on "better_supabase"."observation_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."observation_definitions" to authenticated;
 grant all on "better_supabase"."observation_definitions" to service_role;
-create policy observation_definitions_read on "better_supabase"."observation_definitions"
+create policy bsb_observation_definitions_read on "better_supabase"."observation_definitions"
   for select to authenticated
   using ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -3339,7 +3339,7 @@ alter table "better_supabase"."observations" enable row level security;
 revoke all on "better_supabase"."observations" from public, anon, authenticated;
 grant select on "better_supabase"."observations" to authenticated;
 grant all on "better_supabase"."observations" to service_role;
-create policy observations_read on "better_supabase"."observations"
+create policy bsb_observations_read on "better_supabase"."observations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
@@ -5357,7 +5357,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:9708aace534453aa811bc4e5a540f997e8b1599749ece6358e821925e588bae4
+-- @bsb-hash sha256:7562e1bd7d82c6683c35788fa434f56dd50cac2779b22ae923e3bd20217924ee
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5402,7 +5402,7 @@ alter table "better_supabase"."observation_definitions" enable row level securit
 revoke all on "better_supabase"."observation_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."observation_definitions" to authenticated;
 grant all on "better_supabase"."observation_definitions" to service_role;
-create policy observation_definitions_read on "better_supabase"."observation_definitions"
+create policy bsb_observation_definitions_read on "better_supabase"."observation_definitions"
   for select to authenticated
   using ("org_id" is null or "org_id" in (select better_supabase.tenant_ids_with('observations.read')) or "org_id" in (select better_supabase.member_organization_ids()));
 
@@ -5445,7 +5445,7 @@ alter table "better_supabase"."observations" enable row level security;
 revoke all on "better_supabase"."observations" from public, anon, authenticated;
 grant select on "better_supabase"."observations" to authenticated;
 grant all on "better_supabase"."observations" to service_role;
-create policy observations_read on "better_supabase"."observations"
+create policy bsb_observations_read on "better_supabase"."observations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('observations.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:e7101db0c9e38f8faf7583cbc057e7114c5cdbb3d652005c4dbed61371a089d3
+-- @bsb-hash sha256:64e364762c46634e45ffb6cbc056f89b7448bd5727b119bcb4dce57b14fc22ab
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -36,7 +36,7 @@ alter table "better_supabase"."tax_codes" enable row level security;
 revoke all on "better_supabase"."tax_codes" from public, anon, authenticated;
 grant select on "better_supabase"."tax_codes" to authenticated;
 grant all on "better_supabase"."tax_codes" to service_role;
-create policy tax_codes_read on "better_supabase"."tax_codes"
+create policy bsb_tax_codes_read on "better_supabase"."tax_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -58,7 +58,7 @@ alter table "better_supabase"."tax_rates" enable row level security;
 revoke all on "better_supabase"."tax_rates" from public, anon, authenticated;
 grant select on "better_supabase"."tax_rates" to authenticated;
 grant all on "better_supabase"."tax_rates" to service_role;
-create policy tax_rates_read on "better_supabase"."tax_rates"
+create policy bsb_tax_rates_read on "better_supabase"."tax_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -86,7 +86,7 @@ alter table "better_supabase"."invoice_tax_lines" enable row level security;
 revoke all on "better_supabase"."invoice_tax_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_tax_lines" to authenticated;
 grant all on "better_supabase"."invoice_tax_lines" to service_role;
-create policy invoice_tax_lines_read on "better_supabase"."invoice_tax_lines"
+create policy bsb_invoice_tax_lines_read on "better_supabase"."invoice_tax_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -115,7 +115,7 @@ alter table "better_supabase"."tax_returns" enable row level security;
 revoke all on "better_supabase"."tax_returns" from public, anon, authenticated;
 grant select on "better_supabase"."tax_returns" to authenticated;
 grant all on "better_supabase"."tax_returns" to service_role;
-create policy tax_returns_read on "better_supabase"."tax_returns"
+create policy bsb_tax_returns_read on "better_supabase"."tax_returns"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -137,7 +137,7 @@ alter table "better_supabase"."eu_sales_list_lines" enable row level security;
 revoke all on "better_supabase"."eu_sales_list_lines" from public, anon, authenticated;
 grant select on "better_supabase"."eu_sales_list_lines" to authenticated;
 grant all on "better_supabase"."eu_sales_list_lines" to service_role;
-create policy eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines"
+create policy bsb_eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -982,7 +982,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:5582cea0e75502cb6b3812ea428ff818c1cc8a853403355f4849da8cdeeaa6a0
+-- @bsb-hash sha256:bc6c2a42c845380de6b068dcdb6369553a63863e76f2170568f4a336bbd9abb1
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1017,7 +1017,7 @@ alter table "better_supabase"."tax_codes" enable row level security;
 revoke all on "better_supabase"."tax_codes" from public, anon, authenticated;
 grant select on "better_supabase"."tax_codes" to authenticated;
 grant all on "better_supabase"."tax_codes" to service_role;
-create policy tax_codes_read on "better_supabase"."tax_codes"
+create policy bsb_tax_codes_read on "better_supabase"."tax_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -1039,7 +1039,7 @@ alter table "better_supabase"."tax_rates" enable row level security;
 revoke all on "better_supabase"."tax_rates" from public, anon, authenticated;
 grant select on "better_supabase"."tax_rates" to authenticated;
 grant all on "better_supabase"."tax_rates" to service_role;
-create policy tax_rates_read on "better_supabase"."tax_rates"
+create policy bsb_tax_rates_read on "better_supabase"."tax_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -1067,7 +1067,7 @@ alter table "better_supabase"."invoice_tax_lines" enable row level security;
 revoke all on "better_supabase"."invoice_tax_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_tax_lines" to authenticated;
 grant all on "better_supabase"."invoice_tax_lines" to service_role;
-create policy invoice_tax_lines_read on "better_supabase"."invoice_tax_lines"
+create policy bsb_invoice_tax_lines_read on "better_supabase"."invoice_tax_lines"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."invoices" z where z."id" = "invoice_id"));
 
@@ -1096,7 +1096,7 @@ alter table "better_supabase"."tax_returns" enable row level security;
 revoke all on "better_supabase"."tax_returns" from public, anon, authenticated;
 grant select on "better_supabase"."tax_returns" to authenticated;
 grant all on "better_supabase"."tax_returns" to service_role;
-create policy tax_returns_read on "better_supabase"."tax_returns"
+create policy bsb_tax_returns_read on "better_supabase"."tax_returns"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -1118,7 +1118,7 @@ alter table "better_supabase"."eu_sales_list_lines" enable row level security;
 revoke all on "better_supabase"."eu_sales_list_lines" from public, anon, authenticated;
 grant select on "better_supabase"."eu_sales_list_lines" to authenticated;
 grant all on "better_supabase"."eu_sales_list_lines" to service_role;
-create policy eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines"
+create policy bsb_eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -2067,7 +2067,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:de8932741c82fe0b50c1fb283eb7900811ecb1d216ceb316b28b85eb4e366b39
+-- @bsb-hash sha256:33f477690adae7453a113cb8f51996bf5cd9ace1e9b5b2609b5cbaa8ef9e1ac4
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2107,7 +2107,7 @@ alter table "app_private"."tax_codes" enable row level security;
 revoke all on "app_private"."tax_codes" from public, anon, authenticated;
 grant select on "app_private"."tax_codes" to authenticated;
 grant all on "app_private"."tax_codes" to service_role;
-create policy tax_codes_read on "app_private"."tax_codes"
+create policy bsb_tax_codes_read on "app_private"."tax_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -2129,7 +2129,7 @@ alter table "app_private"."tax_rates" enable row level security;
 revoke all on "app_private"."tax_rates" from public, anon, authenticated;
 grant select on "app_private"."tax_rates" to authenticated;
 grant all on "app_private"."tax_rates" to service_role;
-create policy tax_rates_read on "app_private"."tax_rates"
+create policy bsb_tax_rates_read on "app_private"."tax_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -2157,7 +2157,7 @@ alter table "app_private"."invoice_tax_lines" enable row level security;
 revoke all on "app_private"."invoice_tax_lines" from public, anon, authenticated;
 grant select on "app_private"."invoice_tax_lines" to authenticated;
 grant all on "app_private"."invoice_tax_lines" to service_role;
-create policy invoice_tax_lines_read on "app_private"."invoice_tax_lines"
+create policy bsb_invoice_tax_lines_read on "app_private"."invoice_tax_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -2186,7 +2186,7 @@ alter table "app_private"."tax_returns" enable row level security;
 revoke all on "app_private"."tax_returns" from public, anon, authenticated;
 grant select on "app_private"."tax_returns" to authenticated;
 grant all on "app_private"."tax_returns" to service_role;
-create policy tax_returns_read on "app_private"."tax_returns"
+create policy bsb_tax_returns_read on "app_private"."tax_returns"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -2208,7 +2208,7 @@ alter table "app_private"."eu_sales_list_lines" enable row level security;
 revoke all on "app_private"."eu_sales_list_lines" from public, anon, authenticated;
 grant select on "app_private"."eu_sales_list_lines" to authenticated;
 grant all on "app_private"."eu_sales_list_lines" to service_role;
-create policy eu_sales_list_lines_read on "app_private"."eu_sales_list_lines"
+create policy bsb_eu_sales_list_lines_read on "app_private"."eu_sales_list_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -3053,7 +3053,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:b3424bff7dbd2c4e2dea16e19800bdbb821dd7af71b83da767ce16f9afdf087f
+-- @bsb-hash sha256:dc0af26b1268254388ea6e9da89ff633bd47b3dca98d95bec174ccd69f7d25d6
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3088,7 +3088,7 @@ alter table "better_supabase"."tax_codes" enable row level security;
 revoke all on "better_supabase"."tax_codes" from public, anon, authenticated;
 grant select on "better_supabase"."tax_codes" to authenticated;
 grant all on "better_supabase"."tax_codes" to service_role;
-create policy tax_codes_read on "better_supabase"."tax_codes"
+create policy bsb_tax_codes_read on "better_supabase"."tax_codes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -3110,7 +3110,7 @@ alter table "better_supabase"."tax_rates" enable row level security;
 revoke all on "better_supabase"."tax_rates" from public, anon, authenticated;
 grant select on "better_supabase"."tax_rates" to authenticated;
 grant all on "better_supabase"."tax_rates" to service_role;
-create policy tax_rates_read on "better_supabase"."tax_rates"
+create policy bsb_tax_rates_read on "better_supabase"."tax_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -3138,7 +3138,7 @@ alter table "better_supabase"."invoice_tax_lines" enable row level security;
 revoke all on "better_supabase"."invoice_tax_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_tax_lines" to authenticated;
 grant all on "better_supabase"."invoice_tax_lines" to service_role;
-create policy invoice_tax_lines_read on "better_supabase"."invoice_tax_lines"
+create policy bsb_invoice_tax_lines_read on "better_supabase"."invoice_tax_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -3167,7 +3167,7 @@ alter table "better_supabase"."tax_returns" enable row level security;
 revoke all on "better_supabase"."tax_returns" from public, anon, authenticated;
 grant select on "better_supabase"."tax_returns" to authenticated;
 grant all on "better_supabase"."tax_returns" to service_role;
-create policy tax_returns_read on "better_supabase"."tax_returns"
+create policy bsb_tax_returns_read on "better_supabase"."tax_returns"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -3189,7 +3189,7 @@ alter table "better_supabase"."eu_sales_list_lines" enable row level security;
 revoke all on "better_supabase"."eu_sales_list_lines" from public, anon, authenticated;
 grant select on "better_supabase"."eu_sales_list_lines" to authenticated;
 grant all on "better_supabase"."eu_sales_list_lines" to service_role;
-create policy eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines"
+create policy bsb_eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -5147,7 +5147,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_145_tax.sql
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:d9097fe0382cf501200bdf132a03ece47125ffee1bae7d58999ef28534ea6e22
+-- @bsb-hash sha256:552ea173f2633e32376579735dbd3f5e12c1ed2f54e6c39f62e69bc19b570c11
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5182,7 +5182,7 @@ alter table "better_supabase"."tax_codes" enable row level security;
 revoke all on "better_supabase"."tax_codes" from public, anon, authenticated;
 grant select on "better_supabase"."tax_codes" to authenticated;
 grant all on "better_supabase"."tax_codes" to service_role;
-create policy tax_codes_read on "better_supabase"."tax_codes"
+create policy bsb_tax_codes_read on "better_supabase"."tax_codes"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -5204,7 +5204,7 @@ alter table "better_supabase"."tax_rates" enable row level security;
 revoke all on "better_supabase"."tax_rates" from public, anon, authenticated;
 grant select on "better_supabase"."tax_rates" to authenticated;
 grant all on "better_supabase"."tax_rates" to service_role;
-create policy tax_rates_read on "better_supabase"."tax_rates"
+create policy bsb_tax_rates_read on "better_supabase"."tax_rates"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -5232,7 +5232,7 @@ alter table "better_supabase"."invoice_tax_lines" enable row level security;
 revoke all on "better_supabase"."invoice_tax_lines" from public, anon, authenticated;
 grant select on "better_supabase"."invoice_tax_lines" to authenticated;
 grant all on "better_supabase"."invoice_tax_lines" to service_role;
-create policy invoice_tax_lines_read on "better_supabase"."invoice_tax_lines"
+create policy bsb_invoice_tax_lines_read on "better_supabase"."invoice_tax_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -5261,7 +5261,7 @@ alter table "better_supabase"."tax_returns" enable row level security;
 revoke all on "better_supabase"."tax_returns" from public, anon, authenticated;
 grant select on "better_supabase"."tax_returns" to authenticated;
 grant all on "better_supabase"."tax_returns" to service_role;
-create policy tax_returns_read on "better_supabase"."tax_returns"
+create policy bsb_tax_returns_read on "better_supabase"."tax_returns"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('tax.read')));
 
@@ -5283,7 +5283,7 @@ alter table "better_supabase"."eu_sales_list_lines" enable row level security;
 revoke all on "better_supabase"."eu_sales_list_lines" from public, anon, authenticated;
 grant select on "better_supabase"."eu_sales_list_lines" to authenticated;
 grant all on "better_supabase"."eu_sales_list_lines" to service_role;
-create policy eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines"
+create policy bsb_eu_sales_list_lines_read on "better_supabase"."eu_sales_list_lines"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('tax.read')));
 

@@ -1,6 +1,6 @@
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:ac1f13380f7695e2e68a471bab67eaedbca12db10e79e0d776bd65eddfaaf2d5
+-- @bsb-hash sha256:579467d41d6c8b2885da417409b470d835e324cbb8a4f72c4671de70ac6d9fe6
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -36,7 +36,7 @@ alter table "better_supabase"."agents" enable row level security;
 revoke all on "better_supabase"."agents" from public, anon, authenticated;
 grant select on "better_supabase"."agents" to authenticated;
 grant all on "better_supabase"."agents" to service_role;
-create policy agents_read on "better_supabase"."agents"
+create policy bsb_agents_read on "better_supabase"."agents"
   for select to authenticated
   using (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))));
 
@@ -52,7 +52,7 @@ alter table "better_supabase"."agent_installs" enable row level security;
 revoke all on "better_supabase"."agent_installs" from public, anon, authenticated;
 grant select on "better_supabase"."agent_installs" to authenticated;
 grant all on "better_supabase"."agent_installs" to service_role;
-create policy agent_installs_read on "better_supabase"."agent_installs"
+create policy bsb_agent_installs_read on "better_supabase"."agent_installs"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -69,7 +69,7 @@ alter table "better_supabase"."agent_ratings" enable row level security;
 revoke all on "better_supabase"."agent_ratings" from public, anon, authenticated;
 grant select on "better_supabase"."agent_ratings" to authenticated;
 grant all on "better_supabase"."agent_ratings" to service_role;
-create policy agent_ratings_read on "better_supabase"."agent_ratings"
+create policy bsb_agent_ratings_read on "better_supabase"."agent_ratings"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."agents" x where x."id" = "agent_id"));
 
@@ -93,7 +93,7 @@ alter table "better_supabase"."agent_skills" enable row level security;
 revoke all on "better_supabase"."agent_skills" from public, anon, authenticated;
 grant select on "better_supabase"."agent_skills" to authenticated;
 grant all on "better_supabase"."agent_skills" to service_role;
-create policy agent_skills_read on "better_supabase"."agent_skills"
+create policy bsb_agent_skills_read on "better_supabase"."agent_skills"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."agents" x where x."id" = "agent_id"));
 

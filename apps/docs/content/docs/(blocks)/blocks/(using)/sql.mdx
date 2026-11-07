@@ -1990,7 +1990,7 @@ import { policy, renderPolicy } from "better-supabase/sql";
 renderPolicy(
   policy({
     table: "app.notes",
-    name: "notes_read",
+    name: "bsb_notes_read",
     command: "select",
     roles: ["authenticated"],
     using: "better_supabase.is_member(tenant_id)",
@@ -2001,6 +2001,12 @@ renderPolicy(
 `renderPolicy` writes the `create policy` statement only. A schema diff drops a
 policy the files no longer declare, so the statement needs no `drop policy if
 exists` before it.
+
+Every policy a block module generates is named `bsb_<name>`, shortened with a
+hash when the name passes 63 bytes. `bsbPolicyName()` returns the name a
+generated policy carries for the name a module wrote, and `codemod naming`
+uses it to write one `alter policy ... rename to` for each policy of an
+installed block, so no row moves.
 
 ### The rule DSL
 

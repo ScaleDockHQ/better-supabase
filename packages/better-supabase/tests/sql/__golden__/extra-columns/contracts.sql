@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:4148370d92a73c11cec055d1d361102a1ed9b021e828d9a912f1d1b5c3507556
+-- @bsb-hash sha256:283fdfc6f259fa5d3604ef12359fa9823a5de82d649ac5a61091d875f470825c
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -50,7 +50,7 @@ alter table "better_supabase"."contracts" enable row level security;
 revoke all on "better_supabase"."contracts" from public, anon, authenticated;
 grant select on "better_supabase"."contracts" to authenticated;
 grant all on "better_supabase"."contracts" to service_role;
-create policy contracts_read on "better_supabase"."contracts"
+create policy bsb_contracts_read on "better_supabase"."contracts"
   for select to authenticated
   using ("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('contracts.read')));
 
@@ -76,7 +76,7 @@ alter table "better_supabase"."contract_obligations" enable row level security;
 revoke all on "better_supabase"."contract_obligations" from public, anon, authenticated;
 grant select on "better_supabase"."contract_obligations" to authenticated;
 grant all on "better_supabase"."contract_obligations" to service_role;
-create policy contract_obligations_read on "better_supabase"."contract_obligations"
+create policy bsb_contract_obligations_read on "better_supabase"."contract_obligations"
   for select to authenticated
   using ("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('contracts.read')));
 

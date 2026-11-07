@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:997cb45df00d89a41f476408d32244e692599ccf6e3b63137a9d8369644276a8
+-- @bsb-hash sha256:5bc48a4dc40a0887e8e68e8aea97c282d6cfa95ba331c6062d2221aac9641ade
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -42,7 +42,7 @@ alter table "better_supabase"."employees" enable row level security;
 revoke all on "better_supabase"."employees" from public, anon, authenticated;
 grant select on "better_supabase"."employees" to authenticated;
 grant all on "better_supabase"."employees" to service_role;
-create policy employees_read on "better_supabase"."employees"
+create policy bsb_employees_read on "better_supabase"."employees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()));
 
@@ -69,7 +69,7 @@ alter table "better_supabase"."employee_private_details" enable row level securi
 revoke all on "better_supabase"."employee_private_details" from public, anon, authenticated;
 grant select on "better_supabase"."employee_private_details" to authenticated;
 grant all on "better_supabase"."employee_private_details" to service_role;
-create policy employee_private_details_read on "better_supabase"."employee_private_details"
+create policy bsb_employee_private_details_read on "better_supabase"."employee_private_details"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
@@ -96,7 +96,7 @@ alter table "better_supabase"."employee_contracts" enable row level security;
 revoke all on "better_supabase"."employee_contracts" from public, anon, authenticated;
 grant select on "better_supabase"."employee_contracts" to authenticated;
 grant all on "better_supabase"."employee_contracts" to service_role;
-create policy employee_contracts_read on "better_supabase"."employee_contracts"
+create policy bsb_employee_contracts_read on "better_supabase"."employee_contracts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())));
@@ -786,7 +786,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:06043a7503b5d028c4d722ffe493d86873fb59e0144ab9a4f3309df6974fbfc2
+-- @bsb-hash sha256:4baa380c515551b639175105e54987d83dbed482d57cc17d51862c5a631daeaf
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -827,7 +827,7 @@ alter table "better_supabase"."employees" enable row level security;
 revoke all on "better_supabase"."employees" from public, anon, authenticated;
 grant select on "better_supabase"."employees" to authenticated;
 grant all on "better_supabase"."employees" to service_role;
-create policy employees_read on "better_supabase"."employees"
+create policy bsb_employees_read on "better_supabase"."employees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()));
 
@@ -854,7 +854,7 @@ alter table "better_supabase"."employee_private_details" enable row level securi
 revoke all on "better_supabase"."employee_private_details" from public, anon, authenticated;
 grant select on "better_supabase"."employee_private_details" to authenticated;
 grant all on "better_supabase"."employee_private_details" to service_role;
-create policy employee_private_details_read on "better_supabase"."employee_private_details"
+create policy bsb_employee_private_details_read on "better_supabase"."employee_private_details"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
@@ -881,7 +881,7 @@ alter table "better_supabase"."employee_contracts" enable row level security;
 revoke all on "better_supabase"."employee_contracts" from public, anon, authenticated;
 grant select on "better_supabase"."employee_contracts" to authenticated;
 grant all on "better_supabase"."employee_contracts" to service_role;
-create policy employee_contracts_read on "better_supabase"."employee_contracts"
+create policy bsb_employee_contracts_read on "better_supabase"."employee_contracts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())));
@@ -1669,7 +1669,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:454d77fe858f31867505b677f2e36a106d7cc0a4b4e4be0d9aec25019426c022
+-- @bsb-hash sha256:9243e985afc02dcfd2a090ca873e3c5fa9321aaf48c2e5f4e4d5a911db161bb6
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1715,7 +1715,7 @@ alter table "app_private"."employees" enable row level security;
 revoke all on "app_private"."employees" from public, anon, authenticated;
 grant select on "app_private"."employees" to authenticated;
 grant all on "app_private"."employees" to service_role;
-create policy employees_read on "app_private"."employees"
+create policy bsb_employees_read on "app_private"."employees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()));
 
@@ -1742,7 +1742,7 @@ alter table "app_private"."employee_private_details" enable row level security;
 revoke all on "app_private"."employee_private_details" from public, anon, authenticated;
 grant select on "app_private"."employee_private_details" to authenticated;
 grant all on "app_private"."employee_private_details" to service_role;
-create policy employee_private_details_read on "app_private"."employee_private_details"
+create policy bsb_employee_private_details_read on "app_private"."employee_private_details"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
@@ -1769,7 +1769,7 @@ alter table "app_private"."employee_contracts" enable row level security;
 revoke all on "app_private"."employee_contracts" from public, anon, authenticated;
 grant select on "app_private"."employee_contracts" to authenticated;
 grant all on "app_private"."employee_contracts" to service_role;
-create policy employee_contracts_read on "app_private"."employee_contracts"
+create policy bsb_employee_contracts_read on "app_private"."employee_contracts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "app_private"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())));
@@ -2459,7 +2459,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:4eb887d95a823e254c66bd7a23cfa165494ee30763cf21da61493a1e9ab4a934
+-- @bsb-hash sha256:b8f55d9da895656503a39b4ccb11d8006188131c9154234e77405223a35dc3db
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2500,7 +2500,7 @@ alter table "better_supabase"."employees" enable row level security;
 revoke all on "better_supabase"."employees" from public, anon, authenticated;
 grant select on "better_supabase"."employees" to authenticated;
 grant all on "better_supabase"."employees" to service_role;
-create policy employees_read on "better_supabase"."employees"
+create policy bsb_employees_read on "better_supabase"."employees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()));
 
@@ -2527,7 +2527,7 @@ alter table "better_supabase"."employee_private_details" enable row level securi
 revoke all on "better_supabase"."employee_private_details" from public, anon, authenticated;
 grant select on "better_supabase"."employee_private_details" to authenticated;
 grant all on "better_supabase"."employee_private_details" to service_role;
-create policy employee_private_details_read on "better_supabase"."employee_private_details"
+create policy bsb_employee_private_details_read on "better_supabase"."employee_private_details"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
@@ -2554,7 +2554,7 @@ alter table "better_supabase"."employee_contracts" enable row level security;
 revoke all on "better_supabase"."employee_contracts" from public, anon, authenticated;
 grant select on "better_supabase"."employee_contracts" to authenticated;
 grant all on "better_supabase"."employee_contracts" to service_role;
-create policy employee_contracts_read on "better_supabase"."employee_contracts"
+create policy bsb_employee_contracts_read on "better_supabase"."employee_contracts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())));
@@ -4122,7 +4122,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:f85f6feba9ac1213c5adb4b8a45a55ce20166015b4b42661b46efa98bc8a77d6
+-- @bsb-hash sha256:fde85dd4883b62a89d2bdfe3441da3672280ad369ebfb9986286d1c39dd79838
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4163,7 +4163,7 @@ alter table "better_supabase"."employees" enable row level security;
 revoke all on "better_supabase"."employees" from public, anon, authenticated;
 grant select on "better_supabase"."employees" to authenticated;
 grant all on "better_supabase"."employees" to service_role;
-create policy employees_read on "better_supabase"."employees"
+create policy bsb_employees_read on "better_supabase"."employees"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('employees.read')) or "user_id" = (select auth.uid()));
 
@@ -4190,7 +4190,7 @@ alter table "better_supabase"."employee_private_details" enable row level securi
 revoke all on "better_supabase"."employee_private_details" from public, anon, authenticated;
 grant select on "better_supabase"."employee_private_details" to authenticated;
 grant all on "better_supabase"."employee_private_details" to service_role;
-create policy employee_private_details_read on "better_supabase"."employee_private_details"
+create policy bsb_employee_private_details_read on "better_supabase"."employee_private_details"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or "user_id" = (select auth.uid()));
 
@@ -4217,7 +4217,7 @@ alter table "better_supabase"."employee_contracts" enable row level security;
 revoke all on "better_supabase"."employee_contracts" from public, anon, authenticated;
 grant select on "better_supabase"."employee_contracts" to authenticated;
 grant all on "better_supabase"."employee_contracts" to service_role;
-create policy employee_contracts_read on "better_supabase"."employee_contracts"
+create policy bsb_employee_contracts_read on "better_supabase"."employee_contracts"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('employees.read_sensitive')) or exists (
   select 1 from "better_supabase"."employees" x where x."id" = "employee_id" and x."user_id" = (select auth.uid())));

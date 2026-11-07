@@ -1,6 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:f0839330d44e6e1ccf222b291b9c78b454a194543d769fc135c2c248b89d0573
+-- @bsb-hash sha256:116728616ca6a678b330cf0c57600a844586e945b617307582f59a4414ce5fce
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,10 +75,10 @@ revoke execute on function "better_supabase"."engagement_guest_readable"(uuid) f
 grant execute on function "better_supabase"."engagement_guest_readable"(uuid) to authenticated, service_role;
 -- A link is visible when its record is; an engagement when one of its
 -- records is, or it has none. A guest of a record reads its subject notes.
-create policy engagement_subjects_read on "better_supabase"."engagement_subjects"
+create policy bsb_engagement_subjects_read on "better_supabase"."engagement_subjects"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read')) or ((("tenant_id")::text, ("subject_type")::text, ("subject_id")::text) in (select g.tenant, g.subject_type, g.subject_id from better_supabase.portal_subjects('read') g) and "better_supabase"."engagement_guest_readable"("activity_id")));
-create policy activities_read on "better_supabase"."activities"
+create policy bsb_activities_read on "better_supabase"."activities"
   for select to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('activities.read')) and (
   not exists (select 1 from "better_supabase"."engagement_subjects" lx where lx."activity_id" = "id")
@@ -593,7 +593,7 @@ alter table "better_supabase"."engagement_recordings" enable row level security;
 revoke all on "better_supabase"."engagement_recordings" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_recordings" to authenticated;
 grant all on "better_supabase"."engagement_recordings" to service_role;
-create policy engagement_recordings_read on "better_supabase"."engagement_recordings"
+create policy bsb_engagement_recordings_read on "better_supabase"."engagement_recordings"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."activities" ex where ex."id" = "activity_id"));
 
@@ -616,7 +616,7 @@ alter table "better_supabase"."engagement_transcript_segments" enable row level 
 revoke all on "better_supabase"."engagement_transcript_segments" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_transcript_segments" to authenticated;
 grant all on "better_supabase"."engagement_transcript_segments" to service_role;
-create policy engagement_transcript_segments_read on "better_supabase"."engagement_transcript_segments"
+create policy bsb_engagement_transcript_segments_read on "better_supabase"."engagement_transcript_segments"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."engagement_recordings" rx where rx."id" = "recording_id"));
 
@@ -637,7 +637,7 @@ alter table "better_supabase"."engagement_notes" enable row level security;
 revoke all on "better_supabase"."engagement_notes" from public, anon, authenticated;
 grant select on "better_supabase"."engagement_notes" to authenticated;
 grant all on "better_supabase"."engagement_notes" to service_role;
-create policy engagement_notes_read on "better_supabase"."engagement_notes"
+create policy bsb_engagement_notes_read on "better_supabase"."engagement_notes"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."activities" ex where ex."id" = "activity_id"));
 
@@ -656,7 +656,7 @@ alter table "better_supabase"."activity_note_actions" enable row level security;
 revoke all on "better_supabase"."activity_note_actions" from public, anon, authenticated;
 grant select on "better_supabase"."activity_note_actions" to authenticated;
 grant all on "better_supabase"."activity_note_actions" to service_role;
-create policy activity_note_actions_read on "better_supabase"."activity_note_actions"
+create policy bsb_activity_note_actions_read on "better_supabase"."activity_note_actions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."activities" ex where ex."id" = "activity_id"));
 

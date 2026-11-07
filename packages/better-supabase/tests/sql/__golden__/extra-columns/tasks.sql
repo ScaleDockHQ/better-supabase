@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:23082240917c4e760d9ee72eb3460db4912999f384c31eb26c294adce3765016
+-- @bsb-hash sha256:d3aa6846d4e3c08d60492f38fe7cc6a2577adc1f9d02435320a7cc13bfbfeca7
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,7 @@ alter table "better_supabase"."projects" enable row level security;
 revoke all on "better_supabase"."projects" from public, anon, authenticated;
 grant select on "better_supabase"."projects" to authenticated;
 grant all on "better_supabase"."projects" to service_role;
-create policy projects_read on "better_supabase"."projects"
+create policy bsb_projects_read on "better_supabase"."projects"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
@@ -50,7 +50,7 @@ alter table "better_supabase"."iterations" enable row level security;
 revoke all on "better_supabase"."iterations" from public, anon, authenticated;
 grant select on "better_supabase"."iterations" to authenticated;
 grant all on "better_supabase"."iterations" to service_role;
-create policy iterations_read on "better_supabase"."iterations"
+create policy bsb_iterations_read on "better_supabase"."iterations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
@@ -95,7 +95,7 @@ alter table "better_supabase"."tasks" enable row level security;
 revoke all on "better_supabase"."tasks" from public, anon, authenticated;
 grant select on "better_supabase"."tasks" to authenticated;
 grant all on "better_supabase"."tasks" to service_role;
-create policy tasks_read on "better_supabase"."tasks"
+create policy bsb_tasks_read on "better_supabase"."tasks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
@@ -111,7 +111,7 @@ alter table "better_supabase"."task_assignees" enable row level security;
 revoke all on "better_supabase"."task_assignees" from public, anon, authenticated;
 grant select on "better_supabase"."task_assignees" to authenticated;
 grant all on "better_supabase"."task_assignees" to service_role;
-create policy task_assignees_read on "better_supabase"."task_assignees"
+create policy bsb_task_assignees_read on "better_supabase"."task_assignees"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
@@ -135,7 +135,7 @@ alter table "better_supabase"."task_checklist_items" enable row level security;
 revoke all on "better_supabase"."task_checklist_items" from public, anon, authenticated;
 grant select on "better_supabase"."task_checklist_items" to authenticated;
 grant all on "better_supabase"."task_checklist_items" to service_role;
-create policy task_checklist_items_read on "better_supabase"."task_checklist_items"
+create policy bsb_task_checklist_items_read on "better_supabase"."task_checklist_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 

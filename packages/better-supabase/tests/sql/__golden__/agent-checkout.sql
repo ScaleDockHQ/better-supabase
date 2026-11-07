@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:658fa8e0af20de2061a6ed2464d9df20544aab0caacdcb771354998dc63fa983
+-- @bsb-hash sha256:4752acf030a2c53e749c370cee518a77768e416c20cc4b1f2c9aad25d8b49cc1
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,7 @@ alter table "better_supabase"."checkout_sessions" enable row level security;
 revoke all on "better_supabase"."checkout_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."checkout_sessions" to authenticated;
 grant all on "better_supabase"."checkout_sessions" to service_role;
-create policy checkout_sessions_read on "better_supabase"."checkout_sessions"
+create policy bsb_checkout_sessions_read on "better_supabase"."checkout_sessions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
 
@@ -60,7 +60,7 @@ alter table "better_supabase"."agent_mandates" enable row level security;
 revoke all on "better_supabase"."agent_mandates" from public, anon, authenticated;
 grant select on "better_supabase"."agent_mandates" to authenticated;
 grant all on "better_supabase"."agent_mandates" to service_role;
-create policy agent_mandates_read on "better_supabase"."agent_mandates"
+create policy bsb_agent_mandates_read on "better_supabase"."agent_mandates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
 
@@ -505,7 +505,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:419a3fcace7167d9a4ef2a0f8a398707b2edcd78c245c090db2c7cb4b301b228
+-- @bsb-hash sha256:0a3af5e9c2c50b4fe0bbce12b89d93699401aa8c0a4df411d639c2cc1f0847e2
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -535,7 +535,7 @@ alter table "better_supabase"."checkout_sessions" enable row level security;
 revoke all on "better_supabase"."checkout_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."checkout_sessions" to authenticated;
 grant all on "better_supabase"."checkout_sessions" to service_role;
-create policy checkout_sessions_read on "better_supabase"."checkout_sessions"
+create policy bsb_checkout_sessions_read on "better_supabase"."checkout_sessions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
 
@@ -564,7 +564,7 @@ alter table "better_supabase"."agent_mandates" enable row level security;
 revoke all on "better_supabase"."agent_mandates" from public, anon, authenticated;
 grant select on "better_supabase"."agent_mandates" to authenticated;
 grant all on "better_supabase"."agent_mandates" to service_role;
-create policy agent_mandates_read on "better_supabase"."agent_mandates"
+create policy bsb_agent_mandates_read on "better_supabase"."agent_mandates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
 
@@ -1086,7 +1086,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:f5c051b457ebc9fb188ac7cd31fc8f3db436753fdd5530fae5500dca3a6600dd
+-- @bsb-hash sha256:b1695267a8dcb4dbc7494e2710296f16489bd0ad2806a387362187333540ab31
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1121,7 +1121,7 @@ alter table "app_private"."checkout_sessions" enable row level security;
 revoke all on "app_private"."checkout_sessions" from public, anon, authenticated;
 grant select on "app_private"."checkout_sessions" to authenticated;
 grant all on "app_private"."checkout_sessions" to service_role;
-create policy checkout_sessions_read on "app_private"."checkout_sessions"
+create policy bsb_checkout_sessions_read on "app_private"."checkout_sessions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
 
@@ -1150,7 +1150,7 @@ alter table "app_private"."agent_mandates" enable row level security;
 revoke all on "app_private"."agent_mandates" from public, anon, authenticated;
 grant select on "app_private"."agent_mandates" to authenticated;
 grant all on "app_private"."agent_mandates" to service_role;
-create policy agent_mandates_read on "app_private"."agent_mandates"
+create policy bsb_agent_mandates_read on "app_private"."agent_mandates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
 
@@ -1595,7 +1595,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:09499437e8396ec9c57551146d3f1da6af2083fdb9063eccd28adbf10ce3f56b
+-- @bsb-hash sha256:b7c88d4bd0d0019aa3287d0bfcb3866d5f493cf0a4c7983d69b85af0ab2d1ec8
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1625,7 +1625,7 @@ alter table "better_supabase"."checkout_sessions" enable row level security;
 revoke all on "better_supabase"."checkout_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."checkout_sessions" to authenticated;
 grant all on "better_supabase"."checkout_sessions" to service_role;
-create policy checkout_sessions_read on "better_supabase"."checkout_sessions"
+create policy bsb_checkout_sessions_read on "better_supabase"."checkout_sessions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
 
@@ -1654,7 +1654,7 @@ alter table "better_supabase"."agent_mandates" enable row level security;
 revoke all on "better_supabase"."agent_mandates" from public, anon, authenticated;
 grant select on "better_supabase"."agent_mandates" to authenticated;
 grant all on "better_supabase"."agent_mandates" to service_role;
-create policy agent_mandates_read on "better_supabase"."agent_mandates"
+create policy bsb_agent_mandates_read on "better_supabase"."agent_mandates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
 
@@ -2696,7 +2696,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:35b0a02ae862c2d2671f4d914f2d037ac9a54c8b98f214b6833f584832e058d1
+-- @bsb-hash sha256:35a1d5d5d4adb35e6a87f2a0706fa791ad679a7fbf467721a2e9694815d858a4
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2726,7 +2726,7 @@ alter table "better_supabase"."checkout_sessions" enable row level security;
 revoke all on "better_supabase"."checkout_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."checkout_sessions" to authenticated;
 grant all on "better_supabase"."checkout_sessions" to service_role;
-create policy checkout_sessions_read on "better_supabase"."checkout_sessions"
+create policy bsb_checkout_sessions_read on "better_supabase"."checkout_sessions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
 
@@ -2755,7 +2755,7 @@ alter table "better_supabase"."agent_mandates" enable row level security;
 revoke all on "better_supabase"."agent_mandates" from public, anon, authenticated;
 grant select on "better_supabase"."agent_mandates" to authenticated;
 grant all on "better_supabase"."agent_mandates" to service_role;
-create policy agent_mandates_read on "better_supabase"."agent_mandates"
+create policy bsb_agent_mandates_read on "better_supabase"."agent_mandates"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('agent_checkout.read')));
 

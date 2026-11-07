@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:fab21c807ee17da0cf4c52aa5fcc89ac318afba3a88a61ca338b2528fe61482c
+-- @bsb-hash sha256:16f7ef3e8ae2a2c70f0ef224e5e4a3a21397f74b714c1bbbd95412a8af5c7ba6
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,7 @@ alter table "better_supabase"."time_rates" enable row level security;
 revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
 grant select on "better_supabase"."time_rates" to authenticated;
 grant all on "better_supabase"."time_rates" to service_role;
-create policy time_rates_read on "better_supabase"."time_rates"
+create policy bsb_time_rates_read on "better_supabase"."time_rates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 
@@ -51,7 +51,7 @@ alter table "better_supabase"."time_invoice_entries" enable row level security;
 revoke all on "better_supabase"."time_invoice_entries" from public, anon, authenticated;
 grant select on "better_supabase"."time_invoice_entries" to authenticated;
 grant all on "better_supabase"."time_invoice_entries" to service_role;
-create policy time_invoice_entries_read on "better_supabase"."time_invoice_entries"
+create policy bsb_time_invoice_entries_read on "better_supabase"."time_invoice_entries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('billable_time.read')));
 

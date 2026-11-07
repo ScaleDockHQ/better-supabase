@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:d20464205ff9acf8a6caa4250fffb34a5a2c03c44a1556084a84839f939ee53c
+-- @bsb-hash sha256:3606e90b9b24e914f977b1e2917585340be6bc981be7fe3a88375950b2533974
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,7 +26,7 @@ revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
-create policy relations_read on "better_supabase"."relations"
+create policy bsb_relations_read on "better_supabase"."relations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
 
@@ -446,7 +446,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:7a4ee3286576f96d56ff18f12ff2e41ed57a1b156e4607d0f763c1c66ad3d346
+-- @bsb-hash sha256:c94d53a1b1b5e04711eda46dab691cdaa710c17a3654544c90584efa64ad8ac0
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -471,7 +471,7 @@ revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
-create policy relations_read on "better_supabase"."relations"
+create policy bsb_relations_read on "better_supabase"."relations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
 
@@ -933,7 +933,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:4613a4cd5bde1deb4baf65fda8445d40ba24904ebc1d1013457dc50def2365dc
+-- @bsb-hash sha256:ebba0f0077bcc983b15d4c3f9abc7c15c762e80b175ce60aa29a895e59ea3419
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -963,7 +963,7 @@ revoke all on "app_private"."relations" from public, anon, authenticated;
 grant select on "app_private"."relations" to authenticated;
 grant all on "app_private"."relations" to service_role;
 
-create policy relations_read on "app_private"."relations"
+create policy bsb_relations_read on "app_private"."relations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
 
@@ -1383,7 +1383,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:5bff206ec3a5a4ca1c9515267ea42d966f0b5ec5e6316b589f3c8bc240960ff4
+-- @bsb-hash sha256:6551ae264b2beec8bd9aa7f2cf9175d7f3dee0ccd2cabd990c6b70af35167cbb
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1408,7 +1408,7 @@ revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
-create policy relations_read on "better_supabase"."relations"
+create policy bsb_relations_read on "better_supabase"."relations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('relations.read')));
 
@@ -2361,7 +2361,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:5731217858f96e547a14064576c89c722a68c866cf50645ad4c21ab861c8c6f6
+-- @bsb-hash sha256:a50ab4500fb9c4606dcc80730fa151702212bb7753c4c81a98e7720e88371a3d
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2386,7 +2386,7 @@ revoke all on "better_supabase"."relations" from public, anon, authenticated;
 grant select on "better_supabase"."relations" to authenticated;
 grant all on "better_supabase"."relations" to service_role;
 
-create policy relations_read on "better_supabase"."relations"
+create policy bsb_relations_read on "better_supabase"."relations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('relations.read')));
 

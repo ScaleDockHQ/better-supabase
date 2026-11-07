@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:3c7b332915cb10c1109a32ff3f15ec1d1b91dea94c548d14acf97e6558009f5d
+-- @bsb-hash sha256:6c1604fc7124e5c547b3eca1c981c957e9e3e0462cce75addec2a3f2150bb0b6
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -30,7 +30,7 @@ alter table "better_supabase"."sla_policies" enable row level security;
 revoke all on "better_supabase"."sla_policies" from public, anon, authenticated;
 grant select on "better_supabase"."sla_policies" to authenticated;
 grant all on "better_supabase"."sla_policies" to service_role;
-create policy sla_policies_read on "better_supabase"."sla_policies"
+create policy bsb_sla_policies_read on "better_supabase"."sla_policies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
 
@@ -74,11 +74,11 @@ alter table "better_supabase"."sla_escalations" enable row level security;
 revoke all on "better_supabase"."sla_escalations" from public, anon, authenticated;
 grant select on "better_supabase"."sla_escalations" to authenticated;
 grant all on "better_supabase"."sla_escalations" to service_role;
-create policy sla_escalations_read on "better_supabase"."sla_escalations"
+create policy bsb_sla_escalations_read on "better_supabase"."sla_escalations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
 
-create policy sla_clocks_read on "better_supabase"."sla_clocks"
+create policy bsb_sla_clocks_read on "better_supabase"."sla_clocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -476,7 +476,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:d2706095843129ecaa134caa67feebd1a997ce1cdd1d2c6194d965bd841ffe00
+-- @bsb-hash sha256:7d48b1b2947667a2ff7bf805af5361db9aa9d5e1d824f3d36e0a68940ff495a8
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -505,7 +505,7 @@ alter table "better_supabase"."sla_policies" enable row level security;
 revoke all on "better_supabase"."sla_policies" from public, anon, authenticated;
 grant select on "better_supabase"."sla_policies" to authenticated;
 grant all on "better_supabase"."sla_policies" to service_role;
-create policy sla_policies_read on "better_supabase"."sla_policies"
+create policy bsb_sla_policies_read on "better_supabase"."sla_policies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
 
@@ -549,11 +549,11 @@ alter table "better_supabase"."sla_escalations" enable row level security;
 revoke all on "better_supabase"."sla_escalations" from public, anon, authenticated;
 grant select on "better_supabase"."sla_escalations" to authenticated;
 grant all on "better_supabase"."sla_escalations" to service_role;
-create policy sla_escalations_read on "better_supabase"."sla_escalations"
+create policy bsb_sla_escalations_read on "better_supabase"."sla_escalations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
 
-create policy sla_clocks_read on "better_supabase"."sla_clocks"
+create policy bsb_sla_clocks_read on "better_supabase"."sla_clocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -996,7 +996,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:4ac24d75550f4c617661dc8e49ecf4cf7bcfe6059e483d550d0a408b5dc975c4
+-- @bsb-hash sha256:5d442a887056b1470cd9528476299b603fd20310943e4b3b9bd543e22604c6ff
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1030,7 +1030,7 @@ alter table "app_private"."sla_policies" enable row level security;
 revoke all on "app_private"."sla_policies" from public, anon, authenticated;
 grant select on "app_private"."sla_policies" to authenticated;
 grant all on "app_private"."sla_policies" to service_role;
-create policy sla_policies_read on "app_private"."sla_policies"
+create policy bsb_sla_policies_read on "app_private"."sla_policies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
 
@@ -1074,11 +1074,11 @@ alter table "app_private"."sla_escalations" enable row level security;
 revoke all on "app_private"."sla_escalations" from public, anon, authenticated;
 grant select on "app_private"."sla_escalations" to authenticated;
 grant all on "app_private"."sla_escalations" to service_role;
-create policy sla_escalations_read on "app_private"."sla_escalations"
+create policy bsb_sla_escalations_read on "app_private"."sla_escalations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
 
-create policy sla_clocks_read on "app_private"."sla_clocks"
+create policy bsb_sla_clocks_read on "app_private"."sla_clocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -1476,7 +1476,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:371d6642f890c22bfc7b168ba39c72083e9b262ef5acf9efbcb6fb4417c20c76
+-- @bsb-hash sha256:e7542136c624a101622c09096046a039cd51a1dfe90eb9edd61de3d119786eeb
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1505,7 +1505,7 @@ alter table "better_supabase"."sla_policies" enable row level security;
 revoke all on "better_supabase"."sla_policies" from public, anon, authenticated;
 grant select on "better_supabase"."sla_policies" to authenticated;
 grant all on "better_supabase"."sla_policies" to service_role;
-create policy sla_policies_read on "better_supabase"."sla_policies"
+create policy bsb_sla_policies_read on "better_supabase"."sla_policies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
 
@@ -1549,11 +1549,11 @@ alter table "better_supabase"."sla_escalations" enable row level security;
 revoke all on "better_supabase"."sla_escalations" from public, anon, authenticated;
 grant select on "better_supabase"."sla_escalations" to authenticated;
 grant all on "better_supabase"."sla_escalations" to service_role;
-create policy sla_escalations_read on "better_supabase"."sla_escalations"
+create policy bsb_sla_escalations_read on "better_supabase"."sla_escalations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
 
-create policy sla_clocks_read on "better_supabase"."sla_clocks"
+create policy bsb_sla_clocks_read on "better_supabase"."sla_clocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 
@@ -2479,7 +2479,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:35ca8bfe77c3de269822428b6ef3df5d42e4e17d094f69a37f21cb9d6ff4b95a
+-- @bsb-hash sha256:2e187640784d24dc043cf30dca0da0081f605b63fd4a405d7217225873c21af6
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2508,7 +2508,7 @@ alter table "better_supabase"."sla_policies" enable row level security;
 revoke all on "better_supabase"."sla_policies" from public, anon, authenticated;
 grant select on "better_supabase"."sla_policies" to authenticated;
 grant all on "better_supabase"."sla_policies" to service_role;
-create policy sla_policies_read on "better_supabase"."sla_policies"
+create policy bsb_sla_policies_read on "better_supabase"."sla_policies"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('sla.read')));
 
@@ -2552,11 +2552,11 @@ alter table "better_supabase"."sla_escalations" enable row level security;
 revoke all on "better_supabase"."sla_escalations" from public, anon, authenticated;
 grant select on "better_supabase"."sla_escalations" to authenticated;
 grant all on "better_supabase"."sla_escalations" to service_role;
-create policy sla_escalations_read on "better_supabase"."sla_escalations"
+create policy bsb_sla_escalations_read on "better_supabase"."sla_escalations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('sla.read')));
 
-create policy sla_clocks_read on "better_supabase"."sla_clocks"
+create policy bsb_sla_clocks_read on "better_supabase"."sla_clocks"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 

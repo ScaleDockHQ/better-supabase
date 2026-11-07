@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_172_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:e7d6b5ea6dabc0662e1755a38f9e2a48034774549786b438c4a94821d5746864
+-- @bsb-hash sha256:82870565ef506b0256673fbad2a111f5390f897b7efb7dc281dbb297995270ba
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -30,7 +30,7 @@ alter table "better_supabase"."commission_plans" enable row level security;
 revoke all on "better_supabase"."commission_plans" from public, anon, authenticated;
 grant select on "better_supabase"."commission_plans" to authenticated;
 grant all on "better_supabase"."commission_plans" to service_role;
-create policy commission_plans_read on "better_supabase"."commission_plans"
+create policy bsb_commission_plans_read on "better_supabase"."commission_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')));
 
@@ -55,7 +55,7 @@ alter table "better_supabase"."commission_assignments" enable row level security
 revoke all on "better_supabase"."commission_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."commission_assignments" to authenticated;
 grant all on "better_supabase"."commission_assignments" to service_role;
-create policy commission_assignments_read on "better_supabase"."commission_assignments"
+create policy bsb_commission_assignments_read on "better_supabase"."commission_assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
@@ -83,7 +83,7 @@ alter table "better_supabase"."commission_statements" enable row level security;
 revoke all on "better_supabase"."commission_statements" from public, anon, authenticated;
 grant select on "better_supabase"."commission_statements" to authenticated;
 grant all on "better_supabase"."commission_statements" to service_role;
-create policy commission_statements_read on "better_supabase"."commission_statements"
+create policy bsb_commission_statements_read on "better_supabase"."commission_statements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
@@ -116,7 +116,7 @@ alter table "better_supabase"."commissions" enable row level security;
 revoke all on "better_supabase"."commissions" from public, anon, authenticated;
 grant select on "better_supabase"."commissions" to authenticated;
 grant all on "better_supabase"."commissions" to service_role;
-create policy commissions_read on "better_supabase"."commissions"
+create policy bsb_commissions_read on "better_supabase"."commissions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
@@ -927,7 +927,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_172_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:50c2c03253c61546c4d11a084483cb0e0a69a13ddfb09472e9f2fc7911170c5c
+-- @bsb-hash sha256:15bf1f8fe8eaf7005b6d43f9171746a4089c19f03ab1e08ac0cf2ec6c6660c26
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -956,7 +956,7 @@ alter table "better_supabase"."commission_plans" enable row level security;
 revoke all on "better_supabase"."commission_plans" from public, anon, authenticated;
 grant select on "better_supabase"."commission_plans" to authenticated;
 grant all on "better_supabase"."commission_plans" to service_role;
-create policy commission_plans_read on "better_supabase"."commission_plans"
+create policy bsb_commission_plans_read on "better_supabase"."commission_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')));
 
@@ -981,7 +981,7 @@ alter table "better_supabase"."commission_assignments" enable row level security
 revoke all on "better_supabase"."commission_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."commission_assignments" to authenticated;
 grant all on "better_supabase"."commission_assignments" to service_role;
-create policy commission_assignments_read on "better_supabase"."commission_assignments"
+create policy bsb_commission_assignments_read on "better_supabase"."commission_assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
@@ -1009,7 +1009,7 @@ alter table "better_supabase"."commission_statements" enable row level security;
 revoke all on "better_supabase"."commission_statements" from public, anon, authenticated;
 grant select on "better_supabase"."commission_statements" to authenticated;
 grant all on "better_supabase"."commission_statements" to service_role;
-create policy commission_statements_read on "better_supabase"."commission_statements"
+create policy bsb_commission_statements_read on "better_supabase"."commission_statements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
@@ -1042,7 +1042,7 @@ alter table "better_supabase"."commissions" enable row level security;
 revoke all on "better_supabase"."commissions" from public, anon, authenticated;
 grant select on "better_supabase"."commissions" to authenticated;
 grant all on "better_supabase"."commissions" to service_role;
-create policy commissions_read on "better_supabase"."commissions"
+create policy bsb_commissions_read on "better_supabase"."commissions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
@@ -1915,7 +1915,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_172_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:586f237285458da3cb4da1f61eb6f4e4ec77e9e73ec43812712cd5c2f95467c7
+-- @bsb-hash sha256:e0742eefed52d9ce0aca2baf3d9c57e3ee13dffa955e74c98897487e0c2de890
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1948,7 +1948,7 @@ alter table "app_private"."commission_plans" enable row level security;
 revoke all on "app_private"."commission_plans" from public, anon, authenticated;
 grant select on "app_private"."commission_plans" to authenticated;
 grant all on "app_private"."commission_plans" to service_role;
-create policy commission_plans_read on "app_private"."commission_plans"
+create policy bsb_commission_plans_read on "app_private"."commission_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')));
 
@@ -1973,7 +1973,7 @@ alter table "app_private"."commission_assignments" enable row level security;
 revoke all on "app_private"."commission_assignments" from public, anon, authenticated;
 grant select on "app_private"."commission_assignments" to authenticated;
 grant all on "app_private"."commission_assignments" to service_role;
-create policy commission_assignments_read on "app_private"."commission_assignments"
+create policy bsb_commission_assignments_read on "app_private"."commission_assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
@@ -2001,7 +2001,7 @@ alter table "app_private"."commission_statements" enable row level security;
 revoke all on "app_private"."commission_statements" from public, anon, authenticated;
 grant select on "app_private"."commission_statements" to authenticated;
 grant all on "app_private"."commission_statements" to service_role;
-create policy commission_statements_read on "app_private"."commission_statements"
+create policy bsb_commission_statements_read on "app_private"."commission_statements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
@@ -2034,7 +2034,7 @@ alter table "app_private"."commissions" enable row level security;
 revoke all on "app_private"."commissions" from public, anon, authenticated;
 grant select on "app_private"."commissions" to authenticated;
 grant all on "app_private"."commissions" to service_role;
-create policy commissions_read on "app_private"."commissions"
+create policy bsb_commissions_read on "app_private"."commissions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
@@ -2845,7 +2845,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_172_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:f68dcc8e338d61e74732ad286e09720edccc3d0c3a72e7baf75268610cac396e
+-- @bsb-hash sha256:208dcf662aa7305430675290009c6228f153f831fa5de7c0434edb2477b4b26f
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2874,7 +2874,7 @@ alter table "better_supabase"."commission_plans" enable row level security;
 revoke all on "better_supabase"."commission_plans" from public, anon, authenticated;
 grant select on "better_supabase"."commission_plans" to authenticated;
 grant all on "better_supabase"."commission_plans" to service_role;
-create policy commission_plans_read on "better_supabase"."commission_plans"
+create policy bsb_commission_plans_read on "better_supabase"."commission_plans"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')));
 
@@ -2899,7 +2899,7 @@ alter table "better_supabase"."commission_assignments" enable row level security
 revoke all on "better_supabase"."commission_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."commission_assignments" to authenticated;
 grant all on "better_supabase"."commission_assignments" to service_role;
-create policy commission_assignments_read on "better_supabase"."commission_assignments"
+create policy bsb_commission_assignments_read on "better_supabase"."commission_assignments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
@@ -2927,7 +2927,7 @@ alter table "better_supabase"."commission_statements" enable row level security;
 revoke all on "better_supabase"."commission_statements" from public, anon, authenticated;
 grant select on "better_supabase"."commission_statements" to authenticated;
 grant all on "better_supabase"."commission_statements" to service_role;
-create policy commission_statements_read on "better_supabase"."commission_statements"
+create policy bsb_commission_statements_read on "better_supabase"."commission_statements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
@@ -2960,7 +2960,7 @@ alter table "better_supabase"."commissions" enable row level security;
 revoke all on "better_supabase"."commissions" from public, anon, authenticated;
 grant select on "better_supabase"."commissions" to authenticated;
 grant all on "better_supabase"."commissions" to service_role;
-create policy commissions_read on "better_supabase"."commissions"
+create policy bsb_commissions_read on "better_supabase"."commissions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
@@ -4863,7 +4863,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_172_commissions.sql
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:c541a763133f53565796e9c0278e72b9b52d77164a9cc5633fef24c430971b94
+-- @bsb-hash sha256:cb25c7c35847630feba06431f9ad76818e5f4de8f0b05502252efcee5f59a1a4
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4892,7 +4892,7 @@ alter table "better_supabase"."commission_plans" enable row level security;
 revoke all on "better_supabase"."commission_plans" from public, anon, authenticated;
 grant select on "better_supabase"."commission_plans" to authenticated;
 grant all on "better_supabase"."commission_plans" to service_role;
-create policy commission_plans_read on "better_supabase"."commission_plans"
+create policy bsb_commission_plans_read on "better_supabase"."commission_plans"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('commissions.read')));
 
@@ -4917,7 +4917,7 @@ alter table "better_supabase"."commission_assignments" enable row level security
 revoke all on "better_supabase"."commission_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."commission_assignments" to authenticated;
 grant all on "better_supabase"."commission_assignments" to service_role;
-create policy commission_assignments_read on "better_supabase"."commission_assignments"
+create policy bsb_commission_assignments_read on "better_supabase"."commission_assignments"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
@@ -4945,7 +4945,7 @@ alter table "better_supabase"."commission_statements" enable row level security;
 revoke all on "better_supabase"."commission_statements" from public, anon, authenticated;
 grant select on "better_supabase"."commission_statements" to authenticated;
 grant all on "better_supabase"."commission_statements" to service_role;
-create policy commission_statements_read on "better_supabase"."commission_statements"
+create policy bsb_commission_statements_read on "better_supabase"."commission_statements"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 
@@ -4978,7 +4978,7 @@ alter table "better_supabase"."commissions" enable row level security;
 revoke all on "better_supabase"."commissions" from public, anon, authenticated;
 grant select on "better_supabase"."commissions" to authenticated;
 grant all on "better_supabase"."commissions" to service_role;
-create policy commissions_read on "better_supabase"."commissions"
+create policy bsb_commissions_read on "better_supabase"."commissions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('commissions.read')) or "seller_id" = (select auth.uid()));
 

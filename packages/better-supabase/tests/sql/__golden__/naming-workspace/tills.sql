@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_168_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:c52e67798ddb8965a96bf59b9d6392c36bef5e8623b0449bd22e8c9706e0642f
+-- @bsb-hash sha256:c7078b7fc95dc9cc0f20ae01e5a3b5f22b52f42efe629fdd8a3a7d7e647dcf4b
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,7 @@ alter table "better_supabase"."tills" enable row level security;
 revoke all on "better_supabase"."tills" from public, anon, authenticated;
 grant select on "better_supabase"."tills" to authenticated;
 grant all on "better_supabase"."tills" to service_role;
-create policy tills_read on "better_supabase"."tills"
+create policy bsb_tills_read on "better_supabase"."tills"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tills.read')));
 
@@ -52,7 +52,7 @@ alter table "better_supabase"."till_sessions" enable row level security;
 revoke all on "better_supabase"."till_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."till_sessions" to authenticated;
 grant all on "better_supabase"."till_sessions" to service_role;
-create policy till_sessions_read on "better_supabase"."till_sessions"
+create policy bsb_till_sessions_read on "better_supabase"."till_sessions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tills.read')));
 
@@ -75,7 +75,7 @@ alter table "better_supabase"."till_movements" enable row level security;
 revoke all on "better_supabase"."till_movements" from public, anon, authenticated;
 grant select on "better_supabase"."till_movements" to authenticated;
 grant all on "better_supabase"."till_movements" to service_role;
-create policy till_movements_read on "better_supabase"."till_movements"
+create policy bsb_till_movements_read on "better_supabase"."till_movements"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tills.read')));
 
@@ -100,7 +100,7 @@ alter table "better_supabase"."till_counts" enable row level security;
 revoke all on "better_supabase"."till_counts" from public, anon, authenticated;
 grant select on "better_supabase"."till_counts" to authenticated;
 grant all on "better_supabase"."till_counts" to service_role;
-create policy till_counts_read on "better_supabase"."till_counts"
+create policy bsb_till_counts_read on "better_supabase"."till_counts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tills.read')));
 
@@ -125,7 +125,7 @@ alter table "better_supabase"."till_deposits" enable row level security;
 revoke all on "better_supabase"."till_deposits" from public, anon, authenticated;
 grant select on "better_supabase"."till_deposits" to authenticated;
 grant all on "better_supabase"."till_deposits" to service_role;
-create policy till_deposits_read on "better_supabase"."till_deposits"
+create policy bsb_till_deposits_read on "better_supabase"."till_deposits"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tills.read')));
 

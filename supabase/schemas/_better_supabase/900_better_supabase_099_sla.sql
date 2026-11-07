@@ -1,6 +1,6 @@
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:ee047bc24f93e6b621eb28577873ee7499053edbef88d31b43835bf39f1a006f
+-- @bsb-hash sha256:f11f3e3827449ea5926db013f77af5a6d53464abb9cb35459d8b2b4170c59331
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -29,7 +29,7 @@ alter table "better_supabase"."sla_policies" enable row level security;
 revoke all on "better_supabase"."sla_policies" from public, anon, authenticated;
 grant select on "better_supabase"."sla_policies" to authenticated;
 grant all on "better_supabase"."sla_policies" to service_role;
-create policy sla_policies_read on "better_supabase"."sla_policies"
+create policy bsb_sla_policies_read on "better_supabase"."sla_policies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
 
@@ -73,11 +73,11 @@ alter table "better_supabase"."sla_escalations" enable row level security;
 revoke all on "better_supabase"."sla_escalations" from public, anon, authenticated;
 grant select on "better_supabase"."sla_escalations" to authenticated;
 grant all on "better_supabase"."sla_escalations" to service_role;
-create policy sla_escalations_read on "better_supabase"."sla_escalations"
+create policy bsb_sla_escalations_read on "better_supabase"."sla_escalations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')));
 
-create policy sla_clocks_read on "better_supabase"."sla_clocks"
+create policy bsb_sla_clocks_read on "better_supabase"."sla_clocks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('sla.read')) and "better_supabase"."can_subject"("subject_type", "subject_id", 'read'));
 

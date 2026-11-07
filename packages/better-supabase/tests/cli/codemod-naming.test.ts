@@ -240,6 +240,31 @@ describe("renameMigrationSql", () => {
   });
 });
 
+describe("generated policy names", () => {
+  const sql = `
+create policy tasks_read on "better_supabase"."tasks" for select to authenticated using (true);
+create policy tasks_read on "better_supabase"."tasks" for select to authenticated using (true);
+create policy bsb_tasks_write on "better_supabase"."tasks" for all to authenticated using (true);
+create policy notes_read on public.notes for select using (true);
+`;
+
+  it("renames each unprefixed policy of a better_supabase table once, and no other", () => {
+    const migration = renameMigrationSql([], sql);
+
+    expect(migration).toContain(
+      'alter policy "tasks_read" on "better_supabase"."tasks" rename to "bsb_tasks_read"',
+    );
+
+    expect(migration?.match(/alter policy/gu)).toHaveLength(1);
+    expect(migration).not.toContain("notes_read");
+    expect(migration).not.toContain("bsb_tasks_write");
+  });
+
+  it("writes nothing without the project's SQL", () => {
+    expect(renameMigrationSql([])).toBeUndefined();
+  });
+});
+
 describe("BS260", () => {
   const rule = NAMING_RENAME_RULES[0]!;
 

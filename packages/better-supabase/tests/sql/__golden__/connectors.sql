@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:d14eb59c3b595eb5c02578f18c3479f1233521642143cab32b804cf023a5e4b9
+-- @bsb-hash sha256:5b7ffa4dd83c402a1544633f1aa46c3efebb8e371f9f0946a5c7d27d9002e5e8
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,7 @@ alter table "better_supabase"."connector_servers" enable row level security;
 revoke all on "better_supabase"."connector_servers" from public, anon, authenticated;
 grant select on "better_supabase"."connector_servers" to authenticated;
 grant all on "better_supabase"."connector_servers" to service_role;
-create policy connector_servers_read on "better_supabase"."connector_servers"
+create policy bsb_connector_servers_read on "better_supabase"."connector_servers"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')));
 
@@ -55,7 +55,7 @@ alter table "better_supabase"."connector_grants" enable row level security;
 revoke all on "better_supabase"."connector_grants" from public, anon, authenticated;
 grant select on "better_supabase"."connector_grants" to authenticated;
 grant all on "better_supabase"."connector_grants" to service_role;
-create policy connector_grants_read on "better_supabase"."connector_grants"
+create policy bsb_connector_grants_read on "better_supabase"."connector_grants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -77,7 +77,7 @@ alter table "better_supabase"."connector_sessions" enable row level security;
 revoke all on "better_supabase"."connector_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."connector_sessions" to authenticated;
 grant all on "better_supabase"."connector_sessions" to service_role;
-create policy connector_sessions_read on "better_supabase"."connector_sessions"
+create policy bsb_connector_sessions_read on "better_supabase"."connector_sessions"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -98,7 +98,7 @@ alter table "better_supabase"."connector_tool_fingerprints" enable row level sec
 revoke all on "better_supabase"."connector_tool_fingerprints" from public, anon, authenticated;
 grant select on "better_supabase"."connector_tool_fingerprints" to authenticated;
 grant all on "better_supabase"."connector_tool_fingerprints" to service_role;
-create policy connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
+create policy bsb_connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
 
@@ -520,7 +520,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:5faaca86ed5f58001a6f340ca387ec98f244cbb2caa9cc70ddbe5c923282e21a
+-- @bsb-hash sha256:6e973942e1915c1d5791d8991e2cf67d8c7d86cdfb88b4b68d81b2f18b030a21
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -550,7 +550,7 @@ alter table "better_supabase"."connector_servers" enable row level security;
 revoke all on "better_supabase"."connector_servers" from public, anon, authenticated;
 grant select on "better_supabase"."connector_servers" to authenticated;
 grant all on "better_supabase"."connector_servers" to service_role;
-create policy connector_servers_read on "better_supabase"."connector_servers"
+create policy bsb_connector_servers_read on "better_supabase"."connector_servers"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')));
 
@@ -574,7 +574,7 @@ alter table "better_supabase"."connector_grants" enable row level security;
 revoke all on "better_supabase"."connector_grants" from public, anon, authenticated;
 grant select on "better_supabase"."connector_grants" to authenticated;
 grant all on "better_supabase"."connector_grants" to service_role;
-create policy connector_grants_read on "better_supabase"."connector_grants"
+create policy bsb_connector_grants_read on "better_supabase"."connector_grants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -596,7 +596,7 @@ alter table "better_supabase"."connector_sessions" enable row level security;
 revoke all on "better_supabase"."connector_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."connector_sessions" to authenticated;
 grant all on "better_supabase"."connector_sessions" to service_role;
-create policy connector_sessions_read on "better_supabase"."connector_sessions"
+create policy bsb_connector_sessions_read on "better_supabase"."connector_sessions"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -617,7 +617,7 @@ alter table "better_supabase"."connector_tool_fingerprints" enable row level sec
 revoke all on "better_supabase"."connector_tool_fingerprints" from public, anon, authenticated;
 grant select on "better_supabase"."connector_tool_fingerprints" to authenticated;
 grant all on "better_supabase"."connector_tool_fingerprints" to service_role;
-create policy connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
+create policy bsb_connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
 
@@ -1094,7 +1094,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:dc8a44574372ef6daa5af76a08198f9aa5bcbe8627326caca84e5a8a17061c9c
+-- @bsb-hash sha256:09b4c88360343a580ced131e2101443796021c0585d632f5a60d80c25bd4a43c
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1129,7 +1129,7 @@ alter table "app_private"."connector_servers" enable row level security;
 revoke all on "app_private"."connector_servers" from public, anon, authenticated;
 grant select on "app_private"."connector_servers" to authenticated;
 grant all on "app_private"."connector_servers" to service_role;
-create policy connector_servers_read on "app_private"."connector_servers"
+create policy bsb_connector_servers_read on "app_private"."connector_servers"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')));
 
@@ -1153,7 +1153,7 @@ alter table "app_private"."connector_grants" enable row level security;
 revoke all on "app_private"."connector_grants" from public, anon, authenticated;
 grant select on "app_private"."connector_grants" to authenticated;
 grant all on "app_private"."connector_grants" to service_role;
-create policy connector_grants_read on "app_private"."connector_grants"
+create policy bsb_connector_grants_read on "app_private"."connector_grants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -1175,7 +1175,7 @@ alter table "app_private"."connector_sessions" enable row level security;
 revoke all on "app_private"."connector_sessions" from public, anon, authenticated;
 grant select on "app_private"."connector_sessions" to authenticated;
 grant all on "app_private"."connector_sessions" to service_role;
-create policy connector_sessions_read on "app_private"."connector_sessions"
+create policy bsb_connector_sessions_read on "app_private"."connector_sessions"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -1196,7 +1196,7 @@ alter table "app_private"."connector_tool_fingerprints" enable row level securit
 revoke all on "app_private"."connector_tool_fingerprints" from public, anon, authenticated;
 grant select on "app_private"."connector_tool_fingerprints" to authenticated;
 grant all on "app_private"."connector_tool_fingerprints" to service_role;
-create policy connector_tool_fingerprints_read on "app_private"."connector_tool_fingerprints"
+create policy bsb_connector_tool_fingerprints_read on "app_private"."connector_tool_fingerprints"
   for select to authenticated
   using (exists (select 1 from "app_private"."connector_servers" x where x."id" = "server_id"));
 
@@ -1618,7 +1618,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:d40cc4880e512b49697d45030e2eeea3f5f084249c488aec65bcdf7a2989ad77
+-- @bsb-hash sha256:d1e30d3844695036a433d23d3cf6cf9e300f096abbe1660b6386404e8b3f79c9
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1648,7 +1648,7 @@ alter table "better_supabase"."connector_servers" enable row level security;
 revoke all on "better_supabase"."connector_servers" from public, anon, authenticated;
 grant select on "better_supabase"."connector_servers" to authenticated;
 grant all on "better_supabase"."connector_servers" to service_role;
-create policy connector_servers_read on "better_supabase"."connector_servers"
+create policy bsb_connector_servers_read on "better_supabase"."connector_servers"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('connectors.read')));
 
@@ -1672,7 +1672,7 @@ alter table "better_supabase"."connector_grants" enable row level security;
 revoke all on "better_supabase"."connector_grants" from public, anon, authenticated;
 grant select on "better_supabase"."connector_grants" to authenticated;
 grant all on "better_supabase"."connector_grants" to service_role;
-create policy connector_grants_read on "better_supabase"."connector_grants"
+create policy bsb_connector_grants_read on "better_supabase"."connector_grants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -1694,7 +1694,7 @@ alter table "better_supabase"."connector_sessions" enable row level security;
 revoke all on "better_supabase"."connector_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."connector_sessions" to authenticated;
 grant all on "better_supabase"."connector_sessions" to service_role;
-create policy connector_sessions_read on "better_supabase"."connector_sessions"
+create policy bsb_connector_sessions_read on "better_supabase"."connector_sessions"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -1715,7 +1715,7 @@ alter table "better_supabase"."connector_tool_fingerprints" enable row level sec
 revoke all on "better_supabase"."connector_tool_fingerprints" from public, anon, authenticated;
 grant select on "better_supabase"."connector_tool_fingerprints" to authenticated;
 grant all on "better_supabase"."connector_tool_fingerprints" to service_role;
-create policy connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
+create policy bsb_connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
 
@@ -2772,7 +2772,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:ee773de1769d6732794f19fd0284875161762b46b520888ac794aff9c027311c
+-- @bsb-hash sha256:cc883acae224091a5d99b9a70d77d569c2779643fecf2406f0c80ea859f0f159
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2802,7 +2802,7 @@ alter table "better_supabase"."connector_servers" enable row level security;
 revoke all on "better_supabase"."connector_servers" from public, anon, authenticated;
 grant select on "better_supabase"."connector_servers" to authenticated;
 grant all on "better_supabase"."connector_servers" to service_role;
-create policy connector_servers_read on "better_supabase"."connector_servers"
+create policy bsb_connector_servers_read on "better_supabase"."connector_servers"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('connectors.read')));
 
@@ -2826,7 +2826,7 @@ alter table "better_supabase"."connector_grants" enable row level security;
 revoke all on "better_supabase"."connector_grants" from public, anon, authenticated;
 grant select on "better_supabase"."connector_grants" to authenticated;
 grant all on "better_supabase"."connector_grants" to service_role;
-create policy connector_grants_read on "better_supabase"."connector_grants"
+create policy bsb_connector_grants_read on "better_supabase"."connector_grants"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -2848,7 +2848,7 @@ alter table "better_supabase"."connector_sessions" enable row level security;
 revoke all on "better_supabase"."connector_sessions" from public, anon, authenticated;
 grant select on "better_supabase"."connector_sessions" to authenticated;
 grant all on "better_supabase"."connector_sessions" to service_role;
-create policy connector_sessions_read on "better_supabase"."connector_sessions"
+create policy bsb_connector_sessions_read on "better_supabase"."connector_sessions"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
@@ -2869,7 +2869,7 @@ alter table "better_supabase"."connector_tool_fingerprints" enable row level sec
 revoke all on "better_supabase"."connector_tool_fingerprints" from public, anon, authenticated;
 grant select on "better_supabase"."connector_tool_fingerprints" to authenticated;
 grant all on "better_supabase"."connector_tool_fingerprints" to service_role;
-create policy connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
+create policy bsb_connector_tool_fingerprints_read on "better_supabase"."connector_tool_fingerprints"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."connector_servers" x where x."id" = "server_id"));
 

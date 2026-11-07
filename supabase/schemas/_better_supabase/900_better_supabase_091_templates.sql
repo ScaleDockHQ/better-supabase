@@ -1,6 +1,6 @@
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:f2f86ec445ee465c9b16fb191014510d0cb4e967b98861030e623ef005d55d6d
+-- @bsb-hash sha256:b07ce5dfb3327cfdf332ceb00f21c506a7858a2061d6f9196c625f8fae94c848
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -63,7 +63,7 @@ alter table "better_supabase"."templates" enable row level security;
 revoke all on "better_supabase"."templates" from public, anon, authenticated;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
-create policy templates_read on "better_supabase"."templates"
+create policy bsb_templates_read on "better_supabase"."templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
     or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read')))
@@ -88,7 +88,7 @@ alter table "better_supabase"."template_versions" enable row level security;
 revoke all on "better_supabase"."template_versions" from public, anon, authenticated;
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
-create policy template_versions_read on "better_supabase"."template_versions"
+create policy bsb_template_versions_read on "better_supabase"."template_versions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
 
@@ -112,7 +112,7 @@ alter table "better_supabase"."template_applications" enable row level security;
 revoke all on "better_supabase"."template_applications" from public, anon, authenticated;
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
-create policy template_applications_read on "better_supabase"."template_applications"
+create policy bsb_template_applications_read on "better_supabase"."template_applications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
 
@@ -134,7 +134,7 @@ alter table "better_supabase"."template_workflows" enable row level security;
 revoke all on "better_supabase"."template_workflows" from public, anon, authenticated;
 grant select on "better_supabase"."template_workflows" to authenticated;
 grant all on "better_supabase"."template_workflows" to service_role;
-create policy template_workflows_read on "better_supabase"."template_workflows"
+create policy bsb_template_workflows_read on "better_supabase"."template_workflows"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
 
@@ -1010,7 +1010,7 @@ alter table "better_supabase"."template_schedules" enable row level security;
 revoke all on "better_supabase"."template_schedules" from public, anon, authenticated;
 grant select on "better_supabase"."template_schedules" to authenticated;
 grant all on "better_supabase"."template_schedules" to service_role;
-create policy template_schedules_read on "better_supabase"."template_schedules"
+create policy bsb_template_schedules_read on "better_supabase"."template_schedules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
 
@@ -1029,7 +1029,7 @@ alter table "better_supabase"."template_schedule_runs" enable row level security
 revoke all on "better_supabase"."template_schedule_runs" from public, anon, authenticated;
 grant select on "better_supabase"."template_schedule_runs" to authenticated;
 grant all on "better_supabase"."template_schedule_runs" to service_role;
-create policy template_schedule_runs_read on "better_supabase"."template_schedule_runs"
+create policy bsb_template_schedule_runs_read on "better_supabase"."template_schedule_runs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
 

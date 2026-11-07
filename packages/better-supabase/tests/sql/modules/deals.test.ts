@@ -58,7 +58,7 @@ describe("deals module", () => {
 
     expect(scoped).toContain("deal_members");
     expect(scoped).toMatch(
-      /create policy deals_read[\s\S]*owner_user_id" = auth.uid\(\)/,
+      /create policy bsb_deals_read[\s\S]*owner_user_id" = auth.uid\(\)/,
     );
 
     const numbered = body(

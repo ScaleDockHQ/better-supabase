@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:2efea6713d69d89f85890a7ad78474d7f0f74fa1f6ea4cf3833a591274fc67b6
+-- @bsb-hash sha256:2996175004249bf6dcd84d254d0b88276aadb21c95ef53555bfd5898a78198b6
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -77,10 +77,10 @@ alter table "better_supabase"."medication_orders" enable row level security;
 revoke all on "better_supabase"."medication_orders" from public, anon, authenticated;
 grant select on "better_supabase"."medication_orders" to authenticated;
 grant all on "better_supabase"."medication_orders" to service_role;
-create policy medication_orders_read on "better_supabase"."medication_orders"
+create policy bsb_medication_orders_read on "better_supabase"."medication_orders"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
-create policy medications_read on "better_supabase"."medications"
+create policy bsb_medications_read on "better_supabase"."medications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')));
 
@@ -110,7 +110,7 @@ alter table "better_supabase"."medication_administrations" enable row level secu
 revoke all on "better_supabase"."medication_administrations" from public, anon, authenticated;
 grant select on "better_supabase"."medication_administrations" to authenticated;
 grant all on "better_supabase"."medication_administrations" to service_role;
-create policy medication_administrations_read on "better_supabase"."medication_administrations"
+create policy bsb_medication_administrations_read on "better_supabase"."medication_administrations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('medications.read')) and exists (select 1 from "better_supabase"."medication_orders" x where x."id" = "order_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 

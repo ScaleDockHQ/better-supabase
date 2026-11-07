@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:3e4566d5f775480b9cbd1fb4e4fd7d65b34c5f2d849010853151fc8c129033d7
+-- @bsb-hash sha256:bad29f783fde513fe50f2f908130daa3f0985b08a14126002d585138d85bdd0a
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,7 @@ alter table "better_supabase"."risk_matrices" enable row level security;
 revoke all on "better_supabase"."risk_matrices" from public, anon, authenticated;
 grant select on "better_supabase"."risk_matrices" to authenticated;
 grant all on "better_supabase"."risk_matrices" to service_role;
-create policy risk_matrices_read on "better_supabase"."risk_matrices"
+create policy bsb_risk_matrices_read on "better_supabase"."risk_matrices"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
@@ -84,7 +84,7 @@ alter table "better_supabase"."risks" enable row level security;
 revoke all on "better_supabase"."risks" from public, anon, authenticated;
 grant select on "better_supabase"."risks" to authenticated;
 grant all on "better_supabase"."risks" to service_role;
-create policy risks_read on "better_supabase"."risks"
+create policy bsb_risks_read on "better_supabase"."risks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
@@ -112,7 +112,7 @@ alter table "better_supabase"."risk_assessments" enable row level security;
 revoke all on "better_supabase"."risk_assessments" from public, anon, authenticated;
 grant select on "better_supabase"."risk_assessments" to authenticated;
 grant all on "better_supabase"."risk_assessments" to service_role;
-create policy risk_assessments_read on "better_supabase"."risk_assessments"
+create policy bsb_risk_assessments_read on "better_supabase"."risk_assessments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
@@ -993,7 +993,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:7af4391c2e98691b7e8e7ed700d8feccd40a7b15eb56d2b1ff2f5da35087132c
+-- @bsb-hash sha256:43d8d42325f9c8f6d943cb9e1adfe6b155fd1bc5fbd852782ed21070a14d8037
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1023,7 +1023,7 @@ alter table "better_supabase"."risk_matrices" enable row level security;
 revoke all on "better_supabase"."risk_matrices" from public, anon, authenticated;
 grant select on "better_supabase"."risk_matrices" to authenticated;
 grant all on "better_supabase"."risk_matrices" to service_role;
-create policy risk_matrices_read on "better_supabase"."risk_matrices"
+create policy bsb_risk_matrices_read on "better_supabase"."risk_matrices"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
@@ -1076,7 +1076,7 @@ alter table "better_supabase"."risks" enable row level security;
 revoke all on "better_supabase"."risks" from public, anon, authenticated;
 grant select on "better_supabase"."risks" to authenticated;
 grant all on "better_supabase"."risks" to service_role;
-create policy risks_read on "better_supabase"."risks"
+create policy bsb_risks_read on "better_supabase"."risks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
@@ -1104,7 +1104,7 @@ alter table "better_supabase"."risk_assessments" enable row level security;
 revoke all on "better_supabase"."risk_assessments" from public, anon, authenticated;
 grant select on "better_supabase"."risk_assessments" to authenticated;
 grant all on "better_supabase"."risk_assessments" to service_role;
-create policy risk_assessments_read on "better_supabase"."risk_assessments"
+create policy bsb_risk_assessments_read on "better_supabase"."risk_assessments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
@@ -2103,7 +2103,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:829fa79d0d4ae069c2d88605bc79ec213170a7b6834e2ec7b2a202a70c62de7d
+-- @bsb-hash sha256:86c80f8ce869489fdf082b50fabd4d52e63dbcf2d787f6084d1d26a96a99db90
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2138,7 +2138,7 @@ alter table "app_private"."risk_matrices" enable row level security;
 revoke all on "app_private"."risk_matrices" from public, anon, authenticated;
 grant select on "app_private"."risk_matrices" to authenticated;
 grant all on "app_private"."risk_matrices" to service_role;
-create policy risk_matrices_read on "app_private"."risk_matrices"
+create policy bsb_risk_matrices_read on "app_private"."risk_matrices"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
@@ -2191,7 +2191,7 @@ alter table "app_private"."risks" enable row level security;
 revoke all on "app_private"."risks" from public, anon, authenticated;
 grant select on "app_private"."risks" to authenticated;
 grant all on "app_private"."risks" to service_role;
-create policy risks_read on "app_private"."risks"
+create policy bsb_risks_read on "app_private"."risks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
@@ -2219,7 +2219,7 @@ alter table "app_private"."risk_assessments" enable row level security;
 revoke all on "app_private"."risk_assessments" from public, anon, authenticated;
 grant select on "app_private"."risk_assessments" to authenticated;
 grant all on "app_private"."risk_assessments" to service_role;
-create policy risk_assessments_read on "app_private"."risk_assessments"
+create policy bsb_risk_assessments_read on "app_private"."risk_assessments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
@@ -3100,7 +3100,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:4c7ab5ba2f59c9a1e108b36fa96ac93a53408521f1fbd3baf8429b056567dea7
+-- @bsb-hash sha256:0b0c3239ea34079976f8d1f389ffbf1bfc07374d628289a21bd4f7361a58bde1
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3130,7 +3130,7 @@ alter table "better_supabase"."risk_matrices" enable row level security;
 revoke all on "better_supabase"."risk_matrices" from public, anon, authenticated;
 grant select on "better_supabase"."risk_matrices" to authenticated;
 grant all on "better_supabase"."risk_matrices" to service_role;
-create policy risk_matrices_read on "better_supabase"."risk_matrices"
+create policy bsb_risk_matrices_read on "better_supabase"."risk_matrices"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
@@ -3183,7 +3183,7 @@ alter table "better_supabase"."risks" enable row level security;
 revoke all on "better_supabase"."risks" from public, anon, authenticated;
 grant select on "better_supabase"."risks" to authenticated;
 grant all on "better_supabase"."risks" to service_role;
-create policy risks_read on "better_supabase"."risks"
+create policy bsb_risks_read on "better_supabase"."risks"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
@@ -3211,7 +3211,7 @@ alter table "better_supabase"."risk_assessments" enable row level security;
 revoke all on "better_supabase"."risk_assessments" from public, anon, authenticated;
 grant select on "better_supabase"."risk_assessments" to authenticated;
 grant all on "better_supabase"."risk_assessments" to service_role;
-create policy risk_assessments_read on "better_supabase"."risk_assessments"
+create policy bsb_risk_assessments_read on "better_supabase"."risk_assessments"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
@@ -5199,7 +5199,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:e71f65c9432d320e25bc4b1c7f738600529e0fc8243a19d9ff811502a6b9ab76
+-- @bsb-hash sha256:3bda2e11a95dcf26acc2d532afebeea9c2e6e2fd8328e0494f8fd176c9c6e3e6
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5229,7 +5229,7 @@ alter table "better_supabase"."risk_matrices" enable row level security;
 revoke all on "better_supabase"."risk_matrices" from public, anon, authenticated;
 grant select on "better_supabase"."risk_matrices" to authenticated;
 grant all on "better_supabase"."risk_matrices" to service_role;
-create policy risk_matrices_read on "better_supabase"."risk_matrices"
+create policy bsb_risk_matrices_read on "better_supabase"."risk_matrices"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
@@ -5282,7 +5282,7 @@ alter table "better_supabase"."risks" enable row level security;
 revoke all on "better_supabase"."risks" from public, anon, authenticated;
 grant select on "better_supabase"."risks" to authenticated;
 grant all on "better_supabase"."risks" to service_role;
-create policy risks_read on "better_supabase"."risks"
+create policy bsb_risks_read on "better_supabase"."risks"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('risks.read')));
 
@@ -5310,7 +5310,7 @@ alter table "better_supabase"."risk_assessments" enable row level security;
 revoke all on "better_supabase"."risk_assessments" from public, anon, authenticated;
 grant select on "better_supabase"."risk_assessments" to authenticated;
 grant all on "better_supabase"."risk_assessments" to service_role;
-create policy risk_assessments_read on "better_supabase"."risk_assessments"
+create policy bsb_risk_assessments_read on "better_supabase"."risk_assessments"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('risks.read')));
 

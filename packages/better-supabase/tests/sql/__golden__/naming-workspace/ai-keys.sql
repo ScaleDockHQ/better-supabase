@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:474073aa3da25ab96b950424615abf01e00386ad50020b5d6745527b7ba58e42
+-- @bsb-hash sha256:1b87893ea34ea9576406cf39dd93f544da470cccd72a545bfef7e23389ac8e91
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -28,7 +28,7 @@ alter table "better_supabase"."ai_provider_keys" enable row level security;
 revoke all on "better_supabase"."ai_provider_keys" from public, anon, authenticated;
 grant select on "better_supabase"."ai_provider_keys" to authenticated;
 grant all on "better_supabase"."ai_provider_keys" to service_role;
-create policy ai_provider_keys_read on "better_supabase"."ai_provider_keys"
+create policy bsb_ai_provider_keys_read on "better_supabase"."ai_provider_keys"
   for select to authenticated
   using ("workspace_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
@@ -61,7 +61,7 @@ alter table "better_supabase"."ai_batches" enable row level security;
 revoke all on "better_supabase"."ai_batches" from public, anon, authenticated;
 grant select on "better_supabase"."ai_batches" to authenticated;
 grant all on "better_supabase"."ai_batches" to service_role;
-create policy ai_batches_read on "better_supabase"."ai_batches"
+create policy bsb_ai_batches_read on "better_supabase"."ai_batches"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
@@ -81,7 +81,7 @@ alter table "better_supabase"."ai_batch_items" enable row level security;
 revoke all on "better_supabase"."ai_batch_items" from public, anon, authenticated;
 grant select on "better_supabase"."ai_batch_items" to authenticated;
 grant all on "better_supabase"."ai_batch_items" to service_role;
-create policy ai_batch_items_read on "better_supabase"."ai_batch_items"
+create policy bsb_ai_batch_items_read on "better_supabase"."ai_batch_items"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."ai_batches" y where y."id" = "batch_id"));
 

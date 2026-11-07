@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:9caa1606925806af9d04cac93bb8a7911d3836380a5d93ed07d96c22ba5fc257
+-- @bsb-hash sha256:a4e613885f77dbe22a8c990fb657f9685c9f03e2c7a004fc1d9fd77b22b26704
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -48,10 +48,10 @@ $$;
 revoke execute on function "better_supabase"."comment_message_readable"(uuid, uuid) from public, anon;
 grant execute on function "better_supabase"."comment_message_readable"(uuid, uuid) to authenticated, service_role;
 
-create policy comment_tasks_read on "better_supabase"."comment_tasks"
+create policy bsb_comment_tasks_read on "better_supabase"."comment_tasks"
   for select to authenticated
   using ("better_supabase"."comment_message_readable"("message_id", "organization_id"));
-create policy comment_tasks_insert on "better_supabase"."comment_tasks"
+create policy bsb_comment_tasks_insert on "better_supabase"."comment_tasks"
   for insert to authenticated
   with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id")) and (select centrakit.authz_actor_may_write()));
 

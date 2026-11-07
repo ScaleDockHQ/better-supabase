@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:737ce8c05da8869ee3c619675a8d8cfd1913ef677cae72066f676822bc9c4ae6
+-- @bsb-hash sha256:cf068324283d3271ff4a6caf9bc14797aacb6640eb50d5ea47146ca04c9cf0d3
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -35,7 +35,7 @@ alter table "better_supabase"."payroll_runs" enable row level security;
 revoke all on "better_supabase"."payroll_runs" from public, anon, authenticated;
 grant select on "better_supabase"."payroll_runs" to authenticated;
 grant all on "better_supabase"."payroll_runs" to service_role;
-create policy payroll_runs_read on "better_supabase"."payroll_runs"
+create policy bsb_payroll_runs_read on "better_supabase"."payroll_runs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')));
 
@@ -65,7 +65,7 @@ alter table "better_supabase"."payroll_lines" enable row level security;
 revoke all on "better_supabase"."payroll_lines" from public, anon, authenticated;
 grant select on "better_supabase"."payroll_lines" to authenticated;
 grant all on "better_supabase"."payroll_lines" to service_role;
-create policy payroll_lines_read on "better_supabase"."payroll_lines"
+create policy bsb_payroll_lines_read on "better_supabase"."payroll_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('payroll_export.read')));
 

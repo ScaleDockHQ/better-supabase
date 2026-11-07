@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:782853a33d41b74d408a765668faee75c18cea98ef47be88a2f5591e6ce7a938
+-- @bsb-hash sha256:ec84dc817aeaa33d7923546e985550f2d082e09b249036aaa1a408d9c61afd16
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,7 @@ alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-create policy usage_counters_read on "better_supabase"."usage_counters"
+create policy bsb_usage_counters_read on "better_supabase"."usage_counters"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
@@ -64,7 +64,7 @@ alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-create policy usage_quotas_read on "better_supabase"."usage_quotas"
+create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
   for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
@@ -708,7 +708,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:19d95cee4c3eaa92e8c67e17eb11156b9e561f7250e4e785cd065bae7bf58ae6
+-- @bsb-hash sha256:bb8dc9847c55cda72e7dc822f5ef5629c80fa160556052f5623c2aebf4ae2b69
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -732,7 +732,7 @@ alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-create policy usage_counters_read on "better_supabase"."usage_counters"
+create policy bsb_usage_counters_read on "better_supabase"."usage_counters"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
@@ -764,7 +764,7 @@ alter table "better_supabase"."usage_history" enable row level security;
 revoke all on "better_supabase"."usage_history" from public, anon, authenticated;
 grant select on "better_supabase"."usage_history" to authenticated;
 grant all on "better_supabase"."usage_history" to service_role;
-create policy usage_history_read on "better_supabase"."usage_history"
+create policy bsb_usage_history_read on "better_supabase"."usage_history"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
@@ -792,7 +792,7 @@ alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-create policy usage_quotas_read on "better_supabase"."usage_quotas"
+create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
   for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
@@ -1612,7 +1612,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:4f84f35a01b1f43a9257de1d6e43d89059b2dee51c9d00edcef923d7949dff60
+-- @bsb-hash sha256:d270de4dc9a8586e4c972c955736da55a8da657b6d05394ebd843d6a0cdba726
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1641,7 +1641,7 @@ alter table "app_private"."usage_counters" enable row level security;
 revoke all on "app_private"."usage_counters" from public, anon, authenticated;
 grant select on "app_private"."usage_counters" to authenticated;
 grant all on "app_private"."usage_counters" to service_role;
-create policy usage_counters_read on "app_private"."usage_counters"
+create policy bsb_usage_counters_read on "app_private"."usage_counters"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
@@ -1680,7 +1680,7 @@ alter table "app_private"."usage_quotas" enable row level security;
 revoke all on "app_private"."usage_quotas" from public, anon, authenticated;
 grant select on "app_private"."usage_quotas" to authenticated;
 grant all on "app_private"."usage_quotas" to service_role;
-create policy usage_quotas_read on "app_private"."usage_quotas"
+create policy bsb_usage_quotas_read on "app_private"."usage_quotas"
   for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
@@ -2324,7 +2324,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:a8e7fac44c6ad517ea15cef6668fcff439a1c71dcd77b6265f6362f90becf826
+-- @bsb-hash sha256:4684e627450374c6a27245df3aceac6e1c5cccae291554ab1dd598bc6a24da6b
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2348,7 +2348,7 @@ alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-create policy usage_counters_read on "better_supabase"."usage_counters"
+create policy bsb_usage_counters_read on "better_supabase"."usage_counters"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
@@ -2387,7 +2387,7 @@ alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-create policy usage_quotas_read on "better_supabase"."usage_quotas"
+create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
   for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
@@ -3913,7 +3913,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:e0b247b4fc45ce93cf7713aa251c1fe73860f8414e10c054a014b4a46de13ba1
+-- @bsb-hash sha256:be7c271f4bef487cbafbce685fc2301cc19264900ddb9b130c8856fc9349b4e1
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3937,7 +3937,7 @@ alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-create policy usage_counters_read on "better_supabase"."usage_counters"
+create policy bsb_usage_counters_read on "better_supabase"."usage_counters"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
@@ -3976,7 +3976,7 @@ alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-create policy usage_quotas_read on "better_supabase"."usage_quotas"
+create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
   for select to authenticated
   using ("org_id" is null or "org_id" in (select better_supabase.tenant_ids_with('usage.read')));
 

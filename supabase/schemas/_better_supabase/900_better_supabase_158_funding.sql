@@ -1,6 +1,6 @@
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:f1d9651585e0040381876b5296b8125ef1e4d48793d91e8e0a4a906ace0b043d
+-- @bsb-hash sha256:21c6b1cf72d42a612ff628e6b4468b6c5abe3900eef0c974901135fa9ff08244
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -31,7 +31,7 @@ alter table "better_supabase"."funding_products" enable row level security;
 revoke all on "better_supabase"."funding_products" from public, anon, authenticated;
 grant select on "better_supabase"."funding_products" to authenticated;
 grant all on "better_supabase"."funding_products" to service_role;
-create policy funding_products_read on "better_supabase"."funding_products"
+create policy bsb_funding_products_read on "better_supabase"."funding_products"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
@@ -66,7 +66,7 @@ alter table "better_supabase"."funding_awards" enable row level security;
 revoke all on "better_supabase"."funding_awards" from public, anon, authenticated;
 grant select on "better_supabase"."funding_awards" to authenticated;
 grant all on "better_supabase"."funding_awards" to service_role;
-create policy funding_awards_read on "better_supabase"."funding_awards"
+create policy bsb_funding_awards_read on "better_supabase"."funding_awards"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
@@ -102,7 +102,7 @@ alter table "better_supabase"."funding_claims" enable row level security;
 revoke all on "better_supabase"."funding_claims" from public, anon, authenticated;
 grant select on "better_supabase"."funding_claims" to authenticated;
 grant all on "better_supabase"."funding_claims" to service_role;
-create policy funding_claims_read on "better_supabase"."funding_claims"
+create policy bsb_funding_claims_read on "better_supabase"."funding_claims"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
@@ -129,7 +129,7 @@ alter table "better_supabase"."funding_claim_lines" enable row level security;
 revoke all on "better_supabase"."funding_claim_lines" from public, anon, authenticated;
 grant select on "better_supabase"."funding_claim_lines" to authenticated;
 grant all on "better_supabase"."funding_claim_lines" to service_role;
-create policy funding_claim_lines_read on "better_supabase"."funding_claim_lines"
+create policy bsb_funding_claim_lines_read on "better_supabase"."funding_claim_lines"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')));
 
@@ -159,7 +159,7 @@ alter table "better_supabase"."funding_deliveries" enable row level security;
 revoke all on "better_supabase"."funding_deliveries" from public, anon, authenticated;
 grant select on "better_supabase"."funding_deliveries" to authenticated;
 grant all on "better_supabase"."funding_deliveries" to service_role;
-create policy funding_deliveries_read on "better_supabase"."funding_deliveries"
+create policy bsb_funding_deliveries_read on "better_supabase"."funding_deliveries"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('funding.read')) and exists (select 1 from "better_supabase"."funding_awards" x where x."tenant_id" = "tenant_id" and x."id" = "award_id" and coalesce("better_supabase"."can_subject"(x."subject_type", x."subject_id", 'read'), false)));
 

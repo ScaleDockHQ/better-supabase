@@ -1,6 +1,6 @@
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:07cdbe934bb4a3940e81e24156c71af6c704f1670879c14bae37ce69cbed5032
+-- @bsb-hash sha256:5e95485f00df9dee9e363e3058ba7f59b8fc47d7eb0e390da9275696cbc48c6e
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -36,7 +36,7 @@ alter table "better_supabase"."products" enable row level security;
 revoke all on "better_supabase"."products" from public, anon, authenticated;
 grant select on "better_supabase"."products" to authenticated;
 grant all on "better_supabase"."products" to service_role;
-create policy products_read on "better_supabase"."products"
+create policy bsb_products_read on "better_supabase"."products"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -52,7 +52,7 @@ alter table "better_supabase"."product_options" enable row level security;
 revoke all on "better_supabase"."product_options" from public, anon, authenticated;
 grant select on "better_supabase"."product_options" to authenticated;
 grant all on "better_supabase"."product_options" to service_role;
-create policy product_options_read on "better_supabase"."product_options"
+create policy bsb_product_options_read on "better_supabase"."product_options"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -68,7 +68,7 @@ alter table "better_supabase"."product_option_values" enable row level security;
 revoke all on "better_supabase"."product_option_values" from public, anon, authenticated;
 grant select on "better_supabase"."product_option_values" to authenticated;
 grant all on "better_supabase"."product_option_values" to service_role;
-create policy product_option_values_read on "better_supabase"."product_option_values"
+create policy bsb_product_option_values_read on "better_supabase"."product_option_values"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -92,7 +92,7 @@ alter table "better_supabase"."product_variants" enable row level security;
 revoke all on "better_supabase"."product_variants" from public, anon, authenticated;
 grant select on "better_supabase"."product_variants" to authenticated;
 grant all on "better_supabase"."product_variants" to service_role;
-create policy product_variants_read on "better_supabase"."product_variants"
+create policy bsb_product_variants_read on "better_supabase"."product_variants"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -107,7 +107,7 @@ alter table "better_supabase"."product_variant_values" enable row level security
 revoke all on "better_supabase"."product_variant_values" from public, anon, authenticated;
 grant select on "better_supabase"."product_variant_values" to authenticated;
 grant all on "better_supabase"."product_variant_values" to service_role;
-create policy product_variant_values_read on "better_supabase"."product_variant_values"
+create policy bsb_product_variant_values_read on "better_supabase"."product_variant_values"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -123,7 +123,7 @@ alter table "better_supabase"."catalog_price_lists" enable row level security;
 revoke all on "better_supabase"."catalog_price_lists" from public, anon, authenticated;
 grant select on "better_supabase"."catalog_price_lists" to authenticated;
 grant all on "better_supabase"."catalog_price_lists" to service_role;
-create policy catalog_price_lists_read on "better_supabase"."catalog_price_lists"
+create policy bsb_catalog_price_lists_read on "better_supabase"."catalog_price_lists"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -146,7 +146,7 @@ alter table "better_supabase"."product_prices" enable row level security;
 revoke all on "better_supabase"."product_prices" from public, anon, authenticated;
 grant select on "better_supabase"."product_prices" to authenticated;
 grant all on "better_supabase"."product_prices" to service_role;
-create policy product_prices_read on "better_supabase"."product_prices"
+create policy bsb_product_prices_read on "better_supabase"."product_prices"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -167,7 +167,7 @@ alter table "better_supabase"."catalog_categories" enable row level security;
 revoke all on "better_supabase"."catalog_categories" from public, anon, authenticated;
 grant select on "better_supabase"."catalog_categories" to authenticated;
 grant all on "better_supabase"."catalog_categories" to service_role;
-create policy catalog_categories_read on "better_supabase"."catalog_categories"
+create policy bsb_catalog_categories_read on "better_supabase"."catalog_categories"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -182,7 +182,7 @@ alter table "better_supabase"."product_categories" enable row level security;
 revoke all on "better_supabase"."product_categories" from public, anon, authenticated;
 grant select on "better_supabase"."product_categories" to authenticated;
 grant all on "better_supabase"."product_categories" to service_role;
-create policy product_categories_read on "better_supabase"."product_categories"
+create policy bsb_product_categories_read on "better_supabase"."product_categories"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -202,7 +202,7 @@ alter table "better_supabase"."product_collections" enable row level security;
 revoke all on "better_supabase"."product_collections" from public, anon, authenticated;
 grant select on "better_supabase"."product_collections" to authenticated;
 grant all on "better_supabase"."product_collections" to service_role;
-create policy product_collections_read on "better_supabase"."product_collections"
+create policy bsb_product_collections_read on "better_supabase"."product_collections"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -218,7 +218,7 @@ alter table "better_supabase"."collection_products" enable row level security;
 revoke all on "better_supabase"."collection_products" from public, anon, authenticated;
 grant select on "better_supabase"."collection_products" to authenticated;
 grant all on "better_supabase"."collection_products" to service_role;
-create policy collection_products_read on "better_supabase"."collection_products"
+create policy bsb_collection_products_read on "better_supabase"."collection_products"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -230,7 +230,7 @@ alter table "better_supabase"."catalog_storefronts" enable row level security;
 revoke all on "better_supabase"."catalog_storefronts" from public, anon, authenticated;
 grant select on "better_supabase"."catalog_storefronts" to authenticated;
 grant all on "better_supabase"."catalog_storefronts" to service_role;
-create policy catalog_storefronts_read on "better_supabase"."catalog_storefronts"
+create policy bsb_catalog_storefronts_read on "better_supabase"."catalog_storefronts"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -251,7 +251,7 @@ alter table "better_supabase"."catalog_channels" enable row level security;
 revoke all on "better_supabase"."catalog_channels" from public, anon, authenticated;
 grant select on "better_supabase"."catalog_channels" to authenticated;
 grant all on "better_supabase"."catalog_channels" to service_role;
-create policy catalog_channels_read on "better_supabase"."catalog_channels"
+create policy bsb_catalog_channels_read on "better_supabase"."catalog_channels"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -267,7 +267,7 @@ alter table "better_supabase"."catalog_channel_products" enable row level securi
 revoke all on "better_supabase"."catalog_channel_products" from public, anon, authenticated;
 grant select on "better_supabase"."catalog_channel_products" to authenticated;
 grant all on "better_supabase"."catalog_channel_products" to service_role;
-create policy catalog_channel_products_read on "better_supabase"."catalog_channel_products"
+create policy bsb_catalog_channel_products_read on "better_supabase"."catalog_channel_products"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -284,7 +284,7 @@ alter table "better_supabase"."product_translations" enable row level security;
 revoke all on "better_supabase"."product_translations" from public, anon, authenticated;
 grant select on "better_supabase"."product_translations" to authenticated;
 grant all on "better_supabase"."product_translations" to service_role;
-create policy product_translations_read on "better_supabase"."product_translations"
+create policy bsb_product_translations_read on "better_supabase"."product_translations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -300,7 +300,7 @@ alter table "better_supabase"."product_variant_translations" enable row level se
 revoke all on "better_supabase"."product_variant_translations" from public, anon, authenticated;
 grant select on "better_supabase"."product_variant_translations" to authenticated;
 grant all on "better_supabase"."product_variant_translations" to service_role;
-create policy product_variant_translations_read on "better_supabase"."product_variant_translations"
+create policy bsb_product_variant_translations_read on "better_supabase"."product_variant_translations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -322,7 +322,7 @@ alter table "better_supabase"."product_media" enable row level security;
 revoke all on "better_supabase"."product_media" from public, anon, authenticated;
 grant select on "better_supabase"."product_media" to authenticated;
 grant all on "better_supabase"."product_media" to service_role;
-create policy product_media_read on "better_supabase"."product_media"
+create policy bsb_product_media_read on "better_supabase"."product_media"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 create table "better_supabase"."product_identifiers" (
@@ -343,7 +343,7 @@ alter table "better_supabase"."product_identifiers" enable row level security;
 revoke all on "better_supabase"."product_identifiers" from public, anon, authenticated;
 grant select on "better_supabase"."product_identifiers" to authenticated;
 grant all on "better_supabase"."product_identifiers" to service_role;
-create policy product_identifiers_read on "better_supabase"."product_identifiers"
+create policy bsb_product_identifiers_read on "better_supabase"."product_identifiers"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -363,7 +363,7 @@ alter table "better_supabase"."product_relations" enable row level security;
 revoke all on "better_supabase"."product_relations" from public, anon, authenticated;
 grant select on "better_supabase"."product_relations" to authenticated;
 grant all on "better_supabase"."product_relations" to service_role;
-create policy product_relations_read on "better_supabase"."product_relations"
+create policy bsb_product_relations_read on "better_supabase"."product_relations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -391,7 +391,7 @@ alter table "better_supabase"."supplier_items" enable row level security;
 revoke all on "better_supabase"."supplier_items" from public, anon, authenticated;
 grant select on "better_supabase"."supplier_items" to authenticated;
 grant all on "better_supabase"."supplier_items" to service_role;
-create policy supplier_items_read on "better_supabase"."supplier_items"
+create policy bsb_supplier_items_read on "better_supabase"."supplier_items"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -411,7 +411,7 @@ alter table "better_supabase"."supplier_item_mappings" enable row level security
 revoke all on "better_supabase"."supplier_item_mappings" from public, anon, authenticated;
 grant select on "better_supabase"."supplier_item_mappings" to authenticated;
 grant all on "better_supabase"."supplier_item_mappings" to service_role;
-create policy supplier_item_mappings_read on "better_supabase"."supplier_item_mappings"
+create policy bsb_supplier_item_mappings_read on "better_supabase"."supplier_item_mappings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 -- Customer groups and product groups. A rule of the matrix pairs one of each.
@@ -429,7 +429,7 @@ alter table "better_supabase"."discount_groups" enable row level security;
 revoke all on "better_supabase"."discount_groups" from public, anon, authenticated;
 grant select on "better_supabase"."discount_groups" to authenticated;
 grant all on "better_supabase"."discount_groups" to service_role;
-create policy discount_groups_read on "better_supabase"."discount_groups"
+create policy bsb_discount_groups_read on "better_supabase"."discount_groups"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -446,7 +446,7 @@ alter table "better_supabase"."discount_group_parties" enable row level security
 revoke all on "better_supabase"."discount_group_parties" from public, anon, authenticated;
 grant select on "better_supabase"."discount_group_parties" to authenticated;
 grant all on "better_supabase"."discount_group_parties" to service_role;
-create policy discount_group_parties_read on "better_supabase"."discount_group_parties"
+create policy bsb_discount_group_parties_read on "better_supabase"."discount_group_parties"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 
@@ -477,7 +477,7 @@ alter table "better_supabase"."discount_rules" enable row level security;
 revoke all on "better_supabase"."discount_rules" from public, anon, authenticated;
 grant select on "better_supabase"."discount_rules" to authenticated;
 grant all on "better_supabase"."discount_rules" to service_role;
-create policy discount_rules_read on "better_supabase"."discount_rules"
+create policy bsb_discount_rules_read on "better_supabase"."discount_rules"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('catalog.read')));
 

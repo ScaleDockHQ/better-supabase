@@ -56,7 +56,7 @@ describe("ai-files module", () => {
       .join("\n");
 
     expect(sql).toContain(
-      `create policy versions_ai_documents on "better_supabase"."versions" as restrictive`,
+      `create policy bsb_versions_ai_documents on "better_supabase"."versions" as restrictive`,
     );
     expect(sql).toContain(`and v_subject_type <> 'ai_document'`);
   });
@@ -91,7 +91,7 @@ describe("ai-files module", () => {
     const sql = body();
 
     const policy = sql.slice(
-      sql.indexOf("create policy ai_files_read"),
+      sql.indexOf("create policy bsb_ai_files_read"),
       sql.indexOf("-- What a provider's file API"),
     );
 

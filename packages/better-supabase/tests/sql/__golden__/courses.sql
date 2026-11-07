@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:ee37c32e1e74684d9a27e8ad00d721f555a35b2d31d5f8f993c28a2893db9bc2
+-- @bsb-hash sha256:f505c0d04b36ff5061aa928be7968f1e6be9986aab486cc767618f715a25b948
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,35 +104,35 @@ alter table "better_supabase"."courses" enable row level security;
 revoke all on "better_supabase"."courses" from public, anon, authenticated;
 grant select on "better_supabase"."courses" to authenticated;
 grant all on "better_supabase"."courses" to service_role;
-create policy courses_read on "better_supabase"."courses"
+create policy bsb_courses_read on "better_supabase"."courses"
   for select to authenticated
   using (("status" = 'published' and "tenant_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 alter table "better_supabase"."course_modules" enable row level security;
 revoke all on "better_supabase"."course_modules" from public, anon, authenticated;
 grant select on "better_supabase"."course_modules" to authenticated;
 grant all on "better_supabase"."course_modules" to service_role;
-create policy course_modules_read on "better_supabase"."course_modules"
+create policy bsb_course_modules_read on "better_supabase"."course_modules"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."courses" x where x."id" = "better_supabase"."course_modules"."course_id"));
 alter table "better_supabase"."course_lessons" enable row level security;
 revoke all on "better_supabase"."course_lessons" from public, anon, authenticated;
 grant select on "better_supabase"."course_lessons" to authenticated;
 grant all on "better_supabase"."course_lessons" to service_role;
-create policy course_lessons_read on "better_supabase"."course_lessons"
+create policy bsb_course_lessons_read on "better_supabase"."course_lessons"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 alter table "better_supabase"."course_lesson_progress" enable row level security;
 revoke all on "better_supabase"."course_lesson_progress" from public, anon, authenticated;
 grant select on "better_supabase"."course_lesson_progress" to authenticated;
 grant all on "better_supabase"."course_lesson_progress" to service_role;
-create policy course_lesson_progress_read on "better_supabase"."course_lesson_progress"
+create policy bsb_course_lesson_progress_read on "better_supabase"."course_lesson_progress"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 alter table "better_supabase"."course_certificates" enable row level security;
 revoke all on "better_supabase"."course_certificates" from public, anon, authenticated;
 grant select on "better_supabase"."course_certificates" to authenticated;
 grant all on "better_supabase"."course_certificates" to service_role;
-create policy course_certificates_read on "better_supabase"."course_certificates"
+create policy bsb_course_certificates_read on "better_supabase"."course_certificates"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 
@@ -1186,7 +1186,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:9fb413e450fdebaa7d0941decf1dcfac51621dbeb452038453504e774fa8aa47
+-- @bsb-hash sha256:66b11877fd92fdad30df62899e6916f38701f12b184c8dc5015c5de967e684b4
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1289,35 +1289,35 @@ alter table "better_supabase"."courses" enable row level security;
 revoke all on "better_supabase"."courses" from public, anon, authenticated;
 grant select on "better_supabase"."courses" to authenticated;
 grant all on "better_supabase"."courses" to service_role;
-create policy courses_read on "better_supabase"."courses"
+create policy bsb_courses_read on "better_supabase"."courses"
   for select to authenticated
   using (("status" = 'published' and "tenant_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 alter table "better_supabase"."course_modules" enable row level security;
 revoke all on "better_supabase"."course_modules" from public, anon, authenticated;
 grant select on "better_supabase"."course_modules" to authenticated;
 grant all on "better_supabase"."course_modules" to service_role;
-create policy course_modules_read on "better_supabase"."course_modules"
+create policy bsb_course_modules_read on "better_supabase"."course_modules"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."courses" x where x."id" = "better_supabase"."course_modules"."course_id"));
 alter table "better_supabase"."course_lessons" enable row level security;
 revoke all on "better_supabase"."course_lessons" from public, anon, authenticated;
 grant select on "better_supabase"."course_lessons" to authenticated;
 grant all on "better_supabase"."course_lessons" to service_role;
-create policy course_lessons_read on "better_supabase"."course_lessons"
+create policy bsb_course_lessons_read on "better_supabase"."course_lessons"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 alter table "better_supabase"."course_lesson_progress" enable row level security;
 revoke all on "better_supabase"."course_lesson_progress" from public, anon, authenticated;
 grant select on "better_supabase"."course_lesson_progress" to authenticated;
 grant all on "better_supabase"."course_lesson_progress" to service_role;
-create policy course_lesson_progress_read on "better_supabase"."course_lesson_progress"
+create policy bsb_course_lesson_progress_read on "better_supabase"."course_lesson_progress"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 alter table "better_supabase"."course_certificates" enable row level security;
 revoke all on "better_supabase"."course_certificates" from public, anon, authenticated;
 grant select on "better_supabase"."course_certificates" to authenticated;
 grant all on "better_supabase"."course_certificates" to service_role;
-create policy course_certificates_read on "better_supabase"."course_certificates"
+create policy bsb_course_certificates_read on "better_supabase"."course_certificates"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 
@@ -2510,7 +2510,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:6ca63330ff656acd07b7967b0b6ed5245cdce0c78b3fd071c7512e139128a755
+-- @bsb-hash sha256:6c5e7afabba04413a5e4b8b27995c3bd7b41e871b9caa2f2457c2abc33cd97ab
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2618,35 +2618,35 @@ alter table "app_private"."courses" enable row level security;
 revoke all on "app_private"."courses" from public, anon, authenticated;
 grant select on "app_private"."courses" to authenticated;
 grant all on "app_private"."courses" to service_role;
-create policy courses_read on "app_private"."courses"
+create policy bsb_courses_read on "app_private"."courses"
   for select to authenticated
   using (("status" = 'published' and "tenant_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 alter table "app_private"."course_modules" enable row level security;
 revoke all on "app_private"."course_modules" from public, anon, authenticated;
 grant select on "app_private"."course_modules" to authenticated;
 grant all on "app_private"."course_modules" to service_role;
-create policy course_modules_read on "app_private"."course_modules"
+create policy bsb_course_modules_read on "app_private"."course_modules"
   for select to authenticated
   using (exists (select 1 from "app_private"."courses" x where x."id" = "app_private"."course_modules"."course_id"));
 alter table "app_private"."course_lessons" enable row level security;
 revoke all on "app_private"."course_lessons" from public, anon, authenticated;
 grant select on "app_private"."course_lessons" to authenticated;
 grant all on "app_private"."course_lessons" to service_role;
-create policy course_lessons_read on "app_private"."course_lessons"
+create policy bsb_course_lessons_read on "app_private"."course_lessons"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 alter table "app_private"."course_lesson_progress" enable row level security;
 revoke all on "app_private"."course_lesson_progress" from public, anon, authenticated;
 grant select on "app_private"."course_lesson_progress" to authenticated;
 grant all on "app_private"."course_lesson_progress" to service_role;
-create policy course_lesson_progress_read on "app_private"."course_lesson_progress"
+create policy bsb_course_lesson_progress_read on "app_private"."course_lesson_progress"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 alter table "app_private"."course_certificates" enable row level security;
 revoke all on "app_private"."course_certificates" from public, anon, authenticated;
 grant select on "app_private"."course_certificates" to authenticated;
 grant all on "app_private"."course_certificates" to service_role;
-create policy course_certificates_read on "app_private"."course_certificates"
+create policy bsb_course_certificates_read on "app_private"."course_certificates"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 
@@ -3700,7 +3700,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:4305a764bf8125f77a6f31bf09e62b6aed83696959d36ef0de281205694e003e
+-- @bsb-hash sha256:7a60a4013a0aa8645f73fbd459e88d25e0d173d0ea9a706d8ca36b7079f4612b
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3803,35 +3803,35 @@ alter table "better_supabase"."courses" enable row level security;
 revoke all on "better_supabase"."courses" from public, anon, authenticated;
 grant select on "better_supabase"."courses" to authenticated;
 grant all on "better_supabase"."courses" to service_role;
-create policy courses_read on "better_supabase"."courses"
+create policy bsb_courses_read on "better_supabase"."courses"
   for select to authenticated
   using (("status" = 'published' and "tenant_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 alter table "better_supabase"."course_modules" enable row level security;
 revoke all on "better_supabase"."course_modules" from public, anon, authenticated;
 grant select on "better_supabase"."course_modules" to authenticated;
 grant all on "better_supabase"."course_modules" to service_role;
-create policy course_modules_read on "better_supabase"."course_modules"
+create policy bsb_course_modules_read on "better_supabase"."course_modules"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."courses" x where x."id" = "better_supabase"."course_modules"."course_id"));
 alter table "better_supabase"."course_lessons" enable row level security;
 revoke all on "better_supabase"."course_lessons" from public, anon, authenticated;
 grant select on "better_supabase"."course_lessons" to authenticated;
 grant all on "better_supabase"."course_lessons" to service_role;
-create policy course_lessons_read on "better_supabase"."course_lessons"
+create policy bsb_course_lessons_read on "better_supabase"."course_lessons"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 alter table "better_supabase"."course_lesson_progress" enable row level security;
 revoke all on "better_supabase"."course_lesson_progress" from public, anon, authenticated;
 grant select on "better_supabase"."course_lesson_progress" to authenticated;
 grant all on "better_supabase"."course_lesson_progress" to service_role;
-create policy course_lesson_progress_read on "better_supabase"."course_lesson_progress"
+create policy bsb_course_lesson_progress_read on "better_supabase"."course_lesson_progress"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 alter table "better_supabase"."course_certificates" enable row level security;
 revoke all on "better_supabase"."course_certificates" from public, anon, authenticated;
 grant select on "better_supabase"."course_certificates" to authenticated;
 grant all on "better_supabase"."course_certificates" to service_role;
-create policy course_certificates_read on "better_supabase"."course_certificates"
+create policy bsb_course_certificates_read on "better_supabase"."course_certificates"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "tenant_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 
@@ -6219,7 +6219,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_128_courses.sql
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:16fa4b93fd2255efb1dc535932b667b8ac5c77d0c4485daf5f14de5758286966
+-- @bsb-hash sha256:04b08bf9f729e125551957c1236a61e34a035241ccbbb2c562a71fba121a739d
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6322,35 +6322,35 @@ alter table "better_supabase"."courses" enable row level security;
 revoke all on "better_supabase"."courses" from public, anon, authenticated;
 grant select on "better_supabase"."courses" to authenticated;
 grant all on "better_supabase"."courses" to service_role;
-create policy courses_read on "better_supabase"."courses"
+create policy bsb_courses_read on "better_supabase"."courses"
   for select to authenticated
   using (("status" = 'published' and "org_id" in (select better_supabase.tenant_ids_with('courses.read'))) or "org_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 alter table "better_supabase"."course_modules" enable row level security;
 revoke all on "better_supabase"."course_modules" from public, anon, authenticated;
 grant select on "better_supabase"."course_modules" to authenticated;
 grant all on "better_supabase"."course_modules" to service_role;
-create policy course_modules_read on "better_supabase"."course_modules"
+create policy bsb_course_modules_read on "better_supabase"."course_modules"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."courses" x where x."id" = "better_supabase"."course_modules"."course_id"));
 alter table "better_supabase"."course_lessons" enable row level security;
 revoke all on "better_supabase"."course_lessons" from public, anon, authenticated;
 grant select on "better_supabase"."course_lessons" to authenticated;
 grant all on "better_supabase"."course_lessons" to service_role;
-create policy course_lessons_read on "better_supabase"."course_lessons"
+create policy bsb_course_lessons_read on "better_supabase"."course_lessons"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 alter table "better_supabase"."course_lesson_progress" enable row level security;
 revoke all on "better_supabase"."course_lesson_progress" from public, anon, authenticated;
 grant select on "better_supabase"."course_lesson_progress" to authenticated;
 grant all on "better_supabase"."course_lesson_progress" to service_role;
-create policy course_lesson_progress_read on "better_supabase"."course_lesson_progress"
+create policy bsb_course_lesson_progress_read on "better_supabase"."course_lesson_progress"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "org_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 alter table "better_supabase"."course_certificates" enable row level security;
 revoke all on "better_supabase"."course_certificates" from public, anon, authenticated;
 grant select on "better_supabase"."course_certificates" to authenticated;
 grant all on "better_supabase"."course_certificates" to service_role;
-create policy course_certificates_read on "better_supabase"."course_certificates"
+create policy bsb_course_certificates_read on "better_supabase"."course_certificates"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('courses.enroll')) or "org_id" in (select better_supabase.tenant_ids_with('courses.manage')));
 

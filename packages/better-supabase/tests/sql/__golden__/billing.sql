@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:1c667b4f5aae1eaa2385e0a7873af49ac0967f1b72355f15c01b22887728f6bf
+-- @bsb-hash sha256:e51d7a32d63de3ec93f84f437271a6a67b9fff11af16b6776591dac9579b8124
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22,7 +22,7 @@ alter table "better_supabase"."billing_customers" enable row level security;
 revoke all on "better_supabase"."billing_customers" from public, anon, authenticated;
 grant select on "better_supabase"."billing_customers" to authenticated;
 grant all on "better_supabase"."billing_customers" to service_role;
-create policy billing_customers_read on "better_supabase"."billing_customers"
+create policy bsb_billing_customers_read on "better_supabase"."billing_customers"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('billing.read')));
 
@@ -812,7 +812,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:da7b99d200f471c1adc2f72f283fe70dbd8c067354c1489d146c7d38e0f54927
+-- @bsb-hash sha256:ee71cd7744126ad1f22741b3c9fb17e841652c1a16b5c58f2f298bca5c245168
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -835,7 +835,7 @@ grant select on "better_supabase"."billing_customers" to authenticated;
 grant all on "better_supabase"."billing_customers" to service_role;
 alter table "better_supabase"."billing_customers" add constraint "billing_customers_tenant_fkey"
   foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade;
-create policy billing_customers_read on "better_supabase"."billing_customers"
+create policy bsb_billing_customers_read on "better_supabase"."billing_customers"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('billing.read')));
 
@@ -1654,7 +1654,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:aeafd1c565b992d9db58f6cfdcbd1e903b811c6d7ba82edbee75458df61da5f0
+-- @bsb-hash sha256:f537d2321da8dc393ea03f05eac0b2ff51fa7031c93ee42261d317496a27636f
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1680,7 +1680,7 @@ alter table "app_private"."billing_customers" enable row level security;
 revoke all on "app_private"."billing_customers" from public, anon, authenticated;
 grant select on "app_private"."billing_customers" to authenticated;
 grant all on "app_private"."billing_customers" to service_role;
-create policy billing_customers_read on "app_private"."billing_customers"
+create policy bsb_billing_customers_read on "app_private"."billing_customers"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('billing.read')));
 
@@ -2470,7 +2470,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:313781ad983f55186d7f9e21ee108e03d8287d9eabcec84f780523cf39340363
+-- @bsb-hash sha256:622f56c3b8be57521dd258252514c2932d8aa6602854f1355df8310785c7c733
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2491,7 +2491,7 @@ alter table "better_supabase"."billing_customers" enable row level security;
 revoke all on "better_supabase"."billing_customers" from public, anon, authenticated;
 grant select on "better_supabase"."billing_customers" to authenticated;
 grant all on "better_supabase"."billing_customers" to service_role;
-create policy billing_customers_read on "better_supabase"."billing_customers"
+create policy bsb_billing_customers_read on "better_supabase"."billing_customers"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('billing.read')));
 
@@ -4379,7 +4379,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:c20564e618cfdd187b321ad0ebfffccdeb4879afd6c5d9e5976cc14da4b119e7
+-- @bsb-hash sha256:1943300d89fe9a7f932e771bad09731e1e440133e84eeb9e3024bb8184bbb814
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4400,7 +4400,7 @@ alter table "better_supabase"."billing_customers" enable row level security;
 revoke all on "better_supabase"."billing_customers" from public, anon, authenticated;
 grant select on "better_supabase"."billing_customers" to authenticated;
 grant all on "better_supabase"."billing_customers" to service_role;
-create policy billing_customers_read on "better_supabase"."billing_customers"
+create policy bsb_billing_customers_read on "better_supabase"."billing_customers"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('billing.read')));
 

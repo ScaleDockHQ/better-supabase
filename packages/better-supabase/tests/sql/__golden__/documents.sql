@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:e75c52adab63935577508a45d71927ac4d3061190976278b2d35a931f6a1e57b
+-- @bsb-hash sha256:2b5ee0e9dd48a14afc5a3efac5790beb67ed3a96f06a6ddfc37f3bf3235e3879
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22,7 +22,7 @@ alter table "better_supabase"."documents" enable row level security;
 revoke all on "better_supabase"."documents" from public, anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
-create policy documents_read on "better_supabase"."documents"
+create policy bsb_documents_read on "better_supabase"."documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')));
 
@@ -538,7 +538,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:bec0dc73db4535f3aef7d3d10f4767e7bb3ced60ac1ca5409a7cbcefccd2766e
+-- @bsb-hash sha256:4e9cbaf12614522ee43b3b1f1ea4e2b81aeee3be25c0d864851df72684f3729a
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -559,7 +559,7 @@ alter table "better_supabase"."documents" enable row level security;
 revoke all on "better_supabase"."documents" from public, anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
-create policy documents_read on "better_supabase"."documents"
+create policy bsb_documents_read on "better_supabase"."documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')));
 
@@ -1224,7 +1224,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:2f35784a959277ba7dff8fa497200fe103ecbff19e5e757fd40a3a69030e616d
+-- @bsb-hash sha256:29e703a26b1b357b3fbc938f5d279c4164090a1565e0f712c4b1fe5f2d6c3041
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1250,7 +1250,7 @@ alter table "app_private"."documents" enable row level security;
 revoke all on "app_private"."documents" from public, anon, authenticated;
 grant select on "app_private"."documents" to authenticated;
 grant all on "app_private"."documents" to service_role;
-create policy documents_read on "app_private"."documents"
+create policy bsb_documents_read on "app_private"."documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')));
 
@@ -1766,7 +1766,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:babb15c4a79282d49a23fae90375c02161872433e08968e8b005edb1fc565460
+-- @bsb-hash sha256:142291c06c6ca93f3e1b67ac31d3c830d7ac880b603637eea1488698e6713918
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1787,7 +1787,7 @@ alter table "better_supabase"."documents" enable row level security;
 revoke all on "better_supabase"."documents" from public, anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
-create policy documents_read on "better_supabase"."documents"
+create policy bsb_documents_read on "better_supabase"."documents"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('documents.read')));
 
@@ -2932,7 +2932,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:97df5c12a3bc833feb7df4218d0dbf9f1e69ac6f8a44bae72c2483ba8556b45a
+-- @bsb-hash sha256:318bc1659b6cf75974aea1fc35f1234ac8ac5ee061ff01a1abfc6d3a6a3449ae
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2953,7 +2953,7 @@ alter table "better_supabase"."documents" enable row level security;
 revoke all on "better_supabase"."documents" from public, anon, authenticated;
 grant select on "better_supabase"."documents" to authenticated;
 grant all on "better_supabase"."documents" to service_role;
-create policy documents_read on "better_supabase"."documents"
+create policy bsb_documents_read on "better_supabase"."documents"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('documents.read')));
 

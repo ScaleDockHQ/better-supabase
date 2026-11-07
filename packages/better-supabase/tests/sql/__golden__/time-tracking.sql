@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:7c7a7569169ee7567a0f44d64d6c88928274474ecdf9b918d57957ce183577a8
+-- @bsb-hash sha256:0c7c61a91d40d4034eb85f24a302b2598048b8bc3128eae217e7b5a062bcd106
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,7 +45,7 @@ alter table "better_supabase"."time_entries" enable row level security;
 revoke all on "better_supabase"."time_entries" from public, anon, authenticated;
 grant select on "better_supabase"."time_entries" to authenticated;
 grant all on "better_supabase"."time_entries" to service_role;
-create policy time_entries_read on "better_supabase"."time_entries"
+create policy bsb_time_entries_read on "better_supabase"."time_entries"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 
@@ -67,7 +67,7 @@ alter table "better_supabase"."timesheets" enable row level security;
 revoke all on "better_supabase"."timesheets" from public, anon, authenticated;
 grant select on "better_supabase"."timesheets" to authenticated;
 grant all on "better_supabase"."timesheets" to service_role;
-create policy timesheets_read on "better_supabase"."timesheets"
+create policy bsb_timesheets_read on "better_supabase"."timesheets"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 
@@ -841,7 +841,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:7b1cde323c1869ef6581f3dd233cd4735fa634cde1bcbb56d3ef238ee486f559
+-- @bsb-hash sha256:c1603ffaa858b356b7046bf5401eb6346985f08eb5797793a14c7ddfff5d04f7
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -885,7 +885,7 @@ alter table "better_supabase"."time_entries" enable row level security;
 revoke all on "better_supabase"."time_entries" from public, anon, authenticated;
 grant select on "better_supabase"."time_entries" to authenticated;
 grant all on "better_supabase"."time_entries" to service_role;
-create policy time_entries_read on "better_supabase"."time_entries"
+create policy bsb_time_entries_read on "better_supabase"."time_entries"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 
@@ -907,7 +907,7 @@ alter table "better_supabase"."timesheets" enable row level security;
 revoke all on "better_supabase"."timesheets" from public, anon, authenticated;
 grant select on "better_supabase"."timesheets" to authenticated;
 grant all on "better_supabase"."timesheets" to service_role;
-create policy timesheets_read on "better_supabase"."timesheets"
+create policy bsb_timesheets_read on "better_supabase"."timesheets"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 
@@ -1712,7 +1712,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:465f97cdc40551f8dc8a8dafea596581dc9e224efa34a8a0ec0343a62dd05dc3
+-- @bsb-hash sha256:2b7df1c2ff6c73cbdf1c04acae8efbad68c9ae43227dc15c37878509dbdc1a54
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1761,7 +1761,7 @@ alter table "app_private"."time_entries" enable row level security;
 revoke all on "app_private"."time_entries" from public, anon, authenticated;
 grant select on "app_private"."time_entries" to authenticated;
 grant all on "app_private"."time_entries" to service_role;
-create policy time_entries_read on "app_private"."time_entries"
+create policy bsb_time_entries_read on "app_private"."time_entries"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 
@@ -1783,7 +1783,7 @@ alter table "app_private"."timesheets" enable row level security;
 revoke all on "app_private"."timesheets" from public, anon, authenticated;
 grant select on "app_private"."timesheets" to authenticated;
 grant all on "app_private"."timesheets" to service_role;
-create policy timesheets_read on "app_private"."timesheets"
+create policy bsb_timesheets_read on "app_private"."timesheets"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 
@@ -2557,7 +2557,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:e537d274a5122d20902cdac39fec1db97f5408558d65af103630fc7a56052798
+-- @bsb-hash sha256:ef500874f8facceea406f215f075bd440e0b4ef5f14570b7d7a1b8b828f17b31
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2601,7 +2601,7 @@ alter table "better_supabase"."time_entries" enable row level security;
 revoke all on "better_supabase"."time_entries" from public, anon, authenticated;
 grant select on "better_supabase"."time_entries" to authenticated;
 grant all on "better_supabase"."time_entries" to service_role;
-create policy time_entries_read on "better_supabase"."time_entries"
+create policy bsb_time_entries_read on "better_supabase"."time_entries"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 
@@ -2623,7 +2623,7 @@ alter table "better_supabase"."timesheets" enable row level security;
 revoke all on "better_supabase"."timesheets" from public, anon, authenticated;
 grant select on "better_supabase"."timesheets" to authenticated;
 grant all on "better_supabase"."timesheets" to service_role;
-create policy timesheets_read on "better_supabase"."timesheets"
+create policy bsb_timesheets_read on "better_supabase"."timesheets"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 
@@ -4346,7 +4346,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_088_time_tracking.sql
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:ccd249884dc7050ff9cc37c3085fdf2e50c8036d5e36e8a704223b363fe31c44
+-- @bsb-hash sha256:6c22b5afb8982b87c43973c7c33b1d009d97e981faff5a3939e486119af6ef09
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4390,7 +4390,7 @@ alter table "better_supabase"."time_entries" enable row level security;
 revoke all on "better_supabase"."time_entries" from public, anon, authenticated;
 grant select on "better_supabase"."time_entries" to authenticated;
 grant all on "better_supabase"."time_entries" to service_role;
-create policy time_entries_read on "better_supabase"."time_entries"
+create policy bsb_time_entries_read on "better_supabase"."time_entries"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 
@@ -4412,7 +4412,7 @@ alter table "better_supabase"."timesheets" enable row level security;
 revoke all on "better_supabase"."timesheets" from public, anon, authenticated;
 grant select on "better_supabase"."timesheets" to authenticated;
 grant all on "better_supabase"."timesheets" to service_role;
-create policy timesheets_read on "better_supabase"."timesheets"
+create policy bsb_timesheets_read on "better_supabase"."timesheets"
   for select to authenticated
   using ("user_id" = (select auth.uid()) or "org_id" in (select better_supabase.tenant_ids_with('time_tracking.read')));
 

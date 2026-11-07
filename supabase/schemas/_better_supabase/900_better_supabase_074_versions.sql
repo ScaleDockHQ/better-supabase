@@ -1,6 +1,6 @@
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:bbb927b194f8150b97793c9761369e5355cb9195eb2cd486758f4653b0097127
+-- @bsb-hash sha256:3f304fe98fdd64c72021ca5493e533ab77cc1c16b2e852f372116a49af401a16
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -32,10 +32,10 @@ alter table "better_supabase"."versions" enable row level security;
 revoke all on "better_supabase"."versions" from public, anon, authenticated;
 grant select on "better_supabase"."versions" to authenticated;
 grant all on "better_supabase"."versions" to service_role;
-create policy versions_read on "better_supabase"."versions"
+create policy bsb_versions_read on "better_supabase"."versions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
-create policy versions_ai_documents on "better_supabase"."versions" as restrictive
+create policy bsb_versions_ai_documents on "better_supabase"."versions" as restrictive
   for select to authenticated
   using ("subject_type" <> 'ai_document');
 

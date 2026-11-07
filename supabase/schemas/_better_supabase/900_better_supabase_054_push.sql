@@ -1,6 +1,6 @@
 -- better-supabase module: push
 -- @bsb-block push@3 managed
--- @bsb-hash sha256:996c105549dc21286fdfe7bc6cbc7ab8aeb2b7d12d2c84f9274051cf93dd8fc5
+-- @bsb-hash sha256:715d59872f915c82461c28444ebc268ecaeacfa04ce30be1d648ffa96e6f18dd
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,10 +26,10 @@ alter table "better_supabase"."push_devices" enable row level security;
 revoke all on "better_supabase"."push_devices" from public, anon, authenticated;
 grant select, delete on "better_supabase"."push_devices" to authenticated;
 grant all on "better_supabase"."push_devices" to service_role;
-create policy push_devices_own_read on "better_supabase"."push_devices"
+create policy bsb_push_devices_own_read on "better_supabase"."push_devices"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
-create policy push_devices_own_delete on "better_supabase"."push_devices"
+create policy bsb_push_devices_own_delete on "better_supabase"."push_devices"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 

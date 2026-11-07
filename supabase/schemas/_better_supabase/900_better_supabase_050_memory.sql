@@ -1,6 +1,6 @@
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:c8b1b100991d121528333b1246b6e33ed4f1bfcd1c96525c5a3b787a2e68c761
+-- @bsb-hash sha256:9428529ad483caf8468f67297fd18054b8b7af96f48fb668dabc195d51163cb2
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -59,7 +59,7 @@ alter table "better_supabase"."memories" enable row level security;
 revoke all on "better_supabase"."memories" from public, anon, authenticated;
 grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
-create policy memories_read on "better_supabase"."memories"
+create policy bsb_memories_read on "better_supabase"."memories"
   for select to authenticated
   using (("owner_id" = (select auth.uid()) or ("owner_id" is null and "organization_id" in (select better_supabase.tenant_ids_with('memory.read')))) and "deleted_at" is null);
 
@@ -81,7 +81,7 @@ alter table "better_supabase"."memory_message_embeddings" enable row level secur
 revoke all on "better_supabase"."memory_message_embeddings" from public, anon, authenticated;
 grant select on "better_supabase"."memory_message_embeddings" to authenticated;
 grant all on "better_supabase"."memory_message_embeddings" to service_role;
-create policy memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
+create policy bsb_memory_message_embeddings_read on "better_supabase"."memory_message_embeddings"
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 

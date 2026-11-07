@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:726c003f0b8e80bcd19070ff732e351d9d8d52dcce187f1540ef37fcd552d247
+-- @bsb-hash sha256:ffea0f3aedb28e9565b35856830518c890d2b984186f45fb952505b8192f4ed3
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -37,7 +37,7 @@ alter table "better_supabase"."case_kinds" enable row level security;
 revoke all on "better_supabase"."case_kinds" from public, anon, authenticated;
 grant select on "better_supabase"."case_kinds" to authenticated;
 grant all on "better_supabase"."case_kinds" to service_role;
-create policy case_kinds_read on "better_supabase"."case_kinds"
+create policy bsb_case_kinds_read on "better_supabase"."case_kinds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -93,7 +93,7 @@ alter table "better_supabase"."cases" enable row level security;
 revoke all on "better_supabase"."cases" from public, anon, authenticated;
 grant select on "better_supabase"."cases" to authenticated;
 grant all on "better_supabase"."cases" to service_role;
-create policy cases_read on "better_supabase"."cases"
+create policy bsb_cases_read on "better_supabase"."cases"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -116,7 +116,7 @@ alter table "better_supabase"."case_actions" enable row level security;
 revoke all on "better_supabase"."case_actions" from public, anon, authenticated;
 grant select on "better_supabase"."case_actions" to authenticated;
 grant all on "better_supabase"."case_actions" to service_role;
-create policy case_actions_read on "better_supabase"."case_actions"
+create policy bsb_case_actions_read on "better_supabase"."case_actions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -1303,7 +1303,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:ef9767473bde5f5c6832ade3bbae9ee607069217badfde8a5bfed3aff30ad171
+-- @bsb-hash sha256:70152d21e4b168a5a5d036e2fedbe80286bcb8a902bab9dc06cfeb5cca62313c
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1339,7 +1339,7 @@ alter table "better_supabase"."case_kinds" enable row level security;
 revoke all on "better_supabase"."case_kinds" from public, anon, authenticated;
 grant select on "better_supabase"."case_kinds" to authenticated;
 grant all on "better_supabase"."case_kinds" to service_role;
-create policy case_kinds_read on "better_supabase"."case_kinds"
+create policy bsb_case_kinds_read on "better_supabase"."case_kinds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -1395,7 +1395,7 @@ alter table "better_supabase"."cases" enable row level security;
 revoke all on "better_supabase"."cases" from public, anon, authenticated;
 grant select on "better_supabase"."cases" to authenticated;
 grant all on "better_supabase"."cases" to service_role;
-create policy cases_read on "better_supabase"."cases"
+create policy bsb_cases_read on "better_supabase"."cases"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -1418,7 +1418,7 @@ alter table "better_supabase"."case_actions" enable row level security;
 revoke all on "better_supabase"."case_actions" from public, anon, authenticated;
 grant select on "better_supabase"."case_actions" to authenticated;
 grant all on "better_supabase"."case_actions" to service_role;
-create policy case_actions_read on "better_supabase"."case_actions"
+create policy bsb_case_actions_read on "better_supabase"."case_actions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -2976,7 +2976,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:18338038ab97390bc46bd463618b3b3608223d4a16de8ed88759f4c38dd7a3d6
+-- @bsb-hash sha256:f5290ddce486c43b6350fb0c4856a6fe67600303e3e76796da1c5d8b5742eeba
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3017,7 +3017,7 @@ alter table "app_private"."case_kinds" enable row level security;
 revoke all on "app_private"."case_kinds" from public, anon, authenticated;
 grant select on "app_private"."case_kinds" to authenticated;
 grant all on "app_private"."case_kinds" to service_role;
-create policy case_kinds_read on "app_private"."case_kinds"
+create policy bsb_case_kinds_read on "app_private"."case_kinds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -3073,7 +3073,7 @@ alter table "app_private"."cases" enable row level security;
 revoke all on "app_private"."cases" from public, anon, authenticated;
 grant select on "app_private"."cases" to authenticated;
 grant all on "app_private"."cases" to service_role;
-create policy cases_read on "app_private"."cases"
+create policy bsb_cases_read on "app_private"."cases"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -3096,7 +3096,7 @@ alter table "app_private"."case_actions" enable row level security;
 revoke all on "app_private"."case_actions" from public, anon, authenticated;
 grant select on "app_private"."case_actions" to authenticated;
 grant all on "app_private"."case_actions" to service_role;
-create policy case_actions_read on "app_private"."case_actions"
+create policy bsb_case_actions_read on "app_private"."case_actions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -4283,7 +4283,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:0b54f41d67bf5da8487afde56d77a76667b055404ddb681d7da665f8947b3b63
+-- @bsb-hash sha256:0633689c97a881aa1988359758b9ccc274e7e94562bbf6d031d27180a3a5e815
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4319,7 +4319,7 @@ alter table "better_supabase"."case_kinds" enable row level security;
 revoke all on "better_supabase"."case_kinds" from public, anon, authenticated;
 grant select on "better_supabase"."case_kinds" to authenticated;
 grant all on "better_supabase"."case_kinds" to service_role;
-create policy case_kinds_read on "better_supabase"."case_kinds"
+create policy bsb_case_kinds_read on "better_supabase"."case_kinds"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -4375,7 +4375,7 @@ alter table "better_supabase"."cases" enable row level security;
 revoke all on "better_supabase"."cases" from public, anon, authenticated;
 grant select on "better_supabase"."cases" to authenticated;
 grant all on "better_supabase"."cases" to service_role;
-create policy cases_read on "better_supabase"."cases"
+create policy bsb_cases_read on "better_supabase"."cases"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -4398,7 +4398,7 @@ alter table "better_supabase"."case_actions" enable row level security;
 revoke all on "better_supabase"."case_actions" from public, anon, authenticated;
 grant select on "better_supabase"."case_actions" to authenticated;
 grant all on "better_supabase"."case_actions" to service_role;
-create policy case_actions_read on "better_supabase"."case_actions"
+create policy bsb_case_actions_read on "better_supabase"."case_actions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -7096,7 +7096,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:1498bbe40b679fd1da858c3fb77cc10d63bac9fe50be073ad206ca40f6924030
+-- @bsb-hash sha256:01741e8ad2dd9c70b9c2453f4ac55356c2841fa90620d1a88ff6de87d92bcfa0
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7132,7 +7132,7 @@ alter table "better_supabase"."case_kinds" enable row level security;
 revoke all on "better_supabase"."case_kinds" from public, anon, authenticated;
 grant select on "better_supabase"."case_kinds" to authenticated;
 grant all on "better_supabase"."case_kinds" to service_role;
-create policy case_kinds_read on "better_supabase"."case_kinds"
+create policy bsb_case_kinds_read on "better_supabase"."case_kinds"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -7188,7 +7188,7 @@ alter table "better_supabase"."cases" enable row level security;
 revoke all on "better_supabase"."cases" from public, anon, authenticated;
 grant select on "better_supabase"."cases" to authenticated;
 grant all on "better_supabase"."cases" to service_role;
-create policy cases_read on "better_supabase"."cases"
+create policy bsb_cases_read on "better_supabase"."cases"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('cases.read')));
 
@@ -7211,7 +7211,7 @@ alter table "better_supabase"."case_actions" enable row level security;
 revoke all on "better_supabase"."case_actions" from public, anon, authenticated;
 grant select on "better_supabase"."case_actions" to authenticated;
 grant all on "better_supabase"."case_actions" to service_role;
-create policy case_actions_read on "better_supabase"."case_actions"
+create policy bsb_case_actions_read on "better_supabase"."case_actions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('cases.read')));
 

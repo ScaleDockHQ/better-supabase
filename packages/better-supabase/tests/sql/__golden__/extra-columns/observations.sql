@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:c38c72a993f2dede697accdcacffc94eac2ef2d53437ae100e291378209443fa
+-- @bsb-hash sha256:e928985dc7823e0aba83cb93eb249e582f4082aab3df797ed79ec494f6285577
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -46,7 +46,7 @@ alter table "better_supabase"."observation_definitions" enable row level securit
 revoke all on "better_supabase"."observation_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."observation_definitions" to authenticated;
 grant all on "better_supabase"."observation_definitions" to service_role;
-create policy observation_definitions_read on "better_supabase"."observation_definitions"
+create policy bsb_observation_definitions_read on "better_supabase"."observation_definitions"
   for select to authenticated
   using ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -89,7 +89,7 @@ alter table "better_supabase"."observations" enable row level security;
 revoke all on "better_supabase"."observations" from public, anon, authenticated;
 grant select on "better_supabase"."observations" to authenticated;
 grant all on "better_supabase"."observations" to service_role;
-create policy observations_read on "better_supabase"."observations"
+create policy bsb_observations_read on "better_supabase"."observations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 

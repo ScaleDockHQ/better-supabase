@@ -134,7 +134,7 @@ describe("actor write guard", () => {
       .join("\n");
 
     for (const name of [
-      "user_settings_own_update",
+      "bsb_user_settings_own_update",
       "bsb_notification_subscriptions_own_insert",
       "bsb_notification_preferences_own_delete",
     ]) {
@@ -146,7 +146,7 @@ describe("actor write guard", () => {
     }
 
     expect(
-      /create policy "?user_settings_own_read"?[^;]*;/i.exec(sql)?.[0],
+      /create policy "?bsb_user_settings_own_read"?[^;]*;/i.exec(sql)?.[0],
     ).not.toContain("actor_may_write()");
   });
 

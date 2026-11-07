@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:3533281b99366ed30dd688b76d447330cdcc76574b317c0d8c59dd41605783be
+-- @bsb-hash sha256:1daf990ae2e65674ee737a58278ded14c138ad7f6ba0163dd51c80744f8d109e
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,7 @@ alter table "better_supabase"."payment_terms" enable row level security;
 revoke all on "better_supabase"."payment_terms" from public, anon, authenticated;
 grant select on "better_supabase"."payment_terms" to authenticated;
 grant all on "better_supabase"."payment_terms" to service_role;
-create policy payment_terms_read on "better_supabase"."payment_terms"
+create policy bsb_payment_terms_read on "better_supabase"."payment_terms"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -69,7 +69,7 @@ alter table "better_supabase"."companies" enable row level security;
 revoke all on "better_supabase"."companies" from public, anon, authenticated;
 grant select on "better_supabase"."companies" to authenticated;
 grant all on "better_supabase"."companies" to service_role;
-create policy companies_read on "better_supabase"."companies"
+create policy bsb_companies_read on "better_supabase"."companies"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -114,7 +114,7 @@ alter table "better_supabase"."people" enable row level security;
 revoke all on "better_supabase"."people" from public, anon, authenticated;
 grant select on "better_supabase"."people" to authenticated;
 grant all on "better_supabase"."people" to service_role;
-create policy people_read on "better_supabase"."people"
+create policy bsb_people_read on "better_supabase"."people"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -133,7 +133,7 @@ alter table "better_supabase"."company_people" enable row level security;
 revoke all on "better_supabase"."company_people" from public, anon, authenticated;
 grant select on "better_supabase"."company_people" to authenticated;
 grant all on "better_supabase"."company_people" to service_role;
-create policy company_people_read on "better_supabase"."company_people"
+create policy bsb_company_people_read on "better_supabase"."company_people"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -154,7 +154,7 @@ alter table "better_supabase"."document_delivery_preferences" enable row level s
 revoke all on "better_supabase"."document_delivery_preferences" from public, anon, authenticated;
 grant select on "better_supabase"."document_delivery_preferences" to authenticated;
 grant all on "better_supabase"."document_delivery_preferences" to service_role;
-create policy document_delivery_preferences_read on "better_supabase"."document_delivery_preferences"
+create policy bsb_document_delivery_preferences_read on "better_supabase"."document_delivery_preferences"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 
@@ -173,7 +173,7 @@ alter table "better_supabase"."person_identities" enable row level security;
 revoke all on "better_supabase"."person_identities" from public, anon, authenticated;
 grant select on "better_supabase"."person_identities" to authenticated;
 grant all on "better_supabase"."person_identities" to service_role;
-create policy person_identities_read on "better_supabase"."person_identities"
+create policy bsb_person_identities_read on "better_supabase"."person_identities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('contacts.read')));
 

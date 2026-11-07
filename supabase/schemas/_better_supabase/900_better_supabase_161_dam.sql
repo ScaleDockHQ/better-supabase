@@ -1,6 +1,6 @@
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:d92f3de4cf9b943ae9203ba1ded5a9a71dfe8f93740ced3fc848dbfb9a4e030e
+-- @bsb-hash sha256:80f5235cea137eed8f1b5563eeb72a663f29b8d9c447012154bc4f1923bebea4
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -30,7 +30,7 @@ alter table "better_supabase"."dam_renditions" enable row level security;
 revoke all on "better_supabase"."dam_renditions" from public, anon, authenticated;
 grant select on "better_supabase"."dam_renditions" to authenticated;
 grant all on "better_supabase"."dam_renditions" to service_role;
-create policy dam_renditions_read on "better_supabase"."dam_renditions"
+create policy bsb_dam_renditions_read on "better_supabase"."dam_renditions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')));
 
@@ -59,7 +59,7 @@ alter table "better_supabase"."dam_usage_rights" enable row level security;
 revoke all on "better_supabase"."dam_usage_rights" from public, anon, authenticated;
 grant select on "better_supabase"."dam_usage_rights" to authenticated;
 grant all on "better_supabase"."dam_usage_rights" to service_role;
-create policy dam_usage_rights_read on "better_supabase"."dam_usage_rights"
+create policy bsb_dam_usage_rights_read on "better_supabase"."dam_usage_rights"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('dam.read')));
 

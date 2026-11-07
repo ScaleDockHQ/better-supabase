@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:6dad41951449688719188a7cd5020391727fc0f32bec21a910efeceacf0922d1
+-- @bsb-hash sha256:c67c0a117e3fc156166c8944b82a13a90828b82fb221c8fc5f1a4274890907f4
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -33,7 +33,7 @@ alter table "better_supabase"."versions" enable row level security;
 revoke all on "better_supabase"."versions" from public, anon, authenticated;
 grant select on "better_supabase"."versions" to authenticated;
 grant all on "better_supabase"."versions" to service_role;
-create policy versions_read on "better_supabase"."versions"
+create policy bsb_versions_read on "better_supabase"."versions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
 
@@ -421,7 +421,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:e1a37f6d69575b1f05f05a6a0cc1409fb65a1577bd335067855e23202add1741
+-- @bsb-hash sha256:9324835f630d7c03cfc7424ff6451187be3491cefc2d6525cf43ef143aceeb31
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -453,10 +453,10 @@ alter table "better_supabase"."versions" enable row level security;
 revoke all on "better_supabase"."versions" from public, anon, authenticated;
 grant select on "better_supabase"."versions" to authenticated;
 grant all on "better_supabase"."versions" to service_role;
-create policy versions_read on "better_supabase"."versions"
+create policy bsb_versions_read on "better_supabase"."versions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
-create policy versions_ai_documents on "better_supabase"."versions" as restrictive
+create policy bsb_versions_ai_documents on "better_supabase"."versions" as restrictive
   for select to authenticated
   using ("subject_type" <> 'ai_document');
 
@@ -899,7 +899,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:ab0d7b5a3167a55a25b763c29234e34aa9a1de78c6c63e458e11875a592c655a
+-- @bsb-hash sha256:fc96d7afb300fc6f68884f8fd15c24038ce55672dfb9b695809e44d6841c8209
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -936,7 +936,7 @@ alter table "app_private"."versions" enable row level security;
 revoke all on "app_private"."versions" from public, anon, authenticated;
 grant select on "app_private"."versions" to authenticated;
 grant all on "app_private"."versions" to service_role;
-create policy versions_read on "app_private"."versions"
+create policy bsb_versions_read on "app_private"."versions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
 
@@ -1324,7 +1324,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:4cc3f762ed513a3559861b6bcd42250466efd24480f467a088df9cda87109da3
+-- @bsb-hash sha256:0fd8e68bdc52c843819625e7a045226297d6bc534cc94f273ff8bda549d185bb
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1356,7 +1356,7 @@ alter table "better_supabase"."versions" enable row level security;
 revoke all on "better_supabase"."versions" from public, anon, authenticated;
 grant select on "better_supabase"."versions" to authenticated;
 grant all on "better_supabase"."versions" to service_role;
-create policy versions_read on "better_supabase"."versions"
+create policy bsb_versions_read on "better_supabase"."versions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('versions.read')));
 
@@ -2230,7 +2230,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:f3adb56d045a477cc9f76a0721234fc1432db68f1b3e2378967e9019d9858f93
+-- @bsb-hash sha256:f540a327eaf6663775a0453b7166075f30556604a92b7d953e7593934ae717d2
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2262,7 +2262,7 @@ alter table "better_supabase"."versions" enable row level security;
 revoke all on "better_supabase"."versions" from public, anon, authenticated;
 grant select on "better_supabase"."versions" to authenticated;
 grant all on "better_supabase"."versions" to service_role;
-create policy versions_read on "better_supabase"."versions"
+create policy bsb_versions_read on "better_supabase"."versions"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('versions.read')));
 

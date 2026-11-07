@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:dd773e4dc2bd0451e43fcc5ab90864defac757e6b789f138633e09b867ed6947
+-- @bsb-hash sha256:92f660be49f04b57844ad073c4eab0827575b7a28c6b3fc21f659cccfcfd77dd
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -75,14 +75,14 @@ alter table "better_supabase"."asset_locations" enable row level security;
 revoke all on "better_supabase"."asset_locations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_locations" to authenticated;
 grant all on "better_supabase"."asset_locations" to service_role;
-create policy asset_locations_read on "better_supabase"."asset_locations"
+create policy bsb_asset_locations_read on "better_supabase"."asset_locations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 alter table "better_supabase"."assets" enable row level security;
 revoke all on "better_supabase"."assets" from public, anon, authenticated;
 grant select on "better_supabase"."assets" to authenticated;
 grant all on "better_supabase"."assets" to service_role;
-create policy assets_read on "better_supabase"."assets"
+create policy bsb_assets_read on "better_supabase"."assets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text));
@@ -90,7 +90,7 @@ alter table "better_supabase"."asset_assignments" enable row level security;
 revoke all on "better_supabase"."asset_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."asset_assignments" to authenticated;
 grant all on "better_supabase"."asset_assignments" to service_role;
-create policy asset_assignments_read on "better_supabase"."asset_assignments"
+create policy bsb_asset_assignments_read on "better_supabase"."asset_assignments"
   for select to authenticated
   using ("asset_id" in (select y."id" from "better_supabase"."assets" y));
 
@@ -156,7 +156,7 @@ alter table "better_supabase"."asset_depreciations" enable row level security;
 revoke all on "better_supabase"."asset_depreciations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_depreciations" to authenticated;
 grant all on "better_supabase"."asset_depreciations" to service_role;
-create policy asset_depreciations_read on "better_supabase"."asset_depreciations"
+create policy bsb_asset_depreciations_read on "better_supabase"."asset_depreciations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 
@@ -1057,7 +1057,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:d5dfd3c7a745e36f4b1d5024823893ab35b279e04c0da086f0693fc5b87ab75a
+-- @bsb-hash sha256:aaf0c07de88a661ca83bb76f3515f05e9b7b815727e0e65f3ffad34aeebf44bf
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1131,14 +1131,14 @@ alter table "better_supabase"."asset_locations" enable row level security;
 revoke all on "better_supabase"."asset_locations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_locations" to authenticated;
 grant all on "better_supabase"."asset_locations" to service_role;
-create policy asset_locations_read on "better_supabase"."asset_locations"
+create policy bsb_asset_locations_read on "better_supabase"."asset_locations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 alter table "better_supabase"."assets" enable row level security;
 revoke all on "better_supabase"."assets" from public, anon, authenticated;
 grant select on "better_supabase"."assets" to authenticated;
 grant all on "better_supabase"."assets" to service_role;
-create policy assets_read on "better_supabase"."assets"
+create policy bsb_assets_read on "better_supabase"."assets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text));
@@ -1146,7 +1146,7 @@ alter table "better_supabase"."asset_assignments" enable row level security;
 revoke all on "better_supabase"."asset_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."asset_assignments" to authenticated;
 grant all on "better_supabase"."asset_assignments" to service_role;
-create policy asset_assignments_read on "better_supabase"."asset_assignments"
+create policy bsb_asset_assignments_read on "better_supabase"."asset_assignments"
   for select to authenticated
   using ("asset_id" in (select y."id" from "better_supabase"."assets" y));
 
@@ -1212,7 +1212,7 @@ alter table "better_supabase"."asset_depreciations" enable row level security;
 revoke all on "better_supabase"."asset_depreciations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_depreciations" to authenticated;
 grant all on "better_supabase"."asset_depreciations" to service_role;
-create policy asset_depreciations_read on "better_supabase"."asset_depreciations"
+create policy bsb_asset_depreciations_read on "better_supabase"."asset_depreciations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 
@@ -2293,7 +2293,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:02811efa8f849f3b8931b738aaaa7b855e366e4ee5cb56fd3768a0e4a137086a
+-- @bsb-hash sha256:8ec901e1ecbd7c8f23c53979b6e5c3bcd1851d2a93e29662df83fa04e9da2f20
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2372,14 +2372,14 @@ alter table "app_private"."asset_locations" enable row level security;
 revoke all on "app_private"."asset_locations" from public, anon, authenticated;
 grant select on "app_private"."asset_locations" to authenticated;
 grant all on "app_private"."asset_locations" to service_role;
-create policy asset_locations_read on "app_private"."asset_locations"
+create policy bsb_asset_locations_read on "app_private"."asset_locations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 alter table "app_private"."assets" enable row level security;
 revoke all on "app_private"."assets" from public, anon, authenticated;
 grant select on "app_private"."assets" to authenticated;
 grant all on "app_private"."assets" to service_role;
-create policy assets_read on "app_private"."assets"
+create policy bsb_assets_read on "app_private"."assets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text));
@@ -2387,7 +2387,7 @@ alter table "app_private"."asset_assignments" enable row level security;
 revoke all on "app_private"."asset_assignments" from public, anon, authenticated;
 grant select on "app_private"."asset_assignments" to authenticated;
 grant all on "app_private"."asset_assignments" to service_role;
-create policy asset_assignments_read on "app_private"."asset_assignments"
+create policy bsb_asset_assignments_read on "app_private"."asset_assignments"
   for select to authenticated
   using ("asset_id" in (select y."id" from "app_private"."assets" y));
 
@@ -2453,7 +2453,7 @@ alter table "app_private"."asset_depreciations" enable row level security;
 revoke all on "app_private"."asset_depreciations" from public, anon, authenticated;
 grant select on "app_private"."asset_depreciations" to authenticated;
 grant all on "app_private"."asset_depreciations" to service_role;
-create policy asset_depreciations_read on "app_private"."asset_depreciations"
+create policy bsb_asset_depreciations_read on "app_private"."asset_depreciations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 
@@ -3354,7 +3354,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:2610a263199a893689ad345fbed8e8eda2c5ea87ce45022fa035535bb79070b3
+-- @bsb-hash sha256:1d571ab6483d4cb2f828cefcf6e9f1cd49afa2b24f2567b1085d7b3c873b03aa
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3428,14 +3428,14 @@ alter table "better_supabase"."asset_locations" enable row level security;
 revoke all on "better_supabase"."asset_locations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_locations" to authenticated;
 grant all on "better_supabase"."asset_locations" to service_role;
-create policy asset_locations_read on "better_supabase"."asset_locations"
+create policy bsb_asset_locations_read on "better_supabase"."asset_locations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 alter table "better_supabase"."assets" enable row level security;
 revoke all on "better_supabase"."assets" from public, anon, authenticated;
 grant select on "better_supabase"."assets" to authenticated;
 grant all on "better_supabase"."assets" to service_role;
-create policy assets_read on "better_supabase"."assets"
+create policy bsb_assets_read on "better_supabase"."assets"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text));
@@ -3443,7 +3443,7 @@ alter table "better_supabase"."asset_assignments" enable row level security;
 revoke all on "better_supabase"."asset_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."asset_assignments" to authenticated;
 grant all on "better_supabase"."asset_assignments" to service_role;
-create policy asset_assignments_read on "better_supabase"."asset_assignments"
+create policy bsb_asset_assignments_read on "better_supabase"."asset_assignments"
   for select to authenticated
   using ("asset_id" in (select y."id" from "better_supabase"."assets" y));
 
@@ -3509,7 +3509,7 @@ alter table "better_supabase"."asset_depreciations" enable row level security;
 revoke all on "better_supabase"."asset_depreciations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_depreciations" to authenticated;
 grant all on "better_supabase"."asset_depreciations" to service_role;
-create policy asset_depreciations_read on "better_supabase"."asset_depreciations"
+create policy bsb_asset_depreciations_read on "better_supabase"."asset_depreciations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('assets.read')));
 
@@ -5622,7 +5622,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:552bc08bdf4c63c8ace82e7802b4f98225e6d576b8c2450bf1772b69752cdc2b
+-- @bsb-hash sha256:6ca7a7e63d010ea5abcc262d4a36741f305b93fd8d3167f93bcd903ff834a9bd
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5696,14 +5696,14 @@ alter table "better_supabase"."asset_locations" enable row level security;
 revoke all on "better_supabase"."asset_locations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_locations" to authenticated;
 grant all on "better_supabase"."asset_locations" to service_role;
-create policy asset_locations_read on "better_supabase"."asset_locations"
+create policy bsb_asset_locations_read on "better_supabase"."asset_locations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('assets.read')));
 alter table "better_supabase"."assets" enable row level security;
 revoke all on "better_supabase"."assets" from public, anon, authenticated;
 grant select on "better_supabase"."assets" to authenticated;
 grant all on "better_supabase"."assets" to service_role;
-create policy assets_read on "better_supabase"."assets"
+create policy bsb_assets_read on "better_supabase"."assets"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('assets.read'))
     or ("assignee_type" = 'member' and "assignee_id" = (select auth.uid())::text));
@@ -5711,7 +5711,7 @@ alter table "better_supabase"."asset_assignments" enable row level security;
 revoke all on "better_supabase"."asset_assignments" from public, anon, authenticated;
 grant select on "better_supabase"."asset_assignments" to authenticated;
 grant all on "better_supabase"."asset_assignments" to service_role;
-create policy asset_assignments_read on "better_supabase"."asset_assignments"
+create policy bsb_asset_assignments_read on "better_supabase"."asset_assignments"
   for select to authenticated
   using ("asset_id" in (select y."id" from "better_supabase"."assets" y));
 
@@ -5777,7 +5777,7 @@ alter table "better_supabase"."asset_depreciations" enable row level security;
 revoke all on "better_supabase"."asset_depreciations" from public, anon, authenticated;
 grant select on "better_supabase"."asset_depreciations" to authenticated;
 grant all on "better_supabase"."asset_depreciations" to service_role;
-create policy asset_depreciations_read on "better_supabase"."asset_depreciations"
+create policy bsb_asset_depreciations_read on "better_supabase"."asset_depreciations"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('assets.read')));
 

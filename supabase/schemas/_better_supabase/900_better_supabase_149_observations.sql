@@ -1,6 +1,6 @@
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:847de28b76ed2de85f3eb61f77488a82825aef080785a936557910a6d07ab99b
+-- @bsb-hash sha256:6f1bd9294f00a0c405b04403f230d7f633ca75cd18e2bfb4f9e75767c72a047b
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,7 +45,7 @@ alter table "better_supabase"."observation_definitions" enable row level securit
 revoke all on "better_supabase"."observation_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."observation_definitions" to authenticated;
 grant all on "better_supabase"."observation_definitions" to service_role;
-create policy observation_definitions_read on "better_supabase"."observation_definitions"
+create policy bsb_observation_definitions_read on "better_supabase"."observation_definitions"
   for select to authenticated
   using ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) or "tenant_id" in (select better_supabase.member_organization_ids()));
 
@@ -88,7 +88,7 @@ alter table "better_supabase"."observations" enable row level security;
 revoke all on "better_supabase"."observations" from public, anon, authenticated;
 grant select on "better_supabase"."observations" to authenticated;
 grant all on "better_supabase"."observations" to service_role;
-create policy observations_read on "better_supabase"."observations"
+create policy bsb_observations_read on "better_supabase"."observations"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('observations.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 

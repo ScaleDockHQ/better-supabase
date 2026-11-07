@@ -1,6 +1,6 @@
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:5124be75c0d6e378ca6825f98e4c78aec5a297b1f24d43ca3fcca99babc9f233
+-- @bsb-hash sha256:ccdd64e8e62f531707dcec8edf2a9fdbef3c6abc3859d8096f34e975ecdb1872
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -24,7 +24,7 @@ alter table "better_supabase"."usage_counters" enable row level security;
 revoke all on "better_supabase"."usage_counters" from public, anon, authenticated;
 grant select on "better_supabase"."usage_counters" to authenticated;
 grant all on "better_supabase"."usage_counters" to service_role;
-create policy usage_counters_read on "better_supabase"."usage_counters"
+create policy bsb_usage_counters_read on "better_supabase"."usage_counters"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
@@ -56,7 +56,7 @@ alter table "better_supabase"."usage_history" enable row level security;
 revoke all on "better_supabase"."usage_history" from public, anon, authenticated;
 grant select on "better_supabase"."usage_history" to authenticated;
 grant all on "better_supabase"."usage_history" to service_role;
-create policy usage_history_read on "better_supabase"."usage_history"
+create policy bsb_usage_history_read on "better_supabase"."usage_history"
   for select to authenticated
   using ("organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 
@@ -84,7 +84,7 @@ alter table "better_supabase"."usage_quotas" enable row level security;
 revoke all on "better_supabase"."usage_quotas" from public, anon, authenticated;
 grant select on "better_supabase"."usage_quotas" to authenticated;
 grant all on "better_supabase"."usage_quotas" to service_role;
-create policy usage_quotas_read on "better_supabase"."usage_quotas"
+create policy bsb_usage_quotas_read on "better_supabase"."usage_quotas"
   for select to authenticated
   using ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('usage.read')));
 

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:b8624ba732f303a62abae4ff25bb0fb1a6f03e2333d43d2af55dd7f5b0290a83
+-- @bsb-hash sha256:69b166e3383a13ae3bccb817b59e1d9963d1f986dc034a408b351a7eb9791200
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,7 +38,7 @@ alter table "better_supabase"."templates" enable row level security;
 revoke all on "better_supabase"."templates" from public, anon, authenticated;
 grant select on "better_supabase"."templates" to authenticated;
 grant all on "better_supabase"."templates" to service_role;
-create policy templates_read on "better_supabase"."templates"
+create policy bsb_templates_read on "better_supabase"."templates"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read'))
     or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('templates.read'))));
@@ -62,7 +62,7 @@ alter table "better_supabase"."template_versions" enable row level security;
 revoke all on "better_supabase"."template_versions" from public, anon, authenticated;
 grant select on "better_supabase"."template_versions" to authenticated;
 grant all on "better_supabase"."template_versions" to service_role;
-create policy template_versions_read on "better_supabase"."template_versions"
+create policy bsb_template_versions_read on "better_supabase"."template_versions"
   for select to authenticated
   using (exists (select 1 from "better_supabase"."templates" x where x."id" = "template_id"));
 
@@ -86,7 +86,7 @@ alter table "better_supabase"."template_applications" enable row level security;
 revoke all on "better_supabase"."template_applications" from public, anon, authenticated;
 grant select on "better_supabase"."template_applications" to authenticated;
 grant all on "better_supabase"."template_applications" to service_role;
-create policy template_applications_read on "better_supabase"."template_applications"
+create policy bsb_template_applications_read on "better_supabase"."template_applications"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('templates.read')));
 

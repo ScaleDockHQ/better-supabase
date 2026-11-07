@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:b03a8e5da577089884b624b0cff2b1cd4fa5a0c9b575495c231142a779c8b19a
+-- @bsb-hash sha256:54a3ccdf08cdd52469a6fb236fe882ad48e79473d323268a0353b934338d5d7a
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -41,7 +41,7 @@ alter table "better_supabase"."legal_entities" enable row level security;
 revoke all on "better_supabase"."legal_entities" from public, anon, authenticated;
 grant select on "better_supabase"."legal_entities" to authenticated;
 grant all on "better_supabase"."legal_entities" to service_role;
-create policy legal_entities_read on "better_supabase"."legal_entities"
+create policy bsb_legal_entities_read on "better_supabase"."legal_entities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
 
@@ -63,7 +63,7 @@ alter table "better_supabase"."legal_entity_settings" enable row level security;
 revoke all on "better_supabase"."legal_entity_settings" from public, anon, authenticated;
 grant select on "better_supabase"."legal_entity_settings" to authenticated;
 grant all on "better_supabase"."legal_entity_settings" to service_role;
-create policy legal_entity_settings_read on "better_supabase"."legal_entity_settings"
+create policy bsb_legal_entity_settings_read on "better_supabase"."legal_entity_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
 
@@ -541,7 +541,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:c0c8a68bee160b566b39d095000c968f76de01988b26028b11c97ce00f1e69cb
+-- @bsb-hash sha256:fc7f9896b3b65e75286f933c8d84b21cd24fa1c448df2a6a8b6dd8cd058ceb1e
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -581,7 +581,7 @@ alter table "better_supabase"."legal_entities" enable row level security;
 revoke all on "better_supabase"."legal_entities" from public, anon, authenticated;
 grant select on "better_supabase"."legal_entities" to authenticated;
 grant all on "better_supabase"."legal_entities" to service_role;
-create policy legal_entities_read on "better_supabase"."legal_entities"
+create policy bsb_legal_entities_read on "better_supabase"."legal_entities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
 
@@ -603,7 +603,7 @@ alter table "better_supabase"."legal_entity_settings" enable row level security;
 revoke all on "better_supabase"."legal_entity_settings" from public, anon, authenticated;
 grant select on "better_supabase"."legal_entity_settings" to authenticated;
 grant all on "better_supabase"."legal_entity_settings" to service_role;
-create policy legal_entity_settings_read on "better_supabase"."legal_entity_settings"
+create policy bsb_legal_entity_settings_read on "better_supabase"."legal_entity_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
 
@@ -1271,7 +1271,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:6d51976568c70c3a87f935f8d391985ac98cc02a8fa668d4e7af0842a0f2666d
+-- @bsb-hash sha256:594695d1e6d9b2e3ffe01bad392a311592de816600e525fd9f23215fcf974454
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1316,7 +1316,7 @@ alter table "app_private"."legal_entities" enable row level security;
 revoke all on "app_private"."legal_entities" from public, anon, authenticated;
 grant select on "app_private"."legal_entities" to authenticated;
 grant all on "app_private"."legal_entities" to service_role;
-create policy legal_entities_read on "app_private"."legal_entities"
+create policy bsb_legal_entities_read on "app_private"."legal_entities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
 
@@ -1338,7 +1338,7 @@ alter table "app_private"."legal_entity_settings" enable row level security;
 revoke all on "app_private"."legal_entity_settings" from public, anon, authenticated;
 grant select on "app_private"."legal_entity_settings" to authenticated;
 grant all on "app_private"."legal_entity_settings" to service_role;
-create policy legal_entity_settings_read on "app_private"."legal_entity_settings"
+create policy bsb_legal_entity_settings_read on "app_private"."legal_entity_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
 
@@ -1816,7 +1816,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:ff7615f50170310a259871d8b8b8e7ff70db24c31f7fba2a8e28512212f0a24a
+-- @bsb-hash sha256:7cc0e5e2c5ffb45d08278163bf6b6b5685c7118483565dd7bd5a7e7281be9b0c
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1856,7 +1856,7 @@ alter table "better_supabase"."legal_entities" enable row level security;
 revoke all on "better_supabase"."legal_entities" from public, anon, authenticated;
 grant select on "better_supabase"."legal_entities" to authenticated;
 grant all on "better_supabase"."legal_entities" to service_role;
-create policy legal_entities_read on "better_supabase"."legal_entities"
+create policy bsb_legal_entities_read on "better_supabase"."legal_entities"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
 
@@ -1878,7 +1878,7 @@ alter table "better_supabase"."legal_entity_settings" enable row level security;
 revoke all on "better_supabase"."legal_entity_settings" from public, anon, authenticated;
 grant select on "better_supabase"."legal_entity_settings" to authenticated;
 grant all on "better_supabase"."legal_entity_settings" to service_role;
-create policy legal_entity_settings_read on "better_supabase"."legal_entity_settings"
+create policy bsb_legal_entity_settings_read on "better_supabase"."legal_entity_settings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
 
@@ -2995,7 +2995,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:159d3ffe405e64b8f6682d24c19c56fc3a6e832cd7d5d61dba2fe403bc5a7e53
+-- @bsb-hash sha256:ca58aa8fcb6d34ec1bb0b384722edbc294e00a03fd6036dd460d766202ebcd9e
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3035,7 +3035,7 @@ alter table "better_supabase"."legal_entities" enable row level security;
 revoke all on "better_supabase"."legal_entities" from public, anon, authenticated;
 grant select on "better_supabase"."legal_entities" to authenticated;
 grant all on "better_supabase"."legal_entities" to service_role;
-create policy legal_entities_read on "better_supabase"."legal_entities"
+create policy bsb_legal_entities_read on "better_supabase"."legal_entities"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
 
@@ -3057,7 +3057,7 @@ alter table "better_supabase"."legal_entity_settings" enable row level security;
 revoke all on "better_supabase"."legal_entity_settings" from public, anon, authenticated;
 grant select on "better_supabase"."legal_entity_settings" to authenticated;
 grant all on "better_supabase"."legal_entity_settings" to service_role;
-create policy legal_entity_settings_read on "better_supabase"."legal_entity_settings"
+create policy bsb_legal_entity_settings_read on "better_supabase"."legal_entity_settings"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('legal_entities.read')));
 

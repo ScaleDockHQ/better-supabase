@@ -14,7 +14,7 @@ select extensions.is(
 
 select extensions.cmp_ok(
   (select count(*) from pg_catalog.pg_policies where schemaname = 'better_supabase' and policyname !~ '^bsb_'),
-  '<=', 478::bigint,
+  '<=', 0::bigint,
   'better_supabase policies are named bsb_*'
 );
 

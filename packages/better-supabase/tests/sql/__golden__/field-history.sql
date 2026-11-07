@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:2f2808fce5f7c0276e70332a4650932cedea57c1eaeac19034c90879bbe3233a
+-- @bsb-hash sha256:85b9a01de3c64c46febfbccbe80ae442534a68a10052b0c3b652bf055b2a2358
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -26,7 +26,7 @@ alter table "better_supabase"."field_changes" enable row level security;
 revoke all on "better_supabase"."field_changes" from public, anon, authenticated;
 grant select on "better_supabase"."field_changes" to authenticated;
 grant all on "better_supabase"."field_changes" to service_role;
-create policy field_changes_read on "better_supabase"."field_changes"
+create policy bsb_field_changes_read on "better_supabase"."field_changes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
@@ -103,7 +103,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:2f2808fce5f7c0276e70332a4650932cedea57c1eaeac19034c90879bbe3233a
+-- @bsb-hash sha256:85b9a01de3c64c46febfbccbe80ae442534a68a10052b0c3b652bf055b2a2358
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -128,7 +128,7 @@ alter table "better_supabase"."field_changes" enable row level security;
 revoke all on "better_supabase"."field_changes" from public, anon, authenticated;
 grant select on "better_supabase"."field_changes" to authenticated;
 grant all on "better_supabase"."field_changes" to service_role;
-create policy field_changes_read on "better_supabase"."field_changes"
+create policy bsb_field_changes_read on "better_supabase"."field_changes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
@@ -205,7 +205,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:2f1d43b14b765fd9fc0d88d05ceefdfdf7e8c822cf53a1ec776d7fb802e0aef5
+-- @bsb-hash sha256:869c112307e5b19e1e992f0a03786547bc253def3a72b07df66abd72038b7299
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -235,7 +235,7 @@ alter table "app_private"."field_changes" enable row level security;
 revoke all on "app_private"."field_changes" from public, anon, authenticated;
 grant select on "app_private"."field_changes" to authenticated;
 grant all on "app_private"."field_changes" to service_role;
-create policy field_changes_read on "app_private"."field_changes"
+create policy bsb_field_changes_read on "app_private"."field_changes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
@@ -312,7 +312,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:dbede3046b8cdf52abad1551106023ccf3cb1cc83e85f101270a296bfe80cd78
+-- @bsb-hash sha256:f0e9da9cf313422320f7b6eb867a4d82d6d0abca662b7ed193e106d538d4cb8e
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -337,7 +337,7 @@ alter table "better_supabase"."field_changes" enable row level security;
 revoke all on "better_supabase"."field_changes" from public, anon, authenticated;
 grant select on "better_supabase"."field_changes" to authenticated;
 grant all on "better_supabase"."field_changes" to service_role;
-create policy field_changes_read on "better_supabase"."field_changes"
+create policy bsb_field_changes_read on "better_supabase"."field_changes"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 
@@ -528,7 +528,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_137_field_history.sql
 -- better-supabase module: field-history
 -- @bsb-block field-history@1 managed
--- @bsb-hash sha256:ba49ad20bf8d58ce1d615fb8cf22b832b891ce941c7bf4f84a9b127e76865046
+-- @bsb-hash sha256:8cf9053f5efc71cd19bd0f90e0aa9e21abb647eaa772e37cdacd23ee699a585f
 -- The old and new value of chosen columns of any registered record on every update, who changed it and when, read per record and field.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -553,7 +553,7 @@ alter table "better_supabase"."field_changes" enable row level security;
 revoke all on "better_supabase"."field_changes" from public, anon, authenticated;
 grant select on "better_supabase"."field_changes" to authenticated;
 grant all on "better_supabase"."field_changes" to service_role;
-create policy field_changes_read on "better_supabase"."field_changes"
+create policy bsb_field_changes_read on "better_supabase"."field_changes"
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('field_history.read')) and coalesce("better_supabase"."can_subject"("subject_type", "subject_id", 'read'), false));
 

@@ -1,6 +1,6 @@
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:1f32fd64b48b2f058f170eb31ade755bfe5eb9ea24614371ba865c58990837d1
+-- @bsb-hash sha256:2a4ffac67e07ef1c6138d1de39f994a74756f7f47e88a65ed9bf688988b6155b
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -49,7 +49,7 @@ alter table "better_supabase"."contracts" enable row level security;
 revoke all on "better_supabase"."contracts" from public, anon, authenticated;
 grant select on "better_supabase"."contracts" to authenticated;
 grant all on "better_supabase"."contracts" to service_role;
-create policy contracts_read on "better_supabase"."contracts"
+create policy bsb_contracts_read on "better_supabase"."contracts"
   for select to authenticated
   using ("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('contracts.read')));
 
@@ -75,7 +75,7 @@ alter table "better_supabase"."contract_obligations" enable row level security;
 revoke all on "better_supabase"."contract_obligations" from public, anon, authenticated;
 grant select on "better_supabase"."contract_obligations" to authenticated;
 grant all on "better_supabase"."contract_obligations" to service_role;
-create policy contract_obligations_read on "better_supabase"."contract_obligations"
+create policy bsb_contract_obligations_read on "better_supabase"."contract_obligations"
   for select to authenticated
   using ("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('contracts.read')));
 

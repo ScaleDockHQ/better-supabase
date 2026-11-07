@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:24224929eaa781fc192e9dc7399ebf8c077f43a1dfdb700f7027f1c4e648c662
+-- @bsb-hash sha256:e876e207219705916170c59917b4ef6a8e1207b1bd901f3d8565decd2e62e304
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -48,7 +48,7 @@ alter table "better_supabase"."workflow_definitions" enable row level security;
 revoke all on "better_supabase"."workflow_definitions" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_definitions" to authenticated;
 grant all on "better_supabase"."workflow_definitions" to service_role;
-create policy workflow_definitions_read on "better_supabase"."workflow_definitions"
+create policy bsb_workflow_definitions_read on "better_supabase"."workflow_definitions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow_editor.read')) or ("scope" = 'system' and exists (select better_supabase.tenant_ids_with('workflow_editor.read'))));
 
@@ -67,7 +67,7 @@ alter table "better_supabase"."workflow_opt_outs" enable row level security;
 revoke all on "better_supabase"."workflow_opt_outs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_opt_outs" to authenticated;
 grant all on "better_supabase"."workflow_opt_outs" to service_role;
-create policy workflow_opt_outs_read on "better_supabase"."workflow_opt_outs"
+create policy bsb_workflow_opt_outs_read on "better_supabase"."workflow_opt_outs"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow_editor.read')));
 
@@ -89,7 +89,7 @@ alter table "better_supabase"."workflow_definition_grants" enable row level secu
 revoke all on "better_supabase"."workflow_definition_grants" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_definition_grants" to authenticated;
 grant all on "better_supabase"."workflow_definition_grants" to service_role;
-create policy workflow_definition_grants_read on "better_supabase"."workflow_definition_grants"
+create policy bsb_workflow_definition_grants_read on "better_supabase"."workflow_definition_grants"
   for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
@@ -124,7 +124,7 @@ alter table "better_supabase"."workflow_versions" enable row level security;
 revoke all on "better_supabase"."workflow_versions" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_versions" to authenticated;
 grant all on "better_supabase"."workflow_versions" to service_role;
-create policy workflow_versions_read on "better_supabase"."workflow_versions"
+create policy bsb_workflow_versions_read on "better_supabase"."workflow_versions"
   for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
@@ -147,7 +147,7 @@ alter table "better_supabase"."workflow_triggers" enable row level security;
 revoke all on "better_supabase"."workflow_triggers" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_triggers" to authenticated;
 grant all on "better_supabase"."workflow_triggers" to service_role;
-create policy workflow_triggers_read on "better_supabase"."workflow_triggers"
+create policy bsb_workflow_triggers_read on "better_supabase"."workflow_triggers"
   for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 
@@ -179,7 +179,7 @@ alter table "better_supabase"."workflow_credentials" enable row level security;
 revoke all on "better_supabase"."workflow_credentials" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_credentials" to authenticated;
 grant all on "better_supabase"."workflow_credentials" to service_role;
-create policy workflow_credentials_read on "better_supabase"."workflow_credentials"
+create policy bsb_workflow_credentials_read on "better_supabase"."workflow_credentials"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('workflow_editor.read')));
 
@@ -200,7 +200,7 @@ alter table "better_supabase"."workflow_step_library" enable row level security;
 revoke all on "better_supabase"."workflow_step_library" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
 grant all on "better_supabase"."workflow_step_library" to service_role;
-create policy workflow_step_library_read on "better_supabase"."workflow_step_library"
+create policy bsb_workflow_step_library_read on "better_supabase"."workflow_step_library"
   for select to authenticated
   using (true);
 
@@ -218,7 +218,7 @@ alter table "better_supabase"."workflow_node_kinds" enable row level security;
 revoke all on "better_supabase"."workflow_node_kinds" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_node_kinds" to authenticated;
 grant all on "better_supabase"."workflow_node_kinds" to service_role;
-create policy workflow_node_kinds_read on "better_supabase"."workflow_node_kinds"
+create policy bsb_workflow_node_kinds_read on "better_supabase"."workflow_node_kinds"
   for select to authenticated
   using (true);
 
@@ -238,7 +238,7 @@ alter table "better_supabase"."workflow_node_runs" enable row level security;
 revoke all on "better_supabase"."workflow_node_runs" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_node_runs" to authenticated;
 grant all on "better_supabase"."workflow_node_runs" to service_role;
-create policy workflow_node_runs_read on "better_supabase"."workflow_node_runs"
+create policy bsb_workflow_node_runs_read on "better_supabase"."workflow_node_runs"
   for select to authenticated
   using ("run_id" in (select x."id" from "better_supabase"."workflow_runs" x));
 
@@ -261,7 +261,7 @@ alter table "better_supabase"."workflow_alerts" enable row level security;
 revoke all on "better_supabase"."workflow_alerts" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_alerts" to authenticated;
 grant all on "better_supabase"."workflow_alerts" to service_role;
-create policy workflow_alerts_read on "better_supabase"."workflow_alerts"
+create policy bsb_workflow_alerts_read on "better_supabase"."workflow_alerts"
   for select to authenticated
   using ("definition_id" in (select x."id" from "better_supabase"."workflow_definitions" x));
 

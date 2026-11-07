@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_073_bookings.sql
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:a60efd0667ccebed11d4d999e842e09ddb1687319c2aa1dfd99e54ba2edc2529
+-- @bsb-hash sha256:68515ba13fe10ec2162fc7de33e6f1383b2f46346f86c65d2b59cd6495e16af4
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,7 @@ revoke all on "better_supabase"."booking_resources" from public, anon, authentic
 grant select on "better_supabase"."booking_resources" to authenticated;
 grant all on "better_supabase"."booking_resources" to service_role;
 create index "booking_resources_tenant_idx" on "better_supabase"."booking_resources" ("tenant_id");
-create policy booking_resources_read on "better_supabase"."booking_resources"
+create policy bsb_booking_resources_read on "better_supabase"."booking_resources"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
 create table "better_supabase"."booking_availability" (
@@ -42,7 +42,7 @@ alter table "better_supabase"."booking_availability" enable row level security;
 revoke all on "better_supabase"."booking_availability" from public, anon, authenticated;
 grant select on "better_supabase"."booking_availability" to authenticated;
 grant all on "better_supabase"."booking_availability" to service_role;
-create policy booking_availability_read on "better_supabase"."booking_availability"
+create policy bsb_booking_availability_read on "better_supabase"."booking_availability"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
 create table "better_supabase"."booking_exceptions" (
@@ -58,7 +58,7 @@ alter table "better_supabase"."booking_exceptions" enable row level security;
 revoke all on "better_supabase"."booking_exceptions" from public, anon, authenticated;
 grant select on "better_supabase"."booking_exceptions" to authenticated;
 grant all on "better_supabase"."booking_exceptions" to service_role;
-create policy booking_exceptions_read on "better_supabase"."booking_exceptions"
+create policy bsb_booking_exceptions_read on "better_supabase"."booking_exceptions"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')));
 create table "better_supabase"."booking_services" (
@@ -81,7 +81,7 @@ revoke all on "better_supabase"."booking_services" from public, anon, authentica
 grant select on "better_supabase"."booking_services" to authenticated;
 grant all on "better_supabase"."booking_services" to service_role;
 create index "booking_services_tenant_idx" on "better_supabase"."booking_services" ("tenant_id");
-create policy booking_services_read on "better_supabase"."booking_services"
+create policy bsb_booking_services_read on "better_supabase"."booking_services"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "tenant_id" in (select better_supabase.tenant_ids_with('bookings.create')));
 create table "better_supabase"."bookings" (
@@ -121,7 +121,7 @@ alter table "better_supabase"."bookings" enable row level security;
 revoke all on "better_supabase"."bookings" from public, anon, authenticated;
 grant select on "better_supabase"."bookings" to authenticated;
 grant all on "better_supabase"."bookings" to service_role;
-create policy bookings_read on "better_supabase"."bookings"
+create policy bsb_bookings_read on "better_supabase"."bookings"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('bookings.read')) or "customer_user_id" = (select auth.uid()));
 

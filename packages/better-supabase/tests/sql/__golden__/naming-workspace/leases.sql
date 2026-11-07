@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:263a9d964025fa2052a95cfe859229021cf2635448553a5bb4da59f38f9f0369
+-- @bsb-hash sha256:ae25c537f7383aa5a9ead7b8e0bbf340524282ba41be1f0b3aad6ca6a0080df7
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -45,7 +45,7 @@ alter table "better_supabase"."leases" enable row level security;
 revoke all on "better_supabase"."leases" from public, anon, authenticated;
 grant select on "better_supabase"."leases" to authenticated;
 grant all on "better_supabase"."leases" to service_role;
-create policy leases_read on "better_supabase"."leases"
+create policy bsb_leases_read on "better_supabase"."leases"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
@@ -69,7 +69,7 @@ alter table "better_supabase"."lease_charges" enable row level security;
 revoke all on "better_supabase"."lease_charges" from public, anon, authenticated;
 grant select on "better_supabase"."lease_charges" to authenticated;
 grant all on "better_supabase"."lease_charges" to service_role;
-create policy lease_charges_read on "better_supabase"."lease_charges"
+create policy bsb_lease_charges_read on "better_supabase"."lease_charges"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('leases.read')));
 
