@@ -5,13 +5,56 @@ description: Validate writes with zod, valibot or any Standard Schema.
 
 When `gen.generators` includes `zod()`, `valibot()` or `standardSchema()` (no
 validation library needed), the generated schema validates every write with
-the generated `insert` and `update` schemas. Nothing to install:
+the generated `insert` and `update` schemas. `standardSchema()` needs nothing
+installed; `zod()` and `valibot()` write files that import `zod` (version 4) or
+`valibot` (version 1), so the app installs the one it uses:
 
 ```ts title="better-supabase.config.ts"
-import { defineConfig, zod } from "better-supabase/config";
+import { defineConfig } from "better-supabase/config";
+import { zod } from "better-supabase/generators/zod";
 
 export default defineConfig({ gen: { generators: [zod()] } });
 ```
+
+## Generator subpaths
+
+Each first-party generator has its own subpath, so a config imports only the
+generator it uses. `better-supabase/config` still exports all of them.
+
+| Subpath                                      | Export                           | The generated files import   |
+| -------------------------------------------- | -------------------------------- | ---------------------------- |
+| `better-supabase/generators/zod`             | `zod()`                          | `zod` or `zod/mini` (4.x)    |
+| `better-supabase/generators/valibot`         | `valibot()`                      | `valibot` (1.x)              |
+| `better-supabase/generators/json-schema`     | `jsonSchema()`, `toJsonSchema()` | nothing                      |
+| `better-supabase/generators/standard-schema` | `standardSchema()`               | nothing                      |
+| `better-supabase/generators/factories`       | `factories()`                    | nothing                      |
+| `better-supabase/generators/nuqs`            | `nuqs()`                         | `nuqs/server` (2.3 or later) |
+
+```ts title="better-supabase.config.ts"
+import { defineConfig } from "better-supabase/config";
+import { factories } from "better-supabase/generators/factories";
+import { jsonSchema } from "better-supabase/generators/json-schema";
+import { nuqs } from "better-supabase/generators/nuqs";
+import { standardSchema } from "better-supabase/generators/standard-schema";
+import { valibot } from "better-supabase/generators/valibot";
+
+export default defineConfig({
+  gen: {
+    generators: [
+      valibot(),
+      standardSchema(),
+      jsonSchema(),
+      factories(),
+      nuqs(),
+    ],
+  },
+});
+```
+
+`zod`, `valibot` and `nuqs` are optional peers of `better-supabase` with those
+tested ranges. When a configured generator's library is installed outside its
+range, `gen` prints a notice, and `doctor` reports the version like any other
+optional peer.
 
 To pass your own schemas, per table, install `validation()` yourself; it
 replaces the one the generated schema installed:

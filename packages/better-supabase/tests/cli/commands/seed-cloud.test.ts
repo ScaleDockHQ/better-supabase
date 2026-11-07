@@ -334,7 +334,7 @@ describe("seed --defaults and --sample", () => {
       );
 
       expect(result).toMatchObject({
-        code: 3,
+        code: 2,
         data: { upgrade: "https://c.test/up" },
       });
     });

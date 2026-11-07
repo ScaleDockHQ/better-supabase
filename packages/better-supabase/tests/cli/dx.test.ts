@@ -94,10 +94,10 @@ describe("init and add", () => {
     expect(
       await readFile(join(dir, "src/lib/supabase/client.ts"), "utf-8"),
     ).toContain("process.env.NEXT_PUBLIC_SUPABASE_URL!");
-    expect(init.stdout).toContain(
+    expect(init.stderr).toContain(
       "pnpm add better-supabase @supabase/supabase-js @supabase/ssr",
     );
-    expect(init.stdout).not.toContain("pnpm add -D pg");
+    expect(init.stderr).not.toContain("pnpm add -D pg");
     expect(
       await readFile(join(dir, "src/lib/supabase/generated.ts"), "utf-8"),
     ).toBe("// generated\n");
@@ -109,7 +109,7 @@ describe("init and add", () => {
       '{"gen": {"output": "src/db/generated.ts"}}',
     );
     const again = await run(["init", "--cwd", dir]);
-    expect(again.stderr).toBe("");
+    expect(again.stderr).not.toMatch(/^! /m);
     expect(again.stdout).toContain(
       "Skipped src/proxy.ts (exists; pass --force to overwrite)",
     );
@@ -122,9 +122,9 @@ describe("init and add", () => {
     await project({});
     const init = await run(["init", "--lite", "--cwd", dir]);
     expect(init.code).toBe(0);
-    expect(init.stdout).toContain("pnpm add -D @supabase/lite@0.11");
-    expect(init.stdout).not.toContain("pnpm add -D pg");
-    expect(init.stdout).toContain("npx lite init");
+    expect(init.stderr).toContain("pnpm add -D @supabase/lite@0.11");
+    expect(init.stderr).not.toContain("pnpm add -D pg");
+    expect(init.stderr).toContain("npx lite init");
     expect(init.stdout).toContain("npx lite dev");
     expect(init.stdout).toContain("SUPABASE_JWT_SECRET");
     expect(init.stdout).toContain("Pass backend: 'lite'");
@@ -196,7 +196,7 @@ describe("init and add", () => {
       },
     );
     const refused = await run(["init", "--cwd", dir]);
-    expect(refused.code).toBe(3);
+    expect(refused.code).toBe(2);
     expect(refused.stderr).toContain(
       "pnpm-workspace.yaml makes this a workspace root. Pass --package with the package that owns the runtime (apps/web, packages/runtime)",
     );
@@ -212,12 +212,12 @@ describe("init and add", () => {
       true,
     );
     expect(existsSync(join(dir, "better-supabase.config.ts"))).toBe(false);
-    expect(init.stdout).toContain(
+    expect(init.stderr).toContain(
       "pnpm --filter @acme/web add better-supabase @supabase/supabase-js @supabase/ssr",
     );
-    expect(init.stdout).toContain("pnpm --filter @acme/web add -D pg");
-    expect(init.stdout).not.toContain("supabase init");
-    expect(init.stdout).toContain("better-supabase gen --cwd apps/web");
+    expect(init.stderr).toContain("pnpm --filter @acme/web add -D pg");
+    expect(init.stderr).not.toContain("supabase init");
+    expect(init.stderr).toContain("better-supabase gen --cwd apps/web");
 
     await writeFile(
       join(dir, "apps/web/better-supabase.config.json"),
@@ -748,7 +748,7 @@ export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { organi
       },
     );
     const added = await run(["add", "read-sets", "--cwd", dir]);
-    expect(added.stderr).toBe("");
+    expect(added.stderr).not.toMatch(/^! /m);
 
     const path = join(
       dir,

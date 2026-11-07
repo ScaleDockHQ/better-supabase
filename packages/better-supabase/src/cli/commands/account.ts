@@ -97,7 +97,7 @@ export function cloudFailure(error: unknown): CommandResult {
 
     case "unauthorized": {
       return {
-        code: 3,
+        code: 2,
         errorCode: "auth_required",
         error: "You are not logged in, or the login expired.",
         next: [{ command: "better-supabase login", when: "to log in again" }],
@@ -106,7 +106,7 @@ export function cloudFailure(error: unknown): CommandResult {
 
     case "upgrade": {
       return {
-        code: 3,
+        code: 2,
         errorCode: "auth_required",
         error: `${error.message}. Upgrade at ${error.upgrade ?? "https://app.bettersupabase.com/billing"}.`,
         data: { upgrade: error.upgrade },

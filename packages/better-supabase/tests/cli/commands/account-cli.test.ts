@@ -82,6 +82,6 @@ describe("login, whoami and logout commands", () => {
       env: { XDG_CONFIG_HOME: dir },
     });
 
-    expect(result.code).toBe(3);
+    expect(result.code).toBe(2);
   });
 });

@@ -15,6 +15,7 @@ import type { CommandNode, Loader } from "./parse.ts";
 import type { ExecEvent, HttpEvent } from "./trace.ts";
 
 import { builtinCommands } from "../builtin-commands.ts";
+import { setCacheEnabled } from "../cache/store.ts";
 import { painter } from "../style.ts";
 import { VERSION } from "../version.ts";
 import { checkConsent, missingInputNext, resolveAgent } from "./agent.ts";
@@ -38,6 +39,7 @@ import {
   globalFlags,
   resolveCommand,
 } from "./parse.ts";
+import { removedFlag } from "./removed.ts";
 import { EXEC_CHANNEL, HTTP_CHANNEL } from "./trace.ts";
 
 export interface RunOptions {
@@ -554,6 +556,7 @@ export function cliFromTree(
       ]);
 
       command = loaded;
+      removedFlag(node.path, rest);
       rawArgs = joinRepeated(rest, listArgs(command));
 
       // A command without declared args parses its own argv.
@@ -566,6 +569,7 @@ export function cliFromTree(
       }
 
       const globals = parseArgs<typeof GLOBAL_ARGS>([...rest], GLOBAL_ARGS);
+      setCacheEnabled(!rest.includes("--no-cache"));
       const cwd = projectDirectory(options.cwd ?? ".", globals.cwd);
       const env = parseEnv(options.env ?? {});
       const environment = configEnvironment(globals.env, env);
@@ -597,13 +601,27 @@ export function cliFromTree(
       });
 
       const interactive =
-        !json && globals.yes !== true && !isCi(env) && agent === undefined;
+        !json &&
+        globals.yes !== true &&
+        globals["non-interactive"] !== true &&
+        !isCi(env) &&
+        agent === undefined;
 
       const requireConsent = (request: ConsentRequest): void => {
         if (agent !== undefined) {
-          checkConsent(argv, request, globals.confirm);
+          checkConsent(argv, request, {
+            yes: globals.yes,
+            digest: globals["effects-digest"],
+          });
         }
       };
+
+      // Lazy: the memo store pulls in the SQL generator, which `--help` and
+      // `--version` never load. Without the store the generator computes every
+      // result, so the fallback is a slower run, never a wrong one.
+      await import("../cache/memo-backend.ts").then(({ installMemo }) =>
+        installMemo(config.root),
+      );
 
       context = {
         cwd,

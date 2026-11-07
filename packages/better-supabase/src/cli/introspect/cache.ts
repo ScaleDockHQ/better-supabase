@@ -6,12 +6,12 @@ import type { ResolvedConfig } from "../../config/index.ts";
 import type { IntrospectionSource } from "./source.ts";
 import type { Snapshot } from "./types.ts";
 
+import { CACHE_DIR } from "../cache/store.ts";
 import { VERSION } from "../version.ts";
 import { catalogFingerprint } from "./fingerprint.ts";
 import { TYPEGEN_VERSION } from "./typegen-version.ts";
 
-/** Shared with the splinter download cache. */
-export const CACHE_DIR = "node_modules/.cache/better-supabase";
+export { CACHE_DIR } from "../cache/store.ts";
 
 const sha256 = (text: string): string =>
   createHash("sha256").update(text).digest("hex");

@@ -4,6 +4,7 @@ import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 
 import {
+  fileWaker,
   modifiedTime,
   onceReporter,
   parseInterval,
@@ -54,5 +55,33 @@ describe("files and sleep", () => {
     const controller = new AbortController();
     controller.abort();
     await expect(sleep(60_000, controller.signal)).resolves.toBeUndefined();
+  });
+});
+
+describe("fileWaker", () => {
+  it("wakes on a file event, on the fallback and on abort", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "waker-"));
+    const waker = fileWaker([dir, join(dir, "missing")], undefined);
+
+    try {
+      const woken = waker.wait(10_000);
+      await sleep(50, undefined);
+      await writeFile(join(dir, "a.sql"), "select 1;");
+      await expect(woken).resolves.toBeUndefined();
+
+      const started = performance.now();
+      await waker.wait(30);
+      expect(performance.now() - started).toBeLessThan(2000);
+    } finally {
+      waker.close();
+    }
+
+    const controller = new AbortController();
+    const aborting = fileWaker([], controller.signal);
+    const pending = aborting.wait(10_000);
+    controller.abort();
+    await expect(pending).resolves.toBeUndefined();
+    await expect(aborting.wait(10_000)).resolves.toBeUndefined();
+    aborting.close();
   });
 });

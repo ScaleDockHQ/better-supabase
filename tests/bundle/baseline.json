@@ -58,6 +58,12 @@
   "./realtime": 46703,
   "./rate-limit": 26820,
   "./recurrence": 10155,
+  "./generators/zod": 12796,
+  "./generators/valibot": 12610,
+  "./generators/json-schema": 17881,
+  "./generators/standard-schema": 11689,
+  "./generators/factories": 8364,
+  "./generators/nuqs": 6557,
   "./events": 7629,
   "./blocks/webhooks": 68309,
   "./blocks/entitlements": 29793,
@@ -276,6 +282,6 @@
   "./blocks/leases": 39909,
   "./blocks/expenses": 40713,
   "./blocks/donations": 41263,
-  "better-supabase CLI (startup)": 29944,
-  "content mapper (startup)": 136865
+  "better-supabase CLI (startup)": 31704,
+  "content mapper (startup)": 140500
 }

@@ -144,7 +144,7 @@ describe("gen --metadata", () => {
 
   it("refuses flags that don't combine with --metadata", async () => {
     const cases = [
-      [["--metadata", "-", "--watch"], /can't be combined with --watch/],
+      [["--metadata", "-", "--watch"], /--watch was removed.*dev command/],
       [["--metadata", "-", "--snapshot", "s.json"], /--snapshot/],
       [["--metadata", "-", "--emit", "sql"], /--emit must be one of/],
       [
@@ -163,10 +163,8 @@ describe("gen --metadata", () => {
     ])[]) {
       const result = await gen(args);
       expect(result.code).toBe(2);
-      // --json reports the error as Problem Details on stdout.
-      expect(args.includes("--json") ? result.stdout : result.stderr).toMatch(
-        reason,
-      );
+      // --json reports the error document on stderr, and stdout stays empty.
+      expect(result.stderr).toMatch(reason);
     }
   });
 

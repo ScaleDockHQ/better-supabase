@@ -334,6 +334,36 @@
       "types": "./dist/recurrence/index.d.ts",
       "default": "./dist/recurrence/index.js"
     },
+    "./generators/zod": {
+      "@better-supabase/source": "./src/generators/zod/index.ts",
+      "types": "./dist/generators/zod/index.d.ts",
+      "default": "./dist/generators/zod/index.js"
+    },
+    "./generators/valibot": {
+      "@better-supabase/source": "./src/generators/valibot/index.ts",
+      "types": "./dist/generators/valibot/index.d.ts",
+      "default": "./dist/generators/valibot/index.js"
+    },
+    "./generators/json-schema": {
+      "@better-supabase/source": "./src/generators/json-schema/index.ts",
+      "types": "./dist/generators/json-schema/index.d.ts",
+      "default": "./dist/generators/json-schema/index.js"
+    },
+    "./generators/standard-schema": {
+      "@better-supabase/source": "./src/generators/standard-schema/index.ts",
+      "types": "./dist/generators/standard-schema/index.d.ts",
+      "default": "./dist/generators/standard-schema/index.js"
+    },
+    "./generators/factories": {
+      "@better-supabase/source": "./src/generators/factories/index.ts",
+      "types": "./dist/generators/factories/index.d.ts",
+      "default": "./dist/generators/factories/index.js"
+    },
+    "./generators/nuqs": {
+      "@better-supabase/source": "./src/generators/nuqs/index.ts",
+      "types": "./dist/generators/nuqs/index.d.ts",
+      "default": "./dist/generators/nuqs/index.js"
+    },
     "./events": {
       "@better-supabase/source": "./src/events/index.ts",
       "types": "./dist/events/index.d.ts",
@@ -1655,6 +1685,30 @@
         "types": "./dist/recurrence/index.d.ts",
         "default": "./dist/recurrence/index.js"
       },
+      "./generators/zod": {
+        "types": "./dist/generators/zod/index.d.ts",
+        "default": "./dist/generators/zod/index.js"
+      },
+      "./generators/valibot": {
+        "types": "./dist/generators/valibot/index.d.ts",
+        "default": "./dist/generators/valibot/index.js"
+      },
+      "./generators/json-schema": {
+        "types": "./dist/generators/json-schema/index.d.ts",
+        "default": "./dist/generators/json-schema/index.js"
+      },
+      "./generators/standard-schema": {
+        "types": "./dist/generators/standard-schema/index.d.ts",
+        "default": "./dist/generators/standard-schema/index.js"
+      },
+      "./generators/factories": {
+        "types": "./dist/generators/factories/index.d.ts",
+        "default": "./dist/generators/factories/index.js"
+      },
+      "./generators/nuqs": {
+        "types": "./dist/generators/nuqs/index.d.ts",
+        "default": "./dist/generators/nuqs/index.js"
+      },
       "./events": {
         "types": "./dist/events/index.d.ts",
         "default": "./dist/events/index.js"
@@ -2721,9 +2775,11 @@
     "svelte": "catalog:peers",
     "temporal-polyfill": "catalog:peers",
     "undici": "catalog:peers",
+    "valibot": "catalog:peers",
     "vue": "catalog:peers",
     "workflow": "catalog:peers",
-    "yjs": "catalog:peers"
+    "yjs": "catalog:peers",
+    "zod": "catalog:peers"
   },
   "peerDependenciesMeta": {
     "@ai-sdk/anthropic": {
@@ -2912,7 +2968,13 @@
     "undici": {
       "optional": true
     },
+    "valibot": {
+      "optional": true
+    },
     "yjs": {
+      "optional": true
+    },
+    "zod": {
       "optional": true
     }
   },

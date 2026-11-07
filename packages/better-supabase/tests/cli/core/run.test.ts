@@ -14,6 +14,7 @@ import { CliError } from "../../../src/cli/core/errors.ts";
 import { RESULT_SCHEMA_URL } from "../../../src/cli/core/output.ts";
 import { createCli } from "../../../src/cli/core/run.ts";
 import { VERSION } from "../../../src/cli/version.ts";
+import { errorDoc } from "../error-doc.ts";
 import { fakeFetch } from "../fixtures/fake-fetch.ts";
 
 const ENV = { SUPABASE_ACCESS_TOKEN: "sbp_test" };
@@ -104,8 +105,11 @@ describe("run", () => {
   it("prints the usage to stderr without a command and to stdout for help", async () => {
     expect(await run([])).toMatchObject({ code: 2, stdout: "" });
     expect((await run(["help"])).code).toBe(0);
+    expect((await run(["db", "--help"])).stdout).toContain(
+      "Usage: better-supabase db <command> [options]",
+    );
     expect((await run(["dev", "--help"])).stdout).toContain(
-      "Usage: better-supabase dev <command> [options]",
+      "Usage: better-supabase dev [command] [options]",
     );
     expect((await run(["help", "dev"])).stdout).toContain(
       "Usage: better-supabase dev",
@@ -253,8 +257,9 @@ describe("run", () => {
     await writeFile(path, `${await readFile(path, "utf-8")} `);
     expect(await introspect("--check")).toMatchObject({
       code: 1,
-      stderr:
+      stderr: expect.stringContaining(
         "supabase/snapshot.json is out of date. Run `better-supabase gen --save-snapshot`.\n",
+      ),
     });
   });
 
@@ -350,16 +355,7 @@ describe("run", () => {
     const stderr: string[] = [];
 
     const result = await run(
-      [
-        "gen",
-        "--watch",
-        "--interval",
-        "1",
-        "--project-ref",
-        "abc",
-        "--cwd",
-        dir,
-      ],
+      ["dev", "--interval", "1", "--project-ref", "abc", "--cwd", dir],
       {
         signal: controller.signal,
         env: ENV,
@@ -377,7 +373,7 @@ describe("run", () => {
     );
 
     expect(result.code).toBe(0);
-    expect(stderr).toHaveLength(1);
+    expect(stderr.filter((line) => line !== "Ready\n")).toHaveLength(1);
     expect(stderr[0]).toContain("500");
     expect(stdout).toEqual([
       "Created src/lib/supabase/database.types.ts\nCreated src/lib/supabase/generated.ts\nCreated src/lib/supabase/generated.meta.js\nCreated src/lib/supabase/generated.meta.d.ts\nCreated src/lib/supabase/generated-schema.ts\nGenerated 0 tables.\n",
@@ -409,16 +405,7 @@ describe("run", () => {
     const stdout: string[] = [];
 
     const result = await run(
-      [
-        "gen",
-        "--watch",
-        "--interval",
-        "1",
-        "--project-ref",
-        "abc",
-        "--cwd",
-        dir,
-      ],
+      ["dev", "--interval", "1", "--project-ref", "abc", "--cwd", dir],
       {
         signal: controller.signal,
         env: ENV,
@@ -454,7 +441,7 @@ describe("run", () => {
     const stdout: string[] = [];
 
     const result = await run(
-      ["gen", "--watch", "--json", "--interval", "1", "--project-ref", "abc"],
+      ["dev", "--json", "--interval", "1", "--project-ref", "abc"],
       {
         cwd: dir,
         signal: controller.signal,
@@ -498,16 +485,7 @@ describe("run", () => {
     const stderr: string[] = [];
 
     const result = await run(
-      [
-        "gen",
-        "--watch",
-        "--interval",
-        "1",
-        "--project-ref",
-        "abc",
-        "--cwd",
-        dir,
-      ],
+      ["dev", "--interval", "1", "--project-ref", "abc", "--cwd", dir],
       {
         signal: controller.signal,
         env: ENV,
@@ -522,7 +500,9 @@ describe("run", () => {
     );
 
     expect(result.code).toBe(0);
-    expect(stderr).toEqual([`generator "flaky" failed: flaky failed\n`]);
+    expect(stderr.filter((line) => line !== "Ready\n")).toEqual([
+      `generator "flaky" failed: flaky failed\n`,
+    ]);
     expect(stdout[0]).toContain("Generated 0 tables");
     const counter = globalThis as { flakyGeneratorRuns?: number };
     expect(counter.flakyGeneratorRuns).toBe(3);
@@ -547,16 +527,7 @@ describe("run", () => {
     const stdout: string[] = [];
 
     const result = await run(
-      [
-        "gen",
-        "--watch",
-        "--interval",
-        "1",
-        "--project-ref",
-        "abc",
-        "--cwd",
-        dir,
-      ],
+      ["dev", "--interval", "1", "--project-ref", "abc", "--cwd", dir],
       {
         signal: controller.signal,
         env: ENV,
@@ -591,10 +562,9 @@ describe("run", () => {
 
   it("refuses a watch interval that isn't a positive number", async () => {
     for (const interval of ["abc", "0", "-5"]) {
-      const result = await run(
-        ["gen", "--watch", "--interval", interval, "--cwd", dir],
-        { env: ENV },
-      );
+      const result = await run(["dev", "--interval", interval, "--cwd", dir], {
+        env: ENV,
+      });
 
       expect(result.code).toBe(2);
       expect(result.stderr).toContain("--interval");
@@ -606,19 +576,16 @@ describe("run", () => {
     const controller = new AbortController();
     const started = Date.now();
 
-    const result = await run(
-      ["gen", "--watch", "--project-ref", "abc", "--cwd", dir],
-      {
-        signal: controller.signal,
-        env: ENV,
-        io: io({
-          stdout: () =>
-            setTimeout(() => {
-              controller.abort();
-            }, 0),
-        }),
-      },
-    );
+    const result = await run(["dev", "--project-ref", "abc", "--cwd", dir], {
+      signal: controller.signal,
+      env: ENV,
+      io: io({
+        stdout: () =>
+          setTimeout(() => {
+            controller.abort();
+          }, 0),
+      }),
+    });
 
     expect(result.code).toBe(0);
     expect(Date.now() - started).toBeLessThan(2000);
@@ -638,13 +605,11 @@ describe("run", () => {
 
   it("prints one JSON document on stdout under --json, errors included", async () => {
     const unknown = await run(["genn", "--json"]);
-    expect(unknown).toMatchObject({ code: 2, stderr: "" });
-    expect(JSON.parse(unknown.stdout)).toMatchObject({
-      error: {
-        type: "https://bettersupabase.com/docs/cli/errors#unknown_command",
-        code: "unknown_command",
-        suggestion: "gen",
-      },
+    expect(unknown).toMatchObject({ code: 2, stdout: "" });
+    expect(errorDoc(unknown)).toMatchObject({
+      type: "https://bettersupabase.com/docs/cli/errors#unknown_command",
+      reason: "unknown_command",
+      data: { suggestion: "gen" },
     });
 
     expect(JSON.parse((await run(["--version", "--json"])).stdout)).toEqual({
@@ -665,9 +630,7 @@ describe("run", () => {
     ]);
 
     expect(missing.code).toBe(2);
-    expect(JSON.parse(missing.stdout)).toMatchObject({
-      error: { code: "config_not_found" },
-    });
+    expect(errorDoc(missing)).toMatchObject({ reason: "config_not_found" });
   });
 
   it("rejects an invalid environment and an invalid config", async () => {
@@ -695,11 +658,9 @@ describe("run", () => {
     ]);
 
     expect(config.code).toBe(2);
-    expect(JSON.parse(config.stdout)).toMatchObject({
-      error: {
-        code: "config_invalid",
-        issues: [expect.stringMatching(/^gen\.casing: /)],
-      },
+    expect(errorDoc(config)).toMatchObject({
+      reason: "config_invalid",
+      data: { issues: [expect.stringMatching(/^gen\.casing: /)] },
     });
   });
 
@@ -783,8 +744,9 @@ describe("run", () => {
 
     expect(result.code).toBe(2);
     expect(stdin).not.toHaveBeenCalled();
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      error: { code: "missing_value", flag: "--db-url-stdin" },
+    expect(errorDoc(result)).toMatchObject({
+      reason: "missing_value",
+      data: { flag: "--db-url-stdin" },
     });
   });
 
@@ -831,8 +793,9 @@ describe("run", () => {
     });
 
     expect(result.code).toBe(2);
-    expect(JSON.parse(result.stdout)).toMatchObject({
-      error: { code, flag: "--cwd" },
+    expect(errorDoc(result)).toMatchObject({
+      reason: code,
+      data: { flag: "--cwd" },
     });
   });
 

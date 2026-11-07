@@ -8,6 +8,7 @@ import type { Paint } from "../style.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { commandMeta } from "../core/manifest.ts";
 import { SQL_ARGS } from "../sql/args.ts";
+import { renderStats } from "../sql/render-cache.ts";
 import { syncModules } from "../sql/sync.ts";
 import { upgrade } from "../sql/upgrade.ts";
 import { plain } from "../style.ts";
@@ -36,6 +37,7 @@ export async function runUpgrade(
   paint: Paint = plain,
   now: Now = () => new Date(),
 ): Promise<CommandResult> {
+  const before = renderStats.modules;
   const upgraded = await upgrade(config, args, paint, now);
 
   if (upgraded.code !== 0) {
@@ -49,7 +51,11 @@ export async function runUpgrade(
     output: [upgraded.output, synced.output]
       .filter((text) => text !== undefined && text !== "")
       .join("\n"),
-    data: { upgrade: upgraded.data, sync: synced.data },
+    data: {
+      upgrade: upgraded.data,
+      sync: synced.data,
+      cache: { rendered: renderStats.modules - before },
+    },
   };
 }
 

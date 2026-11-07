@@ -64,27 +64,25 @@ The read-only tools run by default:
 `add_preset` (`add --preset`, with `preset`), `add`
 (with `blocks`) and `remove` (with `blocks`).
 
-## Consent for writes
+## Confirmation for writes
 
-A write tool never runs on its first call. It returns a `consent_required`
-error, the same one [agent mode](/docs/cli/agent-mode) uses, with a `token`
-and a `detail` to show the user. Once the user agrees, the agent calls the
-tool again with the same arguments and `confirm` set to the token. The token
-covers only those arguments, so a call with other blocks or another preset
-asks again.
+A write tool never runs on its first call. It returns a `confirmation_required`
+error document, the same one [agent mode](/docs/cli/agent-mode) uses, with a
+`data.digest` and a `message` to show the user. Once the user agrees, the agent
+calls the tool again with the same arguments and `effectsDigest` set to the
+digest. The digest covers only those arguments, so a call with other blocks or
+another preset asks again.
 
 ```json
 {
   "status": "action_required",
-  "error": {
-    "code": "consent_required",
-    "detail": "add writes files in /app. Ask the user first, then call add again with confirm \"3f9c0a1b2d4e5f60\".",
-    "token": "3f9c0a1b2d4e5f60"
-  }
+  "reason": "confirmation_required",
+  "message": "add writes files in /app. Ask the user first, then call add again with effectsDigest \"3f9c0a1b2d4e5f60\".",
+  "data": { "digest": "3f9c0a1b2d4e5f60" }
 }
 ```
 
-The commands themselves run with agent mode off, so this one consent covers
+The commands themselves run with agent mode off, so this one confirmation covers
 the call. No tool forces an overwrite or writes to the database.
 
 ## Protocol

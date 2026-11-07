@@ -3332,6 +3332,57 @@
       "OccurrencesInput"
     ]
   },
+  "./generators/zod": {
+    "values": [
+      "zod"
+    ],
+    "types": [
+      "ZodFlavor",
+      "ZodGeneratorOptions"
+    ]
+  },
+  "./generators/valibot": {
+    "values": [
+      "valibot"
+    ],
+    "types": [
+      "ValibotGeneratorOptions"
+    ]
+  },
+  "./generators/json-schema": {
+    "values": [
+      "jsonSchema",
+      "toJsonSchema"
+    ],
+    "types": [
+      "JsonSchemaGeneratorOptions",
+      "JsonSchemaTarget"
+    ]
+  },
+  "./generators/standard-schema": {
+    "values": [
+      "standardSchema"
+    ],
+    "types": [
+      "StandardSchemaGeneratorOptions"
+    ]
+  },
+  "./generators/factories": {
+    "values": [
+      "factories"
+    ],
+    "types": [
+      "FactoriesGeneratorOptions"
+    ]
+  },
+  "./generators/nuqs": {
+    "values": [
+      "nuqs"
+    ],
+    "types": [
+      "NuqsGeneratorOptions"
+    ]
+  },
   "./events": {
     "values": [
       "BLOCK_ATTRIBUTES",
@@ -9208,6 +9259,7 @@
       "catalogPolicy",
       "checkedValueMaps",
       "checkValues",
+      "clearMemo",
       "commentOnTableSql",
       "compileReadSet",
       "compileReadSets",
@@ -9243,6 +9295,8 @@
       "legacyOptionTables",
       "legacyOptionTarget",
       "maskSql",
+      "memoized",
+      "memoStats",
       "migrationOptionUses",
       "MODULE_ID_TYPES",
       "moduleBody",
@@ -9301,6 +9355,7 @@
       "seedDefaultsFunctions",
       "setBsbTag",
       "setFeatureStatement",
+      "setMemoBackend",
       "setTableFeature",
       "sharedRolesProblems",
       "splitStatements",
@@ -9362,6 +9417,7 @@
       "EntityRenameStep",
       "Grant",
       "InstalledBlock",
+      "MemoBackend",
       "MigrationOptionUse",
       "OwnIndex",
       "OwnView",

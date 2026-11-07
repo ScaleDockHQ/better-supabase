@@ -1149,8 +1149,8 @@ describe("sql", () => {
     );
     const listed = await run(["add", "audit", "--cwd", dir]);
     expect(listed.stdout).not.toContain("no entry matches");
-    expect(listed.stdout).toMatch(
-      /^Next:\n {2}supabase db diff -f better_supabase_module {2}creates a migration/m,
+    expect(listed.stderr).toMatch(
+      /^Next steps:\n {2}supabase db diff -f better_supabase_module {2}creates a migration/m,
     );
   });
 
@@ -1162,7 +1162,7 @@ describe("sql", () => {
     );
     const added = await run(["add", "audit", "--cwd", dir]);
     expect(added.stdout).not.toContain("no entry matches");
-    expect(added.stdout).toContain(
+    expect(added.stderr).toContain(
       "supabase db schema declarative sync -f better_supabase_module",
     );
   });

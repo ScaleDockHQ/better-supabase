@@ -117,6 +117,15 @@ export {
   moduleWritesText,
 } from "./adopted-columns.ts";
 
+export {
+  clearMemo,
+  memoStats,
+  memoized,
+  setMemoBackend,
+} from "./result-memo.ts";
+
+export type { MemoBackend } from "./result-memo.ts";
+
 export { auditRegistrations } from "./audit-registrations.ts";
 
 export { excludedColumns, resolveExposeColumns } from "./expose-columns.ts";
