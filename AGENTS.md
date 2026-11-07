@@ -384,12 +384,6 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0271: Name every generated trigger bsb_*, and end unique and exclusion names in `_key` and `_excl`.
 - 0272: Name every generated policy bsb_*.
 - 0273: Name every generated check constraint bsb_*.
-- 0320: Check same-tenant references from the foreign keys by default.
-- 0321: Infer the numbering table and column.
-- 0322: Install vector-search from the tables that use it.
-- 0323: Gate the config type-check on a provider key union.
-- 0324: Protect the options the config codemod must not touch.
-- 0325: Declare block columns on owned tables in the app's files.
 - 0290: CLI contract 3 follows the Vercel CLI design guidelines.
 - 0291: Memoize the adoption scan on disk, watch with `dev`, and purge the cache with `cache purge`.
 - 0292: Give each first-party generator a subpath and declare its library as a peer.
@@ -400,6 +394,12 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0314: Mark key pages `instant` and lock each loading sequence in a test.
 - 0315: Keep interaction state in `useOptimistic`, the URL and the action state.
 - 0316: Record the Part 11 library work as specs.
+- 0320: Check same-tenant references from the foreign keys by default.
+- 0321: Infer the numbering table and column.
+- 0322: Install vector-search from the tables that use it.
+- 0323: Gate the config type-check on a provider key union.
+- 0324: Protect the options the config codemod must not touch.
+- 0325: Declare block columns on owned tables in the app's files.
 - 0330: Run generators as plugins at apiVersion 2, with a public kit.
 - 0331: Move the generators out of better-supabase/config.
 - 0332: Register framework bindings with defineFramework.
