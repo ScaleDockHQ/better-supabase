@@ -1,6 +1,6 @@
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:3e78cbae824b6b0213c4abc3633ac07bbd7280198a9a90255aa963691dbc0ad4
+-- @bsb-hash sha256:be0c852cf2c3fc82d853c5e1dc7d67da44b336aea90d034343862e0e780ac4c9
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -224,8 +224,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_created"() from public, anon, authenticated;
-create trigger "bsb_profile_sync" after insert on auth.users
-  for each row execute function "better_supabase"."on_auth_user_created"();
 
 -- Keeps the profile's email equal to the confirmed address in auth.users,
 -- lowercased so lookups and unique indexes match regardless of case.
@@ -241,5 +239,3 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."mirror_profile_email"() from public, anon, authenticated;
-create trigger "bsb_profile_email" after update of email on auth.users
-  for each row execute function "better_supabase"."mirror_profile_email"();

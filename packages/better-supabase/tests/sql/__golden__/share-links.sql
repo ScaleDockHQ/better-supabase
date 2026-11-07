@@ -292,7 +292,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:00bafad13dee84115e477d08c18f5ef7238cc9833885b979b11bf63f64f15203
+-- @bsb-hash sha256:8a6626f2b751c3f470c36e5eec130766cba43430dc4175ab8dbe2961adb58259
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -598,17 +598,6 @@ grant execute on function "better_supabase"."set_user_state"(text, text, boolean
 
 -- ai-chat sharing is this block. The old functions stay callable and write
 -- share_links instead of ai_chat_shares.
-do $$
-begin
-  if to_regclass('"better_supabase".ai_chat_shares') is not null then
-    insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "created_by", "leaf_id")
-    select c.organization_id, 'ai-chat', s.chat_id::text, s.token_hash, s.created_by, s.leaf_id
-    from "better_supabase".ai_chat_shares s
-    join "better_supabase".ai_chats c on c.id = s.chat_id
-    on conflict ("token_hash") do nothing;
-  end if;
-end;
-$$;
 create or replace function "better_supabase"."share_ai_chat"(chat uuid, leaf text default null)
 returns jsonb
 language plpgsql security definer set search_path = '' as $$
@@ -744,11 +733,18 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block-data share-links
--- @bsb-hash sha256:7637f6eb6b2307a7cf52549ce1a65dbedbf85875d12cb740b65ff82e13399bd6
+-- @bsb-hash sha256:9251791ace46a9836a21e4d30588d10e717391e7de637955ccee5fcd5dd5ca93
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- ai-chat sharing is this block: links of the old ai_chat_shares table.
+insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "created_by", "leaf_id")
+select c.organization_id, 'ai-chat', s.chat_id::text, s.token_hash, s.created_by, s.leaf_id
+from "better_supabase".ai_chat_shares s
+join "better_supabase".ai_chats c on c.id = s.chat_id
+on conflict ("token_hash") do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('share-links', 1, 'managed')

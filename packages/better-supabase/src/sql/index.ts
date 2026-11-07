@@ -65,6 +65,8 @@ export {
 
 export { PRELUDE_FUNCTIONS, PRELUDE_MODULE } from "./pipeline/prelude.ts";
 
+export { UNSCOPED_MODULE } from "./pipeline/unscoped.ts";
+
 export { resolveBlock } from "../config/blocks.ts";
 
 export { appTableEventTypes } from "../config/app-tables.ts";

@@ -8,7 +8,9 @@ const sqlOf = (
   layout: Parameters<typeof renderBlocks>[1] = {},
 ): string =>
   renderBlocks(names, layout)
-    .filter((file) => file.module === "identities")
+    .filter(
+      (file) => file.module === "identities" || file.module === "unscoped",
+    )
     .map((file) => file.contents)
     .join("\n");
 

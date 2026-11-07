@@ -241,8 +241,7 @@
     "security-definer-functions": 15
   },
   "identities": {
-    "security-definer-functions": 30,
-    "row-triggers": 5
+    "security-definer-functions": 30
   },
   "impersonation": {
     "security-definer-functions": 68
@@ -392,7 +391,7 @@
   },
   "profiles": {
     "security-definer-functions": 30,
-    "row-triggers": 15
+    "row-triggers": 5
   },
   "promotions": {
     "security-definer-functions": 66
@@ -507,8 +506,7 @@
     "security-definer-functions": 24
   },
   "sso": {
-    "security-definer-functions": 66,
-    "row-triggers": 6
+    "security-definer-functions": 66
   },
   "streams": {
     "security-definer-functions": 6
@@ -554,8 +552,7 @@
     "security-definer-functions": 49
   },
   "waitlist": {
-    "security-definer-functions": 60,
-    "row-triggers": 6
+    "security-definer-functions": 60
   },
   "warehouse": {
     "security-definer-functions": 180

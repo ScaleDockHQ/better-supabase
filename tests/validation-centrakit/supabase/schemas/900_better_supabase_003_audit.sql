@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:2ade6a87b106cdd2669fb1bc853782cf29942e2697bc2a7146f28cb67d2ac922
+-- @bsb-hash sha256:7563fea81363c912f8fda70ce4fe7f73c9cb8f18ebecca96e825bed68fe08076
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -636,10 +636,6 @@ begin
 end;
 $$;
 
-drop event trigger if exists bsb_audit_forget_dropped;
-create event trigger bsb_audit_forget_dropped on sql_drop
-  when tag in ('DROP TABLE', 'DROP SCHEMA')
-  execute function better_supabase.audit_forget_dropped();
 
 -- The audit() calls for every table in schema_name with tenant_column,
 -- except tables whose name matches an exempt pattern (like 'audit_%').

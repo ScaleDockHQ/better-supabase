@@ -9305,6 +9305,7 @@
       "TENANT_SCOPE_NAMES",
       "TENANT_SCOPE_POLICY",
       "tenantsQuery",
+      "UNSCOPED_MODULE",
       "upgradePlan",
       "widenedCommands",
       "writtenValues"

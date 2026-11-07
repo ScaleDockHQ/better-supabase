@@ -50,6 +50,9 @@ comments. Put these in a hand-written migration instead:
 - Event triggers under `-s <schemas>`: they belong to no schema, so a
   filtered sync drops them. The module data files repeat them, and doctor
   BS323 reports one the database or the migrations lack.
+  `upgrade` writes them, and the triggers on `auth` tables, to
+  `900_better_supabase_999_unscoped.sql` (module `unscoped`), not into the
+  module files.
 - Objects in `auth`, `storage` or other Supabase-managed schemas, except
   policies and triggers whose function lives in your own schema.
 - Object kinds pg-delta doesn't track (casts, operators, text search

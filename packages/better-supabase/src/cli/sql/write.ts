@@ -14,6 +14,7 @@ import {
   APP_TABLES_MODULE,
   moduleTopics,
   PRELUDE_MODULE,
+  UNSCOPED_MODULE,
   resolveBlocks,
   sameBlockFile,
 } from "../../sql/index.ts";
@@ -165,7 +166,8 @@ export async function write(
     (file) =>
       only === undefined ||
       only.includes(file.module) ||
-      file.module === PRELUDE_MODULE,
+      file.module === PRELUDE_MODULE ||
+      file.module === UNSCOPED_MODULE,
   );
 
   const written = files.filter((file) => !migrations || file.kind === "test");

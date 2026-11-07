@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:85d616ed05f8c7027ce3b1720c10bfddeb048edfe65312dbdf73e5e7c6d9d171
+-- @bsb-hash sha256:f9e73868dddbf5c7f4d04af8c7f535ae00a7840a0ab0981c2fc970deb60862c6
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -362,17 +362,6 @@ grant execute on function "better_supabase"."set_user_state"(text, text, boolean
 
 -- ai-chat sharing is this block. The old functions stay callable and write
 -- share_links instead of ai_chat_shares.
-do $$
-begin
-  if to_regclass('"better_supabase".ai_chat_shares') is not null then
-    insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "created_by", "leaf_id")
-    select c.organization_id, 'ai-chat', s.chat_id::text, s.token_hash, s.created_by, s.leaf_id
-    from "better_supabase".ai_chat_shares s
-    join "better_supabase".ai_chats c on c.id = s.chat_id
-    on conflict ("token_hash") do nothing;
-  end if;
-end;
-$$;
 create or replace function "better_supabase"."share_ai_chat"(chat uuid, leaf text default null)
 returns jsonb
 language plpgsql security definer set search_path = '' as $$

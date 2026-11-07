@@ -1,6 +1,6 @@
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:6e2976cead41637d9284e6d17a665ffc36b7c40547a6320b402e4b768ba913da
+-- @bsb-hash sha256:8894d9ad64c54fe029b95afa8139065ee32b0502fa0539b168e07bfd05da9741
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -637,8 +637,6 @@ begin
   return new;
 end;
 $$;
-create trigger "bsb_sso_auth_user" after insert or update of email, email_confirmed_at on auth.users
-  for each row execute function "better_supabase"."sso_on_auth_user"();
 
 -- SCIM storage for the SCIM handler (service role). Rows come back as
 -- jsonb; users carry their groups and groups their members.

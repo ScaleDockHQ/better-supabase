@@ -40,6 +40,7 @@ import {
 } from "./pipeline/prepare.ts";
 import { appTableSet, ownTablesCreatedBy } from "./pipeline/resolve.ts";
 import { rerunnableDdl, staticDdl } from "./pipeline/static.ts";
+import { withUnscopedFile } from "./pipeline/unscoped.ts";
 import { withoutCoveredPolicies } from "./policy-cover.ts";
 import {
   checkMigrationOptions,
@@ -133,11 +134,10 @@ export function renderBlocks(
     [...files, ...appFiles].filter((file) => file.kind === "schema"),
   );
 
-  return [
-    ...(prelude === undefined ? [] : [prelude]),
-    ...files,
-    ...appFiles,
-  ].map((file) => ({
+  return withUnscopedFile(
+    [...(prelude === undefined ? [] : [prelude]), ...files, ...appFiles],
+    layout,
+  ).map((file) => ({
     ...file,
     contents: withBlockHash(
       file.kind === "schema"

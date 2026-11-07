@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_184_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
--- @bsb-hash sha256:6f825b8990952042620863adb2db372f895c127d0b224a697b4b265e65dfb66d
+-- @bsb-hash sha256:ad348ad072be4c6feeb02fb0802a2992156b8bde41e143344e24854702b619ae
 -- An event trigger that enables row level security on every table created outside the Supabase-managed schemas, so a new table is never readable through the Data API before it has policies. Install it as postgres: supautils lets that role create event triggers.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -36,10 +36,6 @@ $$;
 
 revoke execute on function better_supabase.enable_rls_on_new_table() from public, anon, authenticated;
 
-drop event trigger if exists bsb_ensure_rls;
-create event trigger bsb_ensure_rls on ddl_command_end
-  when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO', 'ALTER TABLE')
-  execute function better_supabase.enable_rls_on_new_table();
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_184_rls_guard.sql
 -- better-supabase module: rls-guard
@@ -63,7 +59,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_184_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
--- @bsb-hash sha256:6f825b8990952042620863adb2db372f895c127d0b224a697b4b265e65dfb66d
+-- @bsb-hash sha256:ad348ad072be4c6feeb02fb0802a2992156b8bde41e143344e24854702b619ae
 -- An event trigger that enables row level security on every table created outside the Supabase-managed schemas, so a new table is never readable through the Data API before it has policies. Install it as postgres: supautils lets that role create event triggers.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -98,10 +94,6 @@ $$;
 
 revoke execute on function better_supabase.enable_rls_on_new_table() from public, anon, authenticated;
 
-drop event trigger if exists bsb_ensure_rls;
-create event trigger bsb_ensure_rls on ddl_command_end
-  when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO', 'ALTER TABLE')
-  execute function better_supabase.enable_rls_on_new_table();
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_184_rls_guard.sql
 -- better-supabase module: rls-guard
@@ -125,7 +117,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_184_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
--- @bsb-hash sha256:6f825b8990952042620863adb2db372f895c127d0b224a697b4b265e65dfb66d
+-- @bsb-hash sha256:ad348ad072be4c6feeb02fb0802a2992156b8bde41e143344e24854702b619ae
 -- An event trigger that enables row level security on every table created outside the Supabase-managed schemas, so a new table is never readable through the Data API before it has policies. Install it as postgres: supautils lets that role create event triggers.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -160,10 +152,6 @@ $$;
 
 revoke execute on function better_supabase.enable_rls_on_new_table() from public, anon, authenticated;
 
-drop event trigger if exists bsb_ensure_rls;
-create event trigger bsb_ensure_rls on ddl_command_end
-  when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO', 'ALTER TABLE')
-  execute function better_supabase.enable_rls_on_new_table();
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_184_rls_guard.sql
 -- better-supabase module: rls-guard
@@ -187,7 +175,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_184_rls_guard.sql
 -- better-supabase module: rls-guard
 -- @bsb-block rls-guard@1 managed
--- @bsb-hash sha256:6f825b8990952042620863adb2db372f895c127d0b224a697b4b265e65dfb66d
+-- @bsb-hash sha256:ad348ad072be4c6feeb02fb0802a2992156b8bde41e143344e24854702b619ae
 -- An event trigger that enables row level security on every table created outside the Supabase-managed schemas, so a new table is never readable through the Data API before it has policies. Install it as postgres: supautils lets that role create event triggers.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -222,10 +210,6 @@ $$;
 
 revoke execute on function better_supabase.enable_rls_on_new_table() from public, anon, authenticated;
 
-drop event trigger if exists bsb_ensure_rls;
-create event trigger bsb_ensure_rls on ddl_command_end
-  when tag in ('CREATE TABLE', 'CREATE TABLE AS', 'SELECT INTO', 'ALTER TABLE')
-  execute function better_supabase.enable_rls_on_new_table();
 
 -- ==== api schema: data supabase/better-supabase-data/900_better_supabase_184_rls_guard.sql
 -- better-supabase module: rls-guard

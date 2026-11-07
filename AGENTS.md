@@ -364,6 +364,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0251: Resolve the remaining do blocks and block overlaps at generation time.
 - 0252: Declare row audit triggers in the schema files.
 - 0253: Name migrations by stamp and content hash.
+- 0254: Keep unscoped statements in one file and grant sequences by name.
 
 ## Pre-release pins
 

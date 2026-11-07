@@ -372,8 +372,11 @@ describe("module event triggers", () => {
 
 describe("rls-guard", () => {
   it("installs a replaceable event trigger that skips managed schemas", () => {
-    const [file] = renderBlocks(["rls-guard"]);
-    expect(file!.path).toMatch(/_rls_guard\.sql$/);
+    const files = renderBlocks(["rls-guard"]);
+    const [module] = files;
+    const file = files.find((entry) => entry.module === "unscoped");
+    expect(module!.path).toMatch(/_rls_guard\.sql$/);
+    expect(module!.contents).not.toMatch(/^create event trigger/m);
     expect(file!.contents).toContain(
       "drop event trigger if exists bsb_ensure_rls;",
     );
@@ -385,10 +388,10 @@ describe("rls-guard", () => {
     );
 
     for (const schema of ["auth", "storage", "realtime", "extensions"]) {
-      expect(file!.contents).toContain(`'${schema}'`);
+      expect(module!.contents).toContain(`'${schema}'`);
     }
 
-    expect(file!.contents).toContain(String.raw`like 'pg\_%'`);
+    expect(module!.contents).toContain(String.raw`like 'pg\_%'`);
   });
 });
 

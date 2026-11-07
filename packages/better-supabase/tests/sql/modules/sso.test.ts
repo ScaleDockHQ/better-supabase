@@ -10,7 +10,7 @@ const sqlOf = (
   renderBlocks(names, {
     modules: { ...(options ? { sso: { options } } : {}), ...extra },
   })
-    .filter((file) => file.module === "sso")
+    .filter((file) => file.module === "sso" || file.module === "unscoped")
     .map((file) => file.contents)
     .join("\n");
 

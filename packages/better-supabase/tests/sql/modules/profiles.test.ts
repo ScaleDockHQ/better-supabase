@@ -203,7 +203,7 @@ describe("profiles module", () => {
         },
       },
     }).findLast(
-      (file) => file.kind === "schema" && file.module !== "prelude",
+      (file) => file.kind === "schema" && file.module === "profiles",
     )!.contents;
 
     expect(sql).toContain(

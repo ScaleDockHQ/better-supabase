@@ -914,4 +914,10 @@ export const SHARE_LINKS: BlockSqlDefinition = {
   names: NAMES,
   contract,
   build,
+  data: (ctx) =>
+    ctx
+      .contributions("share-links")
+      .flatMap((each) => each.data ?? [])
+      .filter((statement) => statement !== "")
+      .join("\n"),
 };

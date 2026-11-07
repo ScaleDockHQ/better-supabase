@@ -64,6 +64,13 @@ the schema migration lacks them, and
 [doctor BS323](/docs/cli/doctor#bs323) reports a module event trigger that
 the database, or every migration, lacks.
 
+`upgrade` writes every event trigger, and every trigger on an `auth` table (the
+profile, SSO and waitlist triggers), to one file,
+`900_better_supabase_999_unscoped.sql`, so the statements no schema filter
+covers sit in one place. The module files keep the functions they call. The
+migrations workflow keeps each statement in its module, because it applies them
+in file order.
+
 ## Commands
 
 | Command                     | What it does                                                      | Side effects  |

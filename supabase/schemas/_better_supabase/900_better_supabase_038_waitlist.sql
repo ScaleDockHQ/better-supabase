@@ -1,6 +1,6 @@
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:4c6785148af4f5fee51ed29ebe4c7323fde25783ac8821132c44b1de8e537422
+-- @bsb-hash sha256:06f301e91cd4605261107813c22b8fd8ea131b7e4a7159ca796abb63d8495766
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -417,8 +417,6 @@ exception when others then
 end;
 $$;
 revoke execute on function "better_supabase"."waitlist_on_auth_user"() from public, anon, authenticated;
-create trigger "bsb_waitlist_auth_user" after insert on auth.users
-  for each row execute function "better_supabase"."waitlist_on_auth_user"();
 
 revoke execute on function "better_supabase"."join_waitlist"(text, text, jsonb) from public;
 revoke execute on function "better_supabase"."list_waitlist"(text, integer, bigint) from public, anon;

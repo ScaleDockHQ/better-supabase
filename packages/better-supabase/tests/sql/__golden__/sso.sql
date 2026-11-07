@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:5107247bd24c705691348bfb6f7255abdb67ef394f3c9fe04953994dffa1160a
+-- @bsb-hash sha256:8a68b5eb2fa9dfd56ecf1a937522bd10c9cc26895c2d9ad645cb28d44e8bf164
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -548,8 +548,6 @@ begin
   return new;
 end;
 $$;
-create trigger "bsb_sso_auth_user" after insert or update of email, email_confirmed_at on auth.users
-  for each row execute function "better_supabase"."sso_on_auth_user"();
 
 -- SCIM storage for the SCIM handler (service role). Rows come back as
 -- jsonb; users carry their groups and groups their members.
@@ -916,7 +914,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:6f9e20f36502d61bd71b2a11136b7112c7e7d738deb83c304bb36db01c1b6636
+-- @bsb-hash sha256:3bbf9a8d39236134a28a00e9757daa5df4da3e4913bb19264655490f35535c36
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1553,8 +1551,6 @@ begin
   return new;
 end;
 $$;
-create trigger "bsb_sso_auth_user" after insert or update of email, email_confirmed_at on auth.users
-  for each row execute function "better_supabase"."sso_on_auth_user"();
 
 -- SCIM storage for the SCIM handler (service role). Rows come back as
 -- jsonb; users carry their groups and groups their members.
@@ -1969,7 +1965,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:a4c68de5664ab533246b58b571feddaecaa578d043953c19d15b167309c7af3d
+-- @bsb-hash sha256:fea89d9d2e67048a0cb46d9a88e39b29c34ba3b636cda6f7317f2e3d468bbabf
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2521,8 +2517,6 @@ begin
   return new;
 end;
 $$;
-create trigger "bsb_sso_auth_user" after insert or update of email, email_confirmed_at on auth.users
-  for each row execute function "app_private"."sso_on_auth_user"();
 
 -- SCIM storage for the SCIM handler (service role). Rows come back as
 -- jsonb; users carry their groups and groups their members.
@@ -2889,7 +2883,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:e9f7766dcc4568f3b9f80fa72afb0b9f948e4f340a24fe0f7804dbc74ef2d8b3
+-- @bsb-hash sha256:5b238c14aa0a2f9d0f763ee51a29244a9e911a38eaf10b7ead30b648f74b8463
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3436,8 +3430,6 @@ begin
   return new;
 end;
 $$;
-create trigger "bsb_sso_auth_user" after insert or update of email, email_confirmed_at on auth.users
-  for each row execute function "better_supabase"."sso_on_auth_user"();
 
 -- SCIM storage for the SCIM handler (service role). Rows come back as
 -- jsonb; users carry their groups and groups their members.
@@ -4027,7 +4019,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:714b736e19262b1817328438ffd3a69c526db3cb147c51f71644825a859ac67c
+-- @bsb-hash sha256:2207229cf3028490d93ce90c2be45241ece0ad9be11fac3e0ace51f21458e5a6
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4564,8 +4556,6 @@ begin
   return new;
 end;
 $$;
-create trigger "bsb_sso_auth_user" after insert or update of email, email_confirmed_at on auth.users
-  for each row execute function "better_supabase"."sso_on_auth_user"();
 
 -- SCIM storage for the SCIM handler (service role). Rows come back as
 -- jsonb; users carry their groups and groups their members.
@@ -4932,7 +4922,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_036_sso.sql
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:f941faaa92dcde96395e66bf17699e8844b518a0c1c304baedb8fc58e110e053
+-- @bsb-hash sha256:59c56b97274a1f31c30e7f2dbdd8a86808d7d7b7fa26f0325f5d464c062c0a71
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5479,8 +5469,6 @@ begin
   return new;
 end;
 $$;
-create trigger "bsb_sso_auth_user" after insert or update of email, email_confirmed_at on auth.users
-  for each row execute function "better_supabase"."sso_on_auth_user"();
 
 -- SCIM storage for the SCIM handler (service role). Rows come back as
 -- jsonb; users carry their groups and groups their members.

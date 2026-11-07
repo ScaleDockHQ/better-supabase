@@ -61,6 +61,24 @@ function workflowTables(): string[] {
   return [...names].toSorted();
 }
 
+/**
+ * The sequences behind the `serial` columns of the World's tables, as
+ * `<table>_<column>_seq`, so the service role's grants name each one.
+ */
+function workflowSequences(): string[] {
+  return [
+    ...WORLD_POSTGRES_DDL.matchAll(
+      /create table (?:if not exists )?workflow\.(\w+) \(([\s\S]*?)\n\);/gu,
+    ),
+  ]
+    .flatMap(([, table = "", body = ""]) =>
+      [...body.matchAll(/"(\w+)" (?:big|small)?serial\b/gu)].map(
+        ([, column = ""]) => `${table}_${column}_seq`,
+      ),
+    )
+    .toSorted();
+}
+
 /** Row level security and the service role's grants, one set per table. */
 function workflowTableAccess(): string {
   return workflowTables()
@@ -117,7 +135,12 @@ create index if not exists workflow_run_keys_run_id_idx on workflow.workflow_run
 revoke all on schema workflow from public, anon, authenticated;
 grant usage on schema workflow to service_role;
 ${workflowTableAccess()}
-grant usage, select on all sequences in schema workflow to service_role;
+${workflowSequences()
+  .map(
+    (name) =>
+      `grant usage, select on sequence workflow.${name} to service_role;`,
+  )
+  .join("\n")}
 create index if not exists workflow_runs_attributes_idx on workflow.workflow_runs using gin (attributes jsonb_path_ops);
 
 -- Copies each World run into workflow_runs: its tenant and actor come from

@@ -4,7 +4,11 @@ import { resolve } from "node:path";
 import type { BlockSqlFile } from "../../sql/index.ts";
 import type { DoctorContext } from "./rules.ts";
 
-import { moduleFileVersion, PRELUDE_MODULE } from "../../sql/index.ts";
+import {
+  moduleFileVersion,
+  PRELUDE_MODULE,
+  UNSCOPED_MODULE,
+} from "../../sql/index.ts";
 import { migrationsDir, moduleLayoutFor } from "../sql-layout.ts";
 import {
   latestMigration,
@@ -83,10 +87,16 @@ export async function moduleFiles(
 
   // The prelude only serves the modules that render beside it.
   const files = kept.some(
-    (file) => file.kind === "schema" && file.module !== PRELUDE_MODULE,
+    (file) =>
+      file.kind === "schema" &&
+      file.module !== PRELUDE_MODULE &&
+      file.module !== UNSCOPED_MODULE,
   )
     ? kept
-    : kept.filter((file) => file.module !== PRELUDE_MODULE);
+    : kept.filter(
+        (file) =>
+          file.module !== PRELUDE_MODULE && file.module !== UNSCOPED_MODULE,
+      );
 
   if (workflowOf(context) === "migrations") {
     const latest = await latestMigration(context.config, MODULES_SUFFIX);

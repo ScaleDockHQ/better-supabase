@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:0db526b11b51f61b0259405b64f71cbf15daa56a4d2add3e561625dc4abd7149
+-- @bsb-hash sha256:59967d09003751015cf3898f3ce0226dbf8045a68dc9201249303f1fa8c73db8
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -262,8 +262,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_email"() from public, anon, authenticated;
-create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
-  for each row execute function "better_supabase"."on_auth_user_email"();
 
 -- ==== alone: data supabase/better-supabase-data/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
@@ -282,7 +280,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:0db526b11b51f61b0259405b64f71cbf15daa56a4d2add3e561625dc4abd7149
+-- @bsb-hash sha256:59967d09003751015cf3898f3ce0226dbf8045a68dc9201249303f1fa8c73db8
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -543,8 +541,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_email"() from public, anon, authenticated;
-create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
-  for each row execute function "better_supabase"."on_auth_user_email"();
 
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
@@ -563,7 +559,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:138861bbcd94195b06407f167848c4c19ce17c9ea19eab6be9feb4a8d06ff4b8
+-- @bsb-hash sha256:f3323bf39bd991c6139cab25b1556289a4819649f8891f703e3db5ae5d63e3ad
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -829,8 +825,6 @@ begin
 end;
 $$;
 revoke execute on function "app_private"."on_auth_user_email"() from public, anon, authenticated;
-create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
-  for each row execute function "app_private"."on_auth_user_email"();
 
 -- ==== schema app_private: data supabase/better-supabase-data/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
@@ -849,7 +843,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:f61ea2b9ccf1cde2b31d48ee54654ebfb7e2e189b6bc68b748ec4e69e3db28cc
+-- @bsb-hash sha256:f5de91804e6145e79c22916fe842317e43869ffb1f779b2233bf226a43f9829b
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1110,8 +1104,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_email"() from public, anon, authenticated;
-create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
-  for each row execute function "better_supabase"."on_auth_user_email"();
 
 -- blocks.identities.api: entry points for the Data API.
 create schema if not exists "api";
@@ -1199,7 +1191,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:f8ff115adfb6824add22e52806d61d71338ca179ded89d3f75251a14214e43a1
+-- @bsb-hash sha256:e5bbd4242ba480c90c18b2a4cfc1232b4eef3f8836066feb120cee5d11f7c924
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1454,8 +1446,6 @@ begin
 end;
 $$;
 revoke execute on function "better_supabase"."on_auth_user_email"() from public, anon, authenticated;
-create trigger "bsb_identity_email" after insert or update of email, email_confirmed_at on auth.users
-  for each row execute function "better_supabase"."on_auth_user_email"();
 
 -- ==== over the app's tables: data supabase/better-supabase-data/900_better_supabase_089_identities.sql
 -- better-supabase module: identities

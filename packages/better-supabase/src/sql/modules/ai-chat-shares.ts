@@ -46,6 +46,26 @@ function chatsRef(own: BlockSqlContext, target: BlockSqlContext): ChatsRef {
 }
 
 /**
+ * The rows of ai_chat_shares as share links, for the data file of an app that
+ * ran ai-chat before it used share-links.
+ */
+function aiChatShareCopy(ctx: BlockSqlContext, own: BlockSqlContext): string {
+  if (!own.owns("chats") || !own.owns("shares")) {
+    return "";
+  }
+
+  const links = ctx.table("links");
+  const leaf = ctx.has("links", "leaf");
+
+  return `-- ai-chat sharing is this block: links of the old ai_chat_shares table.
+insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "createdBy")}${leaf ? `, ${ctx.col("links", "leaf")}` : ""})
+select c.${ctx.naming.rename("organization_id")}, 'ai-chat', s.chat_id::text, s.token_hash, s.created_by${leaf ? ", s.leaf_id" : ""}
+from ${ctx.schema}.ai_chat_shares s
+join ${ctx.schema}.ai_chats c on c.id = s.chat_id
+on conflict (${ctx.col("links", "tokenHash")}) do nothing;`;
+}
+
+/**
  * Ai-chat sharing on the share-links block in `ctx`: the old functions stay
  * callable and write share links instead of ai_chat_shares.
  */
@@ -83,22 +103,7 @@ function aiChatShareSql(ctx: BlockSqlContext, own: BlockSqlContext): string {
   return `
 -- ai-chat sharing is this block. The old functions stay callable and write
 -- share_links instead of ai_chat_shares.
-${
-  own.owns("chats") && own.owns("shares")
-    ? `do $$
-begin
-  if to_regclass('${ctx.schema}.ai_chat_shares') is not null then
-    insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "createdBy")}${ctx.has("links", "leaf") ? `, ${ctx.col("links", "leaf")}` : ""})
-    select c.${ctx.naming.rename("organization_id")}, 'ai-chat', s.chat_id::text, s.token_hash, s.created_by${ctx.has("links", "leaf") ? ", s.leaf_id" : ""}
-    from ${ctx.schema}.ai_chat_shares s
-    join ${ctx.schema}.ai_chats c on c.id = s.chat_id
-    on conflict (${ctx.col("links", "tokenHash")}) do nothing;
-  end if;
-end;
-$$;
-`
-    : ""
-}create or replace function ${ctx.fn("share_ai_chat")}(chat uuid, leaf text default null)
+create or replace function ${ctx.fn("share_ai_chat")}(chat uuid, leaf text default null)
 returns jsonb
 language plpgsql security definer set search_path = '' as $$
 declare
@@ -195,6 +200,7 @@ export const AI_CHAT_CONTRIBUTES: BlockContributes = {
         exists: ({ id, tenant }) =>
           `exists (select 1 from ${c.table} s where s.${c.id}::text = ${id} and s.${c.tenant}::text = ${tenant}::text and s.${c.owner} = auth.uid())`,
         sql: aiChatShareSql(target, own),
+        data: aiChatShareCopy(target, own),
       },
     ];
   },
