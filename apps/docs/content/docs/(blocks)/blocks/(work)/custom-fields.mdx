@@ -49,6 +49,14 @@ subject, a `RecordRef` (`{ type, id }`): `readValues(subject)` and
 a call without one fails with `invalid_request` and the hint
 `TENANT_REQUIRED`.
 
+Setting a value again replaces it, so `setValue` never fails on the key of
+record and field, and an encrypted value is sealed once. `updateValue({ id,
+value })` changes one value row by its id and `deleteValue(id)` removes it. Both
+need `custom_fields.manage` and the record's `fields` action, and fail with
+`FIELD_VALUE_NOT_FOUND` for an unknown id; `updateValue` also fails with
+`FIELD_VALUE_INVALID` for a value the field's format refuses. The SQL functions
+are `update_field_value(value_id, value)` and `delete_field_value(value_id)`.
+
 ## Types
 
 `CUSTOM_FIELD_TYPES` lists the types a definition takes. A value is stored as text whatever the type; the type tells the form and the UI what it holds. The names match the [app table formats](/docs/repository/tables), so a field and a column that hold the same thing use the same word.

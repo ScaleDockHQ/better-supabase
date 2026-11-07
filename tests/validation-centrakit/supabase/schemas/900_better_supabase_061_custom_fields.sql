@@ -1,6 +1,6 @@
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:3b51cb3c216d487517da63e934a8ea07725ff40e57c11349092d553834804907
+-- @bsb-hash sha256:b579553e3cb24537ed81dbe8e8ba2b1c149a790e569078a1580a96dd0ce1a8a4
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -124,6 +124,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_id uuid;
 begin
@@ -138,6 +139,8 @@ begin
   end if;
   insert into "centrakit"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text")
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)
+  on conflict ("tenant_id", "subject_type", "subject_id", "definition_id")
+  do update set "value_text" = excluded."value_text"
   returning "id" into v_id;
   perform "better_supabase".emit_event('field_value.set', jsonb_build_object('organizationId', set_field_value.tenant, 'id', v_id, 'subjectType', set_field_value.subject_type, 'subjectId', set_field_value.subject_id), 'field-values/' || v_id::text, (set_field_value.tenant)::text, null, 'domain');
   return jsonb_build_object('id', v_id);
@@ -145,6 +148,75 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_field_value"(uuid, text, text, uuid, text) from public, anon;
 grant execute on function "better_supabase"."set_field_value"(uuid, text, text, uuid, text) to authenticated, service_role;
+
+-- Changes the value of one field value row. The row's subject and field stay.
+create or replace function "better_supabase"."update_field_value"(value_id uuid, value text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_subject text;
+  v_definition uuid;
+begin
+  if not (centrakit.authz_actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select v."tenant_id", v."subject_type", v."subject_id", v."definition_id"
+  into v_tenant, v_type, v_subject, v_definition
+  from "centrakit"."field_values" v where v."id" = update_field_value.value_id;
+  if not found then
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if exists (select 1 from "centrakit"."field_definitions" d where d."id" = v_definition and not (case d."type" when 'bsn' then "better_supabase"."bsb_valid_bsn"(update_field_value.value) when 'iban' then "better_supabase"."bsb_valid_iban"(update_field_value.value) when 'phone_e164' then update_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
+  end if;
+  update "centrakit"."field_values" set "value_text" = update_field_value.value
+  where "id" = update_field_value.value_id;
+  perform "better_supabase".emit_event('field_value.set', jsonb_build_object('organizationId', v_tenant, 'id', update_field_value.value_id, 'subjectType', v_type, 'subjectId', v_subject), 'field-values/' || update_field_value.value_id::text, (v_tenant)::text, null, 'domain');
+  return jsonb_build_object('id', update_field_value.value_id);
+end;
+$$;
+revoke execute on function "better_supabase"."update_field_value"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."update_field_value"(uuid, text) to authenticated, service_role;
+
+-- Removes one field value.
+create or replace function "better_supabase"."delete_field_value"(value_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_subject text;
+begin
+  if not (centrakit.authz_actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select v."tenant_id", v."subject_type", v."subject_id"
+  into v_tenant, v_type, v_subject
+  from "centrakit"."field_values" v where v."id" = delete_field_value.value_id;
+  if not found then
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to delete this field value' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  delete from "centrakit"."field_values" where "id" = delete_field_value.value_id;
+  perform "better_supabase".emit_event('field_value.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_field_value.value_id, 'subjectType', v_type, 'subjectId', v_subject), 'field-values/' || delete_field_value.value_id::text, (v_tenant)::text, null, 'domain');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_field_value"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_field_value"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_field_definition"(definition uuid)
 returns boolean

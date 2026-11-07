@@ -150,7 +150,7 @@
     "row-triggers": 1
   },
   "custom-fields": {
-    "security-definer-functions": 44
+    "security-definer-functions": 56
   },
   "dam": {
     "security-definer-functions": 42

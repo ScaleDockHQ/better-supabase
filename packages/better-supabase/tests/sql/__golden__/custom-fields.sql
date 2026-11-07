@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:33c3795d2630b69a157b076220f4463e9eef5135b203cdf07b4857b0edd57b97
+-- @bsb-hash sha256:94bb85fbe0632c753f1c092f261a67e683599c4301ad9b0c1085c6af085661ce
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -158,6 +158,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_id uuid;
 begin
@@ -172,6 +173,8 @@ begin
   end if;
   insert into "better_supabase"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text")
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)
+  on conflict ("tenant_id", "subject_type", "subject_id", "definition_id")
+  do update set "value_text" = excluded."value_text"
   returning "id" into v_id;
   null;
   return jsonb_build_object('id', v_id);
@@ -179,6 +182,75 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_field_value"(uuid, text, text, uuid, text) from public, anon;
 grant execute on function "better_supabase"."set_field_value"(uuid, text, text, uuid, text) to authenticated, service_role;
+
+-- Changes the value of one field value row. The row's subject and field stay.
+create or replace function "better_supabase"."update_field_value"(value_id uuid, value text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_subject text;
+  v_definition uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select v."tenant_id", v."subject_type", v."subject_id", v."definition_id"
+  into v_tenant, v_type, v_subject, v_definition
+  from "better_supabase"."field_values" v where v."id" = update_field_value.value_id;
+  if not found then
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."field_definitions" d where d."id" = v_definition and not (case d."type" when 'bsn' then "better_supabase"."bsb_valid_bsn"(update_field_value.value) when 'iban' then "better_supabase"."bsb_valid_iban"(update_field_value.value) when 'phone_e164' then update_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
+  end if;
+  update "better_supabase"."field_values" set "value_text" = update_field_value.value
+  where "id" = update_field_value.value_id;
+  null;
+  return jsonb_build_object('id', update_field_value.value_id);
+end;
+$$;
+revoke execute on function "better_supabase"."update_field_value"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."update_field_value"(uuid, text) to authenticated, service_role;
+
+-- Removes one field value.
+create or replace function "better_supabase"."delete_field_value"(value_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_subject text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select v."tenant_id", v."subject_type", v."subject_id"
+  into v_tenant, v_type, v_subject
+  from "better_supabase"."field_values" v where v."id" = delete_field_value.value_id;
+  if not found then
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to delete this field value' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."field_values" where "id" = delete_field_value.value_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_field_value"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_field_value"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_field_definition"(definition uuid)
 returns boolean
@@ -431,7 +503,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:57dd76c7fa370396563b0aecc92227fb214e096dd3530bda5c4580b86d4d7d8f
+-- @bsb-hash sha256:eb00c1f1c16017312487535aeaed850749562f97ff4f1a52ebbc21166abb5fbf
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -595,6 +667,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_id uuid;
 begin
@@ -609,6 +682,8 @@ begin
   end if;
   insert into "better_supabase"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text", legal_entity_id)
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, case when exists (select 1 from "better_supabase"."field_definitions" d where d."id" = set_field_value.definition and d."encrypted") then "better_supabase"."field_encrypt"('tenant:' || set_field_value.tenant::text, set_field_value.value) else set_field_value.value end, set_field_value.legal_entity)
+  on conflict ("tenant_id", "subject_type", "subject_id", "definition_id", (coalesce(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid)))
+  do update set "value_text" = excluded."value_text"
   returning "id" into v_id;
   perform "better_supabase".emit_event('field_value.set', jsonb_build_object('organizationId', set_field_value.tenant, 'id', v_id, 'subjectType', set_field_value.subject_type, 'subjectId', set_field_value.subject_id), 'field-values/' || v_id::text, (set_field_value.tenant)::text, null, 'better-supabase/custom-fields');
   return jsonb_build_object('id', v_id);
@@ -616,6 +691,75 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_field_value"(uuid, text, text, uuid, text, uuid) from public, anon;
 grant execute on function "better_supabase"."set_field_value"(uuid, text, text, uuid, text, uuid) to authenticated, service_role;
+
+-- Changes the value of one field value row. The row's subject and field stay.
+create or replace function "better_supabase"."update_field_value"(value_id uuid, value text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_subject text;
+  v_definition uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select v."tenant_id", v."subject_type", v."subject_id", v."definition_id"
+  into v_tenant, v_type, v_subject, v_definition
+  from "better_supabase"."field_values" v where v."id" = update_field_value.value_id;
+  if not found then
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."field_definitions" d where d."id" = v_definition and not (case d."type" when 'bsn' then "better_supabase"."bsb_valid_bsn"(update_field_value.value) when 'iban' then "better_supabase"."bsb_valid_iban"(update_field_value.value) when 'phone_e164' then update_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
+  end if;
+  update "better_supabase"."field_values" set "value_text" = case when exists (select 1 from "better_supabase"."field_definitions" d where d."id" = v_definition and d."encrypted") then "better_supabase"."field_encrypt"('tenant:' || v_tenant::text, update_field_value.value) else update_field_value.value end
+  where "id" = update_field_value.value_id;
+  perform "better_supabase".emit_event('field_value.set', jsonb_build_object('organizationId', v_tenant, 'id', update_field_value.value_id, 'subjectType', v_type, 'subjectId', v_subject), 'field-values/' || update_field_value.value_id::text, (v_tenant)::text, null, 'better-supabase/custom-fields');
+  return jsonb_build_object('id', update_field_value.value_id);
+end;
+$$;
+revoke execute on function "better_supabase"."update_field_value"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."update_field_value"(uuid, text) to authenticated, service_role;
+
+-- Removes one field value.
+create or replace function "better_supabase"."delete_field_value"(value_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_subject text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select v."tenant_id", v."subject_type", v."subject_id"
+  into v_tenant, v_type, v_subject
+  from "better_supabase"."field_values" v where v."id" = delete_field_value.value_id;
+  if not found then
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to delete this field value' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."field_values" where "id" = delete_field_value.value_id;
+  perform "better_supabase".emit_event('field_value.deleted', jsonb_build_object('organizationId', v_tenant, 'id', delete_field_value.value_id, 'subjectType', v_type, 'subjectId', v_subject), 'field-values/' || delete_field_value.value_id::text, (v_tenant)::text, null, 'better-supabase/custom-fields');
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_field_value"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_field_value"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_field_definition"(definition uuid)
 returns boolean
@@ -990,7 +1134,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:e74b6dcd44ff56992d009d418c9abb97f8b0f65e34288cc3b00e45287629d365
+-- @bsb-hash sha256:fa569fd3b0d4acd69e1ad63c8dac9891afc1ab94b4f774b34af12495e76d9452
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1152,6 +1296,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_id uuid;
 begin
@@ -1166,6 +1311,8 @@ begin
   end if;
   insert into "app_private"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text")
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)
+  on conflict ("tenant_id", "subject_type", "subject_id", "definition_id")
+  do update set "value_text" = excluded."value_text"
   returning "id" into v_id;
   null;
   return jsonb_build_object('id', v_id);
@@ -1173,6 +1320,75 @@ end;
 $$;
 revoke execute on function "app_private"."set_field_value"(uuid, text, text, uuid, text) from public, anon;
 grant execute on function "app_private"."set_field_value"(uuid, text, text, uuid, text) to authenticated, service_role;
+
+-- Changes the value of one field value row. The row's subject and field stay.
+create or replace function "app_private"."update_field_value"(value_id uuid, value text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_subject text;
+  v_definition uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select v."tenant_id", v."subject_type", v."subject_id", v."definition_id"
+  into v_tenant, v_type, v_subject, v_definition
+  from "app_private"."field_values" v where v."id" = update_field_value.value_id;
+  if not found then
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if exists (select 1 from "app_private"."field_definitions" d where d."id" = v_definition and not (case d."type" when 'bsn' then "app_private"."bsb_valid_bsn"(update_field_value.value) when 'iban' then "app_private"."bsb_valid_iban"(update_field_value.value) when 'phone_e164' then update_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
+  end if;
+  update "app_private"."field_values" set "value_text" = update_field_value.value
+  where "id" = update_field_value.value_id;
+  null;
+  return jsonb_build_object('id', update_field_value.value_id);
+end;
+$$;
+revoke execute on function "app_private"."update_field_value"(uuid, text) from public, anon;
+grant execute on function "app_private"."update_field_value"(uuid, text) to authenticated, service_role;
+
+-- Removes one field value.
+create or replace function "app_private"."delete_field_value"(value_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_subject text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select v."tenant_id", v."subject_type", v."subject_id"
+  into v_tenant, v_type, v_subject
+  from "app_private"."field_values" v where v."id" = delete_field_value.value_id;
+  if not found then
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to delete this field value' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  delete from "app_private"."field_values" where "id" = delete_field_value.value_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."delete_field_value"(uuid) from public, anon;
+grant execute on function "app_private"."delete_field_value"(uuid) to authenticated, service_role;
 
 create or replace function "app_private"."delete_field_definition"(definition uuid)
 returns boolean
@@ -1425,7 +1641,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:7101b343ae23ee8b7b34d64a38e85485a0179a077a4d57a8b3cce1984a3bad68
+-- @bsb-hash sha256:f9b5ac2748c40f15452fde0241b0a8bdfbd5e4c111c10739739741152e7f7d8d
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1582,6 +1798,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_id uuid;
 begin
@@ -1596,6 +1813,8 @@ begin
   end if;
   insert into "better_supabase"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text")
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)
+  on conflict ("tenant_id", "subject_type", "subject_id", "definition_id")
+  do update set "value_text" = excluded."value_text"
   returning "id" into v_id;
   null;
   return jsonb_build_object('id', v_id);
@@ -1603,6 +1822,75 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_field_value"(uuid, text, text, uuid, text) from public, anon;
 grant execute on function "better_supabase"."set_field_value"(uuid, text, text, uuid, text) to authenticated, service_role;
+
+-- Changes the value of one field value row. The row's subject and field stay.
+create or replace function "better_supabase"."update_field_value"(value_id uuid, value text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_subject text;
+  v_definition uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select v."tenant_id", v."subject_type", v."subject_id", v."definition_id"
+  into v_tenant, v_type, v_subject, v_definition
+  from "better_supabase"."field_values" v where v."id" = update_field_value.value_id;
+  if not found then
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."field_definitions" d where d."id" = v_definition and not (case d."type" when 'bsn' then "better_supabase"."bsb_valid_bsn"(update_field_value.value) when 'iban' then "better_supabase"."bsb_valid_iban"(update_field_value.value) when 'phone_e164' then update_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
+  end if;
+  update "better_supabase"."field_values" set "value_text" = update_field_value.value
+  where "id" = update_field_value.value_id;
+  null;
+  return jsonb_build_object('id', update_field_value.value_id);
+end;
+$$;
+revoke execute on function "better_supabase"."update_field_value"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."update_field_value"(uuid, text) to authenticated, service_role;
+
+-- Removes one field value.
+create or replace function "better_supabase"."delete_field_value"(value_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_subject text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select v."tenant_id", v."subject_type", v."subject_id"
+  into v_tenant, v_type, v_subject
+  from "better_supabase"."field_values" v where v."id" = delete_field_value.value_id;
+  if not found then
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to delete this field value' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."field_values" where "id" = delete_field_value.value_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_field_value"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_field_value"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_field_definition"(definition uuid)
 returns boolean
@@ -1890,6 +2178,24 @@ as $$ select "better_supabase"."set_field_value"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."set_field_value"(uuid, text, text, uuid, text) from public, anon;
 grant execute on function "api"."set_field_value"(uuid, text, text, uuid, text) to authenticated, service_role;
 
+create or replace function "api"."update_field_value"(value_id uuid, value text)
+returns jsonb
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."update_field_value"($1, $2) $$;
+revoke execute on function "api"."update_field_value"(uuid, text) from public, anon;
+grant execute on function "api"."update_field_value"(uuid, text) to authenticated, service_role;
+
+create or replace function "api"."delete_field_value"(value_id uuid)
+returns boolean
+language sql
+security invoker
+set search_path = ''
+as $$ select "better_supabase"."delete_field_value"($1) $$;
+revoke execute on function "api"."delete_field_value"(uuid) from public, anon;
+grant execute on function "api"."delete_field_value"(uuid) to authenticated, service_role;
+
 create or replace function "api"."delete_field_definition"(definition uuid)
 returns boolean
 language sql
@@ -1944,7 +2250,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:1744d1afe56ecdb78c5fbf7f504fb5dac61c5af596fd48c995e2b167aace136a
+-- @bsb-hash sha256:33ee8a7d9eccb60741bb4e981b39e68c478de570ca0381b57f54b59e52c2f2bc
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2093,6 +2399,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_id uuid;
 begin
@@ -2107,6 +2414,8 @@ begin
   end if;
   insert into "better_supabase"."field_values" ("tenant_id", "definition_id", "subject_type", "subject_id", "value_text")
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)
+  on conflict ("tenant_id", "subject_type", "subject_id", "definition_id")
+  do update set "value_text" = excluded."value_text"
   returning "id" into v_id;
   null;
   return jsonb_build_object('id', v_id);
@@ -2114,6 +2423,75 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_field_value"(uuid, text, text, uuid, text) from public, anon;
 grant execute on function "better_supabase"."set_field_value"(uuid, text, text, uuid, text) to authenticated, service_role;
+
+-- Changes the value of one field value row. The row's subject and field stay.
+create or replace function "better_supabase"."update_field_value"(value_id uuid, value text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_subject text;
+  v_definition uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select v."tenant_id", v."subject_type", v."subject_id", v."definition_id"
+  into v_tenant, v_type, v_subject, v_definition
+  from "better_supabase"."field_values" v where v."id" = update_field_value.value_id;
+  if not found then
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."field_definitions" d where d."id" = v_definition and not (case d."type" when 'bsn' then "better_supabase"."bsb_valid_bsn"(update_field_value.value) when 'iban' then "better_supabase"."bsb_valid_iban"(update_field_value.value) when 'phone_e164' then update_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
+  end if;
+  update "better_supabase"."field_values" set "value_text" = update_field_value.value
+  where "id" = update_field_value.value_id;
+  null;
+  return jsonb_build_object('id', update_field_value.value_id);
+end;
+$$;
+revoke execute on function "better_supabase"."update_field_value"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."update_field_value"(uuid, text) to authenticated, service_role;
+
+-- Removes one field value.
+create or replace function "better_supabase"."delete_field_value"(value_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_subject text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select v."tenant_id", v."subject_type", v."subject_id"
+  into v_tenant, v_type, v_subject
+  from "better_supabase"."field_values" v where v."id" = delete_field_value.value_id;
+  if not found then
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to delete this field value' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."field_values" where "id" = delete_field_value.value_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_field_value"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_field_value"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_field_definition"(definition uuid)
 returns boolean
@@ -2366,7 +2744,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_061_custom_fields.sql
 -- better-supabase module: custom-fields
 -- @bsb-block custom-fields@4 managed
--- @bsb-hash sha256:5ada3b1ce7f9d393eb595aeabcdc4d6141e4ff9effccd3800a802f8e78d9c8da
+-- @bsb-hash sha256:0c89ea3a5eb43845c47689ba67fcbcd8774bece085305cee3a98bd0f2f48c713
 -- Field definitions, options and typed values. A sensitive value is readable only with the field's permission. Inline layout stores the definition on the value row.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2523,6 +2901,7 @@ language plpgsql
 security definer
 set search_path = ''
 as $$
+#variable_conflict use_column
 declare
   v_id uuid;
 begin
@@ -2537,6 +2916,8 @@ begin
   end if;
   insert into "better_supabase"."field_values" ("org_id", "definition_id", "subject_type", "subject_id", "value_text")
   values (set_field_value.tenant, set_field_value.definition, set_field_value.subject_type, set_field_value.subject_id, set_field_value.value)
+  on conflict ("org_id", "subject_type", "subject_id", "definition_id")
+  do update set "value_text" = excluded."value_text"
   returning "id" into v_id;
   null;
   return jsonb_build_object('id', v_id);
@@ -2544,6 +2925,75 @@ end;
 $$;
 revoke execute on function "better_supabase"."set_field_value"(uuid, text, text, uuid, text) from public, anon;
 grant execute on function "better_supabase"."set_field_value"(uuid, text, text, uuid, text) to authenticated, service_role;
+
+-- Changes the value of one field value row. The row's subject and field stay.
+create or replace function "better_supabase"."update_field_value"(value_id uuid, value text)
+returns jsonb
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_subject text;
+  v_definition uuid;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select v."org_id", v."subject_type", v."subject_id", v."definition_id"
+  into v_tenant, v_type, v_subject, v_definition
+  from "better_supabase"."field_values" v where v."id" = update_field_value.value_id;
+  if not found then
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to set custom fields' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  if exists (select 1 from "better_supabase"."field_definitions" d where d."id" = v_definition and not (case d."type" when 'bsn' then "better_supabase"."bsb_valid_bsn"(update_field_value.value) when 'iban' then "better_supabase"."bsb_valid_iban"(update_field_value.value) when 'phone_e164' then update_field_value.value ~* '^\+[1-9][0-9]{1,14}$' else true end)) then
+    raise exception 'the value doesn''t match the field''s format' using errcode = '22023', hint = 'FIELD_VALUE_INVALID';
+  end if;
+  update "better_supabase"."field_values" set "value_text" = update_field_value.value
+  where "id" = update_field_value.value_id;
+  null;
+  return jsonb_build_object('id', update_field_value.value_id);
+end;
+$$;
+revoke execute on function "better_supabase"."update_field_value"(uuid, text) from public, anon;
+grant execute on function "better_supabase"."update_field_value"(uuid, text) to authenticated, service_role;
+
+-- Removes one field value.
+create or replace function "better_supabase"."delete_field_value"(value_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_tenant uuid;
+  v_type text;
+  v_subject text;
+begin
+  if not (better_supabase.actor_may_write()) then
+    raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
+  end if;
+  select v."org_id", v."subject_type", v."subject_id"
+  into v_tenant, v_type, v_subject
+  from "better_supabase"."field_values" v where v."id" = delete_field_value.value_id;
+  if not found then
+    raise exception 'field value not found' using errcode = 'P0002', hint = 'FIELD_VALUE_NOT_FOUND';
+  end if;
+  if not (auth.role() = 'service_role' or coalesce(better_supabase.can('tenant', v_tenant, 'custom_fields.manage'), false)) then
+    raise exception 'not allowed to delete this field value' using errcode = '42501', hint = 'FIELD_FORBIDDEN';
+  end if;
+  delete from "better_supabase"."field_values" where "id" = delete_field_value.value_id;
+  null;
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."delete_field_value"(uuid) from public, anon;
+grant execute on function "better_supabase"."delete_field_value"(uuid) to authenticated, service_role;
 
 create or replace function "better_supabase"."delete_field_definition"(definition uuid)
 returns boolean

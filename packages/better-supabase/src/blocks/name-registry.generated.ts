@@ -760,7 +760,7 @@ export interface BlockNameRegistry {
       readonly "options": "id" | "definition" | "value" | "label" | "rank";
       readonly "values": "id" | "tenant" | "definition" | "subjectType" | "subjectId" | "valueText" | "valueNumber" | "valueDate" | "valueBool" | "optionId" | "valueJson" | "valueUrl" | "valueEmail" | "key" | "label" | "type" | "rank" | "createdAt" | "updatedAt";
     };
-    readonly functions: "delete_field_definition" | "install_field_pack" | "list_field_definitions" | "rank_field_definition" | "read_field_values" | "save_field_definition" | "set_field_value";
+    readonly functions: "delete_field_definition" | "delete_field_value" | "install_field_pack" | "list_field_definitions" | "rank_field_definition" | "read_field_values" | "save_field_definition" | "set_field_value" | "update_field_value";
     readonly actions: "manage" | "read" | "sensitive";
     readonly hooks: never;
     readonly entities: {

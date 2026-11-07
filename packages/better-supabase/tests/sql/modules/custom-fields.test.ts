@@ -29,6 +29,42 @@ describe("custom-fields module", () => {
     expect(sql).not.toContain("position");
   });
 
+  it("replaces a value that is set again and seals it once", () => {
+    const sql = sqlOf();
+
+    expect(sql).toContain("#variable_conflict use_column");
+    expect(sql).toContain(
+      `on conflict ("tenant_id", "subject_type", "subject_id", "definition_id")`,
+    );
+
+    expect(sql).toContain(`do update set "value_text" = excluded."value_text"`);
+  });
+
+  it("adds the legal entity to the key of a per-entity value", () => {
+    const sql = sqlOf({}, ["legal-entities"]);
+
+    expect(sql).toContain(
+      `"definition_id", (coalesce(legal_entity_id, '00000000-0000-0000-0000-000000000000'::uuid)))`,
+    );
+  });
+
+  it("updates and deletes a value by its id", () => {
+    const sql = sqlOf();
+
+    expect(sql).toContain(`"update_field_value"(value_id uuid, value text)`);
+
+    expect(sql).toContain(`"delete_field_value"(value_id uuid)`);
+    expect(sql).toContain(
+      `delete from "better_supabase"."field_values" where "id" = delete_field_value.value_id;`,
+    );
+
+    expect(
+      sqlOf({
+        modules: { "custom-fields": { options: { layout: "inline" } } },
+      }),
+    ).toContain(`"update_field_value"(value_id uuid, value text)`);
+  });
+
   it("has no rank in the inline layout", () => {
     const sql = sqlOf({
       modules: { "custom-fields": { options: { layout: "inline" } } },

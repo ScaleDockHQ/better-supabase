@@ -1495,6 +1495,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "field_definition.created",
         "field_definition.deleted",
         "field_definition.updated",
+        "field_value.deleted",
         "field_value.set"
       ],
       "subpath": "better-supabase/blocks/custom-fields",

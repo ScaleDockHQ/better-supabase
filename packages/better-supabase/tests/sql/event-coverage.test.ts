@@ -18,7 +18,6 @@ const NOT_LITERAL = [
   "state-machine: status.paused",
   "state-machine: status.resumed",
   "state-machine: status.flagged",
-  "custom-fields: field_value.deleted",
   "custom-fields: field_value.viewed",
   "subjects: subject.accessed",
   "calendar: calendar.updated",

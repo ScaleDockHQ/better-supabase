@@ -166,7 +166,10 @@ export interface CustomFields {
     subject: RecordRef;
     scope?: FieldEntityScope | undefined;
   }): AsyncResult<unknown>;
-  /** Sets one custom field value of `subject`. */
+  /**
+   * Sets one custom field value of `subject`. Setting a value again replaces
+   * it, so a call never fails on the (subject, field) key.
+   */
   setValue(input: {
     subject: RecordRef;
     definitionId: string;
@@ -186,7 +189,16 @@ export interface CustomFields {
     subject: RecordRef;
     input: SetFieldInput;
   }): AsyncResult<FieldValue>;
-  /** Keyed layout: removes one field value. */
+  /**
+   * Changes the value of one field value row, keeping its subject and field.
+   * Needs `custom_fields.manage`. Fails with `FIELD_VALUE_NOT_FOUND` and, for a
+   * value the field's format refuses, `FIELD_VALUE_INVALID`.
+   */
+  updateValue(input: {
+    id: string;
+    value: string;
+  }): AsyncResult<{ id: string }>;
+  /** Removes one field value. Needs `custom_fields.manage`. */
   deleteValue(id: string): AsyncResult<boolean>;
   /** `setField` for each input, in order. It stops at the first failure. */
   setMany(input: {
@@ -402,6 +414,12 @@ export function createCustomFields(options: CustomFieldsOptions): CustomFields {
           },
           fieldValueOf,
         ),
+      ),
+    updateValue: ({ id, value }) =>
+      call(
+        "update_field_value",
+        { value_id: id, value },
+        idOf("update_field_value"),
       ),
     deleteValue: (id) =>
       call("delete_field_value", { value_id: id }, (value) => value === true),

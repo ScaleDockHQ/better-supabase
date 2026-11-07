@@ -27,6 +27,19 @@ function fakeTransport(results: Record<string, unknown>) {
 }
 
 describe("createCustomFields", () => {
+  it("updates one value row by its id", async () => {
+    const fake = fakeTransport({ update_field_value: { id: "v1" } });
+    const fields = createCustomFields({ transport: fake.transport });
+
+    expect(
+      await fields.updateValue({ id: "v1", value: "gold" }).orThrow(),
+    ).toEqual({ id: "v1" });
+
+    expect(fake.calls).toEqual([
+      ["update_field_value", { value_id: "v1", value: "gold" }],
+    ]);
+  });
+
   it("sends the subject and the block's tenant", async () => {
     const fake = fakeTransport({
       read_field_values: [],
