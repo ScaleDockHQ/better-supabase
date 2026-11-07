@@ -110,6 +110,13 @@ const LOADERS: readonly (readonly [string, Loader])[] = [
       ),
   ],
   [
+    "codemod owned-columns",
+    () =>
+      import("./commands/codemod.ts").then((m) =>
+        m.codemodCommand("owned-columns"),
+      ),
+  ],
+  [
     "codemod config",
     () =>
       import("./commands/codemod.ts").then((m) => m.codemodCommand("config")),

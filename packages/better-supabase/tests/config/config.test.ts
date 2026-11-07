@@ -190,3 +190,16 @@ describe("flattenConfig and groupConfig", () => {
     expect(groupConfig(flattenConfig(grouped))).toEqual(grouped);
   });
 });
+
+describe("resolveConfig vector search", () => {
+  it("installs the vector-search block for an app with a vectorSearch table", () => {
+    const search = { database: { vectorSearch: { chunks: "embedding" } } };
+
+    expect(resolveConfig(search, "/app").blockNames).toContain("vector-search");
+    expect(
+      resolveConfig({ ...search, blocks: ["vector-search"] }, "/app")
+        .blockNames,
+    ).toEqual(["vector-search"]);
+    expect(resolveConfig({}, "/app").blockNames).not.toContain("vector-search");
+  });
+});

@@ -92,6 +92,42 @@ function vectorSearchOf(
  * so `can`, `tenant_ids_with` and every module check answer from the provider's
  * templates instead of the built-in roles.
  */
+function isBlockNames(
+  blocks: NonNullable<BetterSupabaseConfig["blocks"]>,
+): blocks is readonly string[] {
+  return Array.isArray(blocks);
+}
+
+/**
+ * `vector-search` joins the blocks of an app with a `vectorSearch` table, so
+ * the search functions need no `blocks` entry of their own.
+ */
+function withVectorSearch(
+  blocks: BetterSupabaseConfig["blocks"],
+  vectorSearch: Readonly<Record<string, VectorSearchConfig>> | undefined,
+): BetterSupabaseConfig["blocks"] {
+  if (vectorSearch === undefined || Object.keys(vectorSearch).length === 0) {
+    return blocks;
+  }
+
+  if (blocks === undefined) {
+    return ["vector-search"];
+  }
+
+  if (isBlockNames(blocks)) {
+    return blocks.includes("vector-search")
+      ? blocks
+      : [...blocks, "vector-search"];
+  }
+
+  // SAFETY: an empty entry is a valid input for every block key.
+  return "vector-search" in blocks
+    ? blocks
+    : ({ ...blocks, "vector-search": {} } as NonNullable<
+        BetterSupabaseConfig["blocks"]
+      >);
+}
+
 function blocksOf(
   blocks: BetterSupabaseConfig["blocks"],
   sql: SqlConfig = {},
@@ -296,7 +332,7 @@ export function resolveConfig(
   const appTables = appTablesOf(config.appTables, tenantName);
 
   const blocks = blocksOf(
-    config.blocks,
+    withVectorSearch(config.blocks, config.vectorSearch),
     config.sql,
     config.authorization !== undefined,
   );

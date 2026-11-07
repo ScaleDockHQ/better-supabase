@@ -1,6 +1,6 @@
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:55f1017c9f61790d5763598709da13c86a06e5c071559e29e2a80a1d97dd5ec2
+-- @bsb-hash sha256:9cd84321d2d03345af5c37d005bc4bac81d89bc280ad6c30fbb91bb49332d52f
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -99,6 +99,24 @@ create trigger "bsb_same_tenant_department_team_id" before insert or update of "
   for each row execute function better_supabase.same_tenant('department_team_id', 'organization_id', '"centrakit"."teams"', 'id', 'tenant_id');
 create trigger "bsb_same_tenant_destination_id" before insert or update of "destination_id", "organization_id" on "centrakit"."webhook_deliveries"
   for each row execute function better_supabase.same_tenant('destination_id', 'organization_id', '"centrakit"."webhook_destinations"', 'id', 'organization_id');
+create trigger "bsb_same_tenant_event_id" before insert or update of "event_id", "organization_id" on "centrakit"."notification_recipients"
+  for each row execute function better_supabase.same_tenant('event_id', 'organization_id', '"centrakit"."notification_events"', 'id', 'organization_id');
+create trigger "bsb_same_tenant_recipient_id" before insert or update of "recipient_id", "organization_id" on "centrakit"."notification_deliveries"
+  for each row execute function better_supabase.same_tenant('recipient_id', 'organization_id', '"centrakit"."notification_recipients"', 'id', 'organization_id');
+create trigger "bsb_same_tenant_destination_id" before insert or update of "destination_id", "organization_id" on "centrakit"."webhook_destination_secrets"
+  for each row execute function better_supabase.same_tenant('destination_id', 'organization_id', '"centrakit"."webhook_destinations"', 'id', 'organization_id');
+create trigger "bsb_same_tenant_event_id" before insert or update of "event_id", "organization_id" on "centrakit"."webhook_deliveries"
+  for each row execute function better_supabase.same_tenant('event_id', 'organization_id', '"centrakit"."workflow_events"', 'id', 'organization_id');
+create trigger "bsb_same_tenant_workflow_run_id" before insert or update of "workflow_run_id", "organization_id" on "centrakit"."webhook_deliveries"
+  for each row execute function better_supabase.same_tenant('workflow_run_id', 'organization_id', '"centrakit"."workflow_runs"', 'id', 'organization_id');
+create trigger "bsb_same_tenant_parent_id" before insert or update of "parent_id", "organization_id" on "centrakit"."file_node"
+  for each row execute function better_supabase.same_tenant('parent_id', 'organization_id', '"centrakit"."file_node"', 'id', 'organization_id');
+create trigger "bsb_same_tenant_file_node_id" before insert or update of "file_node_id", "organization_id" on "centrakit"."file_node_grant"
+  for each row execute function better_supabase.same_tenant('file_node_id', 'organization_id', '"centrakit"."file_node"', 'id', 'organization_id');
+create trigger "bsb_same_tenant_reports_to_employee_id" before insert or update of "reports_to_employee_id", "organization_id" on "centrakit"."employees"
+  for each row execute function better_supabase.same_tenant('reports_to_employee_id', 'organization_id', '"centrakit"."employees"', 'id', 'organization_id');
+create trigger "bsb_same_tenant_customer_id" before insert or update of "customer_id", "organization_id" on "centrakit"."projects"
+  for each row execute function better_supabase.same_tenant('customer_id', 'organization_id', '"centrakit"."customers"', 'id', 'organization_id');
 
 
 -- The `tenant_id` claim, then centrakit.profiles.active_organization_id, while the

@@ -288,6 +288,41 @@ alter table public.notes add constraint notes_task_fk foreign key (task_id) refe
     );
   });
 
+  it("derives the entries without the option, and false turns them off", () => {
+    const withLayout = (sameTenant: unknown) =>
+      moduleBody("memberships", {
+        modules: {
+          memberships: {
+            options: sameTenant === undefined ? {} : { sameTenant },
+          },
+        },
+        ...inputs,
+      })!;
+
+    expect(withLayout(undefined)).toBe(body(derived));
+    expect(withLayout(false)).not.toContain("bsb_same_tenant");
+    expect(withLayout([derived[0]])).toBe(body(derived));
+    expect(body(undefined)).not.toContain("bsb_same_tenant");
+  });
+
+  it("skips a key a composite pair on the tenant column already covers", () => {
+    const text = `
+create table public.parents (id uuid, organization_id uuid not null, unique (organization_id, id));
+create table public.kids (
+  id uuid primary key,
+  organization_id uuid not null,
+  parent_id uuid references public.parents (id),
+  foreign key (organization_id, parent_id) references public.parents (organization_id, id)
+);`;
+
+    const sql = moduleBody("memberships", {
+      modules: { memberships: {} },
+      ...sameTenantLayout([{ text }], ["public"]),
+    })!;
+
+    expect(sql).not.toContain("bsb_same_tenant");
+  });
+
   it("renders only the entries with auto off, and needs the scan with it on", () => {
     expect(autoBody({ auto: false, entries: [derived[0]] })).toBe(
       body([derived[0]]),

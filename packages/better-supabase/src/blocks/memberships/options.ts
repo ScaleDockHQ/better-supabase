@@ -48,10 +48,13 @@ export interface SameTenantEntry {
 }
 
 /**
- * `sameTenant`: the entries, or `{ auto: true }` to derive them from the
- * declared foreign keys.
+ * `sameTenant`: exceptions and extra entries on top of the keys the schema
+ * files declare (every foreign key between two tenant tables is checked by
+ * default), `false` to check none, or `{ auto: false, entries }` for the listed
+ * entries alone.
  */
 export type SameTenantOption =
+  | false
   | readonly SameTenantEntry[]
   | { readonly auto: boolean; readonly entries?: readonly SameTenantEntry[] };
 

@@ -17,7 +17,12 @@ export type NumberSequenceEntityOptions = {
    */
   readonly formatFrom?: { readonly column: string; readonly key?: string };
   readonly periodFrom?: { readonly column: string; readonly key?: string };
+  /**
+   * `schema.table`. With only `column`, the table of the subject named like the
+   * entity.
+   */
   readonly table?: string;
+  /** The number column. Defaults to `number` when `table` is set. */
   readonly column?: string;
   readonly sequenceColumn?: string;
   readonly tenantColumn?: string;

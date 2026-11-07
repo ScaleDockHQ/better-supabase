@@ -478,7 +478,6 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
 
     const config: ResolveInput = {
-      blocks: ["vector-search"],
       database: { vectorSearch: { chunks: "embedding" } },
     };
 

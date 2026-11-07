@@ -701,6 +701,13 @@ export const COMMANDS: readonly CommandSpec[] = [
         effects: [FILES],
       },
       {
+        name: "owned-columns",
+        description:
+          "Declare the columns blocks add to your own tables in your schema files",
+        docs: "/docs/cli/codemod",
+        effects: [FILES],
+      },
+      {
         name: "config",
         description:
           "Remove the columns entries the render refuses: a null for a column the view lacks and a tenant that repeats sql.tenantColumn",

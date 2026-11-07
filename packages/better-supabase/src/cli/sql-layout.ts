@@ -179,10 +179,14 @@ export async function moduleLayoutFor(
 
   const autoSameTenant =
     resolved.has("memberships") &&
-    typeof sameTenant === "object" &&
-    sameTenant !== null &&
-    "auto" in sameTenant &&
-    sameTenant.auto === true;
+    sameTenant !== false &&
+    !(
+      typeof sameTenant === "object" &&
+      sameTenant !== null &&
+      !Array.isArray(sameTenant) &&
+      "auto" in sameTenant &&
+      sameTenant.auto === false
+    );
 
   const base = moduleLayout(
     config,
