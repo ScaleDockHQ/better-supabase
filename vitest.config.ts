@@ -13,6 +13,7 @@ export default defineConfig({
       "apps/examples/express",
       "apps/examples/nextjs",
       "tests/bundle",
+      "tests/next-build",
       "tests/validation-centrakit",
       "tests/validation-recipes",
       "tests/validation-presets",

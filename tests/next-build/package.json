@@ -1,0 +1,19 @@
+{
+  "name": "@better-supabase/next-build",
+  "private": true,
+  "description": "Builds the Next.js example and holds the first-load JavaScript of every route to a baseline that never grows.",
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "update": "NEXT_BUILD_UPDATE=1 vitest run"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
