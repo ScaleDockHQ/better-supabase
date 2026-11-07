@@ -166,3 +166,14 @@ export function legacyOptionTarget(
 
   return undefined;
 }
+
+/** What an option the module doesn't declare is told: the codemod, or the list. */
+export function unknownOptionMessage(
+  where: string,
+  key: string,
+  declared: ReadonlySet<string>,
+): string {
+  return LEGACY_OPTION.test(key)
+    ? `${where}.options.${key} was removed: write the column in your schema files. Run \`better-supabase codemod extra-columns\` to move it.`
+    : `${where}.options: unknown option "${key}". Options: ${[...declared].join(", ") || "none"}`;
+}

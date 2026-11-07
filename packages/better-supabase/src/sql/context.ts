@@ -34,13 +34,14 @@ import {
   instanceArea,
   instanceEntityNames,
 } from "./instance-area.ts";
-import { LEGACY_OPTION } from "./legacy-options.ts";
+import { unknownOptionMessage } from "./legacy-options.ts";
+import { resourcePermissionKey } from "./permission-key.ts";
 import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
 import { logsSubjectReads } from "./subject-registry.ts";
 import { columnRenamer, tableBase } from "./table-renames.ts";
-import { blockColumnName } from "./tenant-column.ts";
+import { blockColumnName, checkTenantEntry } from "./tenant-column.ts";
 import { checkedValueMaps, valueMethods } from "./value-maps.ts";
 
 export { NOTHING };
@@ -610,6 +611,8 @@ export interface BlockSqlContextSource {
   ) => readonly Contributor<K>[];
   /** `layout.ownTables`: the app's tables, as `schema.table`. */
   readonly ownTables?: Readonly<Record<string, string>>;
+  /** `layout.permissionCatalog`: the permission keys the provider lists. */
+  readonly permissionCatalog?: readonly string[];
   /** `layout.ownViews`: the entries of `ownTables` that are views. */
   readonly ownViews?: Readonly<Record<string, OwnView>>;
   /** `layout.appColumns`: the columns the app's files add to tables. */
@@ -739,16 +742,8 @@ export function createModuleContext(
       );
     }
 
-    if (LEGACY_OPTION.test(key)) {
-      throw new TypeError(
-        `${where}.options.${key} was removed: write the column in your schema files. Run \`better-supabase codemod extra-columns\` to move it.`,
-      );
-    }
-
     if (!declared.has(key)) {
-      throw new TypeError(
-        `${where}.options: unknown option "${key}". Options: ${[...declared].join(", ") || "none"}`,
-      );
+      throw new TypeError(unknownOptionMessage(where, key, declared));
     }
   }
 
@@ -821,7 +816,15 @@ export function createModuleContext(
       : `${prefix}_${written}`;
 
   const permissionKey = (action: string, fallback: string): string =>
-    config.permissions[action] ?? ownKey(fallback);
+    config.permissions[action] ??
+    resourcePermissionKey(
+      ownKey(fallback),
+      action,
+      Object.values(names.entities ?? {}).find((entity) => entity.primary)
+        ?.singular,
+      source.permissionCatalog,
+      ownKey,
+    );
 
   const ownKey = (key: string): string =>
     instanceArea(
@@ -906,15 +909,12 @@ export function createModuleContext(
 
     const mapped = config.columns[table]?.[logical];
 
-    if (
-      logical === "tenant" &&
-      tenantColumn !== undefined &&
-      mapped === tenantColumn
-    ) {
-      throw new TypeError(
-        `${where}.columns.${table}.tenant: "${mapped}" is sql.tenantColumn, which fills every tenant column already. Remove the entry.`,
-      );
-    }
+    checkTenantEntry(
+      `${where}.columns.${table}`,
+      logical,
+      mapped,
+      tenantColumn,
+    );
 
     return mapped === undefined
       ? blockColumnName(

@@ -82,6 +82,9 @@ export function moduleContext(
         : {}),
       ...(layout.appTables ? { appTables: Object.keys(layout.appTables) } : {}),
       ...(layout.ownTables ? { ownTables: layout.ownTables } : {}),
+      ...(layout.permissionCatalog
+        ? { permissionCatalog: layout.permissionCatalog }
+        : {}),
       ...(layout.ownViews ? { ownViews: layout.ownViews } : {}),
       ...(layout.appColumns ? { appColumns: layout.appColumns } : {}),
       ...(installed ? { installed } : {}),

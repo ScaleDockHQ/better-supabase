@@ -23,3 +23,21 @@ export function blockColumnName(
 
   return tenantColumn;
 }
+
+/** A `tenant` entry that repeats `sql.tenantColumn` restates what it fills. */
+export function checkTenantEntry(
+  at: string,
+  logical: string,
+  mapped: string | null | undefined,
+  tenantColumn: string | undefined,
+): void {
+  if (
+    logical === "tenant" &&
+    tenantColumn !== undefined &&
+    mapped === tenantColumn
+  ) {
+    throw new TypeError(
+      `${at}.tenant: "${mapped}" is sql.tenantColumn, which fills every tenant column already. Remove the entry.`,
+    );
+  }
+}

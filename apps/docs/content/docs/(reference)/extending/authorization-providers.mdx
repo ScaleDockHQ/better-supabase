@@ -110,6 +110,14 @@ const apiVersion: ContractApiVersion = 1;
 | `better-supabase gen`                                                                                    | refuses a bucket or topic key that isn't `sqlComplete: true`                         |
 | [Doctor](/docs/cli/doctor) BS107, BS213, BS214, BS324, BS404, BS405, BS407 to BS409, BS411, BS419, BS420 | `requires`, `decidingColumns`, `permissions`, `memberships`, `tokenHook`, `versions` |
 
+A block checks `<block>.<action>` by default, such as `tags.read`. When
+`authorization.permissions` lists `<resource>.<action>` of the block's primary
+entity (`tag.read`) and not the block's own key, the block checks the resource
+key instead, so a provider that names permissions after resources needs no
+`blocks.<name>.permissions` entries. An entry in `blocks.<name>.permissions`
+always wins, and a block whose keys the provider lists under neither name still
+fails the check that names the key to remap.
+
 `auth.entitlements.memberships` and `blocks.permissions.model` both default to
 `"provider"` when `authorization` is set. Set another access model to keep
 the built-in roles; doctor BS414 then reports each policy and function that
