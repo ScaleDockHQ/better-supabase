@@ -35,11 +35,19 @@ import {
   schemaExtensions,
 } from "./blocks.ts";
 import { deprecationWarnings } from "./deprecations.ts";
-import { emitMeta, emitModule, emitRuntime, metaPaths } from "./emit.ts";
+import {
+  emitMeta,
+  emitModule,
+  emitRuntime,
+  emitSchemaModule,
+  metaPaths,
+  schemaModulePath,
+} from "./emit.ts";
 import { emitHooks } from "./hooks.ts";
 import { buildModel, generatorModel } from "./model.ts";
 import { emitRecords } from "./records.ts";
 import { withTableTags } from "./table-tags.ts";
+import { emitTableModules, tableModules } from "./tables.ts";
 
 export interface RenderOptions {
   /**
@@ -145,6 +153,13 @@ export async function render(
 
   const metaFiles = metaPaths(config.output);
 
+  const split =
+    config.gen.tableModules === true &&
+    !options.inlineMeta &&
+    config.gen.contentMapper !== true;
+
+  const modules = split ? tableModules(model) : undefined;
+
   const emitOptions = {
     databaseTypesImport: importPath(
       output,
@@ -154,12 +169,14 @@ export async function render(
       importPath(output, resolve(config.root, from)),
     metaImport: `./${basename(metaFiles.js)}`,
     extensions: options.extensions === false ? [] : schemaExtensions(config),
+    ...(modules === undefined ? {} : { tables: modules }),
     ...(options.inlineMeta ? { inlineMeta: true } : {}),
     ...runtime,
   };
 
   const meta = emitMeta(model, {
     types: `./${basename(metaFiles.dts)}`,
+    splitTables: split,
     ...runtime,
   });
 
@@ -204,7 +221,14 @@ export async function render(
 
   files.push(...emitRecords(config));
 
-  const hooks = emitHooks(config, Object.keys(model.meta.tables), runtime);
+  if (modules) {
+    files.push(...emitTableModules(model, modules, config, runtime));
+  }
+
+  const hooks = emitHooks(config, Object.keys(model.meta.tables), {
+    ...runtime,
+    ...(modules === undefined ? {} : { tables: modules }),
+  });
 
   if (hooks) {
     files.push(hooks);
@@ -290,6 +314,16 @@ export async function render(
         })
       : emitModule(model, withValidators),
   };
+
+  if (modules) {
+    files.push({
+      path: schemaModulePath(config.output),
+      contents: emitSchemaModule(model, modules, {
+        ...withValidators,
+        generated: `./${basename(config.output)}`,
+      }),
+    });
+  }
 
   const typesModule =
     mapper || options.typesModule === true

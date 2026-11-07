@@ -95,6 +95,17 @@ export interface GenConfig {
    */
   readonly contentMapper?: boolean;
   /**
+   * Writes one module per table, `tables/<table>.ts`, next to `generated.ts`,
+   * and leaves the tables out of `generated.meta.js`. Each module exports the
+   * table's runtime metadata, so a page imports `customers` from
+   * `tables/customers` and carries that table only. `generated.ts` imports them
+   * all for the server and adds `clientSchema`, a schema that registers the
+   * tables a client uses (`bsb.table(customers)`), for a browser client without
+   * a table registry. `hooks.ts` reads through `bsb.table`. Defaults to
+   * `false`.
+   */
+  readonly tableModules?: boolean;
+  /**
    * Block instances the browser client wires: `gen` writes `blocks.client.ts`
    * with `clientBlocks`, a `defineBlocks` set over only these instances, so
    * `createClient(app.blocks(clientBlocks))` has `db.<instance>` without

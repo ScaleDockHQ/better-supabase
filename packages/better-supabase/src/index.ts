@@ -266,7 +266,9 @@ export type {
 
 export { SPEC_PINS } from "./core/spec-pins.ts";
 
-export { defineSchema, tableMeta } from "./schema/define.ts";
+export { defineSchema, defineTable, tableMeta } from "./schema/define.ts";
+
+export type { TableModule } from "./schema/define.ts";
 
 export type { EnrichDatabase } from "./schema/enrich.ts";
 

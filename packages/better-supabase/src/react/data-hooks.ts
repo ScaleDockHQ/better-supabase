@@ -44,17 +44,21 @@ function useClient(): Parameters<typeof dataTarget>[0] {
 
 /**
  * The list hook for one table or block instance, for a module that wants to
- * tree-shake each hook on its own. `defineDataHooks` makes both.
+ * tree-shake each hook on its own. `defineDataHooks` makes both. With a table
+ * module from `tables/<table>.ts` as `table`, the hook reads through
+ * `client.table(table)`, so a client of a `lazyTables` schema registers just
+ * that table.
  */
 export const defineListHook =
   /*#__NO_SIDE_EFFECTS__*/
   <D, S extends DataSource>(
     name: string,
     select: (db: D) => S,
+    table?: object,
   ): DataHooks<S>["useList"] =>
     (args) => {
       const client = useClient();
-      const target = dataTarget(client, name, select);
+      const target = dataTarget(client, name, select, table);
 
       return useController(
         () => createDataList(target, args),
@@ -73,10 +77,11 @@ export const defineOneHook =
   <D, S extends DataSource>(
     name: string,
     select: (db: D) => S,
+    table?: object,
   ): DataHooks<S>["useOne"] =>
     (id) => {
       const client = useClient();
-      const target = dataTarget(client, name, select);
+      const target = dataTarget(client, name, select, table);
 
       return useController(
         () => createDataOne(target, id),

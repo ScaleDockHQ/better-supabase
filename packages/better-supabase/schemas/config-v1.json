@@ -2751,6 +2751,11 @@
           "description": "Serve the schema types through the TypeScript 7.1 content mapper: gen writes a slim generated.ts and schema.bsb instead of the type files.",
           "default": false
         },
+        "tableModules": {
+          "type": "boolean",
+          "description": "Write one module per table, tables/<table>.ts, and a clientSchema that registers the tables a browser client uses.",
+          "default": false
+        },
         "clientBlocks": {
           "type": "array",
           "items": {

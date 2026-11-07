@@ -1,12 +1,15 @@
 import { defineListQuery } from "better-supabase/list";
 
-import { betterSupabase } from "./supabase";
+import { clientApp } from "./supabase/client-app";
+import { customersTable } from "./supabase/tables/customers";
 
 /**
- * `/customers?q=&status=&sort=&page=`. With `facetCounts`, the page and the
- * per-status counts are two requests in one wave.
+ * Defined over the client app and the `customers` table module, so the client
+ * component that reads the URL state loads one table and not the server's
+ * `betterSupabase`. `/customers?q=&status=&sort=&page=`. With `facetCounts`,
+ * the page and the per-status counts are two requests in one wave.
  */
-export const customerList = defineListQuery(betterSupabase, "customers", {
+export const customerList = defineListQuery(clientApp, customersTable, {
   search: ["name"],
   facets: { status: "status" },
   sorts: {

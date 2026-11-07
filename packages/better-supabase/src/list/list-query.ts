@@ -19,6 +19,7 @@ import type {
   WhereInput,
 } from "../ir/args.ts";
 import type { CountMode } from "../ir/types.ts";
+import type { TableModule } from "../schema/define.ts";
 import type {
   AnyFunctions,
   AnyModels,
@@ -418,9 +419,17 @@ export function defineListQuery<
   const P extends ListPagination = "cursor",
 >(
   betterSupabase: BetterSupabase<M, D, Fn, E>,
-  table: T,
+  source: T | TableModule<T>,
   config: ListQueryConfig<M, T, S, F, C, P>,
 ): ListDefinition<M, T, E, S, F, C, P> {
+  // A table module (`tables/customers.ts`) registers with a definition whose
+  // schema sets `lazyTables`, so a module that only defines a list loads one
+  // table's metadata and not the app's.
+  if (typeof source !== "string" && betterSupabase.meta.lazyTables === true) {
+    betterSupabase.registerTable(source);
+  }
+
+  const table: T = typeof source === "string" ? source : source.key;
   const meta: TableMeta | undefined = betterSupabase.meta.tables[table];
 
   if (!meta) {

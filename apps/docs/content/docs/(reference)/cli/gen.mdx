@@ -144,6 +144,41 @@ mapper's cache, and when the types change, a stamp file in
 `node_modules/.cache/better-supabase` that the editor watches, so `--watch`
 reloads the types in the editor too. `--check` checks the mapper-mode files.
 
+## Table modules
+
+With `gen.tableModules: true`, `gen` writes one module per table, `tables/<table>.ts`,
+next to the generated module. Each one exports the table's runtime metadata as
+`<key>Table` (`customersTable`), and `generated.meta.js` lists no table. The
+server's schema moves to `generated-schema.ts`, which imports every table. The
+generated module keeps the types, `buckets`, the extensions and `clientSchema`,
+a schema with no tables for a browser client.
+
+A client on `clientSchema` registers the tables it uses. Pass the module to
+`bsb.table`, which returns the repository, or to a generated hook, which reads
+through it. A table you embed with `with` is registered the same way before the
+query.
+
+```ts
+import { createSupabase } from "better-supabase";
+import { createClient } from "better-supabase/client";
+
+import { clientSchema } from "./generated";
+import { customersTable } from "./tables/customers";
+
+const bsb = createClient(createSupabase(clientSchema), { env });
+
+const customers = bsb.table(customersTable);
+await customers.list({ where: { status: "active" } });
+```
+
+`defineListQuery` takes a table module in place of a table name, so a module
+that defines a list for a client component loads one table. Keep server code on
+`schema` from `generated-schema.ts`: a page that imports it loads every table.
+`tests/next-build` in this repository holds the Next.js example to that rule.
+
+`--stdout` and the content mapper write the single-module output, and the option
+is off by default.
+
 ## Options
 
 | Option                 | Effect                                                                                                                                                           |

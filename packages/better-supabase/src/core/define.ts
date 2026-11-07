@@ -5,10 +5,10 @@ import type {
   SchemaMeta,
   TableKey,
 } from "../schema/types.ts";
-import type { StorageApi } from "../storage/storage-api.ts";
 import type { CacheAdapter, CacheTarget } from "./cache.ts";
 import type { BlockSetClients, DbBlockSource, WithExtra } from "./db-blocks.ts";
 import type { BucketRegistry } from "./db-buckets.ts";
+import type { DbSource } from "./db-storage.ts";
 import type { ConnectOptions, SupabaseOptions } from "./define-types.ts";
 import type { DbError, ErrorMapper } from "./errors.ts";
 import type { EventHandler, EventName } from "./events.ts";
@@ -34,18 +34,18 @@ import type { RequestTuning } from "./timeout.ts";
 
 import { builderFor } from "../ir/build.ts";
 import { encodeArguments } from "../ir/wire.ts";
-import { isStorageApi } from "../storage/storage-api.ts";
+import { addLazyTable } from "../schema/define.ts";
 import { batchingExecutor } from "./batch.ts";
 import { cacheTargetOf, rpcCacheTargets } from "./cache.ts";
 import { blocksPrototype } from "./db-blocks.ts";
 import { dbDecoder } from "./db-decode.ts";
 import { searchTable } from "./db-search.ts";
+import { storageOf } from "./db-storage.ts";
 import { NO_PLUGINS, isExecutor, keptPlugins } from "./define-plugins.ts";
 import { definitionEvents } from "./diagnostics.ts";
 import { DbException, dbError } from "./errors.ts";
 import { EventHub, errorEvent } from "./events.ts";
 import { openGates } from "./gates.ts";
-import { isRecord } from "./guards.ts";
 import { orderPlugins } from "./plugin.ts";
 import { postgrestExecutor } from "./postgrest-executor.ts";
 import {
@@ -73,43 +73,6 @@ import {
   providedTemporal,
 } from "./temporal.ts";
 import { deadline, invalidTuning } from "./timeout.ts";
-
-/** What a `Db` was connected to: its client, and the `storage` option. */
-interface DbSource {
-  readonly client: unknown;
-  readonly storage: StorageApi | undefined;
-}
-
-/**
- * A supabase-js client builds a new storage client on each read of `storage`,
- * so it is read once per connection.
- */
-const clientStorage = new WeakMap<DbSource, StorageApi>();
-
-function storageOf(source: DbSource): StorageApi {
-  if (source.storage) {
-    return source.storage;
-  }
-
-  const cached = clientStorage.get(source);
-
-  if (cached) {
-    return cached;
-  }
-
-  const client = source.client;
-  const storage = isRecord(client) ? client["storage"] : undefined;
-
-  if (isStorageApi(storage)) {
-    clientStorage.set(source, storage);
-
-    return storage;
-  }
-
-  throw new TypeError(
-    "better-supabase: db.$storage needs a client with storage, or connect(executor, context, { storage })",
-  );
-}
 
 /**
  * The isomorphic definition of your data layer: schema plus plugins. Holds no
@@ -1074,15 +1037,10 @@ export class BetterSupabase<
       return repository;
     };
 
-    for (const key of Object.keys(this.meta.tables)) {
-      Object.defineProperty(tables, key, {
-        enumerable: true,
-        get(this: object) {
-          const state = dbStates.get(this);
+    this.#build = build;
 
-          return state ? build(state, key) : undefined;
-        },
-      });
+    for (const key of Object.keys(this.meta.tables)) {
+      this.#defineTable(tables, key);
     }
 
     const { blocks, temporal } = this.options;
@@ -1099,6 +1057,35 @@ export class BetterSupabase<
           );
 
     return this.#tables;
+  }
+
+  #build:
+    | ((state: DbState, key: string) => Record<string, unknown>)
+    | undefined;
+
+  #defineTable(tables: object, key: string): void {
+    const build = this.#build;
+
+    Object.defineProperty(tables, key, {
+      enumerable: true,
+      configurable: true,
+      get(this: object) {
+        const state = dbStates.get(this);
+
+        return state && build ? build(state, key) : undefined;
+      },
+    });
+  }
+
+  /**
+   * Adds a table to a definition whose schema sets `lazyTables`, so a `db` made
+   * earlier reads it too. The split layout's browser client calls it through
+   * `client.table(customers)`; everything else lists its tables.
+   */
+  registerTable(table: SchemaMeta["tables"][string]): void {
+    if (addLazyTable(this.meta, table) && this.#tables !== undefined) {
+      this.#defineTable(this.#tables, table.key);
+    }
   }
 
   #repository(

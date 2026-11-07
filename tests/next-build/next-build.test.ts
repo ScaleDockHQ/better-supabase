@@ -103,17 +103,14 @@ function sum(sizes: readonly Size[], key: keyof Size): number {
   return sizes.reduce((total, size) => total + size[key], 0);
 }
 
-/**
- * First Load JS per route: the root chunks every page loads, plus the chunks of
- * the layouts and the page the route renders.
- */
-async function firstLoad(): Promise<Baseline> {
+/** The chunks a route loads first: the root chunks and its own tree's. */
+async function routeChunks(): Promise<Map<string, Set<string>>> {
   const build = JSON.parse(
     await readFile(join(NEXT, "build-manifest.json"), "utf-8"),
   ) as BuildManifest;
 
   const shared = [...build.rootMainFiles, ...build.polyfillFiles];
-  const result: Baseline = {};
+  const routes = new Map<string, Set<string>>();
 
   const manifests = (await files(join(NEXT, "server/app")))
     .filter((file) => file.endsWith(MANIFEST_FILE))
@@ -131,10 +128,33 @@ async function firstLoad(): Promise<Baseline> {
       }
     }
 
+    routes.set(route, chunks);
+  }
+
+  return routes;
+}
+
+/**
+ * First Load JS per route: the root chunks every page loads, plus the chunks of
+ * the layouts and the page the route renders.
+ */
+async function firstLoad(): Promise<Baseline> {
+  const result: Baseline = {};
+
+  for (const [route, chunks] of await routeChunks()) {
     result[route] = await measure(chunks);
   }
 
   return result;
+}
+
+/** The text of every chunk a route loads first, joined. */
+async function routeSource(chunks: ReadonlySet<string>): Promise<string> {
+  const texts = await Promise.all(
+    [...chunks].map((chunk) => readFile(join(NEXT, chunk), "utf-8")),
+  );
+
+  return texts.join("\n");
 }
 
 const SIZES = ["raw", "gzip", "brotli"] as const;
@@ -227,6 +247,40 @@ describe("the Next.js example's first-load JavaScript", () => {
 
       await writeFile(BASELINE, `${JSON.stringify(next, null, 2)}\n`);
       expect(grown, "the update never raises a baseline").toEqual([]);
+    },
+    120_000,
+  );
+
+  // The browser client has no table registry (ADR 0262): a page carries the
+  // table modules it imports, and the server's schema never reaches a route.
+  it.skipIf(UPDATE)(
+    "ships only the tables a page imports",
+    async () => {
+      const routes = await routeChunks();
+      const sources = new Map<string, string>();
+
+      for (const [route, chunks] of routes) {
+        sources.set(route, await routeSource(chunks));
+      }
+
+      const customers = sources.get("/[locale]/(app)/customers/page");
+
+      // The page defines its list over `customersTable` and nothing else.
+      expect(customers, "the customers route").toBeDefined();
+      expect(customers).toContain('key:"customers"');
+
+      for (const other of ["clientNotes", "changeRequests", "savedViews"]) {
+        expect(customers, `the customers route has ${other}`).not.toContain(
+          `key:"${other}"`,
+        );
+      }
+
+      // `generated-schema.ts` lists every table; only the server imports it.
+      const leaks = [...sources]
+        .filter(([, source]) => source.includes("tables:{changeRequests:"))
+        .map(([route]) => route);
+
+      expect(leaks, "routes that load the server's schema").toEqual([]);
     },
     120_000,
   );

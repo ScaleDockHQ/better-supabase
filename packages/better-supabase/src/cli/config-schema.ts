@@ -957,6 +957,7 @@ const ENTRIES = {
         v.pipe(v.number(), v.minValue(1, "must be a positive number of ms")),
       ),
       contentMapper: v.optional(v.boolean()),
+      tableModules: v.optional(v.boolean()),
       clientBlocks: v.optional(v.array(v.string())),
       powersync: v.optional(powersyncGenSchema),
       api: v.optional(

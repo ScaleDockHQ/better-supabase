@@ -172,6 +172,13 @@ export interface SchemaMeta {
   readonly version: 1;
   readonly casing: Casing;
   readonly tables: Readonly<Record<string, TableMeta>>;
+  /**
+   * The tables are not all listed: a module registers each one it uses
+   * (`client.table(customers)`), so a page only carries the tables it imports.
+   * `defineSchema` copies `tables` so registering never changes a module's
+   * constant. Only the browser client of a split layout sets it.
+   */
+  readonly lazyTables?: true;
   readonly enums: Readonly<Record<string, readonly string[]>>;
   readonly functions: Readonly<Record<string, FunctionMeta>>;
   readonly buckets?: Readonly<Record<string, BucketMeta>>;

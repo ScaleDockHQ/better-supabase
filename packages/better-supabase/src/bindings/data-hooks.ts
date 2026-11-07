@@ -91,6 +91,8 @@ export interface DataTarget<S extends DataSource> {
 /** The client a data hook reads through: `bsb` from `createClient()`. */
 export interface DataClient {
   readonly db: object;
+  /** Registers and reads a table module (`BetterClient.table`). */
+  readonly table?: ((table: never) => unknown) | undefined;
   readonly tenant?: BlockTenant | undefined;
   readonly engine?: DataEngine | undefined;
 }
@@ -292,10 +294,15 @@ export function dataTarget<D, S extends DataSource>(
   client: DataClient,
   name: string,
   select: (db: D) => S,
+  table?: object,
 ): DataTarget<S> {
   return {
-    // SAFETY: `D` is the client's `Db` type the generated hooks name.
-    source: select(client.db as D),
+    // SAFETY: `D` is the client's `Db` type the generated hooks name; a table
+    // module reads through `client.table`, which registers it first.
+    source:
+      table !== undefined && client.table !== undefined
+        ? (client.table(table as never) as S)
+        : select(client.db as D),
     scope: ["bsb", name, currentTenant(client.tenant) ?? null],
     engine: engineOf(client),
   };

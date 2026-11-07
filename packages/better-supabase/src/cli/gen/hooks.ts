@@ -1,7 +1,9 @@
 import { posix } from "node:path";
 
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
+import type { TableModuleInfo } from "./tables.ts";
 
+import { byCodePoint } from "../compare.ts";
 import { GENERATED_HEADER } from "./emit.ts";
 import { importGroup, pureExport, sortImports } from "./layout.ts";
 import { pascal, q, runtimeSubpath, singular } from "./shared.ts";
@@ -39,7 +41,11 @@ export function hookNames(property: string): {
 export function emitHooks(
   config: Pick<ResolvedConfig, "hooks" | "hooksSelect" | "output">,
   tables: readonly string[],
-  options: { readonly runtimeImport?: string } = {},
+  options: {
+    readonly runtimeImport?: string;
+    /** Per-table modules: the hooks read through `client.table(<module>)`. */
+    readonly tables?: readonly TableModuleInfo[];
+  } = {},
 ): GeneratedFile | undefined {
   if (config.hooks === false) {
     return undefined;
@@ -63,6 +69,14 @@ export function emitHooks(
 
   const group = select && importGroup(select.module);
 
+  const moduleOf = new Map(
+    (options.tables ?? []).map((table) => [table.key, table]),
+  );
+
+  const tableImports = [...moduleOf.values()]
+    .toSorted((a, b) => byCodePoint(a.specifier, b.specifier))
+    .map((table) => `import { ${table.name} } from ${q(table.specifier)};`);
+
   return {
     path: hooksPath(config),
     contents: [
@@ -78,15 +92,19 @@ export function emitHooks(
       ...(selectImport && group === "internal" ? ["", selectImport] : []),
       "",
       'import type { betterSupabase } from "./index";',
+      ...(tableImports.length > 0 ? ["", ...tableImports] : []),
       ...(selectImport && group === "relative" ? ["", selectImport] : []),
       "",
       "type AppDb = DbOf<typeof betterSupabase>;",
       ...tables.flatMap((property) => {
         const names = hookNames(property);
 
+        const module = moduleOf.get(property);
+
         const select = [
           q(property),
           wrap(`(db: AppDb) => ${access(property)}`),
+          ...(module === undefined ? [] : [module.name]),
         ];
 
         return [

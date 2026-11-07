@@ -75,6 +75,8 @@ export default defineConfig({
     storagePaths: { "customers.logo_path": "customerLogos" },
     readSets: ["src/lib/read-sets.ts"],
     hooks: "react",
+    // One module per table: a page carries the tables it imports (ADR 0262).
+    tableModules: true,
   },
   tooling: {
     doctor: {

@@ -151,10 +151,18 @@ function recordFile(
   const generated = importPath(path, blockConfigPath(config));
   const configModule = importPath(path, blockConfigModulePath(config));
 
-  const fromGenerated = [
+  // `permissions` comes from the config module, which holds plain data: the
+  // generated one imports every installed block, and a record file loads in
+  // the browser.
+  const fromConfig = [
+    "blockConfig",
     ...(extras.permissions ? ["permissions"] : []),
-    ...blocks.filter((block) => block.from === undefined).map((b) => b.local),
-  ].toSorted((a, b) => a.localeCompare(b));
+  ];
+
+  const fromGenerated = blocks
+    .filter((block) => block.from === undefined)
+    .map((b) => b.local)
+    .toSorted((a, b) => a.localeCompare(b));
 
   const imports = sortImports([
     'import { defineRecordType } from "better-supabase/records";',
@@ -175,7 +183,7 @@ function recordFile(
       "",
       ...imports,
       "",
-      ...importStatement(["blockConfig"], configModule),
+      ...importStatement(fromConfig, configModule),
       ...(fromGenerated.length === 0
         ? []
         : importStatement(fromGenerated, generated)),

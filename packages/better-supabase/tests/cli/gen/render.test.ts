@@ -102,3 +102,100 @@ describe("render", () => {
     }
   });
 });
+
+describe("render with gen.tableModules", () => {
+  const split = resolveConfig({ ...base, gen: { tableModules: true } }, "/app");
+
+  it("writes one module per table and a server schema module", async () => {
+    const snapshot = await loadFixtureSnapshot();
+    const { files } = await render(split, snapshot);
+    const paths = files.map((file) => file.path);
+    const meta = files.find((file) => file.path.endsWith("generated.meta.js"));
+
+    expect(paths).toContain("src/lib/supabase/tables/customers.ts");
+    expect(paths).toContain("src/lib/supabase/generated-schema.ts");
+    expect(meta?.contents).toContain('"tables": {}');
+
+    const table = files.find((file) =>
+      file.path.endsWith("tables/customers.ts"),
+    );
+
+    expect(table?.contents).toContain(
+      "export const customersTable = /*#__PURE__*/ defineTable(",
+    );
+    expect(table?.contents).toContain('"key":"customers"');
+  });
+
+  it("keeps the table metadata and the schema out of the main module", async () => {
+    const snapshot = await loadFixtureSnapshot();
+    const { files } = await render(split, snapshot);
+    const main = files.find((file) => file.path === split.output)?.contents;
+
+    const schema = files.find((file) =>
+      file.path.endsWith("generated-schema.ts"),
+    )?.contents;
+
+    expect(main).toContain("export const clientSchema");
+    expect(main).toContain("lazyTables: true");
+    expect(main).not.toContain("export const schema");
+    expect(main).not.toContain("generated.meta.js");
+    expect(main).not.toContain("./tables/");
+    expect(schema).toContain("export const schema");
+    expect(schema).toContain("/*#__PURE__*/ defineSchema({ ...meta, tables }");
+    expect(schema).toContain('from "./tables/customers.ts"');
+  });
+
+  it("makes every hook read through its table module", async () => {
+    const snapshot = await loadFixtureSnapshot();
+
+    const { files } = await render(
+      resolveConfig(
+        { ...base, gen: { tableModules: true, hooks: "react" } },
+        "/app",
+      ),
+      snapshot,
+    );
+
+    const hooks = files.find((file) =>
+      file.path.endsWith("hooks.ts"),
+    )?.contents;
+
+    expect(hooks).toContain(
+      'import { customersTable } from "./tables/customers.ts";',
+    );
+    expect(hooks).toMatch(
+      /defineListHook\(\s*"customers",\s*\(db: AppDb\) => db\.customers,\s*customersTable,/,
+    );
+  });
+
+  it("leaves the layout alone without the option", async () => {
+    const snapshot = await loadFixtureSnapshot();
+    const { files } = await render(configFor(false), snapshot);
+
+    expect(files.some((file) => file.path.includes("/tables/"))).toBe(false);
+    expect(
+      files.some((file) => file.path.endsWith("generated-schema.ts")),
+    ).toBe(false);
+  });
+
+  it("keeps the single-module output in stdin mode and mapper mode", async () => {
+    const snapshot = await loadFixtureSnapshot();
+
+    const inline = await render(split, snapshot, { inlineMeta: true });
+
+    const mapper = await render(
+      resolveConfig(
+        { ...base, gen: { tableModules: true, contentMapper: true } },
+        "/app",
+      ),
+      snapshot,
+    );
+
+    expect(inline.files.some((file) => file.path.includes("/tables/"))).toBe(
+      false,
+    );
+    expect(mapper.files.some((file) => file.path.includes("/tables/"))).toBe(
+      false,
+    );
+  });
+});

@@ -33,6 +33,7 @@ export const ignorePatterns: string[] = [
   "**/generated-*.ts",
   "**/database.types.ts",
   "**/lib/supabase/records/**",
+  "**/lib/supabase/tables/**",
 ];
 
 /**
