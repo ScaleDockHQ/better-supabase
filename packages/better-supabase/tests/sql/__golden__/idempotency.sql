@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:041021136c16c1ac04dfe66b6d8540ddc8fa5d6c813174b69f6adafa231c7919
+-- @bsb-hash sha256:2e343fd86bd49485e35f03a599d2eff25c0de4a482d02c2a7b8ff24118e6b0c2
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,7 +10,7 @@ create table "better_supabase"."idempotency_keys" (
   "scope" text not null default '',
   "key" text not null,
   "request_hash" text not null,
-  "status" text not null default 'running' check ("status" in ('running', 'completed')),
+  "status" text not null default 'running' constraint bsb_idempotency_keys_status_check check ("status" in ('running', 'completed')),
   "status_code" integer,
   "response" jsonb,
   "locked_until" timestamptz,
@@ -250,7 +250,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:041021136c16c1ac04dfe66b6d8540ddc8fa5d6c813174b69f6adafa231c7919
+-- @bsb-hash sha256:2e343fd86bd49485e35f03a599d2eff25c0de4a482d02c2a7b8ff24118e6b0c2
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -259,7 +259,7 @@ create table "better_supabase"."idempotency_keys" (
   "scope" text not null default '',
   "key" text not null,
   "request_hash" text not null,
-  "status" text not null default 'running' check ("status" in ('running', 'completed')),
+  "status" text not null default 'running' constraint bsb_idempotency_keys_status_check check ("status" in ('running', 'completed')),
   "status_code" integer,
   "response" jsonb,
   "locked_until" timestamptz,
@@ -499,7 +499,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:ec9734e5db1a550e7771fd095161897d8271535e73c1ffdaf69e120fb2806e5e
+-- @bsb-hash sha256:6ed774dc53481a2683a06c192f8c0874b93c1550e4fe274dd5a2c3370a8d3544
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -514,7 +514,7 @@ create table "app_private"."idempotency_keys" (
   "scope" text not null default '',
   "key" text not null,
   "request_hash" text not null,
-  "status" text not null default 'running' check ("status" in ('running', 'completed')),
+  "status" text not null default 'running' constraint bsb_idempotency_keys_status_check check ("status" in ('running', 'completed')),
   "status_code" integer,
   "response" jsonb,
   "locked_until" timestamptz,
@@ -754,7 +754,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:bfacca2f3f60b90526f91e77a234c748d4958044364401f7407c06524bde53e2
+-- @bsb-hash sha256:c09a3cfc028850e5e164bcaa5a220cece39bb42739be74014cf5452b9b27465d
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -763,7 +763,7 @@ create table "better_supabase"."idempotency_keys" (
   "scope" text not null default '',
   "key" text not null,
   "request_hash" text not null,
-  "status" text not null default 'running' check ("status" in ('running', 'completed')),
+  "status" text not null default 'running' constraint bsb_idempotency_keys_status_check check ("status" in ('running', 'completed')),
   "status_code" integer,
   "response" jsonb,
   "locked_until" timestamptz,
@@ -1079,7 +1079,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_008_idempotency.sql
 -- better-supabase module: idempotency
 -- @bsb-block idempotency@2 managed
--- @bsb-hash sha256:7a70d7bb98e7b323b380526efb162ce9b7a2801c85e8ca17ccda673fa7bf366e
+-- @bsb-hash sha256:fd9c3b98cdc10be061e4de246e5841bffce80c1dec83f6b8410fc9f9bb50d336
 -- Stores responses by Idempotency-Key so retried requests replay the first result instead of running twice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1088,7 +1088,7 @@ on conflict (name) do update
 alter table "better_supabase"."idempotency_keys" add column if not exists "scope" text not null default '';
 alter table "better_supabase"."idempotency_keys" add column if not exists "key" text;
 alter table "better_supabase"."idempotency_keys" add column if not exists "request_hash" text;
-alter table "better_supabase"."idempotency_keys" add column if not exists "status" text not null default 'running' check ("status" in ('running', 'completed'));
+alter table "better_supabase"."idempotency_keys" add column if not exists "status" text not null default 'running' constraint bsb_idempotency_keys_status_check check ("status" in ('running', 'completed'));
 alter table "better_supabase"."idempotency_keys" add column if not exists "status_code" integer;
 alter table "better_supabase"."idempotency_keys" add column if not exists "response" jsonb;
 alter table "better_supabase"."idempotency_keys" add column if not exists "locked_until" timestamptz;

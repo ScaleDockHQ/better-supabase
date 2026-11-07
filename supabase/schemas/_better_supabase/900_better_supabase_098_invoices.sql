@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:febfa97c3ca1a5b23895080786fec0af7951c79b04d4fa4a0b8447d508dda351
+-- @bsb-hash sha256:ca726dc8c59ebecb114e194f8e52a9cd6f1b4356085d327d0ceecadab4f47646
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,18 +12,18 @@
 create table "better_supabase"."invoices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null default 'invoice' check ("kind" in ('invoice', 'credit_note')),
+  "kind" text not null default 'invoice' constraint bsb_invoices_kind_check check ("kind" in ('invoice', 'credit_note')),
   "number" bigint,
   "identifier" text,
   "original_id" uuid references "better_supabase"."invoices" ("id"),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
+  "title" text not null constraint bsb_invoices_title_check check (length("title") >= 1 and length("title") <= 300),
   "company_type" text,
   "company_id" text,
   "contact_type" text,
   "contact_id" text,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "status" text not null default 'draft' check ("status" in ('draft', 'issued', 'partially_paid', 'paid', 'void', 'uncollectible')),
-  "terms_days" integer not null default 30 check ("terms_days" >= 0),
+  "currency" char(3) not null constraint bsb_invoices_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "status" text not null default 'draft' constraint bsb_invoices_status_check check ("status" in ('draft', 'issued', 'partially_paid', 'paid', 'void', 'uncollectible')),
+  "terms_days" integer not null default 30 constraint bsb_invoices_terms_days_check check ("terms_days" >= 0),
   "issued_on" date,
   "due_on" date,
   "paid_total" bigint not null default 0,
@@ -34,20 +34,20 @@ create table "better_supabase"."invoices" (
   "note" text,
   "origin_type" text,
   "origin_id" text,
-  "deposit_bps" integer check ("deposit_bps" > 0 and "deposit_bps" < 10000),
+  "deposit_bps" integer constraint bsb_invoices_deposit_bps_check check ("deposit_bps" > 0 and "deposit_bps" < 10000),
   "prices_include_tax" boolean not null default false,
-  "direction" text not null default 'sales' check ("direction" in ('sales', 'purchase')),
-  "supplier_reference" text check (length("supplier_reference") <= 200),
+  "direction" text not null default 'sales' constraint bsb_invoices_direction_check check ("direction" in ('sales', 'purchase')),
+  "supplier_reference" text constraint bsb_invoices_supplier_reference_check check (length("supplier_reference") <= 200),
   "purchase_order_id" uuid,
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_invoices_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   "dunning_level" integer not null default 0,
   "dunning_at" timestamptz,
   "dunning_paused_until" date,
   "buyer" jsonb,
   "payment_terms_id" uuid,
   "discount_due_on" date,
-  "discount_amount_early" bigint check ("discount_amount_early" >= 0),
-  "collection_status" text check ("collection_status" in ('handed_over')),
+  "discount_amount_early" bigint constraint bsb_invoices_discount_amount_early_check check ("discount_amount_early" >= 0),
+  "collection_status" text constraint bsb_invoices_collection_status_check check ("collection_status" in ('handed_over')),
   "collection_agency_id" text,
   "collection_handed_at" timestamptz,
   "created_by" uuid,
@@ -59,14 +59,14 @@ create table "better_supabase"."invoices" (
   "tax_total" bigint not null default 0,
   "total" bigint not null default 0,
   unique ("tenant_id", "direction", "kind", "identifier"),
-  check (("kind" = 'credit_note') = ("original_id" is not null)),
-  check ("status" <> 'draft' or "number" is null),
-  check ("status" in ('draft', 'void') or "number" is not null),
-  check (("company_type" is null) = ("company_id" is null))
+  constraint bsb_invoices_check check (("kind" = 'credit_note') = ("original_id" is not null)),
+  constraint bsb_invoices_check1 check ("status" <> 'draft' or "number" is null),
+  constraint bsb_invoices_check2 check ("status" in ('draft', 'void') or "number" is not null),
+  constraint bsb_invoices_check3 check (("company_type" is null) = ("company_id" is null))
 );
-alter table "better_supabase"."invoices" add column "deposit_amount" bigint check ("deposit_amount" > 0);
-alter table "better_supabase"."invoices" add column "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000);
-alter table "better_supabase"."invoices" add column "discount_amount" bigint not null default 0 check ("discount_amount" >= 0);
+alter table "better_supabase"."invoices" add column "deposit_amount" bigint constraint bsb_invoices_deposit_amount_check check ("deposit_amount" > 0);
+alter table "better_supabase"."invoices" add column "discount_bps" integer not null default 0 constraint bsb_invoices_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000);
+alter table "better_supabase"."invoices" add column "discount_amount" bigint not null default 0 constraint bsb_invoices_discount_amount_check check ("discount_amount" >= 0);
 create index invoices_tenant_status_idx on "better_supabase"."invoices" ("tenant_id", "status", "due_on");
 create index invoices_origin_idx on "better_supabase"."invoices" ("origin_type", "origin_id");
 create index invoices_original_idx on "better_supabase"."invoices" ("original_id");
@@ -84,9 +84,9 @@ create table "better_supabase"."invoice_charges" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
-  "amount" bigint not null check ("amount" > 0),
-  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
-  "description" text check (length("description") <= 2000),
+  "amount" bigint not null constraint bsb_invoice_charges_amount_check check ("amount" > 0),
+  "currency" char(3) constraint bsb_invoice_charges_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "description" text constraint bsb_invoice_charges_description_check check (length("description") <= 2000),
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
@@ -102,11 +102,11 @@ create policy bsb_invoice_charges_read on "better_supabase"."invoice_charges"
 create table "better_supabase"."invoice_dunning_levels" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "level" integer not null check ("level" >= 1 and "level" <= 20),
-  "days_after_due" integer not null check ("days_after_due" >= 0),
-  "template_key" text not null check (length("template_key") >= 1 and length("template_key") <= 200),
-  "text_key" text check (length("text_key") >= 1 and length("text_key") <= 200),
-  "fee" bigint not null default 0 check ("fee" >= 0),
+  "level" integer not null constraint bsb_invoice_dunning_levels_level_check check ("level" >= 1 and "level" <= 20),
+  "days_after_due" integer not null constraint bsb_invoice_dunning_levels_days_after_due_check check ("days_after_due" >= 0),
+  "template_key" text not null constraint bsb_invoice_dunning_levels_template_key_check check (length("template_key") >= 1 and length("template_key") <= 200),
+  "text_key" text constraint bsb_invoice_dunning_levels_text_key_check check (length("text_key") >= 1 and length("text_key") <= 200),
+  "fee" bigint not null default 0 constraint bsb_invoice_dunning_levels_fee_check check ("fee" >= 0),
   "final" boolean not null default false,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -142,10 +142,10 @@ create table "better_supabase"."invoice_dunning_run_items" (
   "run_id" uuid not null references "better_supabase"."invoice_dunning_runs" ("id") on delete cascade,
   "party_id" text,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
-  "level" integer not null check ("level" >= 1),
+  "level" integer not null constraint bsb_invoice_dunning_run_items_level_check check ("level" >= 1),
   "text_key" text,
   "template_key" text not null,
-  "fee" bigint not null default 0 check ("fee" >= 0),
+  "fee" bigint not null default 0 constraint bsb_invoice_dunning_run_items_fee_check check ("fee" >= 0),
   "balance" bigint not null,
   "due_on" date not null,
   "created_at" timestamptz not null default now(),
@@ -166,7 +166,7 @@ create table "better_supabase"."invoice_dunning_history" (
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
   "run_id" uuid references "better_supabase"."invoice_dunning_runs" ("id") on delete set null,
-  "kind" text not null check ("kind" in ('reminder', 'handed_over')),
+  "kind" text not null constraint bsb_invoice_dunning_history_kind_check check ("kind" in ('reminder', 'handed_over')),
   "level" integer not null default 0,
   "text_key" text,
   "template_key" text,
@@ -188,12 +188,12 @@ create policy bsb_invoice_dunning_history_read on "better_supabase"."invoice_dun
 create table "better_supabase"."invoice_allocations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "reference" text not null check (length("reference") >= 1 and length("reference") <= 200),
+  "reference" text not null constraint bsb_invoice_allocations_reference_check check (length("reference") >= 1 and length("reference") <= 200),
   "party_id" text not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
-  "source" text not null default 'payment' check ("source" in ('payment', 'credit')),
-  "amount" bigint not null check ("amount" > 0),
-  "discount" bigint not null default 0 check ("discount" >= 0),
+  "source" text not null default 'payment' constraint bsb_invoice_allocations_source_check check ("source" in ('payment', 'credit')),
+  "amount" bigint not null constraint bsb_invoice_allocations_amount_check check ("amount" > 0),
+  "discount" bigint not null default 0 constraint bsb_invoice_allocations_discount_check check ("discount" >= 0),
   -- The ledger transactions of the cash (or credit) and of the discount.
   "payment_id" uuid,
   "discount_payment_id" uuid,
@@ -221,11 +221,11 @@ create table "better_supabase"."invoice_line_sources" (
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
   "position" integer not null,
-  "source" text not null check ("source" in ('order', 'shipment', 'time')),
+  "source" text not null constraint bsb_invoice_line_sources_source_check check ("source" in ('order', 'shipment', 'time')),
   "source_id" uuid not null,
   "source_line_id" uuid,
   "order_line_id" uuid,
-  "quantity" numeric(18, 4) not null check ("quantity" > 0),
+  "quantity" numeric(18, 4) not null constraint bsb_invoice_line_sources_quantity_check check ("quantity" > 0),
   "created_at" timestamptz not null default now()
 );
 create index invoice_line_sources_invoice_idx on "better_supabase"."invoice_line_sources" ("invoice_id");
@@ -245,9 +245,9 @@ create table "better_supabase"."invoice_approval_levels" (
   "tenant_id" uuid not null,
   -- Null: the level counts for every legal entity without levels of its own.
   "legal_entity_id" uuid,
-  "level" integer not null check ("level" >= 1),
-  "min_amount" bigint not null check ("min_amount" >= 0),
-  "currency" text check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "level" integer not null constraint bsb_invoice_approval_levels_level_check check ("level" >= 1),
+  "min_amount" bigint not null constraint bsb_invoice_approval_levels_min_amount_check check ("min_amount" >= 0),
+  "currency" text constraint bsb_invoice_approval_levels_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "approver_id" uuid not null,
   "created_at" timestamptz not null default now()
 );
@@ -264,9 +264,9 @@ create table "better_supabase"."invoice_approvals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
-  "level" integer not null check ("level" >= 1),
+  "level" integer not null constraint bsb_invoice_approvals_level_check check ("level" >= 1),
   "approver_id" uuid not null,
-  "comment" text check ("comment" is null or length("comment") <= 2000),
+  "comment" text constraint bsb_invoice_approvals_comment_check check ("comment" is null or length("comment") <= 2000),
   "decided_at" timestamptz not null default now(),
   unique ("invoice_id", "level")
 );
@@ -282,11 +282,11 @@ create policy bsb_invoice_approvals_read on "better_supabase"."invoice_approvals
 create table "better_supabase"."invoice_e_endpoints" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "party_kind" text not null check ("party_kind" in ('organization', 'legal_entity', 'company')),
-  "party_id" text not null check (length("party_id") >= 1 and length("party_id") <= 150),
+  "party_kind" text not null constraint bsb_invoice_e_endpoints_party_kind_check check ("party_kind" in ('organization', 'legal_entity', 'company')),
+  "party_id" text not null constraint bsb_invoice_e_endpoints_party_id_check check (length("party_id") >= 1 and length("party_id") <= 150),
   -- The Electronic Address Scheme code from the Peppol EAS list, such as 0106.
-  "scheme" text not null check ("scheme" ~ '^[0-9]{4}$'),
-  "endpoint_id" text not null check (length("endpoint_id") >= 1 and length("endpoint_id") <= 200),
+  "scheme" text not null constraint bsb_invoice_e_endpoints_scheme_check check ("scheme" ~ '^[0-9]{4}$'),
+  "endpoint_id" text not null constraint bsb_invoice_e_endpoints_endpoint_id_check check (length("endpoint_id") >= 1 and length("endpoint_id") <= 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -304,13 +304,13 @@ create table "better_supabase"."e_invoice_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "invoice_id" uuid references "better_supabase"."invoices" ("id") on delete set null,
-  "direction" text not null check ("direction" in ('outbound', 'inbound')),
-  "format" text check ("format" is null or length("format") >= 1 and length("format") <= 100),
-  "channel" text not null check (length("channel") >= 1 and length("channel") <= 100),
-  "message_id" text not null check (length("message_id") >= 1 and length("message_id") <= 300),
-  "state" text not null check ("state" in ('pending', 'delivered', 'rejected', 'received', 'unmatched')),
-  "reason" text check ("reason" is null or length("reason") <= 2000),
-  "document_hash" text check ("document_hash" is null or "document_hash" ~ '^[0-9a-f]{64}$'),
+  "direction" text not null constraint bsb_e_invoice_deliveries_direction_check check ("direction" in ('outbound', 'inbound')),
+  "format" text constraint bsb_e_invoice_deliveries_format_check check ("format" is null or length("format") >= 1 and length("format") <= 100),
+  "channel" text not null constraint bsb_e_invoice_deliveries_channel_check check (length("channel") >= 1 and length("channel") <= 100),
+  "message_id" text not null constraint bsb_e_invoice_deliveries_message_id_check check (length("message_id") >= 1 and length("message_id") <= 300),
+  "state" text not null constraint bsb_e_invoice_deliveries_state_check check ("state" in ('pending', 'delivered', 'rejected', 'received', 'unmatched')),
+  "reason" text constraint bsb_e_invoice_deliveries_reason_check check ("reason" is null or length("reason") <= 2000),
+  "document_hash" text constraint bsb_e_invoice_deliveries_document_hash_check check ("document_hash" is null or "document_hash" ~ '^[0-9a-f]{64}$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -778,25 +778,25 @@ create table "better_supabase"."invoice_lines" (
   "parent_id" uuid not null references "better_supabase"."invoices" ("id") on delete cascade,
   "product_type" text,
   "product_id" text,
-  "description" text not null check (length("description") >= 1 and length("description") <= 2000),
-  "quantity" numeric(18, 4) not null check ("quantity" > 0),
+  "description" text not null constraint bsb_invoice_lines_description_check check (length("description") >= 1 and length("description") <= 2000),
+  "quantity" numeric(18, 4) not null constraint bsb_invoice_lines_quantity_check check ("quantity" > 0),
   "unit_amount" bigint not null,
-  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
-  "tax_rate_bps" integer not null default 0 check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
+  "discount_bps" integer not null default 0 constraint bsb_invoice_lines_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "tax_rate_bps" integer not null default 0 constraint bsb_invoice_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
   "tax_code" text,
   "tax_code_id" uuid,
   "unit_cost" bigint,
-  "discount_amount" bigint not null default 0 check ("discount_amount" >= 0),
-  "cost_source" text check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
+  "discount_amount" bigint not null default 0 constraint bsb_invoice_lines_discount_amount_check check ("discount_amount" >= 0),
+  "cost_source" text constraint bsb_invoice_lines_cost_source_check check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
   "location_id" uuid,
   "bin_id" uuid,
-  "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
+  "billing_party" text not null default 'customer' constraint bsb_invoice_lines_billing_party_check check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_invoice_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   "position" integer not null,
   "created_at" timestamptz not null default now(),
-  check (("product_type" is null) = ("product_id" is null))
+  constraint bsb_invoice_lines_check check (("product_type" is null) = ("product_id" is null))
 );
 create index "invoice_lines_parent_idx" on "better_supabase"."invoice_lines" ("parent_id", "position");
 alter table "better_supabase"."invoice_lines" enable row level security;

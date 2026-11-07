@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:44834d8e3e3cf7a4df77bfe5e7651a8210b162b3a252c3c916e0bbbc683522e3
+-- @bsb-hash sha256:6152b7d04c6f952fef101add998700324ae132d20f2465cbca75db6eb19e9848
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,20 +15,20 @@ create extension if not exists pgcrypto with schema extensions;
 -- evaluates the same way, so policies and the app agree. An archived flag
 -- serves its default variant.
 create table "better_supabase"."flags" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
-  "type" text not null default 'boolean' check ("type" in ('boolean', 'string', 'number', 'object')),
+  "key" text primary key constraint bsb_flags_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "type" text not null default 'boolean' constraint bsb_flags_type_check check ("type" in ('boolean', 'string', 'number', 'object')),
   "description" text,
-  "variants" jsonb not null default '{"on": true, "off": false}'::jsonb check (jsonb_typeof("variants") = 'object'),
+  "variants" jsonb not null default '{"on": true, "off": false}'::jsonb constraint bsb_flags_variants_check check (jsonb_typeof("variants") = 'object'),
   "default_variant" text not null default 'off',
   "enabled" boolean not null default true,
   "archived" boolean not null default false,
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
-  "rollout_percentage" numeric(5, 2) not null default 0 check ("rollout_percentage" >= 0 and "rollout_percentage" <= 100),
-  "rollout_variants" jsonb not null default '[]'::jsonb check (jsonb_typeof("rollout_variants") = 'array'),
-  "rollout_schedule" jsonb check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_flags_rules_check check (jsonb_typeof("rules") = 'array'),
+  "rollout_percentage" numeric(5, 2) not null default 0 constraint bsb_flags_rollout_percentage_check check ("rollout_percentage" >= 0 and "rollout_percentage" <= 100),
+  "rollout_variants" jsonb not null default '[]'::jsonb constraint bsb_flags_rollout_variants_check check (jsonb_typeof("rollout_variants") = 'array'),
+  "rollout_schedule" jsonb constraint bsb_flags_rollout_schedule_check check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("variants" ? "default_variant")
+  constraint bsb_flags_check check ("variants" ? "default_variant")
 );
 alter table "better_supabase"."flags" enable row level security;
 revoke all on "better_supabase"."flags" from public, anon, authenticated;
@@ -42,11 +42,11 @@ create table "better_supabase"."flag_overrides" (
   "flag_key" text not null references "better_supabase"."flags" ("key") on delete cascade on update cascade,
   "organization_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "context" text check ("context" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "context_key" text check (length("context_key") >= 1 and length("context_key") <= 200),
+  "context" text constraint bsb_flag_overrides_context_check check ("context" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "context_key" text constraint bsb_flag_overrides_context_key_check check (length("context_key") >= 1 and length("context_key") <= 200),
   "variant" text not null,
   "created_at" timestamptz not null default now(),
-  constraint flag_overrides_target check (num_nonnulls("organization_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
+  constraint bsb_flag_overrides_target check (num_nonnulls("organization_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
   constraint flag_overrides_key unique nulls not distinct ("flag_key", "organization_id", "user_id", "context", "context_key")
 );
 create index flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
@@ -59,9 +59,9 @@ grant all on "better_supabase"."flag_overrides" to service_role;
 create table "better_supabase"."flag_revisions" (
   "id" bigint generated always as identity primary key,
   "flag_key" text not null,
-  "revision" integer not null check ("revision" > 0),
-  "definition" jsonb not null check (jsonb_typeof("definition") = 'object'),
-  "message" text check (length("message") <= 500),
+  "revision" integer not null constraint bsb_flag_revisions_revision_check check ("revision" > 0),
+  "definition" jsonb not null constraint bsb_flag_revisions_definition_check check (jsonb_typeof("definition") = 'object'),
+  "message" text constraint bsb_flag_revisions_message_check check (length("message") <= 500),
   "changed_by" uuid references auth.users (id) on delete set null,
   "changed_at" timestamptz not null default now(),
   constraint flag_revisions_key unique ("flag_key", "revision")
@@ -75,9 +75,9 @@ grant all on "better_supabase"."flag_revisions" to service_role;
 -- roles?, contexts? }, and a rule's segments list matches a caller in any of
 -- them.
 create table "better_supabase"."flag_segments" (
-  "name" text primary key check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text primary key constraint bsb_flag_segments_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "description" text,
-  "rules" jsonb not null default '{}'::jsonb check (jsonb_typeof("rules") = 'object'),
+  "rules" jsonb not null default '{}'::jsonb constraint bsb_flag_segments_rules_check check (jsonb_typeof("rules") = 'object'),
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."flag_segments" enable row level security;
@@ -616,7 +616,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:d243e9dc7ff9436b9ae3a1c349e6d6805d89167e44864817a1599bdfe808956d
+-- @bsb-hash sha256:68949d0fc42628636c60270f2f287eff969bee74abcf20480c2ed530bcb8fb5e
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -630,20 +630,20 @@ create extension if not exists pgcrypto with schema extensions;
 -- evaluates the same way, so policies and the app agree. An archived flag
 -- serves its default variant.
 create table "better_supabase"."flags" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
-  "type" text not null default 'boolean' check ("type" in ('boolean', 'string', 'number', 'object')),
+  "key" text primary key constraint bsb_flags_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "type" text not null default 'boolean' constraint bsb_flags_type_check check ("type" in ('boolean', 'string', 'number', 'object')),
   "description" text,
-  "variants" jsonb not null default '{"on": true, "off": false}'::jsonb check (jsonb_typeof("variants") = 'object'),
+  "variants" jsonb not null default '{"on": true, "off": false}'::jsonb constraint bsb_flags_variants_check check (jsonb_typeof("variants") = 'object'),
   "default_variant" text not null default 'off',
   "enabled" boolean not null default true,
   "archived" boolean not null default false,
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
-  "rollout_percentage" numeric(5, 2) not null default 0 check ("rollout_percentage" >= 0 and "rollout_percentage" <= 100),
-  "rollout_variants" jsonb not null default '[]'::jsonb check (jsonb_typeof("rollout_variants") = 'array'),
-  "rollout_schedule" jsonb check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_flags_rules_check check (jsonb_typeof("rules") = 'array'),
+  "rollout_percentage" numeric(5, 2) not null default 0 constraint bsb_flags_rollout_percentage_check check ("rollout_percentage" >= 0 and "rollout_percentage" <= 100),
+  "rollout_variants" jsonb not null default '[]'::jsonb constraint bsb_flags_rollout_variants_check check (jsonb_typeof("rollout_variants") = 'array'),
+  "rollout_schedule" jsonb constraint bsb_flags_rollout_schedule_check check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("variants" ? "default_variant")
+  constraint bsb_flags_check check ("variants" ? "default_variant")
 );
 alter table "better_supabase"."flags" enable row level security;
 revoke all on "better_supabase"."flags" from public, anon, authenticated;
@@ -657,11 +657,11 @@ create table "better_supabase"."flag_overrides" (
   "flag_key" text not null references "better_supabase"."flags" ("key") on delete cascade on update cascade,
   "organization_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "context" text check ("context" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "context_key" text check (length("context_key") >= 1 and length("context_key") <= 200),
+  "context" text constraint bsb_flag_overrides_context_check check ("context" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "context_key" text constraint bsb_flag_overrides_context_key_check check (length("context_key") >= 1 and length("context_key") <= 200),
   "variant" text not null,
   "created_at" timestamptz not null default now(),
-  constraint flag_overrides_target check (num_nonnulls("organization_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
+  constraint bsb_flag_overrides_target check (num_nonnulls("organization_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
   constraint flag_overrides_key unique nulls not distinct ("flag_key", "organization_id", "user_id", "context", "context_key")
 );
 create index flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
@@ -674,9 +674,9 @@ grant all on "better_supabase"."flag_overrides" to service_role;
 create table "better_supabase"."flag_revisions" (
   "id" bigint generated always as identity primary key,
   "flag_key" text not null,
-  "revision" integer not null check ("revision" > 0),
-  "definition" jsonb not null check (jsonb_typeof("definition") = 'object'),
-  "message" text check (length("message") <= 500),
+  "revision" integer not null constraint bsb_flag_revisions_revision_check check ("revision" > 0),
+  "definition" jsonb not null constraint bsb_flag_revisions_definition_check check (jsonb_typeof("definition") = 'object'),
+  "message" text constraint bsb_flag_revisions_message_check check (length("message") <= 500),
   "changed_by" uuid references auth.users (id) on delete set null,
   "changed_at" timestamptz not null default now(),
   constraint flag_revisions_key unique ("flag_key", "revision")
@@ -690,9 +690,9 @@ grant all on "better_supabase"."flag_revisions" to service_role;
 -- roles?, contexts? }, and a rule's segments list matches a caller in any of
 -- them.
 create table "better_supabase"."flag_segments" (
-  "name" text primary key check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text primary key constraint bsb_flag_segments_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "description" text,
-  "rules" jsonb not null default '{}'::jsonb check (jsonb_typeof("rules") = 'object'),
+  "rules" jsonb not null default '{}'::jsonb constraint bsb_flag_segments_rules_check check (jsonb_typeof("rules") = 'object'),
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."flag_segments" enable row level security;
@@ -1271,7 +1271,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:f74f79f9c581f16c412a86c73044bfa64db3e87d8bca50d14039b66405c560ec
+-- @bsb-hash sha256:41d8dd3e0113b58c0d15f93fb9498d4b2f226a2fda7c8443a545302fa3fbd119
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1290,20 +1290,20 @@ create extension if not exists pgcrypto with schema extensions;
 -- evaluates the same way, so policies and the app agree. An archived flag
 -- serves its default variant.
 create table "app_private"."flags" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
-  "type" text not null default 'boolean' check ("type" in ('boolean', 'string', 'number', 'object')),
+  "key" text primary key constraint bsb_flags_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "type" text not null default 'boolean' constraint bsb_flags_type_check check ("type" in ('boolean', 'string', 'number', 'object')),
   "description" text,
-  "variants" jsonb not null default '{"on": true, "off": false}'::jsonb check (jsonb_typeof("variants") = 'object'),
+  "variants" jsonb not null default '{"on": true, "off": false}'::jsonb constraint bsb_flags_variants_check check (jsonb_typeof("variants") = 'object'),
   "default_variant" text not null default 'off',
   "enabled" boolean not null default true,
   "archived" boolean not null default false,
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
-  "rollout_percentage" numeric(5, 2) not null default 0 check ("rollout_percentage" >= 0 and "rollout_percentage" <= 100),
-  "rollout_variants" jsonb not null default '[]'::jsonb check (jsonb_typeof("rollout_variants") = 'array'),
-  "rollout_schedule" jsonb check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_flags_rules_check check (jsonb_typeof("rules") = 'array'),
+  "rollout_percentage" numeric(5, 2) not null default 0 constraint bsb_flags_rollout_percentage_check check ("rollout_percentage" >= 0 and "rollout_percentage" <= 100),
+  "rollout_variants" jsonb not null default '[]'::jsonb constraint bsb_flags_rollout_variants_check check (jsonb_typeof("rollout_variants") = 'array'),
+  "rollout_schedule" jsonb constraint bsb_flags_rollout_schedule_check check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("variants" ? "default_variant")
+  constraint bsb_flags_check check ("variants" ? "default_variant")
 );
 alter table "app_private"."flags" enable row level security;
 revoke all on "app_private"."flags" from public, anon, authenticated;
@@ -1317,11 +1317,11 @@ create table "app_private"."flag_overrides" (
   "flag_key" text not null references "app_private"."flags" ("key") on delete cascade on update cascade,
   "organization_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "context" text check ("context" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "context_key" text check (length("context_key") >= 1 and length("context_key") <= 200),
+  "context" text constraint bsb_flag_overrides_context_check check ("context" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "context_key" text constraint bsb_flag_overrides_context_key_check check (length("context_key") >= 1 and length("context_key") <= 200),
   "variant" text not null,
   "created_at" timestamptz not null default now(),
-  constraint flag_overrides_target check (num_nonnulls("organization_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
+  constraint bsb_flag_overrides_target check (num_nonnulls("organization_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
   constraint flag_overrides_key unique nulls not distinct ("flag_key", "organization_id", "user_id", "context", "context_key")
 );
 create index flag_overrides_user_idx on "app_private"."flag_overrides" ("user_id");
@@ -1334,9 +1334,9 @@ grant all on "app_private"."flag_overrides" to service_role;
 create table "app_private"."flag_revisions" (
   "id" bigint generated always as identity primary key,
   "flag_key" text not null,
-  "revision" integer not null check ("revision" > 0),
-  "definition" jsonb not null check (jsonb_typeof("definition") = 'object'),
-  "message" text check (length("message") <= 500),
+  "revision" integer not null constraint bsb_flag_revisions_revision_check check ("revision" > 0),
+  "definition" jsonb not null constraint bsb_flag_revisions_definition_check check (jsonb_typeof("definition") = 'object'),
+  "message" text constraint bsb_flag_revisions_message_check check (length("message") <= 500),
   "changed_by" uuid references auth.users (id) on delete set null,
   "changed_at" timestamptz not null default now(),
   constraint flag_revisions_key unique ("flag_key", "revision")
@@ -1350,9 +1350,9 @@ grant all on "app_private"."flag_revisions" to service_role;
 -- roles?, contexts? }, and a rule's segments list matches a caller in any of
 -- them.
 create table "app_private"."flag_segments" (
-  "name" text primary key check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text primary key constraint bsb_flag_segments_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "description" text,
-  "rules" jsonb not null default '{}'::jsonb check (jsonb_typeof("rules") = 'object'),
+  "rules" jsonb not null default '{}'::jsonb constraint bsb_flag_segments_rules_check check (jsonb_typeof("rules") = 'object'),
   "updated_at" timestamptz not null default now()
 );
 alter table "app_private"."flag_segments" enable row level security;
@@ -1891,7 +1891,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:ea42a37fd6deebe8c9e2c9b5972e05b899ca4db8ae38d5676e6d31aa2a9ac9e9
+-- @bsb-hash sha256:37d89e800f4013787d2b01b050a570d5f2a62cf2625bd6078ecd620495940718
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1905,20 +1905,20 @@ create extension if not exists pgcrypto with schema extensions;
 -- evaluates the same way, so policies and the app agree. An archived flag
 -- serves its default variant.
 create table "better_supabase"."flags" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
-  "type" text not null default 'boolean' check ("type" in ('boolean', 'string', 'number', 'object')),
+  "key" text primary key constraint bsb_flags_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "type" text not null default 'boolean' constraint bsb_flags_type_check check ("type" in ('boolean', 'string', 'number', 'object')),
   "description" text,
-  "variants" jsonb not null default '{"on": true, "off": false}'::jsonb check (jsonb_typeof("variants") = 'object'),
+  "variants" jsonb not null default '{"on": true, "off": false}'::jsonb constraint bsb_flags_variants_check check (jsonb_typeof("variants") = 'object'),
   "default_variant" text not null default 'off',
   "enabled" boolean not null default true,
   "archived" boolean not null default false,
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
-  "rollout_percentage" numeric(5, 2) not null default 0 check ("rollout_percentage" >= 0 and "rollout_percentage" <= 100),
-  "rollout_variants" jsonb not null default '[]'::jsonb check (jsonb_typeof("rollout_variants") = 'array'),
-  "rollout_schedule" jsonb check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_flags_rules_check check (jsonb_typeof("rules") = 'array'),
+  "rollout_percentage" numeric(5, 2) not null default 0 constraint bsb_flags_rollout_percentage_check check ("rollout_percentage" >= 0 and "rollout_percentage" <= 100),
+  "rollout_variants" jsonb not null default '[]'::jsonb constraint bsb_flags_rollout_variants_check check (jsonb_typeof("rollout_variants") = 'array'),
+  "rollout_schedule" jsonb constraint bsb_flags_rollout_schedule_check check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("variants" ? "default_variant")
+  constraint bsb_flags_check check ("variants" ? "default_variant")
 );
 alter table "better_supabase"."flags" enable row level security;
 revoke all on "better_supabase"."flags" from public, anon, authenticated;
@@ -1932,11 +1932,11 @@ create table "better_supabase"."flag_overrides" (
   "flag_key" text not null references "better_supabase"."flags" ("key") on delete cascade on update cascade,
   "organization_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "context" text check ("context" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "context_key" text check (length("context_key") >= 1 and length("context_key") <= 200),
+  "context" text constraint bsb_flag_overrides_context_check check ("context" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "context_key" text constraint bsb_flag_overrides_context_key_check check (length("context_key") >= 1 and length("context_key") <= 200),
   "variant" text not null,
   "created_at" timestamptz not null default now(),
-  constraint flag_overrides_target check (num_nonnulls("organization_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
+  constraint bsb_flag_overrides_target check (num_nonnulls("organization_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
   constraint flag_overrides_key unique nulls not distinct ("flag_key", "organization_id", "user_id", "context", "context_key")
 );
 create index flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
@@ -1949,9 +1949,9 @@ grant all on "better_supabase"."flag_overrides" to service_role;
 create table "better_supabase"."flag_revisions" (
   "id" bigint generated always as identity primary key,
   "flag_key" text not null,
-  "revision" integer not null check ("revision" > 0),
-  "definition" jsonb not null check (jsonb_typeof("definition") = 'object'),
-  "message" text check (length("message") <= 500),
+  "revision" integer not null constraint bsb_flag_revisions_revision_check check ("revision" > 0),
+  "definition" jsonb not null constraint bsb_flag_revisions_definition_check check (jsonb_typeof("definition") = 'object'),
+  "message" text constraint bsb_flag_revisions_message_check check (length("message") <= 500),
   "changed_by" uuid references auth.users (id) on delete set null,
   "changed_at" timestamptz not null default now(),
   constraint flag_revisions_key unique ("flag_key", "revision")
@@ -1965,9 +1965,9 @@ grant all on "better_supabase"."flag_revisions" to service_role;
 -- roles?, contexts? }, and a rule's segments list matches a caller in any of
 -- them.
 create table "better_supabase"."flag_segments" (
-  "name" text primary key check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text primary key constraint bsb_flag_segments_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "description" text,
-  "rules" jsonb not null default '{}'::jsonb check (jsonb_typeof("rules") = 'object'),
+  "rules" jsonb not null default '{}'::jsonb constraint bsb_flag_segments_rules_check check (jsonb_typeof("rules") = 'object'),
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."flag_segments" enable row level security;
@@ -2664,7 +2664,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:e47c5107a067f7be404417203ccee5705d32ca9501216a5accc0771fba21cf35
+-- @bsb-hash sha256:4cfa52da213eb46bdde602bba33ba40bee8b8f8fb45f317c8fed9f29959a526d
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2678,17 +2678,17 @@ create extension if not exists pgcrypto with schema extensions;
 -- evaluates the same way, so policies and the app agree. An archived flag
 -- serves its default variant.
 -- better_supabase.flags is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."flags" add column if not exists "key" text check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
-alter table "better_supabase"."flags" add column if not exists "type" text not null default 'boolean' check ("type" in ('boolean', 'string', 'number', 'object'));
+alter table "better_supabase"."flags" add column if not exists "key" text constraint bsb_flags_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
+alter table "better_supabase"."flags" add column if not exists "type" text not null default 'boolean' constraint bsb_flags_type_check check ("type" in ('boolean', 'string', 'number', 'object'));
 alter table "better_supabase"."flags" add column if not exists "description" text;
-alter table "better_supabase"."flags" add column if not exists "variants" jsonb not null default '{"on": true, "off": false}'::jsonb check (jsonb_typeof("variants") = 'object');
+alter table "better_supabase"."flags" add column if not exists "variants" jsonb not null default '{"on": true, "off": false}'::jsonb constraint bsb_flags_variants_check check (jsonb_typeof("variants") = 'object');
 alter table "better_supabase"."flags" add column if not exists "default_variant" text not null default 'off';
 alter table "better_supabase"."flags" add column if not exists "enabled" boolean not null default true;
 alter table "better_supabase"."flags" add column if not exists "archived" boolean not null default false;
-alter table "better_supabase"."flags" add column if not exists "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array');
-alter table "better_supabase"."flags" add column if not exists "rollout_percentage" numeric(5, 2) not null default 0 check ("rollout_percentage" >= 0 and "rollout_percentage" <= 100);
-alter table "better_supabase"."flags" add column if not exists "rollout_variants" jsonb not null default '[]'::jsonb check (jsonb_typeof("rollout_variants") = 'array');
-alter table "better_supabase"."flags" add column if not exists "rollout_schedule" jsonb check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object');
+alter table "better_supabase"."flags" add column if not exists "rules" jsonb not null default '[]'::jsonb constraint bsb_flags_rules_check check (jsonb_typeof("rules") = 'array');
+alter table "better_supabase"."flags" add column if not exists "rollout_percentage" numeric(5, 2) not null default 0 constraint bsb_flags_rollout_percentage_check check ("rollout_percentage" >= 0 and "rollout_percentage" <= 100);
+alter table "better_supabase"."flags" add column if not exists "rollout_variants" jsonb not null default '[]'::jsonb constraint bsb_flags_rollout_variants_check check (jsonb_typeof("rollout_variants") = 'array');
+alter table "better_supabase"."flags" add column if not exists "rollout_schedule" jsonb constraint bsb_flags_rollout_schedule_check check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object');
 alter table "better_supabase"."flags" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."flags" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_flags_key_key" on "better_supabase"."flags" ("key");
@@ -2703,8 +2703,8 @@ alter table "better_supabase"."flag_overrides" add column if not exists "id" uui
 alter table "better_supabase"."flag_overrides" add column if not exists "flag_key" text references "better_supabase"."flags" ("key") on delete cascade on update cascade;
 alter table "better_supabase"."flag_overrides" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."flag_overrides" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."flag_overrides" add column if not exists "context" text check ("context" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."flag_overrides" add column if not exists "context_key" text check (length("context_key") >= 1 and length("context_key") <= 200);
+alter table "better_supabase"."flag_overrides" add column if not exists "context" text constraint bsb_flag_overrides_context_check check ("context" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."flag_overrides" add column if not exists "context_key" text constraint bsb_flag_overrides_context_key_check check (length("context_key") >= 1 and length("context_key") <= 200);
 alter table "better_supabase"."flag_overrides" add column if not exists "variant" text;
 alter table "better_supabase"."flag_overrides" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_flag_overrides_target_key" on "better_supabase"."flag_overrides" ("flag_key", "organization_id", "user_id", "context", "context_key") nulls not distinct;
@@ -2717,9 +2717,9 @@ grant all on "better_supabase"."flag_overrides" to service_role;
 -- better_supabase.flag_revisions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."flag_revisions" add column if not exists "id" bigint generated always as identity;
 alter table "better_supabase"."flag_revisions" add column if not exists "flag_key" text;
-alter table "better_supabase"."flag_revisions" add column if not exists "revision" integer check ("revision" > 0);
-alter table "better_supabase"."flag_revisions" add column if not exists "definition" jsonb check (jsonb_typeof("definition") = 'object');
-alter table "better_supabase"."flag_revisions" add column if not exists "message" text check (length("message") <= 500);
+alter table "better_supabase"."flag_revisions" add column if not exists "revision" integer constraint bsb_flag_revisions_revision_check check ("revision" > 0);
+alter table "better_supabase"."flag_revisions" add column if not exists "definition" jsonb constraint bsb_flag_revisions_definition_check check (jsonb_typeof("definition") = 'object');
+alter table "better_supabase"."flag_revisions" add column if not exists "message" text constraint bsb_flag_revisions_message_check check (length("message") <= 500);
 alter table "better_supabase"."flag_revisions" add column if not exists "changed_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."flag_revisions" add column if not exists "changed_at" timestamptz not null default now();
 create index if not exists flag_revisions_changed_by_idx on "better_supabase"."flag_revisions" ("changed_by");
@@ -2730,9 +2730,9 @@ grant all on "better_supabase"."flag_revisions" to service_role;
 -- roles?, contexts? }, and a rule's segments list matches a caller in any of
 -- them.
 -- better_supabase.flag_segments is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."flag_segments" add column if not exists "name" text check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."flag_segments" add column if not exists "name" text constraint bsb_flag_segments_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."flag_segments" add column if not exists "description" text;
-alter table "better_supabase"."flag_segments" add column if not exists "rules" jsonb not null default '{}'::jsonb check (jsonb_typeof("rules") = 'object');
+alter table "better_supabase"."flag_segments" add column if not exists "rules" jsonb not null default '{}'::jsonb constraint bsb_flag_segments_rules_check check (jsonb_typeof("rules") = 'object');
 alter table "better_supabase"."flag_segments" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_flag_segments_name_key" on "better_supabase"."flag_segments" ("name");
 alter table "better_supabase"."flag_segments" enable row level security;
@@ -3271,7 +3271,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:69f11658e2eed815f08cb596a417923a5a31bad5db2e9d6ce20a57d17dce7808
+-- @bsb-hash sha256:bb7bb5167101bf75f8b840a4e1001dabb285ccc281af795151f246844722cdba
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3285,20 +3285,20 @@ create extension if not exists pgcrypto with schema extensions;
 -- evaluates the same way, so policies and the app agree. An archived flag
 -- serves its default variant.
 create table "better_supabase"."flags" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
-  "type" text not null default 'boolean' check ("type" in ('boolean', 'string', 'number', 'object')),
+  "key" text primary key constraint bsb_flags_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "type" text not null default 'boolean' constraint bsb_flags_type_check check ("type" in ('boolean', 'string', 'number', 'object')),
   "description" text,
-  "variants" jsonb not null default '{"on": true, "off": false}'::jsonb check (jsonb_typeof("variants") = 'object'),
+  "variants" jsonb not null default '{"on": true, "off": false}'::jsonb constraint bsb_flags_variants_check check (jsonb_typeof("variants") = 'object'),
   "default_variant" text not null default 'off',
   "enabled" boolean not null default true,
   "archived" boolean not null default false,
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
-  "rollout_percentage" numeric(5, 2) not null default 0 check ("rollout_percentage" >= 0 and "rollout_percentage" <= 100),
-  "rollout_variants" jsonb not null default '[]'::jsonb check (jsonb_typeof("rollout_variants") = 'array'),
-  "rollout_schedule" jsonb check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_flags_rules_check check (jsonb_typeof("rules") = 'array'),
+  "rollout_percentage" numeric(5, 2) not null default 0 constraint bsb_flags_rollout_percentage_check check ("rollout_percentage" >= 0 and "rollout_percentage" <= 100),
+  "rollout_variants" jsonb not null default '[]'::jsonb constraint bsb_flags_rollout_variants_check check (jsonb_typeof("rollout_variants") = 'array'),
+  "rollout_schedule" jsonb constraint bsb_flags_rollout_schedule_check check ("rollout_schedule" is null or jsonb_typeof("rollout_schedule") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("variants" ? "default_variant")
+  constraint bsb_flags_check check ("variants" ? "default_variant")
 );
 alter table "better_supabase"."flags" enable row level security;
 revoke all on "better_supabase"."flags" from public, anon, authenticated;
@@ -3312,11 +3312,11 @@ create table "better_supabase"."flag_overrides" (
   "flag_key" text not null references "better_supabase"."flags" ("key") on delete cascade on update cascade,
   "org_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "context" text check ("context" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "context_key" text check (length("context_key") >= 1 and length("context_key") <= 200),
+  "context" text constraint bsb_flag_overrides_context_check check ("context" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "context_key" text constraint bsb_flag_overrides_context_key_check check (length("context_key") >= 1 and length("context_key") <= 200),
   "variant" text not null,
   "created_at" timestamptz not null default now(),
-  constraint flag_overrides_target check (num_nonnulls("org_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
+  constraint bsb_flag_overrides_target check (num_nonnulls("org_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
   constraint flag_overrides_key unique nulls not distinct ("flag_key", "org_id", "user_id", "context", "context_key")
 );
 create index flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
@@ -3329,9 +3329,9 @@ grant all on "better_supabase"."flag_overrides" to service_role;
 create table "better_supabase"."flag_revisions" (
   "id" bigint generated always as identity primary key,
   "flag_key" text not null,
-  "revision" integer not null check ("revision" > 0),
-  "definition" jsonb not null check (jsonb_typeof("definition") = 'object'),
-  "message" text check (length("message") <= 500),
+  "revision" integer not null constraint bsb_flag_revisions_revision_check check ("revision" > 0),
+  "definition" jsonb not null constraint bsb_flag_revisions_definition_check check (jsonb_typeof("definition") = 'object'),
+  "message" text constraint bsb_flag_revisions_message_check check (length("message") <= 500),
   "changed_by" uuid references auth.users (id) on delete set null,
   "changed_at" timestamptz not null default now(),
   constraint flag_revisions_key unique ("flag_key", "revision")
@@ -3345,9 +3345,9 @@ grant all on "better_supabase"."flag_revisions" to service_role;
 -- roles?, contexts? }, and a rule's segments list matches a caller in any of
 -- them.
 create table "better_supabase"."flag_segments" (
-  "name" text primary key check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text primary key constraint bsb_flag_segments_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "description" text,
-  "rules" jsonb not null default '{}'::jsonb check (jsonb_typeof("rules") = 'object'),
+  "rules" jsonb not null default '{}'::jsonb constraint bsb_flag_segments_rules_check check (jsonb_typeof("rules") = 'object'),
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."flag_segments" enable row level security;

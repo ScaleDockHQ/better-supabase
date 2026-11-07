@@ -11,6 +11,7 @@ import {
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("webhooks-out", { modules })!;
@@ -322,7 +323,7 @@ describe("webhooks-out module", () => {
         .join("\n");
 
     it("defaults new endpoints to defaultFormat and keeps old ones on standard", () => {
-      expect(body()).toContain(
+      expect(unnamedChecks(body())).toContain(
         `"format" text not null default 'cloudevents' check ("format" ~ '^[a-z][a-z0-9-]{0,39}$')`,
       );
       expect(body()).toContain(

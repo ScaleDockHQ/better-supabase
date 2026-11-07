@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:3e5db9b7b81a7338fb5b560cb7526dada6b119d6268ee2e4d11587941250e4d4
+-- @bsb-hash sha256:eb944bcae95070208230d50ba8eee5f3b6a21d6ebb92e26252b78ce200793ae0
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,18 +14,18 @@ create table "better_supabase"."observation_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   -- Null for a system definition every organization reads.
   "tenant_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "value_type" text not null check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
+  "key" text not null constraint bsb_observation_definitions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text not null constraint bsb_observation_definitions_title_check check (length("title") >= 1 and length("title") <= 200),
+  "value_type" text not null constraint bsb_observation_definitions_value_type_check check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
   -- A UCUM unit, such as /min, mm[Hg] or Cel.
-  "unit" text check ("unit" is null or length("unit") <= 50),
+  "unit" text constraint bsb_observation_definitions_unit_check check ("unit" is null or length("unit") <= 50),
   -- The code that names the observation, such as a LOINC code.
-  "code_system" text check ("code_system" is null or length("code_system") <= 200),
-  "code" text check ("code" is null or length("code") <= 100),
+  "code_system" text constraint bsb_observation_definitions_code_system_check check ("code_system" is null or length("code_system") <= 200),
+  "code" text constraint bsb_observation_definitions_code_check check ("code" is null or length("code") <= 100),
   -- The parts of a components value, such as systolic and diastolic: an
   -- array of objects with a key, a title, a unit, a code and ranges.
-  "components" jsonb check ("components" is null or jsonb_typeof("components") = 'array'),
-  "decimals" integer check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
+  "components" jsonb constraint bsb_observation_definitions_components_check check ("components" is null or jsonb_typeof("components") = 'array'),
+  "decimals" integer constraint bsb_observation_definitions_decimals_check check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
   -- Values outside the valid range are rejected; outside the reference range
   -- they are flagged low or high, at or past a critical bound critical.
   "valid_low" numeric,
@@ -37,9 +37,9 @@ create table "better_supabase"."observation_definitions" (
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("valid_low" is null or "valid_high" is null or "valid_low" <= "valid_high"),
-  check ("reference_low" is null or "reference_high" is null or "reference_low" <= "reference_high"),
-  check ("critical_low" is null or "critical_high" is null or "critical_low" <= "critical_high"),
+  constraint bsb_observation_definitions_check check ("valid_low" is null or "valid_high" is null or "valid_low" <= "valid_high"),
+  constraint bsb_observation_definitions_check1 check ("reference_low" is null or "reference_high" is null or "reference_low" <= "reference_high"),
+  constraint bsb_observation_definitions_check2 check ("critical_low" is null or "critical_high" is null or "critical_low" <= "critical_high"),
   unique nulls not distinct ("tenant_id", "key")
 );
 alter table "better_supabase"."observation_definitions" enable row level security;
@@ -54,29 +54,29 @@ create table "better_supabase"."observations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "definition_id" uuid not null references "better_supabase"."observation_definitions" ("id") on delete restrict,
-  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text not null constraint bsb_observations_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null constraint bsb_observations_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "observed_at" timestamptz not null default now(),
   -- One of these holds the value, by the definition's value type; a
   -- boolean is stored as true or false in the code column.
   "value_number" numeric,
-  "value_text" text check ("value_text" is null or length("value_text") <= 4000),
-  "value_code" text check ("value_code" is null or length("value_code") <= 200),
-  "components" jsonb check ("components" is null or jsonb_typeof("components") = 'object'),
-  "flag" text not null default 'normal' check ("flag" in ('normal', 'low', 'high', 'critical_low', 'critical_high')),
-  "status" text not null default 'final' check ("status" in ('final', 'amended', 'entered_in_error')),
+  "value_text" text constraint bsb_observations_value_text_check check ("value_text" is null or length("value_text") <= 4000),
+  "value_code" text constraint bsb_observations_value_code_check check ("value_code" is null or length("value_code") <= 200),
+  "components" jsonb constraint bsb_observations_components_check check ("components" is null or jsonb_typeof("components") = 'object'),
+  "flag" text not null default 'normal' constraint bsb_observations_flag_check check ("flag" in ('normal', 'low', 'high', 'critical_low', 'critical_high')),
+  "status" text not null default 'final' constraint bsb_observations_status_check check ("status" in ('final', 'amended', 'entered_in_error')),
   -- The observation this one corrects.
   "replaces_id" uuid references "better_supabase"."observations" ("id") on delete set null,
-  "reason" text check ("reason" is null or length("reason") <= 2000),
-  "method" text check ("method" is null or length("method") <= 200),
-  "device" text check ("device" is null or length("device") <= 200),
-  "source" text not null default 'manual' check ("source" in ('manual', 'form', 'device', 'import')),
+  "reason" text constraint bsb_observations_reason_check check ("reason" is null or length("reason") <= 2000),
+  "method" text constraint bsb_observations_method_check check ("method" is null or length("method") <= 200),
+  "device" text constraint bsb_observations_device_check check ("device" is null or length("device") <= 200),
+  "source" text not null default 'manual' constraint bsb_observations_source_check check ("source" in ('manual', 'form', 'device', 'import')),
   -- The id a device or an import gives the reading, so ingesting it again
   -- changes nothing.
-  "external_id" text check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
+  "external_id" text constraint bsb_observations_external_id_check check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
   "submission_id" uuid,
   "performer_id" uuid,
-  "note" text check ("note" is null or length("note") <= 4000),
+  "note" text constraint bsb_observations_note_check check ("note" is null or length("note") <= 4000),
   "created_at" timestamptz not null default now()
 );
 create index "observations_series_idx" on "better_supabase"."observations" ("subject_type", "subject_id", "definition_id", "observed_at" desc);
@@ -1010,7 +1010,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:4d16db8105c870f38b77ae0ee078132793928c1c65907cbea9a1601b668f3520
+-- @bsb-hash sha256:c58f7d86ac6d210f3c50e7e14ef3a06d97d8e0e4bd77df0c4af44c2276340477
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1023,18 +1023,18 @@ create table "better_supabase"."observation_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   -- Null for a system definition every organization reads.
   "tenant_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "value_type" text not null check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
+  "key" text not null constraint bsb_observation_definitions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text not null constraint bsb_observation_definitions_title_check check (length("title") >= 1 and length("title") <= 200),
+  "value_type" text not null constraint bsb_observation_definitions_value_type_check check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
   -- A UCUM unit, such as /min, mm[Hg] or Cel.
-  "unit" text check ("unit" is null or length("unit") <= 50),
+  "unit" text constraint bsb_observation_definitions_unit_check check ("unit" is null or length("unit") <= 50),
   -- The code that names the observation, such as a LOINC code.
-  "code_system" text check ("code_system" is null or length("code_system") <= 200),
-  "code" text check ("code" is null or length("code") <= 100),
+  "code_system" text constraint bsb_observation_definitions_code_system_check check ("code_system" is null or length("code_system") <= 200),
+  "code" text constraint bsb_observation_definitions_code_check check ("code" is null or length("code") <= 100),
   -- The parts of a components value, such as systolic and diastolic: an
   -- array of objects with a key, a title, a unit, a code and ranges.
-  "components" jsonb check ("components" is null or jsonb_typeof("components") = 'array'),
-  "decimals" integer check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
+  "components" jsonb constraint bsb_observation_definitions_components_check check ("components" is null or jsonb_typeof("components") = 'array'),
+  "decimals" integer constraint bsb_observation_definitions_decimals_check check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
   -- Values outside the valid range are rejected; outside the reference range
   -- they are flagged low or high, at or past a critical bound critical.
   "valid_low" numeric,
@@ -1046,9 +1046,9 @@ create table "better_supabase"."observation_definitions" (
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("valid_low" is null or "valid_high" is null or "valid_low" <= "valid_high"),
-  check ("reference_low" is null or "reference_high" is null or "reference_low" <= "reference_high"),
-  check ("critical_low" is null or "critical_high" is null or "critical_low" <= "critical_high"),
+  constraint bsb_observation_definitions_check check ("valid_low" is null or "valid_high" is null or "valid_low" <= "valid_high"),
+  constraint bsb_observation_definitions_check1 check ("reference_low" is null or "reference_high" is null or "reference_low" <= "reference_high"),
+  constraint bsb_observation_definitions_check2 check ("critical_low" is null or "critical_high" is null or "critical_low" <= "critical_high"),
   unique nulls not distinct ("tenant_id", "key")
 );
 alter table "better_supabase"."observation_definitions" enable row level security;
@@ -1063,29 +1063,29 @@ create table "better_supabase"."observations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "definition_id" uuid not null references "better_supabase"."observation_definitions" ("id") on delete restrict,
-  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text not null constraint bsb_observations_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null constraint bsb_observations_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "observed_at" timestamptz not null default now(),
   -- One of these holds the value, by the definition's value type; a
   -- boolean is stored as true or false in the code column.
   "value_number" numeric,
-  "value_text" text check ("value_text" is null or length("value_text") <= 4000),
-  "value_code" text check ("value_code" is null or length("value_code") <= 200),
-  "components" jsonb check ("components" is null or jsonb_typeof("components") = 'object'),
-  "flag" text not null default 'normal' check ("flag" in ('normal', 'low', 'high', 'critical_low', 'critical_high')),
-  "status" text not null default 'final' check ("status" in ('final', 'amended', 'entered_in_error')),
+  "value_text" text constraint bsb_observations_value_text_check check ("value_text" is null or length("value_text") <= 4000),
+  "value_code" text constraint bsb_observations_value_code_check check ("value_code" is null or length("value_code") <= 200),
+  "components" jsonb constraint bsb_observations_components_check check ("components" is null or jsonb_typeof("components") = 'object'),
+  "flag" text not null default 'normal' constraint bsb_observations_flag_check check ("flag" in ('normal', 'low', 'high', 'critical_low', 'critical_high')),
+  "status" text not null default 'final' constraint bsb_observations_status_check check ("status" in ('final', 'amended', 'entered_in_error')),
   -- The observation this one corrects.
   "replaces_id" uuid references "better_supabase"."observations" ("id") on delete set null,
-  "reason" text check ("reason" is null or length("reason") <= 2000),
-  "method" text check ("method" is null or length("method") <= 200),
-  "device" text check ("device" is null or length("device") <= 200),
-  "source" text not null default 'manual' check ("source" in ('manual', 'form', 'device', 'import')),
+  "reason" text constraint bsb_observations_reason_check check ("reason" is null or length("reason") <= 2000),
+  "method" text constraint bsb_observations_method_check check ("method" is null or length("method") <= 200),
+  "device" text constraint bsb_observations_device_check check ("device" is null or length("device") <= 200),
+  "source" text not null default 'manual' constraint bsb_observations_source_check check ("source" in ('manual', 'form', 'device', 'import')),
   -- The id a device or an import gives the reading, so ingesting it again
   -- changes nothing.
-  "external_id" text check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
+  "external_id" text constraint bsb_observations_external_id_check check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
   "submission_id" uuid references "better_supabase"."form_submissions" ("id") on delete set null,
   "performer_id" uuid,
-  "note" text check ("note" is null or length("note") <= 4000),
+  "note" text constraint bsb_observations_note_check check ("note" is null or length("note") <= 4000),
   "created_at" timestamptz not null default now()
 );
 create index "observations_series_idx" on "better_supabase"."observations" ("subject_type", "subject_id", "definition_id", "observed_at" desc);
@@ -2237,7 +2237,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:eb4b3a47fe882bfeba3398ef0aab469fb875e551794342a85b98f49e43575f5f
+-- @bsb-hash sha256:e5d308a8fbafbea8e408bd3ad4c55fe74d9d97657beaf133b9680f35b8e19ee2
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2255,18 +2255,18 @@ create table "app_private"."observation_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   -- Null for a system definition every organization reads.
   "tenant_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "value_type" text not null check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
+  "key" text not null constraint bsb_observation_definitions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text not null constraint bsb_observation_definitions_title_check check (length("title") >= 1 and length("title") <= 200),
+  "value_type" text not null constraint bsb_observation_definitions_value_type_check check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
   -- A UCUM unit, such as /min, mm[Hg] or Cel.
-  "unit" text check ("unit" is null or length("unit") <= 50),
+  "unit" text constraint bsb_observation_definitions_unit_check check ("unit" is null or length("unit") <= 50),
   -- The code that names the observation, such as a LOINC code.
-  "code_system" text check ("code_system" is null or length("code_system") <= 200),
-  "code" text check ("code" is null or length("code") <= 100),
+  "code_system" text constraint bsb_observation_definitions_code_system_check check ("code_system" is null or length("code_system") <= 200),
+  "code" text constraint bsb_observation_definitions_code_check check ("code" is null or length("code") <= 100),
   -- The parts of a components value, such as systolic and diastolic: an
   -- array of objects with a key, a title, a unit, a code and ranges.
-  "components" jsonb check ("components" is null or jsonb_typeof("components") = 'array'),
-  "decimals" integer check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
+  "components" jsonb constraint bsb_observation_definitions_components_check check ("components" is null or jsonb_typeof("components") = 'array'),
+  "decimals" integer constraint bsb_observation_definitions_decimals_check check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
   -- Values outside the valid range are rejected; outside the reference range
   -- they are flagged low or high, at or past a critical bound critical.
   "valid_low" numeric,
@@ -2278,9 +2278,9 @@ create table "app_private"."observation_definitions" (
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("valid_low" is null or "valid_high" is null or "valid_low" <= "valid_high"),
-  check ("reference_low" is null or "reference_high" is null or "reference_low" <= "reference_high"),
-  check ("critical_low" is null or "critical_high" is null or "critical_low" <= "critical_high"),
+  constraint bsb_observation_definitions_check check ("valid_low" is null or "valid_high" is null or "valid_low" <= "valid_high"),
+  constraint bsb_observation_definitions_check1 check ("reference_low" is null or "reference_high" is null or "reference_low" <= "reference_high"),
+  constraint bsb_observation_definitions_check2 check ("critical_low" is null or "critical_high" is null or "critical_low" <= "critical_high"),
   unique nulls not distinct ("tenant_id", "key")
 );
 alter table "app_private"."observation_definitions" enable row level security;
@@ -2295,29 +2295,29 @@ create table "app_private"."observations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "definition_id" uuid not null references "app_private"."observation_definitions" ("id") on delete restrict,
-  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text not null constraint bsb_observations_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null constraint bsb_observations_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "observed_at" timestamptz not null default now(),
   -- One of these holds the value, by the definition's value type; a
   -- boolean is stored as true or false in the code column.
   "value_number" numeric,
-  "value_text" text check ("value_text" is null or length("value_text") <= 4000),
-  "value_code" text check ("value_code" is null or length("value_code") <= 200),
-  "components" jsonb check ("components" is null or jsonb_typeof("components") = 'object'),
-  "flag" text not null default 'normal' check ("flag" in ('normal', 'low', 'high', 'critical_low', 'critical_high')),
-  "status" text not null default 'final' check ("status" in ('final', 'amended', 'entered_in_error')),
+  "value_text" text constraint bsb_observations_value_text_check check ("value_text" is null or length("value_text") <= 4000),
+  "value_code" text constraint bsb_observations_value_code_check check ("value_code" is null or length("value_code") <= 200),
+  "components" jsonb constraint bsb_observations_components_check check ("components" is null or jsonb_typeof("components") = 'object'),
+  "flag" text not null default 'normal' constraint bsb_observations_flag_check check ("flag" in ('normal', 'low', 'high', 'critical_low', 'critical_high')),
+  "status" text not null default 'final' constraint bsb_observations_status_check check ("status" in ('final', 'amended', 'entered_in_error')),
   -- The observation this one corrects.
   "replaces_id" uuid references "app_private"."observations" ("id") on delete set null,
-  "reason" text check ("reason" is null or length("reason") <= 2000),
-  "method" text check ("method" is null or length("method") <= 200),
-  "device" text check ("device" is null or length("device") <= 200),
-  "source" text not null default 'manual' check ("source" in ('manual', 'form', 'device', 'import')),
+  "reason" text constraint bsb_observations_reason_check check ("reason" is null or length("reason") <= 2000),
+  "method" text constraint bsb_observations_method_check check ("method" is null or length("method") <= 200),
+  "device" text constraint bsb_observations_device_check check ("device" is null or length("device") <= 200),
+  "source" text not null default 'manual' constraint bsb_observations_source_check check ("source" in ('manual', 'form', 'device', 'import')),
   -- The id a device or an import gives the reading, so ingesting it again
   -- changes nothing.
-  "external_id" text check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
+  "external_id" text constraint bsb_observations_external_id_check check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
   "submission_id" uuid,
   "performer_id" uuid,
-  "note" text check ("note" is null or length("note") <= 4000),
+  "note" text constraint bsb_observations_note_check check ("note" is null or length("note") <= 4000),
   "created_at" timestamptz not null default now()
 );
 create index "observations_series_idx" on "app_private"."observations" ("subject_type", "subject_id", "definition_id", "observed_at" desc);
@@ -3251,7 +3251,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:e8b0fbf201bdab1986f88d9d3252c316658f461a6e305d00f95f423651455a97
+-- @bsb-hash sha256:36c85ade3c167d472ad71fb9d992568cc69ccd0489b85a3b67ec7e65e103b20d
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3264,18 +3264,18 @@ create table "better_supabase"."observation_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   -- Null for a system definition every organization reads.
   "tenant_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "value_type" text not null check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
+  "key" text not null constraint bsb_observation_definitions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text not null constraint bsb_observation_definitions_title_check check (length("title") >= 1 and length("title") <= 200),
+  "value_type" text not null constraint bsb_observation_definitions_value_type_check check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
   -- A UCUM unit, such as /min, mm[Hg] or Cel.
-  "unit" text check ("unit" is null or length("unit") <= 50),
+  "unit" text constraint bsb_observation_definitions_unit_check check ("unit" is null or length("unit") <= 50),
   -- The code that names the observation, such as a LOINC code.
-  "code_system" text check ("code_system" is null or length("code_system") <= 200),
-  "code" text check ("code" is null or length("code") <= 100),
+  "code_system" text constraint bsb_observation_definitions_code_system_check check ("code_system" is null or length("code_system") <= 200),
+  "code" text constraint bsb_observation_definitions_code_check check ("code" is null or length("code") <= 100),
   -- The parts of a components value, such as systolic and diastolic: an
   -- array of objects with a key, a title, a unit, a code and ranges.
-  "components" jsonb check ("components" is null or jsonb_typeof("components") = 'array'),
-  "decimals" integer check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
+  "components" jsonb constraint bsb_observation_definitions_components_check check ("components" is null or jsonb_typeof("components") = 'array'),
+  "decimals" integer constraint bsb_observation_definitions_decimals_check check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
   -- Values outside the valid range are rejected; outside the reference range
   -- they are flagged low or high, at or past a critical bound critical.
   "valid_low" numeric,
@@ -3287,9 +3287,9 @@ create table "better_supabase"."observation_definitions" (
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("valid_low" is null or "valid_high" is null or "valid_low" <= "valid_high"),
-  check ("reference_low" is null or "reference_high" is null or "reference_low" <= "reference_high"),
-  check ("critical_low" is null or "critical_high" is null or "critical_low" <= "critical_high"),
+  constraint bsb_observation_definitions_check check ("valid_low" is null or "valid_high" is null or "valid_low" <= "valid_high"),
+  constraint bsb_observation_definitions_check1 check ("reference_low" is null or "reference_high" is null or "reference_low" <= "reference_high"),
+  constraint bsb_observation_definitions_check2 check ("critical_low" is null or "critical_high" is null or "critical_low" <= "critical_high"),
   unique nulls not distinct ("tenant_id", "key")
 );
 alter table "better_supabase"."observation_definitions" enable row level security;
@@ -3304,29 +3304,29 @@ create table "better_supabase"."observations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "definition_id" uuid not null references "better_supabase"."observation_definitions" ("id") on delete restrict,
-  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text not null constraint bsb_observations_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null constraint bsb_observations_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "observed_at" timestamptz not null default now(),
   -- One of these holds the value, by the definition's value type; a
   -- boolean is stored as true or false in the code column.
   "value_number" numeric,
-  "value_text" text check ("value_text" is null or length("value_text") <= 4000),
-  "value_code" text check ("value_code" is null or length("value_code") <= 200),
-  "components" jsonb check ("components" is null or jsonb_typeof("components") = 'object'),
-  "flag" text not null default 'normal' check ("flag" in ('normal', 'low', 'high', 'critical_low', 'critical_high')),
-  "status" text not null default 'final' check ("status" in ('final', 'amended', 'entered_in_error')),
+  "value_text" text constraint bsb_observations_value_text_check check ("value_text" is null or length("value_text") <= 4000),
+  "value_code" text constraint bsb_observations_value_code_check check ("value_code" is null or length("value_code") <= 200),
+  "components" jsonb constraint bsb_observations_components_check check ("components" is null or jsonb_typeof("components") = 'object'),
+  "flag" text not null default 'normal' constraint bsb_observations_flag_check check ("flag" in ('normal', 'low', 'high', 'critical_low', 'critical_high')),
+  "status" text not null default 'final' constraint bsb_observations_status_check check ("status" in ('final', 'amended', 'entered_in_error')),
   -- The observation this one corrects.
   "replaces_id" uuid references "better_supabase"."observations" ("id") on delete set null,
-  "reason" text check ("reason" is null or length("reason") <= 2000),
-  "method" text check ("method" is null or length("method") <= 200),
-  "device" text check ("device" is null or length("device") <= 200),
-  "source" text not null default 'manual' check ("source" in ('manual', 'form', 'device', 'import')),
+  "reason" text constraint bsb_observations_reason_check check ("reason" is null or length("reason") <= 2000),
+  "method" text constraint bsb_observations_method_check check ("method" is null or length("method") <= 200),
+  "device" text constraint bsb_observations_device_check check ("device" is null or length("device") <= 200),
+  "source" text not null default 'manual' constraint bsb_observations_source_check check ("source" in ('manual', 'form', 'device', 'import')),
   -- The id a device or an import gives the reading, so ingesting it again
   -- changes nothing.
-  "external_id" text check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
+  "external_id" text constraint bsb_observations_external_id_check check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
   "submission_id" uuid,
   "performer_id" uuid,
-  "note" text check ("note" is null or length("note") <= 4000),
+  "note" text constraint bsb_observations_note_check check ("note" is null or length("note") <= 4000),
   "created_at" timestamptz not null default now()
 );
 create index "observations_series_idx" on "better_supabase"."observations" ("subject_type", "subject_id", "definition_id", "observed_at" desc);
@@ -4367,7 +4367,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:51a24c356d12c3ce49061dccb7a99fe9792d8ad3f0777786090950a11d2f7178
+-- @bsb-hash sha256:26749e683211e8e8aa32b241a6dd50c50b05be34b25d709968889e3ce9275cd1
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4379,14 +4379,14 @@ on conflict (name) do update
 -- better_supabase.observation_definitions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."observation_definitions" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."observation_definitions" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."observation_definitions" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."observation_definitions" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
-alter table "better_supabase"."observation_definitions" add column if not exists "value_type" text check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components'));
-alter table "better_supabase"."observation_definitions" add column if not exists "unit" text check ("unit" is null or length("unit") <= 50);
-alter table "better_supabase"."observation_definitions" add column if not exists "code_system" text check ("code_system" is null or length("code_system") <= 200);
-alter table "better_supabase"."observation_definitions" add column if not exists "code" text check ("code" is null or length("code") <= 100);
-alter table "better_supabase"."observation_definitions" add column if not exists "components" jsonb check ("components" is null or jsonb_typeof("components") = 'array');
-alter table "better_supabase"."observation_definitions" add column if not exists "decimals" integer check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6);
+alter table "better_supabase"."observation_definitions" add column if not exists "key" text constraint bsb_observation_definitions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."observation_definitions" add column if not exists "title" text constraint bsb_observation_definitions_title_check check (length("title") >= 1 and length("title") <= 200);
+alter table "better_supabase"."observation_definitions" add column if not exists "value_type" text constraint bsb_observation_definitions_value_type_check check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components'));
+alter table "better_supabase"."observation_definitions" add column if not exists "unit" text constraint bsb_observation_definitions_unit_check check ("unit" is null or length("unit") <= 50);
+alter table "better_supabase"."observation_definitions" add column if not exists "code_system" text constraint bsb_observation_definitions_code_system_check check ("code_system" is null or length("code_system") <= 200);
+alter table "better_supabase"."observation_definitions" add column if not exists "code" text constraint bsb_observation_definitions_code_check check ("code" is null or length("code") <= 100);
+alter table "better_supabase"."observation_definitions" add column if not exists "components" jsonb constraint bsb_observation_definitions_components_check check ("components" is null or jsonb_typeof("components") = 'array');
+alter table "better_supabase"."observation_definitions" add column if not exists "decimals" integer constraint bsb_observation_definitions_decimals_check check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6);
 alter table "better_supabase"."observation_definitions" add column if not exists "valid_low" numeric;
 alter table "better_supabase"."observation_definitions" add column if not exists "valid_high" numeric;
 alter table "better_supabase"."observation_definitions" add column if not exists "reference_low" numeric;
@@ -4408,24 +4408,24 @@ create policy bsb_observation_definitions_read on "better_supabase"."observation
 alter table "better_supabase"."observations" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."observations" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."observations" add column if not exists "definition_id" uuid references "better_supabase"."observation_definitions" ("id") on delete restrict;
-alter table "better_supabase"."observations" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
-alter table "better_supabase"."observations" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."observations" add column if not exists "subject_type" text constraint bsb_observations_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."observations" add column if not exists "subject_id" text constraint bsb_observations_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."observations" add column if not exists "observed_at" timestamptz not null default now();
 alter table "better_supabase"."observations" add column if not exists "value_number" numeric;
-alter table "better_supabase"."observations" add column if not exists "value_text" text check ("value_text" is null or length("value_text") <= 4000);
-alter table "better_supabase"."observations" add column if not exists "value_code" text check ("value_code" is null or length("value_code") <= 200);
-alter table "better_supabase"."observations" add column if not exists "components" jsonb check ("components" is null or jsonb_typeof("components") = 'object');
-alter table "better_supabase"."observations" add column if not exists "flag" text not null default 'normal' check ("flag" in ('normal', 'low', 'high', 'critical_low', 'critical_high'));
-alter table "better_supabase"."observations" add column if not exists "status" text not null default 'final' check ("status" in ('final', 'amended', 'entered_in_error'));
+alter table "better_supabase"."observations" add column if not exists "value_text" text constraint bsb_observations_value_text_check check ("value_text" is null or length("value_text") <= 4000);
+alter table "better_supabase"."observations" add column if not exists "value_code" text constraint bsb_observations_value_code_check check ("value_code" is null or length("value_code") <= 200);
+alter table "better_supabase"."observations" add column if not exists "components" jsonb constraint bsb_observations_components_check check ("components" is null or jsonb_typeof("components") = 'object');
+alter table "better_supabase"."observations" add column if not exists "flag" text not null default 'normal' constraint bsb_observations_flag_check check ("flag" in ('normal', 'low', 'high', 'critical_low', 'critical_high'));
+alter table "better_supabase"."observations" add column if not exists "status" text not null default 'final' constraint bsb_observations_status_check check ("status" in ('final', 'amended', 'entered_in_error'));
 alter table "better_supabase"."observations" add column if not exists "replaces_id" uuid references "better_supabase"."observations" ("id") on delete set null;
-alter table "better_supabase"."observations" add column if not exists "reason" text check ("reason" is null or length("reason") <= 2000);
-alter table "better_supabase"."observations" add column if not exists "method" text check ("method" is null or length("method") <= 200);
-alter table "better_supabase"."observations" add column if not exists "device" text check ("device" is null or length("device") <= 200);
-alter table "better_supabase"."observations" add column if not exists "source" text not null default 'manual' check ("source" in ('manual', 'form', 'device', 'import'));
-alter table "better_supabase"."observations" add column if not exists "external_id" text check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200);
+alter table "better_supabase"."observations" add column if not exists "reason" text constraint bsb_observations_reason_check check ("reason" is null or length("reason") <= 2000);
+alter table "better_supabase"."observations" add column if not exists "method" text constraint bsb_observations_method_check check ("method" is null or length("method") <= 200);
+alter table "better_supabase"."observations" add column if not exists "device" text constraint bsb_observations_device_check check ("device" is null or length("device") <= 200);
+alter table "better_supabase"."observations" add column if not exists "source" text not null default 'manual' constraint bsb_observations_source_check check ("source" in ('manual', 'form', 'device', 'import'));
+alter table "better_supabase"."observations" add column if not exists "external_id" text constraint bsb_observations_external_id_check check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200);
 alter table "better_supabase"."observations" add column if not exists "submission_id" uuid;
 alter table "better_supabase"."observations" add column if not exists "performer_id" uuid;
-alter table "better_supabase"."observations" add column if not exists "note" text check ("note" is null or length("note") <= 4000);
+alter table "better_supabase"."observations" add column if not exists "note" text constraint bsb_observations_note_check check ("note" is null or length("note") <= 4000);
 alter table "better_supabase"."observations" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists "observations_series_idx" on "better_supabase"."observations" ("subject_type", "subject_id", "definition_id", "observed_at" desc);
 create index if not exists "observations_definition_idx" on "better_supabase"."observations" ("definition_id");
@@ -5357,7 +5357,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_149_observations.sql
 -- better-supabase module: observations
 -- @bsb-block observations@1 managed
--- @bsb-hash sha256:7562e1bd7d82c6683c35788fa434f56dd50cac2779b22ae923e3bd20217924ee
+-- @bsb-hash sha256:b1b4e09b728b967798d383f5b9991ad6ff9ac4abb04217d744bf0ed7dbc83c92
 -- Typed measurements of a record against definitions with a UCUM unit, a code (LOINC for the shipped vital signs) and valid, reference and critical ranges: a computed flag, critical alerts to the record team's leads, amendments and entered-in-error corrections, idempotent device ingest, series and latest values, and observations mapped from form submissions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5370,18 +5370,18 @@ create table "better_supabase"."observation_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   -- Null for a system definition every organization reads.
   "org_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "value_type" text not null check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
+  "key" text not null constraint bsb_observation_definitions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text not null constraint bsb_observation_definitions_title_check check (length("title") >= 1 and length("title") <= 200),
+  "value_type" text not null constraint bsb_observation_definitions_value_type_check check ("value_type" in ('number', 'integer', 'boolean', 'code', 'text', 'components')),
   -- A UCUM unit, such as /min, mm[Hg] or Cel.
-  "unit" text check ("unit" is null or length("unit") <= 50),
+  "unit" text constraint bsb_observation_definitions_unit_check check ("unit" is null or length("unit") <= 50),
   -- The code that names the observation, such as a LOINC code.
-  "code_system" text check ("code_system" is null or length("code_system") <= 200),
-  "code" text check ("code" is null or length("code") <= 100),
+  "code_system" text constraint bsb_observation_definitions_code_system_check check ("code_system" is null or length("code_system") <= 200),
+  "code" text constraint bsb_observation_definitions_code_check check ("code" is null or length("code") <= 100),
   -- The parts of a components value, such as systolic and diastolic: an
   -- array of objects with a key, a title, a unit, a code and ranges.
-  "components" jsonb check ("components" is null or jsonb_typeof("components") = 'array'),
-  "decimals" integer check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
+  "components" jsonb constraint bsb_observation_definitions_components_check check ("components" is null or jsonb_typeof("components") = 'array'),
+  "decimals" integer constraint bsb_observation_definitions_decimals_check check ("decimals" is null or "decimals" >= 0 and "decimals" <= 6),
   -- Values outside the valid range are rejected; outside the reference range
   -- they are flagged low or high, at or past a critical bound critical.
   "valid_low" numeric,
@@ -5393,9 +5393,9 @@ create table "better_supabase"."observation_definitions" (
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("valid_low" is null or "valid_high" is null or "valid_low" <= "valid_high"),
-  check ("reference_low" is null or "reference_high" is null or "reference_low" <= "reference_high"),
-  check ("critical_low" is null or "critical_high" is null or "critical_low" <= "critical_high"),
+  constraint bsb_observation_definitions_check check ("valid_low" is null or "valid_high" is null or "valid_low" <= "valid_high"),
+  constraint bsb_observation_definitions_check1 check ("reference_low" is null or "reference_high" is null or "reference_low" <= "reference_high"),
+  constraint bsb_observation_definitions_check2 check ("critical_low" is null or "critical_high" is null or "critical_low" <= "critical_high"),
   unique nulls not distinct ("org_id", "key")
 );
 alter table "better_supabase"."observation_definitions" enable row level security;
@@ -5410,29 +5410,29 @@ create table "better_supabase"."observations" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "definition_id" uuid not null references "better_supabase"."observation_definitions" ("id") on delete restrict,
-  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text not null constraint bsb_observations_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null constraint bsb_observations_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "observed_at" timestamptz not null default now(),
   -- One of these holds the value, by the definition's value type; a
   -- boolean is stored as true or false in the code column.
   "value_number" numeric,
-  "value_text" text check ("value_text" is null or length("value_text") <= 4000),
-  "value_code" text check ("value_code" is null or length("value_code") <= 200),
-  "components" jsonb check ("components" is null or jsonb_typeof("components") = 'object'),
-  "flag" text not null default 'normal' check ("flag" in ('normal', 'low', 'high', 'critical_low', 'critical_high')),
-  "status" text not null default 'final' check ("status" in ('final', 'amended', 'entered_in_error')),
+  "value_text" text constraint bsb_observations_value_text_check check ("value_text" is null or length("value_text") <= 4000),
+  "value_code" text constraint bsb_observations_value_code_check check ("value_code" is null or length("value_code") <= 200),
+  "components" jsonb constraint bsb_observations_components_check check ("components" is null or jsonb_typeof("components") = 'object'),
+  "flag" text not null default 'normal' constraint bsb_observations_flag_check check ("flag" in ('normal', 'low', 'high', 'critical_low', 'critical_high')),
+  "status" text not null default 'final' constraint bsb_observations_status_check check ("status" in ('final', 'amended', 'entered_in_error')),
   -- The observation this one corrects.
   "replaces_id" uuid references "better_supabase"."observations" ("id") on delete set null,
-  "reason" text check ("reason" is null or length("reason") <= 2000),
-  "method" text check ("method" is null or length("method") <= 200),
-  "device" text check ("device" is null or length("device") <= 200),
-  "source" text not null default 'manual' check ("source" in ('manual', 'form', 'device', 'import')),
+  "reason" text constraint bsb_observations_reason_check check ("reason" is null or length("reason") <= 2000),
+  "method" text constraint bsb_observations_method_check check ("method" is null or length("method") <= 200),
+  "device" text constraint bsb_observations_device_check check ("device" is null or length("device") <= 200),
+  "source" text not null default 'manual' constraint bsb_observations_source_check check ("source" in ('manual', 'form', 'device', 'import')),
   -- The id a device or an import gives the reading, so ingesting it again
   -- changes nothing.
-  "external_id" text check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
+  "external_id" text constraint bsb_observations_external_id_check check ("external_id" is null or length("external_id") >= 1 and length("external_id") <= 200),
   "submission_id" uuid,
   "performer_id" uuid,
-  "note" text check ("note" is null or length("note") <= 4000),
+  "note" text constraint bsb_observations_note_check check ("note" is null or length("note") <= 4000),
   "created_at" timestamptz not null default now()
 );
 create index "observations_series_idx" on "better_supabase"."observations" ("subject_type", "subject_id", "definition_id", "observed_at" desc);

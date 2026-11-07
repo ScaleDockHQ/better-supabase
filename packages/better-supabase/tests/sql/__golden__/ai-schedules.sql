@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:b4d5e1f8abeafc2abddbd09251588138a2939ff07af05205c44763d12f2132c3
+-- @bsb-hash sha256:d6a8803ca854358a2685bd8f643b25fc754fc360e6770e40d3d6996cca6cb96c
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,10 +15,10 @@ create table "better_supabase"."ai_scheduled_tasks" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
   "agent_id" uuid,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "prompt" text not null check (length("prompt") >= 1 and length("prompt") <= 20000),
-  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
-  "timezone" text not null default 'UTC' check (length("timezone") >= 1 and length("timezone") <= 64),
+  "title" text not null constraint bsb_ai_scheduled_tasks_title_check check (length("title") >= 1 and length("title") <= 200),
+  "prompt" text not null constraint bsb_ai_scheduled_tasks_prompt_check check (length("prompt") >= 1 and length("prompt") <= 20000),
+  "cron" text not null constraint bsb_ai_scheduled_tasks_cron_check check (length("cron") >= 1 and length("cron") <= 200),
+  "timezone" text not null default 'UTC' constraint bsb_ai_scheduled_tasks_timezone_check check (length("timezone") >= 1 and length("timezone") <= 64),
   "enabled" boolean not null default true,
   "next_run_at" timestamptz,
   "last_run_at" timestamptz,
@@ -41,10 +41,10 @@ create table "better_supabase"."ai_task_runs" (
   "task_id" uuid not null references "better_supabase"."ai_scheduled_tasks" ("id") on delete cascade,
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "status" text not null default 'queued' check ("status" in ('queued', 'running', 'completed', 'failed')),
+  "status" text not null default 'queued' constraint bsb_ai_task_runs_status_check check ("status" in ('queued', 'running', 'completed', 'failed')),
   "scheduled_for" timestamptz not null,
   "chat_id" uuid,
-  "error" text check (length("error") <= 4000),
+  "error" text constraint bsb_ai_task_runs_error_check check (length("error") <= 4000),
   "started_at" timestamptz,
   "finished_at" timestamptz,
   "created_at" timestamptz not null default now()
@@ -363,7 +363,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:57e4084dc4f32b2137be3915e0dcd4a92a96f4345b672442df69575d4436129b
+-- @bsb-hash sha256:ab287c160c1b856e6af388dce47b12a8e413a649a145963b6099764d80f2a376
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -377,10 +377,10 @@ create table "better_supabase"."ai_scheduled_tasks" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
   "agent_id" uuid references "better_supabase"."agents" ("id") on delete set null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "prompt" text not null check (length("prompt") >= 1 and length("prompt") <= 20000),
-  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
-  "timezone" text not null default 'UTC' check (length("timezone") >= 1 and length("timezone") <= 64),
+  "title" text not null constraint bsb_ai_scheduled_tasks_title_check check (length("title") >= 1 and length("title") <= 200),
+  "prompt" text not null constraint bsb_ai_scheduled_tasks_prompt_check check (length("prompt") >= 1 and length("prompt") <= 20000),
+  "cron" text not null constraint bsb_ai_scheduled_tasks_cron_check check (length("cron") >= 1 and length("cron") <= 200),
+  "timezone" text not null default 'UTC' constraint bsb_ai_scheduled_tasks_timezone_check check (length("timezone") >= 1 and length("timezone") <= 64),
   "enabled" boolean not null default true,
   "next_run_at" timestamptz,
   "last_run_at" timestamptz,
@@ -403,10 +403,10 @@ create table "better_supabase"."ai_task_runs" (
   "task_id" uuid not null references "better_supabase"."ai_scheduled_tasks" ("id") on delete cascade,
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "status" text not null default 'queued' check ("status" in ('queued', 'running', 'completed', 'failed')),
+  "status" text not null default 'queued' constraint bsb_ai_task_runs_status_check check ("status" in ('queued', 'running', 'completed', 'failed')),
   "scheduled_for" timestamptz not null,
   "chat_id" uuid,
-  "error" text check (length("error") <= 4000),
+  "error" text constraint bsb_ai_task_runs_error_check check (length("error") <= 4000),
   "started_at" timestamptz,
   "finished_at" timestamptz,
   "created_at" timestamptz not null default now()
@@ -729,7 +729,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:5a0b79b01ec4d4ab258ac03cf080e35f8b67595d456837d5b00709d792d337db
+-- @bsb-hash sha256:8591817c0f957a25017e1f04b2188344e0513cd642a45375c03f21d72575bddc
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -748,10 +748,10 @@ create table "app_private"."ai_scheduled_tasks" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
   "agent_id" uuid,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "prompt" text not null check (length("prompt") >= 1 and length("prompt") <= 20000),
-  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
-  "timezone" text not null default 'UTC' check (length("timezone") >= 1 and length("timezone") <= 64),
+  "title" text not null constraint bsb_ai_scheduled_tasks_title_check check (length("title") >= 1 and length("title") <= 200),
+  "prompt" text not null constraint bsb_ai_scheduled_tasks_prompt_check check (length("prompt") >= 1 and length("prompt") <= 20000),
+  "cron" text not null constraint bsb_ai_scheduled_tasks_cron_check check (length("cron") >= 1 and length("cron") <= 200),
+  "timezone" text not null default 'UTC' constraint bsb_ai_scheduled_tasks_timezone_check check (length("timezone") >= 1 and length("timezone") <= 64),
   "enabled" boolean not null default true,
   "next_run_at" timestamptz,
   "last_run_at" timestamptz,
@@ -774,10 +774,10 @@ create table "app_private"."ai_task_runs" (
   "task_id" uuid not null references "app_private"."ai_scheduled_tasks" ("id") on delete cascade,
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "status" text not null default 'queued' check ("status" in ('queued', 'running', 'completed', 'failed')),
+  "status" text not null default 'queued' constraint bsb_ai_task_runs_status_check check ("status" in ('queued', 'running', 'completed', 'failed')),
   "scheduled_for" timestamptz not null,
   "chat_id" uuid,
-  "error" text check (length("error") <= 4000),
+  "error" text constraint bsb_ai_task_runs_error_check check (length("error") <= 4000),
   "started_at" timestamptz,
   "finished_at" timestamptz,
   "created_at" timestamptz not null default now()
@@ -1096,7 +1096,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:8b549e2141eac0ac92d7623b7d3b8815e15505750295cf221879c36e968b1745
+-- @bsb-hash sha256:244e6709509994cb6d342cf626376918cf69c83a67d81fee5cc8d57bc5a01543
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1110,10 +1110,10 @@ create table "better_supabase"."ai_scheduled_tasks" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
   "agent_id" uuid,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "prompt" text not null check (length("prompt") >= 1 and length("prompt") <= 20000),
-  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
-  "timezone" text not null default 'UTC' check (length("timezone") >= 1 and length("timezone") <= 64),
+  "title" text not null constraint bsb_ai_scheduled_tasks_title_check check (length("title") >= 1 and length("title") <= 200),
+  "prompt" text not null constraint bsb_ai_scheduled_tasks_prompt_check check (length("prompt") >= 1 and length("prompt") <= 20000),
+  "cron" text not null constraint bsb_ai_scheduled_tasks_cron_check check (length("cron") >= 1 and length("cron") <= 200),
+  "timezone" text not null default 'UTC' constraint bsb_ai_scheduled_tasks_timezone_check check (length("timezone") >= 1 and length("timezone") <= 64),
   "enabled" boolean not null default true,
   "next_run_at" timestamptz,
   "last_run_at" timestamptz,
@@ -1136,10 +1136,10 @@ create table "better_supabase"."ai_task_runs" (
   "task_id" uuid not null references "better_supabase"."ai_scheduled_tasks" ("id") on delete cascade,
   "organization_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "status" text not null default 'queued' check ("status" in ('queued', 'running', 'completed', 'failed')),
+  "status" text not null default 'queued' constraint bsb_ai_task_runs_status_check check ("status" in ('queued', 'running', 'completed', 'failed')),
   "scheduled_for" timestamptz not null,
   "chat_id" uuid,
-  "error" text check (length("error") <= 4000),
+  "error" text constraint bsb_ai_task_runs_error_check check (length("error") <= 4000),
   "started_at" timestamptz,
   "finished_at" timestamptz,
   "created_at" timestamptz not null default now()
@@ -1536,7 +1536,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:b88bc23361196349541b7f3fa98f835cdb13e4e438ecf36cbd7dd294a89e11c6
+-- @bsb-hash sha256:810751afa555fd2e15072cd58540be959046d990faf2821c1bc3139b85e8e965
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1550,10 +1550,10 @@ alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "org
 alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "chat_id" uuid;
 alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "agent_id" uuid;
-alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
-alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "prompt" text check (length("prompt") >= 1 and length("prompt") <= 20000);
-alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "cron" text check (length("cron") >= 1 and length("cron") <= 200);
-alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "timezone" text not null default 'UTC' check (length("timezone") >= 1 and length("timezone") <= 64);
+alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "title" text constraint bsb_ai_scheduled_tasks_title_check check (length("title") >= 1 and length("title") <= 200);
+alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "prompt" text constraint bsb_ai_scheduled_tasks_prompt_check check (length("prompt") >= 1 and length("prompt") <= 20000);
+alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "cron" text constraint bsb_ai_scheduled_tasks_cron_check check (length("cron") >= 1 and length("cron") <= 200);
+alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "timezone" text not null default 'UTC' constraint bsb_ai_scheduled_tasks_timezone_check check (length("timezone") >= 1 and length("timezone") <= 64);
 alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "enabled" boolean not null default true;
 alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "next_run_at" timestamptz;
 alter table "better_supabase"."ai_scheduled_tasks" add column if not exists "last_run_at" timestamptz;
@@ -1574,10 +1574,10 @@ alter table "better_supabase"."ai_task_runs" add column if not exists "id" uuid 
 alter table "better_supabase"."ai_task_runs" add column if not exists "task_id" uuid references "better_supabase"."ai_scheduled_tasks" ("id") on delete cascade;
 alter table "better_supabase"."ai_task_runs" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."ai_task_runs" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."ai_task_runs" add column if not exists "status" text not null default 'queued' check ("status" in ('queued', 'running', 'completed', 'failed'));
+alter table "better_supabase"."ai_task_runs" add column if not exists "status" text not null default 'queued' constraint bsb_ai_task_runs_status_check check ("status" in ('queued', 'running', 'completed', 'failed'));
 alter table "better_supabase"."ai_task_runs" add column if not exists "scheduled_for" timestamptz;
 alter table "better_supabase"."ai_task_runs" add column if not exists "chat_id" uuid;
-alter table "better_supabase"."ai_task_runs" add column if not exists "error" text check (length("error") <= 4000);
+alter table "better_supabase"."ai_task_runs" add column if not exists "error" text constraint bsb_ai_task_runs_error_check check (length("error") <= 4000);
 alter table "better_supabase"."ai_task_runs" add column if not exists "started_at" timestamptz;
 alter table "better_supabase"."ai_task_runs" add column if not exists "finished_at" timestamptz;
 alter table "better_supabase"."ai_task_runs" add column if not exists "created_at" timestamptz not null default now();
@@ -1894,7 +1894,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:16a6a91c01cef179f8498f8dde54e09b899efa376b781c5b8d5bc4580a38d347
+-- @bsb-hash sha256:16ee0736721760365f6e8d774d5b188128b8f24518b7fe8a081af055dd4f376e
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1908,10 +1908,10 @@ create table "better_supabase"."ai_scheduled_tasks" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
   "agent_id" uuid,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "prompt" text not null check (length("prompt") >= 1 and length("prompt") <= 20000),
-  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
-  "timezone" text not null default 'UTC' check (length("timezone") >= 1 and length("timezone") <= 64),
+  "title" text not null constraint bsb_ai_scheduled_tasks_title_check check (length("title") >= 1 and length("title") <= 200),
+  "prompt" text not null constraint bsb_ai_scheduled_tasks_prompt_check check (length("prompt") >= 1 and length("prompt") <= 20000),
+  "cron" text not null constraint bsb_ai_scheduled_tasks_cron_check check (length("cron") >= 1 and length("cron") <= 200),
+  "timezone" text not null default 'UTC' constraint bsb_ai_scheduled_tasks_timezone_check check (length("timezone") >= 1 and length("timezone") <= 64),
   "enabled" boolean not null default true,
   "next_run_at" timestamptz,
   "last_run_at" timestamptz,
@@ -1934,10 +1934,10 @@ create table "better_supabase"."ai_task_runs" (
   "task_id" uuid not null references "better_supabase"."ai_scheduled_tasks" ("id") on delete cascade,
   "org_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "status" text not null default 'queued' check ("status" in ('queued', 'running', 'completed', 'failed')),
+  "status" text not null default 'queued' constraint bsb_ai_task_runs_status_check check ("status" in ('queued', 'running', 'completed', 'failed')),
   "scheduled_for" timestamptz not null,
   "chat_id" uuid,
-  "error" text check (length("error") <= 4000),
+  "error" text constraint bsb_ai_task_runs_error_check check (length("error") <= 4000),
   "started_at" timestamptz,
   "finished_at" timestamptz,
   "created_at" timestamptz not null default now()

@@ -8,6 +8,7 @@ import {
   renderBlocks,
 } from "../../../src/sql/render.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("notifications", { modules })!;
@@ -42,7 +43,7 @@ const APP_TABLES: AnyBlocksConfig = {
 describe("notification delivery tracking", () => {
   it("adds the provider status, the template key and the provider lookup index to deliveries", () => {
     const sql = body();
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `alter table ${DELIVERIES} add column "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));`,
     );
     expect(sql).toContain(

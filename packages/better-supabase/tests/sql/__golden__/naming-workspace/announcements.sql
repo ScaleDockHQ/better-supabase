@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:7d9c702e08ec03f65930fc96d65179b09c2e52f2229db3878db8b00c2c95299a
+-- @bsb-hash sha256:9c67fecaa664b029fb91be118f2eea105d3708fa00558bf62e7cded13ee45a9a
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,10 +11,10 @@
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
 create table "better_supabase"."announcements" (
   "id" uuid primary key default gen_random_uuid(),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "body" text not null default '' check (length("body") <= 10000),
-  "severity" text not null default 'info' check ("severity" in ('info', 'success', 'warning', 'critical')),
-  "href" text check ("href" ~ '^(https://|/)'),
+  "title" text not null constraint bsb_announcements_title_check check (length("title") >= 1 and length("title") <= 200),
+  "body" text not null default '' constraint bsb_announcements_body_check check (length("body") <= 10000),
+  "severity" text not null default 'info' constraint bsb_announcements_severity_check check ("severity" in ('info', 'success', 'warning', 'critical')),
+  "href" text constraint bsb_announcements_href_check check ("href" ~ '^(https://|/)'),
   "audience" text not null default 'all',
   "targets" text[] not null default '{}',
   "starts_at" timestamptz not null default now(),
@@ -23,8 +23,8 @@ create table "better_supabase"."announcements" (
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_at" is null or "ends_at" > "starts_at"),
-  check (("audience" = 'all') = (cardinality("targets") = 0))
+  constraint bsb_announcements_check check ("ends_at" is null or "ends_at" > "starts_at"),
+  constraint bsb_announcements_check1 check (("audience" = 'all') = (cardinality("targets") = 0))
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.

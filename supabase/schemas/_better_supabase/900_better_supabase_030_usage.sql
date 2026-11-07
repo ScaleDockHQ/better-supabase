@@ -1,6 +1,6 @@
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:ccdd64e8e62f531707dcec8edf2a9fdbef3c6abc3859d8096f34e975ecdb1872
+-- @bsb-hash sha256:b7b416f49ca05f3ebbe8acb34bcef32fd5b4abd9e9de42117dd27cef11e5e500
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8,10 +8,10 @@
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
 create table "better_supabase"."usage_counters" (
   "organization_id" uuid not null,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "meter" text not null constraint bsb_usage_counters_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
-  "value" numeric not null default 0 check ("value" >= 0),
-  "reported_value" numeric not null default 0 check ("reported_value" >= 0),
+  "value" numeric not null default 0 constraint bsb_usage_counters_value_check check ("value" >= 0),
+  "reported_value" numeric not null default 0 constraint bsb_usage_counters_reported_value_check check ("reported_value" >= 0),
   "updated_at" timestamptz not null default now(),
   primary key ("organization_id", "meter", "day")
 );
@@ -47,7 +47,7 @@ create table "better_supabase"."usage_history" (
   "meter" text not null,
   "quantity" numeric not null,
   "actor_id" uuid,
-  "source" text check (length("source") <= 200),
+  "source" text constraint bsb_usage_history_source_check check (length("source") <= 200),
   "metadata" jsonb not null default '{}',
   "recorded_at" timestamptz not null default now()
 );
@@ -71,11 +71,11 @@ create table "better_supabase"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "plan" text,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
-  "limit" numeric check ("limit" >= 0),
-  "period" text not null default 'month' check ("period" in ('day', 'week', 'month', 'year', 'billing')),
+  "meter" text not null constraint bsb_usage_quotas_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "limit" numeric constraint bsb_usage_quotas_limit_check check ("limit" >= 0),
+  "period" text not null default 'month' constraint bsb_usage_quotas_period_check check ("period" in ('day', 'week', 'month', 'year', 'billing')),
   "created_at" timestamptz not null default now(),
-  check (("organization_id" is null) <> ("plan" is null)),
+  constraint bsb_usage_quotas_check check (("organization_id" is null) <> ("plan" is null)),
   unique nulls not distinct ("organization_id", "plan", "meter")
 );
 alter table "better_supabase"."usage_quotas" alter column "limit" type numeric;
@@ -718,11 +718,11 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 -- What one unit of a meter costs: unit_amount in minor units of currency
 -- (ADR 0024), and how many units each billing period includes for free.
 create table "better_supabase"."usage_meter_prices" (
-  "meter" text not null check (length("meter") >= 1 and length("meter") <= 100),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
-  "unit_amount" bigint not null check ("unit_amount" >= 0),
-  "included" numeric not null default 0 check ("included" >= 0),
-  "label" text check (length("label") <= 200),
+  "meter" text not null constraint bsb_usage_meter_prices_meter_check check (length("meter") >= 1 and length("meter") <= 100),
+  "currency" text not null constraint bsb_usage_meter_prices_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "unit_amount" bigint not null constraint bsb_usage_meter_prices_unit_amount_check check ("unit_amount" >= 0),
+  "included" numeric not null default 0 constraint bsb_usage_meter_prices_included_check check ("included" >= 0),
+  "label" text constraint bsb_usage_meter_prices_label_check check (length("label") <= 200),
   primary key ("meter", "currency")
 );
 alter table "better_supabase"."usage_meter_prices" enable row level security;

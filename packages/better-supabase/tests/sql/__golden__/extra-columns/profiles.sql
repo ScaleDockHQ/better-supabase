@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:70c36ddd0d14a244609f23c6c48083b8b557e29bf3387a3a773f61c64628695d
+-- @bsb-hash sha256:603cd0a306b7c49fb4b002c679044e0fc7f30ac88ae525c44650d3aa6d54aebf
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -25,7 +25,7 @@ create table "better_supabase"."profiles" (
 );
 
 create unique index profiles_username_idx on "better_supabase"."profiles" (lower("username"));
-alter table "better_supabase"."profiles" add constraint profiles_username_check check (
+alter table "better_supabase"."profiles" add constraint bsb_profiles_username_check check (
   "username" is null or (
     length("username") >= 3
     and length("username") <= 32
@@ -35,7 +35,7 @@ alter table "better_supabase"."profiles" add constraint profiles_username_check 
 ) not valid;
 do $$
 begin
-  alter table "better_supabase"."profiles" validate constraint profiles_username_check;
+  alter table "better_supabase"."profiles" validate constraint bsb_profiles_username_check;
 exception when check_violation then
   raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"better_supabase"."profiles"';
 end;

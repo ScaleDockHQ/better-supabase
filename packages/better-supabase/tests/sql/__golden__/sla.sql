@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:6c1604fc7124e5c547b3eca1c981c957e9e3e0462cce75addec2a3f2150bb0b6
+-- @bsb-hash sha256:da59877d6ae687332456b70cf502948c5caf93c079e64427da2bce366f36707d
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,14 +13,14 @@ create table "better_supabase"."sla_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_sla_policies_name_check check (length("name") >= 1 and length("name") <= 200),
   "priority" text,
-  "first_response_minutes" integer check ("first_response_minutes" > 0),
-  "next_response_minutes" integer check ("next_response_minutes" > 0),
-  "resolution_minutes" integer check ("resolution_minutes" > 0),
-  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
+  "first_response_minutes" integer constraint bsb_sla_policies_first_response_minutes_check check ("first_response_minutes" > 0),
+  "next_response_minutes" integer constraint bsb_sla_policies_next_response_minutes_check check ("next_response_minutes" > 0),
+  "resolution_minutes" integer constraint bsb_sla_policies_resolution_minutes_check check ("resolution_minutes" > 0),
+  "warn_at_percent" smallint not null default 80 constraint bsb_sla_policies_warn_at_percent_check check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
   "business_hours" boolean not null default false,
-  "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
+  "escalations" jsonb not null default '[]'::jsonb constraint bsb_sla_policies_escalations_check check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -40,7 +40,7 @@ create table "better_supabase"."sla_clocks" (
   "subject_type" text not null,
   "subject_id" text not null,
   "policy_id" uuid references "better_supabase"."sla_policies" ("id") on delete set null,
-  "metric" text not null check ("metric" in ('first_response', 'next_response', 'resolution')),
+  "metric" text not null constraint bsb_sla_clocks_metric_check check ("metric" in ('first_response', 'next_response', 'resolution')),
   "started_at" timestamptz not null,
   "due_at" timestamptz not null,
   "paused_at" timestamptz,
@@ -64,7 +64,7 @@ create table "better_supabase"."sla_escalations" (
   "tenant_id" uuid not null,
   "clock_id" uuid not null references "better_supabase"."sla_clocks" ("id") on delete cascade,
   "at_percent" integer not null,
-  "action" text not null check ("action" in ('notify', 'reassign', 'page')),
+  "action" text not null constraint bsb_sla_escalations_action_check check ("action" in ('notify', 'reassign', 'page')),
   "target" text,
   "result" text not null,
   "fired_at" timestamptz not null default now(),
@@ -476,7 +476,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:7d48b1b2947667a2ff7bf805af5361db9aa9d5e1d824f3d36e0a68940ff495a8
+-- @bsb-hash sha256:b155a9e9b11506585833915ae12bd4118962d3ce9952ba495cf62322210fa8a8
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -488,14 +488,14 @@ create table "better_supabase"."sla_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_sla_policies_name_check check (length("name") >= 1 and length("name") <= 200),
   "priority" text,
-  "first_response_minutes" integer check ("first_response_minutes" > 0),
-  "next_response_minutes" integer check ("next_response_minutes" > 0),
-  "resolution_minutes" integer check ("resolution_minutes" > 0),
-  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
+  "first_response_minutes" integer constraint bsb_sla_policies_first_response_minutes_check check ("first_response_minutes" > 0),
+  "next_response_minutes" integer constraint bsb_sla_policies_next_response_minutes_check check ("next_response_minutes" > 0),
+  "resolution_minutes" integer constraint bsb_sla_policies_resolution_minutes_check check ("resolution_minutes" > 0),
+  "warn_at_percent" smallint not null default 80 constraint bsb_sla_policies_warn_at_percent_check check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
   "business_hours" boolean not null default false,
-  "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
+  "escalations" jsonb not null default '[]'::jsonb constraint bsb_sla_policies_escalations_check check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -515,7 +515,7 @@ create table "better_supabase"."sla_clocks" (
   "subject_type" text not null,
   "subject_id" text not null,
   "policy_id" uuid references "better_supabase"."sla_policies" ("id") on delete set null,
-  "metric" text not null check ("metric" in ('first_response', 'next_response', 'resolution')),
+  "metric" text not null constraint bsb_sla_clocks_metric_check check ("metric" in ('first_response', 'next_response', 'resolution')),
   "started_at" timestamptz not null,
   "due_at" timestamptz not null,
   "paused_at" timestamptz,
@@ -539,7 +539,7 @@ create table "better_supabase"."sla_escalations" (
   "tenant_id" uuid not null,
   "clock_id" uuid not null references "better_supabase"."sla_clocks" ("id") on delete cascade,
   "at_percent" integer not null,
-  "action" text not null check ("action" in ('notify', 'reassign', 'page')),
+  "action" text not null constraint bsb_sla_escalations_action_check check ("action" in ('notify', 'reassign', 'page')),
   "target" text,
   "result" text not null,
   "fired_at" timestamptz not null default now(),
@@ -996,7 +996,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:5d442a887056b1470cd9528476299b603fd20310943e4b3b9bd543e22604c6ff
+-- @bsb-hash sha256:2f8a5c14cd4ba9e9d6ea4b92997d99bc7f28ea549b3ac2e6a7898059bb5beb6e
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1013,14 +1013,14 @@ create table "app_private"."sla_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_sla_policies_name_check check (length("name") >= 1 and length("name") <= 200),
   "priority" text,
-  "first_response_minutes" integer check ("first_response_minutes" > 0),
-  "next_response_minutes" integer check ("next_response_minutes" > 0),
-  "resolution_minutes" integer check ("resolution_minutes" > 0),
-  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
+  "first_response_minutes" integer constraint bsb_sla_policies_first_response_minutes_check check ("first_response_minutes" > 0),
+  "next_response_minutes" integer constraint bsb_sla_policies_next_response_minutes_check check ("next_response_minutes" > 0),
+  "resolution_minutes" integer constraint bsb_sla_policies_resolution_minutes_check check ("resolution_minutes" > 0),
+  "warn_at_percent" smallint not null default 80 constraint bsb_sla_policies_warn_at_percent_check check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
   "business_hours" boolean not null default false,
-  "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
+  "escalations" jsonb not null default '[]'::jsonb constraint bsb_sla_policies_escalations_check check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -1040,7 +1040,7 @@ create table "app_private"."sla_clocks" (
   "subject_type" text not null,
   "subject_id" text not null,
   "policy_id" uuid references "app_private"."sla_policies" ("id") on delete set null,
-  "metric" text not null check ("metric" in ('first_response', 'next_response', 'resolution')),
+  "metric" text not null constraint bsb_sla_clocks_metric_check check ("metric" in ('first_response', 'next_response', 'resolution')),
   "started_at" timestamptz not null,
   "due_at" timestamptz not null,
   "paused_at" timestamptz,
@@ -1064,7 +1064,7 @@ create table "app_private"."sla_escalations" (
   "tenant_id" uuid not null,
   "clock_id" uuid not null references "app_private"."sla_clocks" ("id") on delete cascade,
   "at_percent" integer not null,
-  "action" text not null check ("action" in ('notify', 'reassign', 'page')),
+  "action" text not null constraint bsb_sla_escalations_action_check check ("action" in ('notify', 'reassign', 'page')),
   "target" text,
   "result" text not null,
   "fired_at" timestamptz not null default now(),
@@ -1476,7 +1476,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:e7542136c624a101622c09096046a039cd51a1dfe90eb9edd61de3d119786eeb
+-- @bsb-hash sha256:dfd97da59917e152f617c153ecb09f97e3f7ab28dc5a0d7e0a8e57f4dc640c44
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1488,14 +1488,14 @@ create table "better_supabase"."sla_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_sla_policies_name_check check (length("name") >= 1 and length("name") <= 200),
   "priority" text,
-  "first_response_minutes" integer check ("first_response_minutes" > 0),
-  "next_response_minutes" integer check ("next_response_minutes" > 0),
-  "resolution_minutes" integer check ("resolution_minutes" > 0),
-  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
+  "first_response_minutes" integer constraint bsb_sla_policies_first_response_minutes_check check ("first_response_minutes" > 0),
+  "next_response_minutes" integer constraint bsb_sla_policies_next_response_minutes_check check ("next_response_minutes" > 0),
+  "resolution_minutes" integer constraint bsb_sla_policies_resolution_minutes_check check ("resolution_minutes" > 0),
+  "warn_at_percent" smallint not null default 80 constraint bsb_sla_policies_warn_at_percent_check check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
   "business_hours" boolean not null default false,
-  "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
+  "escalations" jsonb not null default '[]'::jsonb constraint bsb_sla_policies_escalations_check check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -1515,7 +1515,7 @@ create table "better_supabase"."sla_clocks" (
   "subject_type" text not null,
   "subject_id" text not null,
   "policy_id" uuid references "better_supabase"."sla_policies" ("id") on delete set null,
-  "metric" text not null check ("metric" in ('first_response', 'next_response', 'resolution')),
+  "metric" text not null constraint bsb_sla_clocks_metric_check check ("metric" in ('first_response', 'next_response', 'resolution')),
   "started_at" timestamptz not null,
   "due_at" timestamptz not null,
   "paused_at" timestamptz,
@@ -1539,7 +1539,7 @@ create table "better_supabase"."sla_escalations" (
   "tenant_id" uuid not null,
   "clock_id" uuid not null references "better_supabase"."sla_clocks" ("id") on delete cascade,
   "at_percent" integer not null,
-  "action" text not null check ("action" in ('notify', 'reassign', 'page')),
+  "action" text not null constraint bsb_sla_escalations_action_check check ("action" in ('notify', 'reassign', 'page')),
   "target" text,
   "result" text not null,
   "fired_at" timestamptz not null default now(),
@@ -2011,7 +2011,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:c359fe4826fd6557393afd5d66b417fde70c370728c3989bcfc4e057dc2e0e35
+-- @bsb-hash sha256:973f6a81144ba9f87df3b13c08549c6986d56a4af57c3c4970c8823db6bcd8a8
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2023,14 +2023,14 @@ on conflict (name) do update
 alter table "better_supabase"."sla_policies" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."sla_policies" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."sla_policies" add column if not exists "subject_type" text;
-alter table "better_supabase"."sla_policies" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."sla_policies" add column if not exists "name" text constraint bsb_sla_policies_name_check check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."sla_policies" add column if not exists "priority" text;
-alter table "better_supabase"."sla_policies" add column if not exists "first_response_minutes" integer check ("first_response_minutes" > 0);
-alter table "better_supabase"."sla_policies" add column if not exists "next_response_minutes" integer check ("next_response_minutes" > 0);
-alter table "better_supabase"."sla_policies" add column if not exists "resolution_minutes" integer check ("resolution_minutes" > 0);
-alter table "better_supabase"."sla_policies" add column if not exists "warn_at_percent" smallint not null default 80 check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99);
+alter table "better_supabase"."sla_policies" add column if not exists "first_response_minutes" integer constraint bsb_sla_policies_first_response_minutes_check check ("first_response_minutes" > 0);
+alter table "better_supabase"."sla_policies" add column if not exists "next_response_minutes" integer constraint bsb_sla_policies_next_response_minutes_check check ("next_response_minutes" > 0);
+alter table "better_supabase"."sla_policies" add column if not exists "resolution_minutes" integer constraint bsb_sla_policies_resolution_minutes_check check ("resolution_minutes" > 0);
+alter table "better_supabase"."sla_policies" add column if not exists "warn_at_percent" smallint not null default 80 constraint bsb_sla_policies_warn_at_percent_check check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99);
 alter table "better_supabase"."sla_policies" add column if not exists "business_hours" boolean not null default false;
-alter table "better_supabase"."sla_policies" add column if not exists "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array');
+alter table "better_supabase"."sla_policies" add column if not exists "escalations" jsonb not null default '[]'::jsonb constraint bsb_sla_policies_escalations_check check (jsonb_typeof("escalations") = 'array');
 alter table "better_supabase"."sla_policies" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."sla_policies" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."sla_policies" add column if not exists "updated_at" timestamptz not null default now();
@@ -2048,7 +2048,7 @@ alter table "better_supabase"."sla_clocks" add column if not exists "tenant_id" 
 alter table "better_supabase"."sla_clocks" add column if not exists "subject_type" text;
 alter table "better_supabase"."sla_clocks" add column if not exists "subject_id" text;
 alter table "better_supabase"."sla_clocks" add column if not exists "policy_id" uuid references "better_supabase"."sla_policies" ("id") on delete set null;
-alter table "better_supabase"."sla_clocks" add column if not exists "metric" text check ("metric" in ('first_response', 'next_response', 'resolution'));
+alter table "better_supabase"."sla_clocks" add column if not exists "metric" text constraint bsb_sla_clocks_metric_check check ("metric" in ('first_response', 'next_response', 'resolution'));
 alter table "better_supabase"."sla_clocks" add column if not exists "started_at" timestamptz;
 alter table "better_supabase"."sla_clocks" add column if not exists "due_at" timestamptz;
 alter table "better_supabase"."sla_clocks" add column if not exists "paused_at" timestamptz;
@@ -2070,7 +2070,7 @@ alter table "better_supabase"."sla_escalations" add column if not exists "id" uu
 alter table "better_supabase"."sla_escalations" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."sla_escalations" add column if not exists "clock_id" uuid references "better_supabase"."sla_clocks" ("id") on delete cascade;
 alter table "better_supabase"."sla_escalations" add column if not exists "at_percent" integer;
-alter table "better_supabase"."sla_escalations" add column if not exists "action" text check ("action" in ('notify', 'reassign', 'page'));
+alter table "better_supabase"."sla_escalations" add column if not exists "action" text constraint bsb_sla_escalations_action_check check ("action" in ('notify', 'reassign', 'page'));
 alter table "better_supabase"."sla_escalations" add column if not exists "target" text;
 alter table "better_supabase"."sla_escalations" add column if not exists "result" text;
 alter table "better_supabase"."sla_escalations" add column if not exists "fired_at" timestamptz not null default now();
@@ -2479,7 +2479,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_099_sla.sql
 -- better-supabase module: sla
 -- @bsb-block sla@1 managed
--- @bsb-hash sha256:2e187640784d24dc043cf30dca0da0081f605b63fd4a405d7217225873c21af6
+-- @bsb-hash sha256:0751d03dc58de942c4f1907cca9a881644c6e1c50416ac850e33ec5f8b5b0356
 -- Service levels on any registered record: first response, next response and resolution clocks from a policy per type and priority, business hours, pauses while the record waits, and warnings and breaches a job records.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2491,14 +2491,14 @@ create table "better_supabase"."sla_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_sla_policies_name_check check (length("name") >= 1 and length("name") <= 200),
   "priority" text,
-  "first_response_minutes" integer check ("first_response_minutes" > 0),
-  "next_response_minutes" integer check ("next_response_minutes" > 0),
-  "resolution_minutes" integer check ("resolution_minutes" > 0),
-  "warn_at_percent" smallint not null default 80 check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
+  "first_response_minutes" integer constraint bsb_sla_policies_first_response_minutes_check check ("first_response_minutes" > 0),
+  "next_response_minutes" integer constraint bsb_sla_policies_next_response_minutes_check check ("next_response_minutes" > 0),
+  "resolution_minutes" integer constraint bsb_sla_policies_resolution_minutes_check check ("resolution_minutes" > 0),
+  "warn_at_percent" smallint not null default 80 constraint bsb_sla_policies_warn_at_percent_check check ("warn_at_percent" >= 1 and "warn_at_percent" <= 99),
   "business_hours" boolean not null default false,
-  "escalations" jsonb not null default '[]'::jsonb check (jsonb_typeof("escalations") = 'array'),
+  "escalations" jsonb not null default '[]'::jsonb constraint bsb_sla_policies_escalations_check check (jsonb_typeof("escalations") = 'array'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -2518,7 +2518,7 @@ create table "better_supabase"."sla_clocks" (
   "subject_type" text not null,
   "subject_id" text not null,
   "policy_id" uuid references "better_supabase"."sla_policies" ("id") on delete set null,
-  "metric" text not null check ("metric" in ('first_response', 'next_response', 'resolution')),
+  "metric" text not null constraint bsb_sla_clocks_metric_check check ("metric" in ('first_response', 'next_response', 'resolution')),
   "started_at" timestamptz not null,
   "due_at" timestamptz not null,
   "paused_at" timestamptz,
@@ -2542,7 +2542,7 @@ create table "better_supabase"."sla_escalations" (
   "org_id" uuid not null,
   "clock_id" uuid not null references "better_supabase"."sla_clocks" ("id") on delete cascade,
   "at_percent" integer not null,
-  "action" text not null check ("action" in ('notify', 'reassign', 'page')),
+  "action" text not null constraint bsb_sla_escalations_action_check check ("action" in ('notify', 'reassign', 'page')),
   "target" text,
   "result" text not null,
   "fired_at" timestamptz not null default now(),

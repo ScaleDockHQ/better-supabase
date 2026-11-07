@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_042_workflows.sql
 -- better-supabase module: workflows
 -- @bsb-block workflows@4 managed
--- @bsb-hash sha256:a38c1aebf9c014e66d70965333fbe1170265426ce2dc74d7cf4dc316d54e90ab
+-- @bsb-hash sha256:9f4903382c278d228fe365576bb18ded7ec084842cec195f6e226b95bfe9cc37
 -- Engine-neutral workflow runs that members read through RLS, with a Realtime ping per status change and workflow_run.completed, .failed and .cancelled outbox events, an idempotency key per run and a dispatch claim for starting one once; cron schedules with idempotent fires, counting semaphores, admission control for starts (concurrency, debounce, singleton) and a retention purge.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,12 +11,12 @@
 -- read them through RLS.
 create table "better_supabase"."workflow_runs" (
   "id" uuid primary key default gen_random_uuid(),
-  "engine" text not null check (length("engine") >= 1 and length("engine") <= 100),
-  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
-  "definition" text not null check (length("definition") >= 1 and length("definition") <= 200),
+  "engine" text not null constraint bsb_workflow_runs_engine_check check (length("engine") >= 1 and length("engine") <= 100),
+  "external_id" text not null constraint bsb_workflow_runs_external_id_check check (length("external_id") >= 1 and length("external_id") <= 200),
+  "definition" text not null constraint bsb_workflow_runs_definition_check check (length("definition") >= 1 and length("definition") <= 200),
   "tenant_id" uuid,
   "actor_id" uuid references auth.users (id) on delete set null,
-  "status" text not null default 'queued' check ("status" in ('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled')),
+  "status" text not null default 'queued' constraint bsb_workflow_runs_status_check check ("status" in ('queued', 'running', 'waiting', 'completed', 'failed', 'cancelled')),
   "attributes" jsonb not null default '{}'::jsonb,
   "error" text,
   "created_at" timestamptz not null default now(),
@@ -33,19 +33,19 @@ create index workflow_runs_status_idx on "better_supabase"."workflow_runs" ("sta
 -- neither), who its steps run as (principal_kind and principal_id), whether
 -- it is a test run, and the trigger node it started from. Test runs write
 -- no outbox events and fire no alerts.
-alter table "better_supabase"."workflow_runs" add column "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
-alter table "better_supabase"."workflow_runs" add column "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-alter table "better_supabase"."workflow_runs" add column "principal_kind" text check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
-alter table "better_supabase"."workflow_runs" add column "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
-alter table "better_supabase"."workflow_runs" add column "mode" text not null default 'live' check ("mode" in ('live', 'test'));
-alter table "better_supabase"."workflow_runs" add column "trigger_node" text check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
+alter table "better_supabase"."workflow_runs" add column "subject_type" text constraint bsb_workflow_runs_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_runs" add column "subject_id" text constraint bsb_workflow_runs_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."workflow_runs" add column "principal_kind" text constraint bsb_workflow_runs_principal_kind_check check ("principal_kind" in ('user', 'service_principal', 'system', 'external'));
+alter table "better_supabase"."workflow_runs" add column "principal_id" text constraint bsb_workflow_runs_principal_id_check check (length("principal_id") >= 1 and length("principal_id") <= 200);
+alter table "better_supabase"."workflow_runs" add column "mode" text not null default 'live' constraint bsb_workflow_runs_mode_check check ("mode" in ('live', 'test'));
+alter table "better_supabase"."workflow_runs" add column "trigger_node" text constraint bsb_workflow_runs_trigger_node_check check (length("trigger_node") >= 1 and length("trigger_node") <= 100);
 -- A start's idempotency key: one run per tenant and key. A run queued before
 -- its engine run exists carries an external_id that starts with
 -- pending:; dispatch_until leases it to the process that starts it.
-alter table "better_supabase"."workflow_runs" add column "idempotency_key" text check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
+alter table "better_supabase"."workflow_runs" add column "idempotency_key" text constraint bsb_workflow_runs_idempotency_key_check check (length("idempotency_key") >= 1 and length("idempotency_key") <= 500);
 create unique index workflow_runs_idempotency_key on "better_supabase"."workflow_runs" ("tenant_id", "idempotency_key") nulls not distinct where "idempotency_key" is not null;
 alter table "better_supabase"."workflow_runs" add column "dispatch_until" timestamptz;
-alter table "better_supabase"."workflow_runs" add constraint "workflow_runs_subject_check"
+alter table "better_supabase"."workflow_runs" add constraint bsb_workflow_runs_subject_check
   check (("subject_type" is null) = ("subject_id" is null));
 create index workflow_runs_subject_idx on "better_supabase"."workflow_runs" ("tenant_id", "subject_type", "subject_id", "created_at" desc) where "subject_type" is not null;
 alter table "better_supabase"."workflow_runs" enable row level security;
@@ -63,10 +63,10 @@ create policy bsb_workflow_runs_read on "better_supabase"."workflow_runs"
 create table "better_supabase"."workflow_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
+  "name" text not null constraint bsb_workflow_schedules_name_check check (length("name") >= 1 and length("name") <= 200),
+  "workflow" text not null constraint bsb_workflow_schedules_workflow_check check (length("workflow") >= 1 and length("workflow") <= 200),
   "input" jsonb not null default '[]'::jsonb,
-  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
+  "cron" text not null constraint bsb_workflow_schedules_cron_check check (length("cron") >= 1 and length("cron") <= 200),
   "timezone" text not null default 'UTC',
   "next_run_at" timestamptz not null,
   "last_run_at" timestamptz,
@@ -89,8 +89,8 @@ create policy bsb_workflow_schedules_read on "better_supabase"."workflow_schedul
 -- Counting semaphores: at most limit holders per key, each until it releases
 -- or its lease runs out.
 create table "better_supabase"."workflow_semaphores" (
-  "key" text not null check (length("key") >= 1 and length("key") <= 200),
-  "holder" text not null check (length("holder") >= 1 and length("holder") <= 200),
+  "key" text not null constraint bsb_workflow_semaphores_key_check check (length("key") >= 1 and length("key") <= 200),
+  "holder" text not null constraint bsb_workflow_semaphores_holder_check check (length("holder") >= 1 and length("holder") <= 200),
   "acquired_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   primary key ("key", "holder")
@@ -104,13 +104,13 @@ grant all on "better_supabase"."workflow_semaphores" to service_role;
 -- its key is active (singleton).
 create table "better_supabase"."workflow_start_requests" (
   "id" uuid primary key default gen_random_uuid(),
-  "key" text not null check (length("key") >= 1 and length("key") <= 200),
-  "workflow" text not null check (length("workflow") >= 1 and length("workflow") <= 200),
+  "key" text not null constraint bsb_workflow_start_requests_key_check check (length("key") >= 1 and length("key") <= 200),
+  "workflow" text not null constraint bsb_workflow_start_requests_workflow_check check (length("workflow") >= 1 and length("workflow") <= 200),
   "input" jsonb not null default '[]'::jsonb,
   "tenant_id" uuid,
   "actor_id" uuid references auth.users (id) on delete set null,
-  "concurrency" integer check ("concurrency" > 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'started', 'superseded', 'dropped')),
+  "concurrency" integer constraint bsb_workflow_start_requests_concurrency_check check ("concurrency" > 0),
+  "status" text not null default 'pending' constraint bsb_workflow_start_requests_status_check check ("status" in ('pending', 'started', 'superseded', 'dropped')),
   "not_before" timestamptz not null default now(),
   "claimed_until" timestamptz,
   "run_id" text,
@@ -120,9 +120,9 @@ create table "better_supabase"."workflow_start_requests" (
 create index workflow_start_requests_key_idx on "better_supabase"."workflow_start_requests" ("key", "status");
 create index workflow_start_requests_due_idx on "better_supabase"."workflow_start_requests" ("not_before") where "status" = 'pending';
 create index workflow_start_requests_actor_idx on "better_supabase"."workflow_start_requests" ("actor_id");
-alter table "better_supabase"."workflow_start_requests" add column "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
-alter table "better_supabase"."workflow_start_requests" add column "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-alter table "better_supabase"."workflow_start_requests" add constraint "workflow_start_requests_subject_check"
+alter table "better_supabase"."workflow_start_requests" add column "subject_type" text constraint bsb_workflow_start_requests_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."workflow_start_requests" add column "subject_id" text constraint bsb_workflow_start_requests_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."workflow_start_requests" add constraint bsb_workflow_start_requests_subject_check
   check (("subject_type" is null) = ("subject_id" is null));
 alter table "better_supabase"."workflow_start_requests" enable row level security;
 revoke all on "better_supabase"."workflow_start_requests" from public, anon, authenticated;

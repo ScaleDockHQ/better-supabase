@@ -143,6 +143,22 @@ function generatedPolicyRenames(projectSql: string | undefined): string[] {
 }
 
 /**
+ * One loop that gives every check constraint of the block schemas the `bsb_`
+ * prefix (ADR 0273), when `projectSql` creates a table in one of them. The old
+ * names are the ones Postgres chose, which the files never write, so the loop
+ * reads them from the catalog.
+ */
+function generatedCheckRenames(projectSql: string | undefined): string[] {
+  if (projectSql === undefined || !/\bbetter_supabase\b/.test(projectSql)) {
+    return [];
+  }
+
+  return [
+    `declare\n    c record;\n  begin\n    for c in\n      select n.nspname as schema_name, r.relname as table_name, k.conname as name\n      from pg_catalog.pg_constraint k\n        join pg_catalog.pg_class r on r.oid = k.conrelid\n        join pg_catalog.pg_namespace n on n.oid = r.relnamespace\n      where n.nspname in ('better_supabase', 'workflow') and k.contype = 'c' and k.conname !~ '^bsb_' and length(k.conname) <= 59\n    loop\n      execute format('alter table %I.%I rename constraint %I to %I', c.schema_name, c.table_name, c.name, 'bsb_' || c.name);\n    end loop;\n  end;`,
+  ];
+}
+
+/**
  * The statements that rename installed SQL objects, or `undefined` when no
  * rename applies. Each one checks that the old object exists, so an app that
  * never installed the block runs the migration unchanged. With `projectSql`, a
@@ -246,7 +262,10 @@ export function renameMigrationSql(
     }
   });
 
-  statements.push(...generatedPolicyRenames(projectSql));
+  statements.push(
+    ...generatedPolicyRenames(projectSql),
+    ...generatedCheckRenames(projectSql),
+  );
 
   if (statements.length === 0) {
     return undefined;

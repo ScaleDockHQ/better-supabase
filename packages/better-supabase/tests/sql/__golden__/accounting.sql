@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:a005d8a9f518afc3cfde7bd2df0f9a0a1acd80eea19ea71d39db10e0c97285f9
+-- @bsb-hash sha256:6094fd69bdb29d4ea6c6123f3a9abe79eaa935450a30a7a31a3cbb7d83ae403d
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,8 +15,8 @@
 create table "better_supabase"."accounting_settings" (
   "tenant_id" uuid primary key,
   -- Every debit and credit is in minor units of this currency.
-  "functional_currency" text not null check ("functional_currency" ~ '^[A-Z]{3}$'),
-  "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
+  "functional_currency" text not null constraint bsb_accounting_settings_functional_currency_check check ("functional_currency" ~ '^[A-Z]{3}$'),
+  "fiscal_year_start_month" smallint not null default 1 constraint bsb_accounting_settings_fiscal_year_start_month_check check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
   -- Nothing posts on or before this date, whatever the period's status.
   "lock_date" date,
   "created_at" timestamptz not null default now(),
@@ -33,18 +33,18 @@ create policy bsb_accounting_settings_read on "better_supabase"."accounting_sett
 create table "better_supabase"."accounting_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
+  "code" text not null constraint bsb_accounting_accounts_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_accounting_accounts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_accounts_type_check check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
   "subtype" text,
   "parent_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Lines on the account must be in this currency; null takes any.
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "reconcilable" boolean not null default false,
   -- The side a positive balance sits on; reports show it next to the amount.
-  "normal_side" text not null default 'debit' check ("normal_side" in ('debit', 'credit')),
+  "normal_side" text not null default 'debit' constraint bsb_accounting_accounts_normal_side_check check ("normal_side" in ('debit', 'credit')),
   -- 1 for a top-level account, one more than the parent's for the rest.
-  "level" smallint not null default 1 check ("level" >= 1),
+  "level" smallint not null default 1 constraint bsb_accounting_accounts_level_check check ("level" >= 1),
   -- The tax code a line on this account takes when it names none.
   "default_tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete set null,
   -- An inactive account stays on the chart and in reports but takes no new lines.
@@ -66,7 +66,7 @@ create policy bsb_accounting_accounts_read on "better_supabase"."accounting_acco
 
 create table "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null constraint bsb_accounting_account_roles_role_check check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -83,12 +83,12 @@ create policy bsb_accounting_account_roles_read on "better_supabase"."accounting
 create table "better_supabase"."accounting_journals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
+  "code" text not null constraint bsb_accounting_journals_code_check check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
+  "name" text not null constraint bsb_accounting_journals_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_journals_type_check check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
   -- The bank or cash account a bank or cash journal posts against.
   "default_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_journals_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   -- The counter account a bank or cash journal's lines offset by default.
   "contra_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The bank account (banking block) the journal books; its statements post here.
@@ -111,18 +111,18 @@ create table "better_supabase"."accounting_periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The calendar year the fiscal year starts in.
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "number" smallint not null check ("number" >= 1 and "number" <= 12),
+  "fiscal_year" integer not null constraint bsb_accounting_periods_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "number" smallint not null constraint bsb_accounting_periods_number_check check ("number" >= 1 and "number" <= 12),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'closed', 'locked')),
+  "status" text not null default 'open' constraint bsb_accounting_periods_status_check check ("status" in ('open', 'closed', 'locked')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   -- A locked period takes no posting at all, not even an import.
   "locked_at" timestamptz,
   "locked_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "fiscal_year", "number")
 );
 create index "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
@@ -144,20 +144,20 @@ create table "better_supabase"."accounting_entries" (
   "number" text,
   "entry_date" date not null,
   "period_id" uuid references "better_supabase"."accounting_periods" ("id") on delete restrict,
-  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed')),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'draft' constraint bsb_accounting_entries_status_check check ("status" in ('draft', 'posted', 'reversed')),
+  "reference" text constraint bsb_accounting_entries_reference_check check ("reference" is null or length("reference") <= 200),
   -- The document the entry books, such as invoice and its id.
-  "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source_type" text constraint bsb_accounting_entries_source_type_check check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "source_id" text,
   "reverses_id" uuid references "better_supabase"."accounting_entries" ("id") on delete restrict,
-  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "memo" text constraint bsb_accounting_entries_memo_check check ("memo" is null or length("memo") <= 2000),
   "posted_at" timestamptz,
   "posted_by" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("source_type" is null) = ("source_id" is null)),
-  check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
+  constraint bsb_accounting_entries_check check (("source_type" is null) = ("source_id" is null)),
+  constraint bsb_accounting_entries_check1 check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
 );
 create unique index "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
 -- A document books once: a second entry for it waits until the first is reversed.
@@ -177,8 +177,8 @@ create table "better_supabase"."accounting_dimensions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The key lines use in their dimensions object, such as project or department.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_accounting_dimensions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_accounting_dimensions_name_check check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
@@ -194,8 +194,8 @@ create table "better_supabase"."accounting_dimension_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "dimension_id" uuid not null references "better_supabase"."accounting_dimensions" ("id") on delete cascade,
-  "code" text not null check (length("code") >= 1 and length("code") <= 100),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "code" text not null constraint bsb_accounting_dimension_values_code_check check (length("code") >= 1 and length("code") <= 100),
+  "name" text not null constraint bsb_accounting_dimension_values_name_check check (length("name") >= 1 and length("name") <= 200),
   "archived_at" timestamptz,
   unique ("dimension_id", "code")
 );
@@ -209,14 +209,14 @@ create policy bsb_accounting_dimension_values_read on "better_supabase"."account
 
 create table "better_supabase"."accounting_fx_rates" (
   "tenant_id" uuid not null,
-  "base" text not null check ("base" ~ '^[A-Z]{3}$'),
-  "quote" text not null check ("quote" ~ '^[A-Z]{3}$'),
+  "base" text not null constraint bsb_accounting_fx_rates_base_check check ("base" ~ '^[A-Z]{3}$'),
+  "quote" text not null constraint bsb_accounting_fx_rates_quote_check check ("quote" ~ '^[A-Z]{3}$'),
   "on_date" date not null,
   -- One unit of base costs rate units of quote.
-  "rate" numeric not null check ("rate" > 0),
+  "rate" numeric not null constraint bsb_accounting_fx_rates_rate_check check ("rate" > 0),
   "created_at" timestamptz not null default now(),
   primary key ("tenant_id", "base", "quote", "on_date"),
-  check ("base" <> "quote")
+  constraint bsb_accounting_fx_rates_check check ("base" <> "quote")
 );
 alter table "better_supabase"."accounting_fx_rates" enable row level security;
 revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
@@ -233,21 +233,21 @@ create table "better_supabase"."accounting_entry_lines" (
   "position" smallint not null default 0,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Minor units of the functional currency; a line has one side.
-  "debit" bigint not null default 0 check ("debit" >= 0),
-  "credit" bigint not null default 0 check ("credit" >= 0),
+  "debit" bigint not null default 0 constraint bsb_accounting_entry_lines_debit_check check ("debit" >= 0),
+  "credit" bigint not null default 0 constraint bsb_accounting_entry_lines_credit_check check ("credit" >= 0),
   -- The transaction currency and its signed amount (positive is a debit).
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text not null constraint bsb_accounting_entry_lines_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount_currency" bigint not null,
-  "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
+  "fx_rate" numeric constraint bsb_accounting_entry_lines_fx_rate_check check ("fx_rate" is null or "fx_rate" > 0),
   "tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete restrict,
   -- The part of the line that is tax, in minor units of the functional currency.
-  "tax_amount" bigint not null default 0 check ("tax_amount" >= 0),
+  "tax_amount" bigint not null default 0 constraint bsb_accounting_entry_lines_tax_amount_check check ("tax_amount" >= 0),
   -- The customer, supplier or employee the line concerns.
   "party_id" uuid,
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
-  "description" text check ("description" is null or length("description") <= 500),
-  check (("debit" = 0) <> ("credit" = 0)),
-  check ("tax_amount" <= "debit" + "credit")
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_entry_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
+  "description" text constraint bsb_accounting_entry_lines_description_check check ("description" is null or length("description") <= 500),
+  constraint bsb_accounting_entry_lines_check check (("debit" = 0) <> ("credit" = 0)),
+  constraint bsb_accounting_entry_lines_check1 check ("tax_amount" <= "debit" + "credit")
 );
 create index "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
 create index "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
@@ -264,13 +264,13 @@ create policy bsb_accounting_entry_lines_read on "better_supabase"."accounting_e
 create table "better_supabase"."accounting_opening_balances" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "fiscal_year" integer not null constraint bsb_accounting_opening_balances_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "party_id" uuid,
   -- Signed minor units of the functional currency; a debit balance is positive.
-  "amount" bigint not null check ("amount" <> 0),
+  "amount" bigint not null constraint bsb_accounting_opening_balances_amount_check check ("amount" <> 0),
   -- imported rows come from the old books, carried rows from close_fiscal_year.
-  "source" text not null default 'imported' check ("source" in ('imported', 'carried')),
+  "source" text not null default 'imported' constraint bsb_accounting_opening_balances_source_check check ("source" in ('imported', 'carried')),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -2678,9 +2678,9 @@ grant execute on function "better_supabase"."accounting_tax_report"(uuid, date, 
 create table "better_supabase"."accounting_budgets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved', 'archived')),
+  "name" text not null constraint bsb_accounting_budgets_name_check check (length("name") >= 1 and length("name") <= 200),
+  "fiscal_year" integer not null constraint bsb_accounting_budgets_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "status" text not null default 'draft' constraint bsb_accounting_budgets_status_check check ("status" in ('draft', 'approved', 'archived')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -2700,9 +2700,9 @@ create table "better_supabase"."accounting_budget_lines" (
   "budget_id" uuid not null references "better_supabase"."accounting_budgets" ("id") on delete cascade,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The period of the budget's fiscal year, 1 to 12.
-  "period_number" smallint not null check ("period_number" >= 1 and "period_number" <= 12),
+  "period_number" smallint not null constraint bsb_accounting_budget_lines_period_number_check check ("period_number" >= 1 and "period_number" <= 12),
   -- The dimension values the amount is for; actuals match lines that carry them.
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_budget_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   -- Minor units of the functional currency, in the account's natural sign.
   "amount" bigint not null,
   unique ("budget_id", "account_id", "period_number", "dimensions")
@@ -2880,16 +2880,16 @@ grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, 
 create table "better_supabase"."accounting_recognition_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "source_type" text not null check (length("source_type") >= 1 and length("source_type") <= 100),
-  "source_id" text not null check (length("source_id") >= 1 and length("source_id") <= 200),
-  "line_ref" text not null default '' check (length("line_ref") <= 200),
-  "amount" bigint not null check ("amount" > 0),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "source_type" text not null constraint bsb_accounting_recognition_schedules_source_type_check check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null constraint bsb_accounting_recognition_schedules_source_id_check check (length("source_id") >= 1 and length("source_id") <= 200),
+  "line_ref" text not null default '' constraint bsb_accounting_recognition_schedules_line_ref_check check (length("line_ref") <= 200),
+  "amount" bigint not null constraint bsb_accounting_recognition_schedules_amount_check check ("amount" > 0),
+  "currency" text not null constraint bsb_accounting_recognition_schedules_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "starts_on" date not null,
   "ends_on" date not null,
   "deferral_entry_id" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_recognition_schedules_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "source_type", "source_id", "line_ref")
 );
 alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
@@ -2903,8 +2903,8 @@ create table "better_supabase"."accounting_recognition_rows" (
   "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "due_on" date not null,
-  "amount" bigint not null check ("amount" > 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "amount" bigint not null constraint bsb_accounting_recognition_rows_amount_check check ("amount" > 0),
+  "status" text not null default 'pending' constraint bsb_accounting_recognition_rows_status_check check ("status" in ('pending', 'posted')),
   "entry_id" uuid,
   "posted_at" timestamptz
 );
@@ -3473,7 +3473,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:f908b050dabddb2a861844d30a291273e5b64b0aeb6ca7c5a2f498ad50239652
+-- @bsb-hash sha256:e20d0c01759b12f79db09057d10eb50e61e1a78b3d392d22c7c60723c18f9e21
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3487,8 +3487,8 @@ on conflict (name) do update
 create table "better_supabase"."accounting_settings" (
   "tenant_id" uuid primary key,
   -- Every debit and credit is in minor units of this currency.
-  "functional_currency" text not null check ("functional_currency" ~ '^[A-Z]{3}$'),
-  "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
+  "functional_currency" text not null constraint bsb_accounting_settings_functional_currency_check check ("functional_currency" ~ '^[A-Z]{3}$'),
+  "fiscal_year_start_month" smallint not null default 1 constraint bsb_accounting_settings_fiscal_year_start_month_check check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
   -- Nothing posts on or before this date, whatever the period's status.
   "lock_date" date,
   "created_at" timestamptz not null default now(),
@@ -3505,18 +3505,18 @@ create policy bsb_accounting_settings_read on "better_supabase"."accounting_sett
 create table "better_supabase"."accounting_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
+  "code" text not null constraint bsb_accounting_accounts_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_accounting_accounts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_accounts_type_check check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
   "subtype" text,
   "parent_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Lines on the account must be in this currency; null takes any.
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "reconcilable" boolean not null default false,
   -- The side a positive balance sits on; reports show it next to the amount.
-  "normal_side" text not null default 'debit' check ("normal_side" in ('debit', 'credit')),
+  "normal_side" text not null default 'debit' constraint bsb_accounting_accounts_normal_side_check check ("normal_side" in ('debit', 'credit')),
   -- 1 for a top-level account, one more than the parent's for the rest.
-  "level" smallint not null default 1 check ("level" >= 1),
+  "level" smallint not null default 1 constraint bsb_accounting_accounts_level_check check ("level" >= 1),
   -- The tax code a line on this account takes when it names none.
   "default_tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete set null,
   -- An inactive account stays on the chart and in reports but takes no new lines.
@@ -3538,7 +3538,7 @@ create policy bsb_accounting_accounts_read on "better_supabase"."accounting_acco
 
 create table "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null constraint bsb_accounting_account_roles_role_check check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -3555,12 +3555,12 @@ create policy bsb_accounting_account_roles_read on "better_supabase"."accounting
 create table "better_supabase"."accounting_journals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
+  "code" text not null constraint bsb_accounting_journals_code_check check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
+  "name" text not null constraint bsb_accounting_journals_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_journals_type_check check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
   -- The bank or cash account a bank or cash journal posts against.
   "default_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_journals_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   -- The counter account a bank or cash journal's lines offset by default.
   "contra_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The bank account (banking block) the journal books; its statements post here.
@@ -3583,18 +3583,18 @@ create table "better_supabase"."accounting_periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The calendar year the fiscal year starts in.
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "number" smallint not null check ("number" >= 1 and "number" <= 12),
+  "fiscal_year" integer not null constraint bsb_accounting_periods_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "number" smallint not null constraint bsb_accounting_periods_number_check check ("number" >= 1 and "number" <= 12),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'closed', 'locked')),
+  "status" text not null default 'open' constraint bsb_accounting_periods_status_check check ("status" in ('open', 'closed', 'locked')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   -- A locked period takes no posting at all, not even an import.
   "locked_at" timestamptz,
   "locked_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "fiscal_year", "number")
 );
 create index "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
@@ -3616,20 +3616,20 @@ create table "better_supabase"."accounting_entries" (
   "number" text,
   "entry_date" date not null,
   "period_id" uuid references "better_supabase"."accounting_periods" ("id") on delete restrict,
-  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed')),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'draft' constraint bsb_accounting_entries_status_check check ("status" in ('draft', 'posted', 'reversed')),
+  "reference" text constraint bsb_accounting_entries_reference_check check ("reference" is null or length("reference") <= 200),
   -- The document the entry books, such as invoice and its id.
-  "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source_type" text constraint bsb_accounting_entries_source_type_check check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "source_id" text,
   "reverses_id" uuid references "better_supabase"."accounting_entries" ("id") on delete restrict,
-  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "memo" text constraint bsb_accounting_entries_memo_check check ("memo" is null or length("memo") <= 2000),
   "posted_at" timestamptz,
   "posted_by" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("source_type" is null) = ("source_id" is null)),
-  check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
+  constraint bsb_accounting_entries_check check (("source_type" is null) = ("source_id" is null)),
+  constraint bsb_accounting_entries_check1 check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
 );
 create unique index "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
 -- A document books once: a second entry for it waits until the first is reversed.
@@ -3649,8 +3649,8 @@ create table "better_supabase"."accounting_dimensions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The key lines use in their dimensions object, such as project or department.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_accounting_dimensions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_accounting_dimensions_name_check check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
@@ -3666,8 +3666,8 @@ create table "better_supabase"."accounting_dimension_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "dimension_id" uuid not null references "better_supabase"."accounting_dimensions" ("id") on delete cascade,
-  "code" text not null check (length("code") >= 1 and length("code") <= 100),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "code" text not null constraint bsb_accounting_dimension_values_code_check check (length("code") >= 1 and length("code") <= 100),
+  "name" text not null constraint bsb_accounting_dimension_values_name_check check (length("name") >= 1 and length("name") <= 200),
   "archived_at" timestamptz,
   unique ("dimension_id", "code")
 );
@@ -3681,14 +3681,14 @@ create policy bsb_accounting_dimension_values_read on "better_supabase"."account
 
 create table "better_supabase"."accounting_fx_rates" (
   "tenant_id" uuid not null,
-  "base" text not null check ("base" ~ '^[A-Z]{3}$'),
-  "quote" text not null check ("quote" ~ '^[A-Z]{3}$'),
+  "base" text not null constraint bsb_accounting_fx_rates_base_check check ("base" ~ '^[A-Z]{3}$'),
+  "quote" text not null constraint bsb_accounting_fx_rates_quote_check check ("quote" ~ '^[A-Z]{3}$'),
   "on_date" date not null,
   -- One unit of base costs rate units of quote.
-  "rate" numeric not null check ("rate" > 0),
+  "rate" numeric not null constraint bsb_accounting_fx_rates_rate_check check ("rate" > 0),
   "created_at" timestamptz not null default now(),
   primary key ("tenant_id", "base", "quote", "on_date"),
-  check ("base" <> "quote")
+  constraint bsb_accounting_fx_rates_check check ("base" <> "quote")
 );
 alter table "better_supabase"."accounting_fx_rates" enable row level security;
 revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
@@ -3705,21 +3705,21 @@ create table "better_supabase"."accounting_entry_lines" (
   "position" smallint not null default 0,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Minor units of the functional currency; a line has one side.
-  "debit" bigint not null default 0 check ("debit" >= 0),
-  "credit" bigint not null default 0 check ("credit" >= 0),
+  "debit" bigint not null default 0 constraint bsb_accounting_entry_lines_debit_check check ("debit" >= 0),
+  "credit" bigint not null default 0 constraint bsb_accounting_entry_lines_credit_check check ("credit" >= 0),
   -- The transaction currency and its signed amount (positive is a debit).
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text not null constraint bsb_accounting_entry_lines_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount_currency" bigint not null,
-  "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
+  "fx_rate" numeric constraint bsb_accounting_entry_lines_fx_rate_check check ("fx_rate" is null or "fx_rate" > 0),
   "tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete restrict,
   -- The part of the line that is tax, in minor units of the functional currency.
-  "tax_amount" bigint not null default 0 check ("tax_amount" >= 0),
+  "tax_amount" bigint not null default 0 constraint bsb_accounting_entry_lines_tax_amount_check check ("tax_amount" >= 0),
   -- The customer, supplier or employee the line concerns.
   "party_id" uuid,
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
-  "description" text check ("description" is null or length("description") <= 500),
-  check (("debit" = 0) <> ("credit" = 0)),
-  check ("tax_amount" <= "debit" + "credit")
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_entry_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
+  "description" text constraint bsb_accounting_entry_lines_description_check check ("description" is null or length("description") <= 500),
+  constraint bsb_accounting_entry_lines_check check (("debit" = 0) <> ("credit" = 0)),
+  constraint bsb_accounting_entry_lines_check1 check ("tax_amount" <= "debit" + "credit")
 );
 create index "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
 create index "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
@@ -3736,13 +3736,13 @@ create policy bsb_accounting_entry_lines_read on "better_supabase"."accounting_e
 create table "better_supabase"."accounting_opening_balances" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "fiscal_year" integer not null constraint bsb_accounting_opening_balances_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "party_id" uuid,
   -- Signed minor units of the functional currency; a debit balance is positive.
-  "amount" bigint not null check ("amount" <> 0),
+  "amount" bigint not null constraint bsb_accounting_opening_balances_amount_check check ("amount" <> 0),
   -- imported rows come from the old books, carried rows from close_fiscal_year.
-  "source" text not null default 'imported' check ("source" in ('imported', 'carried')),
+  "source" text not null default 'imported' constraint bsb_accounting_opening_balances_source_check check ("source" in ('imported', 'carried')),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -6304,9 +6304,9 @@ grant execute on function "better_supabase"."accounting_tax_report"(uuid, date, 
 create table "better_supabase"."accounting_budgets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved', 'archived')),
+  "name" text not null constraint bsb_accounting_budgets_name_check check (length("name") >= 1 and length("name") <= 200),
+  "fiscal_year" integer not null constraint bsb_accounting_budgets_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "status" text not null default 'draft' constraint bsb_accounting_budgets_status_check check ("status" in ('draft', 'approved', 'archived')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -6326,9 +6326,9 @@ create table "better_supabase"."accounting_budget_lines" (
   "budget_id" uuid not null references "better_supabase"."accounting_budgets" ("id") on delete cascade,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The period of the budget's fiscal year, 1 to 12.
-  "period_number" smallint not null check ("period_number" >= 1 and "period_number" <= 12),
+  "period_number" smallint not null constraint bsb_accounting_budget_lines_period_number_check check ("period_number" >= 1 and "period_number" <= 12),
   -- The dimension values the amount is for; actuals match lines that carry them.
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_budget_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   -- Minor units of the functional currency, in the account's natural sign.
   "amount" bigint not null,
   unique ("budget_id", "account_id", "period_number", "dimensions")
@@ -6526,16 +6526,16 @@ grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, 
 create table "better_supabase"."accounting_recognition_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "source_type" text not null check (length("source_type") >= 1 and length("source_type") <= 100),
-  "source_id" text not null check (length("source_id") >= 1 and length("source_id") <= 200),
-  "line_ref" text not null default '' check (length("line_ref") <= 200),
-  "amount" bigint not null check ("amount" > 0),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "source_type" text not null constraint bsb_accounting_recognition_schedules_source_type_check check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null constraint bsb_accounting_recognition_schedules_source_id_check check (length("source_id") >= 1 and length("source_id") <= 200),
+  "line_ref" text not null default '' constraint bsb_accounting_recognition_schedules_line_ref_check check (length("line_ref") <= 200),
+  "amount" bigint not null constraint bsb_accounting_recognition_schedules_amount_check check ("amount" > 0),
+  "currency" text not null constraint bsb_accounting_recognition_schedules_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "starts_on" date not null,
   "ends_on" date not null,
   "deferral_entry_id" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_recognition_schedules_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "source_type", "source_id", "line_ref")
 );
 alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
@@ -6549,8 +6549,8 @@ create table "better_supabase"."accounting_recognition_rows" (
   "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "due_on" date not null,
-  "amount" bigint not null check ("amount" > 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "amount" bigint not null constraint bsb_accounting_recognition_rows_amount_check check ("amount" > 0),
+  "status" text not null default 'pending' constraint bsb_accounting_recognition_rows_status_check check ("status" in ('pending', 'posted')),
   "entry_id" uuid,
   "posted_at" timestamptz
 );
@@ -7127,7 +7127,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:53aa41fe3d54e257272c9616f67eebf62de6406ceeaa974c3601b6dee641f29f
+-- @bsb-hash sha256:5f4c6a5349ac0a45d131c7d2e5a6522abb26cf1d9e66c2d99a268b2926128e2e
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7146,8 +7146,8 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."accounting_settings" (
   "tenant_id" uuid primary key,
   -- Every debit and credit is in minor units of this currency.
-  "functional_currency" text not null check ("functional_currency" ~ '^[A-Z]{3}$'),
-  "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
+  "functional_currency" text not null constraint bsb_accounting_settings_functional_currency_check check ("functional_currency" ~ '^[A-Z]{3}$'),
+  "fiscal_year_start_month" smallint not null default 1 constraint bsb_accounting_settings_fiscal_year_start_month_check check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
   -- Nothing posts on or before this date, whatever the period's status.
   "lock_date" date,
   "created_at" timestamptz not null default now(),
@@ -7164,18 +7164,18 @@ create policy bsb_accounting_settings_read on "app_private"."accounting_settings
 create table "app_private"."accounting_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
+  "code" text not null constraint bsb_accounting_accounts_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_accounting_accounts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_accounts_type_check check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
   "subtype" text,
   "parent_id" uuid references "app_private"."accounting_accounts" ("id") on delete restrict,
   -- Lines on the account must be in this currency; null takes any.
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "reconcilable" boolean not null default false,
   -- The side a positive balance sits on; reports show it next to the amount.
-  "normal_side" text not null default 'debit' check ("normal_side" in ('debit', 'credit')),
+  "normal_side" text not null default 'debit' constraint bsb_accounting_accounts_normal_side_check check ("normal_side" in ('debit', 'credit')),
   -- 1 for a top-level account, one more than the parent's for the rest.
-  "level" smallint not null default 1 check ("level" >= 1),
+  "level" smallint not null default 1 constraint bsb_accounting_accounts_level_check check ("level" >= 1),
   -- The tax code a line on this account takes when it names none.
   "default_tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete set null,
   -- An inactive account stays on the chart and in reports but takes no new lines.
@@ -7197,7 +7197,7 @@ create policy bsb_accounting_accounts_read on "app_private"."accounting_accounts
 
 create table "app_private"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null constraint bsb_accounting_account_roles_role_check check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "app_private"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -7214,12 +7214,12 @@ create policy bsb_accounting_account_roles_read on "app_private"."accounting_acc
 create table "app_private"."accounting_journals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
+  "code" text not null constraint bsb_accounting_journals_code_check check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
+  "name" text not null constraint bsb_accounting_journals_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_journals_type_check check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
   -- The bank or cash account a bank or cash journal posts against.
   "default_account_id" uuid references "app_private"."accounting_accounts" ("id") on delete restrict,
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_journals_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   -- The counter account a bank or cash journal's lines offset by default.
   "contra_account_id" uuid references "app_private"."accounting_accounts" ("id") on delete restrict,
   -- The bank account (banking block) the journal books; its statements post here.
@@ -7242,18 +7242,18 @@ create table "app_private"."accounting_periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The calendar year the fiscal year starts in.
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "number" smallint not null check ("number" >= 1 and "number" <= 12),
+  "fiscal_year" integer not null constraint bsb_accounting_periods_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "number" smallint not null constraint bsb_accounting_periods_number_check check ("number" >= 1 and "number" <= 12),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'closed', 'locked')),
+  "status" text not null default 'open' constraint bsb_accounting_periods_status_check check ("status" in ('open', 'closed', 'locked')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   -- A locked period takes no posting at all, not even an import.
   "locked_at" timestamptz,
   "locked_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "fiscal_year", "number")
 );
 create index "accounting_periods_dates_idx" on "app_private"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
@@ -7275,20 +7275,20 @@ create table "app_private"."accounting_entries" (
   "number" text,
   "entry_date" date not null,
   "period_id" uuid references "app_private"."accounting_periods" ("id") on delete restrict,
-  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed')),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'draft' constraint bsb_accounting_entries_status_check check ("status" in ('draft', 'posted', 'reversed')),
+  "reference" text constraint bsb_accounting_entries_reference_check check ("reference" is null or length("reference") <= 200),
   -- The document the entry books, such as invoice and its id.
-  "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source_type" text constraint bsb_accounting_entries_source_type_check check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "source_id" text,
   "reverses_id" uuid references "app_private"."accounting_entries" ("id") on delete restrict,
-  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "memo" text constraint bsb_accounting_entries_memo_check check ("memo" is null or length("memo") <= 2000),
   "posted_at" timestamptz,
   "posted_by" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("source_type" is null) = ("source_id" is null)),
-  check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
+  constraint bsb_accounting_entries_check check (("source_type" is null) = ("source_id" is null)),
+  constraint bsb_accounting_entries_check1 check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
 );
 create unique index "accounting_entries_number_idx" on "app_private"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
 -- A document books once: a second entry for it waits until the first is reversed.
@@ -7308,8 +7308,8 @@ create table "app_private"."accounting_dimensions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The key lines use in their dimensions object, such as project or department.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_accounting_dimensions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_accounting_dimensions_name_check check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
@@ -7325,8 +7325,8 @@ create table "app_private"."accounting_dimension_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "dimension_id" uuid not null references "app_private"."accounting_dimensions" ("id") on delete cascade,
-  "code" text not null check (length("code") >= 1 and length("code") <= 100),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "code" text not null constraint bsb_accounting_dimension_values_code_check check (length("code") >= 1 and length("code") <= 100),
+  "name" text not null constraint bsb_accounting_dimension_values_name_check check (length("name") >= 1 and length("name") <= 200),
   "archived_at" timestamptz,
   unique ("dimension_id", "code")
 );
@@ -7340,14 +7340,14 @@ create policy bsb_accounting_dimension_values_read on "app_private"."accounting_
 
 create table "app_private"."accounting_fx_rates" (
   "tenant_id" uuid not null,
-  "base" text not null check ("base" ~ '^[A-Z]{3}$'),
-  "quote" text not null check ("quote" ~ '^[A-Z]{3}$'),
+  "base" text not null constraint bsb_accounting_fx_rates_base_check check ("base" ~ '^[A-Z]{3}$'),
+  "quote" text not null constraint bsb_accounting_fx_rates_quote_check check ("quote" ~ '^[A-Z]{3}$'),
   "on_date" date not null,
   -- One unit of base costs rate units of quote.
-  "rate" numeric not null check ("rate" > 0),
+  "rate" numeric not null constraint bsb_accounting_fx_rates_rate_check check ("rate" > 0),
   "created_at" timestamptz not null default now(),
   primary key ("tenant_id", "base", "quote", "on_date"),
-  check ("base" <> "quote")
+  constraint bsb_accounting_fx_rates_check check ("base" <> "quote")
 );
 alter table "app_private"."accounting_fx_rates" enable row level security;
 revoke all on "app_private"."accounting_fx_rates" from public, anon, authenticated;
@@ -7364,21 +7364,21 @@ create table "app_private"."accounting_entry_lines" (
   "position" smallint not null default 0,
   "account_id" uuid not null references "app_private"."accounting_accounts" ("id") on delete restrict,
   -- Minor units of the functional currency; a line has one side.
-  "debit" bigint not null default 0 check ("debit" >= 0),
-  "credit" bigint not null default 0 check ("credit" >= 0),
+  "debit" bigint not null default 0 constraint bsb_accounting_entry_lines_debit_check check ("debit" >= 0),
+  "credit" bigint not null default 0 constraint bsb_accounting_entry_lines_credit_check check ("credit" >= 0),
   -- The transaction currency and its signed amount (positive is a debit).
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text not null constraint bsb_accounting_entry_lines_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount_currency" bigint not null,
-  "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
+  "fx_rate" numeric constraint bsb_accounting_entry_lines_fx_rate_check check ("fx_rate" is null or "fx_rate" > 0),
   "tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete restrict,
   -- The part of the line that is tax, in minor units of the functional currency.
-  "tax_amount" bigint not null default 0 check ("tax_amount" >= 0),
+  "tax_amount" bigint not null default 0 constraint bsb_accounting_entry_lines_tax_amount_check check ("tax_amount" >= 0),
   -- The customer, supplier or employee the line concerns.
   "party_id" uuid,
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
-  "description" text check ("description" is null or length("description") <= 500),
-  check (("debit" = 0) <> ("credit" = 0)),
-  check ("tax_amount" <= "debit" + "credit")
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_entry_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
+  "description" text constraint bsb_accounting_entry_lines_description_check check ("description" is null or length("description") <= 500),
+  constraint bsb_accounting_entry_lines_check check (("debit" = 0) <> ("credit" = 0)),
+  constraint bsb_accounting_entry_lines_check1 check ("tax_amount" <= "debit" + "credit")
 );
 create index "accounting_entry_lines_entry_idx" on "app_private"."accounting_entry_lines" ("entry_id", "position");
 create index "accounting_entry_lines_account_idx" on "app_private"."accounting_entry_lines" ("account_id");
@@ -7395,13 +7395,13 @@ create policy bsb_accounting_entry_lines_read on "app_private"."accounting_entry
 create table "app_private"."accounting_opening_balances" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "fiscal_year" integer not null constraint bsb_accounting_opening_balances_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
   "account_id" uuid not null references "app_private"."accounting_accounts" ("id") on delete restrict,
   "party_id" uuid,
   -- Signed minor units of the functional currency; a debit balance is positive.
-  "amount" bigint not null check ("amount" <> 0),
+  "amount" bigint not null constraint bsb_accounting_opening_balances_amount_check check ("amount" <> 0),
   -- imported rows come from the old books, carried rows from close_fiscal_year.
-  "source" text not null default 'imported' check ("source" in ('imported', 'carried')),
+  "source" text not null default 'imported' constraint bsb_accounting_opening_balances_source_check check ("source" in ('imported', 'carried')),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -9809,9 +9809,9 @@ grant execute on function "app_private"."accounting_tax_report"(uuid, date, date
 create table "app_private"."accounting_budgets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved', 'archived')),
+  "name" text not null constraint bsb_accounting_budgets_name_check check (length("name") >= 1 and length("name") <= 200),
+  "fiscal_year" integer not null constraint bsb_accounting_budgets_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "status" text not null default 'draft' constraint bsb_accounting_budgets_status_check check ("status" in ('draft', 'approved', 'archived')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -9831,9 +9831,9 @@ create table "app_private"."accounting_budget_lines" (
   "budget_id" uuid not null references "app_private"."accounting_budgets" ("id") on delete cascade,
   "account_id" uuid not null references "app_private"."accounting_accounts" ("id") on delete restrict,
   -- The period of the budget's fiscal year, 1 to 12.
-  "period_number" smallint not null check ("period_number" >= 1 and "period_number" <= 12),
+  "period_number" smallint not null constraint bsb_accounting_budget_lines_period_number_check check ("period_number" >= 1 and "period_number" <= 12),
   -- The dimension values the amount is for; actuals match lines that carry them.
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_budget_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   -- Minor units of the functional currency, in the account's natural sign.
   "amount" bigint not null,
   unique ("budget_id", "account_id", "period_number", "dimensions")
@@ -10011,16 +10011,16 @@ grant execute on function "app_private"."accounting_budget_vs_actual"(uuid, inte
 create table "app_private"."accounting_recognition_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "source_type" text not null check (length("source_type") >= 1 and length("source_type") <= 100),
-  "source_id" text not null check (length("source_id") >= 1 and length("source_id") <= 200),
-  "line_ref" text not null default '' check (length("line_ref") <= 200),
-  "amount" bigint not null check ("amount" > 0),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "source_type" text not null constraint bsb_accounting_recognition_schedules_source_type_check check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null constraint bsb_accounting_recognition_schedules_source_id_check check (length("source_id") >= 1 and length("source_id") <= 200),
+  "line_ref" text not null default '' constraint bsb_accounting_recognition_schedules_line_ref_check check (length("line_ref") <= 200),
+  "amount" bigint not null constraint bsb_accounting_recognition_schedules_amount_check check ("amount" > 0),
+  "currency" text not null constraint bsb_accounting_recognition_schedules_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "starts_on" date not null,
   "ends_on" date not null,
   "deferral_entry_id" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_recognition_schedules_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "source_type", "source_id", "line_ref")
 );
 alter table "app_private"."accounting_recognition_schedules" enable row level security;
@@ -10034,8 +10034,8 @@ create table "app_private"."accounting_recognition_rows" (
   "schedule_id" uuid not null references "app_private"."accounting_recognition_schedules" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "due_on" date not null,
-  "amount" bigint not null check ("amount" > 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "amount" bigint not null constraint bsb_accounting_recognition_rows_amount_check check ("amount" > 0),
+  "status" text not null default 'pending' constraint bsb_accounting_recognition_rows_status_check check ("status" in ('pending', 'posted')),
   "entry_id" uuid,
   "posted_at" timestamptz
 );
@@ -10604,7 +10604,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:3a7978ea90fa5eae04189b618cbf5609677a81193bf705b05cb07e43fe166a68
+-- @bsb-hash sha256:7925011d47d4440994cab132e1f7a6747c6e7effe088daaf0f467eb3c0e4fadf
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10618,8 +10618,8 @@ on conflict (name) do update
 create table "better_supabase"."accounting_settings" (
   "tenant_id" uuid primary key,
   -- Every debit and credit is in minor units of this currency.
-  "functional_currency" text not null check ("functional_currency" ~ '^[A-Z]{3}$'),
-  "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
+  "functional_currency" text not null constraint bsb_accounting_settings_functional_currency_check check ("functional_currency" ~ '^[A-Z]{3}$'),
+  "fiscal_year_start_month" smallint not null default 1 constraint bsb_accounting_settings_fiscal_year_start_month_check check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
   -- Nothing posts on or before this date, whatever the period's status.
   "lock_date" date,
   "created_at" timestamptz not null default now(),
@@ -10636,18 +10636,18 @@ create policy bsb_accounting_settings_read on "better_supabase"."accounting_sett
 create table "better_supabase"."accounting_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
+  "code" text not null constraint bsb_accounting_accounts_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_accounting_accounts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_accounts_type_check check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
   "subtype" text,
   "parent_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Lines on the account must be in this currency; null takes any.
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "reconcilable" boolean not null default false,
   -- The side a positive balance sits on; reports show it next to the amount.
-  "normal_side" text not null default 'debit' check ("normal_side" in ('debit', 'credit')),
+  "normal_side" text not null default 'debit' constraint bsb_accounting_accounts_normal_side_check check ("normal_side" in ('debit', 'credit')),
   -- 1 for a top-level account, one more than the parent's for the rest.
-  "level" smallint not null default 1 check ("level" >= 1),
+  "level" smallint not null default 1 constraint bsb_accounting_accounts_level_check check ("level" >= 1),
   -- The tax code a line on this account takes when it names none.
   "default_tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete set null,
   -- An inactive account stays on the chart and in reports but takes no new lines.
@@ -10669,7 +10669,7 @@ create policy bsb_accounting_accounts_read on "better_supabase"."accounting_acco
 
 create table "better_supabase"."accounting_account_roles" (
   "tenant_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null constraint bsb_accounting_account_roles_role_check check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "role")
@@ -10686,12 +10686,12 @@ create policy bsb_accounting_account_roles_read on "better_supabase"."accounting
 create table "better_supabase"."accounting_journals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
+  "code" text not null constraint bsb_accounting_journals_code_check check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
+  "name" text not null constraint bsb_accounting_journals_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_journals_type_check check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
   -- The bank or cash account a bank or cash journal posts against.
   "default_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_journals_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   -- The counter account a bank or cash journal's lines offset by default.
   "contra_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The bank account (banking block) the journal books; its statements post here.
@@ -10714,18 +10714,18 @@ create table "better_supabase"."accounting_periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The calendar year the fiscal year starts in.
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "number" smallint not null check ("number" >= 1 and "number" <= 12),
+  "fiscal_year" integer not null constraint bsb_accounting_periods_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "number" smallint not null constraint bsb_accounting_periods_number_check check ("number" >= 1 and "number" <= 12),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'closed', 'locked')),
+  "status" text not null default 'open' constraint bsb_accounting_periods_status_check check ("status" in ('open', 'closed', 'locked')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   -- A locked period takes no posting at all, not even an import.
   "locked_at" timestamptz,
   "locked_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "fiscal_year", "number")
 );
 create index "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("tenant_id", "starts_on", "ends_on");
@@ -10747,20 +10747,20 @@ create table "better_supabase"."accounting_entries" (
   "number" text,
   "entry_date" date not null,
   "period_id" uuid references "better_supabase"."accounting_periods" ("id") on delete restrict,
-  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed')),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'draft' constraint bsb_accounting_entries_status_check check ("status" in ('draft', 'posted', 'reversed')),
+  "reference" text constraint bsb_accounting_entries_reference_check check ("reference" is null or length("reference") <= 200),
   -- The document the entry books, such as invoice and its id.
-  "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source_type" text constraint bsb_accounting_entries_source_type_check check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "source_id" text,
   "reverses_id" uuid references "better_supabase"."accounting_entries" ("id") on delete restrict,
-  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "memo" text constraint bsb_accounting_entries_memo_check check ("memo" is null or length("memo") <= 2000),
   "posted_at" timestamptz,
   "posted_by" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("source_type" is null) = ("source_id" is null)),
-  check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
+  constraint bsb_accounting_entries_check check (("source_type" is null) = ("source_id" is null)),
+  constraint bsb_accounting_entries_check1 check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
 );
 create unique index "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
 -- A document books once: a second entry for it waits until the first is reversed.
@@ -10780,8 +10780,8 @@ create table "better_supabase"."accounting_dimensions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The key lines use in their dimensions object, such as project or department.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_accounting_dimensions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_accounting_dimensions_name_check check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "key")
 );
@@ -10797,8 +10797,8 @@ create table "better_supabase"."accounting_dimension_values" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "dimension_id" uuid not null references "better_supabase"."accounting_dimensions" ("id") on delete cascade,
-  "code" text not null check (length("code") >= 1 and length("code") <= 100),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "code" text not null constraint bsb_accounting_dimension_values_code_check check (length("code") >= 1 and length("code") <= 100),
+  "name" text not null constraint bsb_accounting_dimension_values_name_check check (length("name") >= 1 and length("name") <= 200),
   "archived_at" timestamptz,
   unique ("dimension_id", "code")
 );
@@ -10812,14 +10812,14 @@ create policy bsb_accounting_dimension_values_read on "better_supabase"."account
 
 create table "better_supabase"."accounting_fx_rates" (
   "tenant_id" uuid not null,
-  "base" text not null check ("base" ~ '^[A-Z]{3}$'),
-  "quote" text not null check ("quote" ~ '^[A-Z]{3}$'),
+  "base" text not null constraint bsb_accounting_fx_rates_base_check check ("base" ~ '^[A-Z]{3}$'),
+  "quote" text not null constraint bsb_accounting_fx_rates_quote_check check ("quote" ~ '^[A-Z]{3}$'),
   "on_date" date not null,
   -- One unit of base costs rate units of quote.
-  "rate" numeric not null check ("rate" > 0),
+  "rate" numeric not null constraint bsb_accounting_fx_rates_rate_check check ("rate" > 0),
   "created_at" timestamptz not null default now(),
   primary key ("tenant_id", "base", "quote", "on_date"),
-  check ("base" <> "quote")
+  constraint bsb_accounting_fx_rates_check check ("base" <> "quote")
 );
 alter table "better_supabase"."accounting_fx_rates" enable row level security;
 revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
@@ -10836,21 +10836,21 @@ create table "better_supabase"."accounting_entry_lines" (
   "position" smallint not null default 0,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Minor units of the functional currency; a line has one side.
-  "debit" bigint not null default 0 check ("debit" >= 0),
-  "credit" bigint not null default 0 check ("credit" >= 0),
+  "debit" bigint not null default 0 constraint bsb_accounting_entry_lines_debit_check check ("debit" >= 0),
+  "credit" bigint not null default 0 constraint bsb_accounting_entry_lines_credit_check check ("credit" >= 0),
   -- The transaction currency and its signed amount (positive is a debit).
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text not null constraint bsb_accounting_entry_lines_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount_currency" bigint not null,
-  "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
+  "fx_rate" numeric constraint bsb_accounting_entry_lines_fx_rate_check check ("fx_rate" is null or "fx_rate" > 0),
   "tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete restrict,
   -- The part of the line that is tax, in minor units of the functional currency.
-  "tax_amount" bigint not null default 0 check ("tax_amount" >= 0),
+  "tax_amount" bigint not null default 0 constraint bsb_accounting_entry_lines_tax_amount_check check ("tax_amount" >= 0),
   -- The customer, supplier or employee the line concerns.
   "party_id" uuid,
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
-  "description" text check ("description" is null or length("description") <= 500),
-  check (("debit" = 0) <> ("credit" = 0)),
-  check ("tax_amount" <= "debit" + "credit")
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_entry_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
+  "description" text constraint bsb_accounting_entry_lines_description_check check ("description" is null or length("description") <= 500),
+  constraint bsb_accounting_entry_lines_check check (("debit" = 0) <> ("credit" = 0)),
+  constraint bsb_accounting_entry_lines_check1 check ("tax_amount" <= "debit" + "credit")
 );
 create index "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
 create index "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
@@ -10867,13 +10867,13 @@ create policy bsb_accounting_entry_lines_read on "better_supabase"."accounting_e
 create table "better_supabase"."accounting_opening_balances" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "fiscal_year" integer not null constraint bsb_accounting_opening_balances_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "party_id" uuid,
   -- Signed minor units of the functional currency; a debit balance is positive.
-  "amount" bigint not null check ("amount" <> 0),
+  "amount" bigint not null constraint bsb_accounting_opening_balances_amount_check check ("amount" <> 0),
   -- imported rows come from the old books, carried rows from close_fiscal_year.
-  "source" text not null default 'imported' check ("source" in ('imported', 'carried')),
+  "source" text not null default 'imported' constraint bsb_accounting_opening_balances_source_check check ("source" in ('imported', 'carried')),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -13281,9 +13281,9 @@ grant execute on function "better_supabase"."accounting_tax_report"(uuid, date, 
 create table "better_supabase"."accounting_budgets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved', 'archived')),
+  "name" text not null constraint bsb_accounting_budgets_name_check check (length("name") >= 1 and length("name") <= 200),
+  "fiscal_year" integer not null constraint bsb_accounting_budgets_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "status" text not null default 'draft' constraint bsb_accounting_budgets_status_check check ("status" in ('draft', 'approved', 'archived')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -13303,9 +13303,9 @@ create table "better_supabase"."accounting_budget_lines" (
   "budget_id" uuid not null references "better_supabase"."accounting_budgets" ("id") on delete cascade,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The period of the budget's fiscal year, 1 to 12.
-  "period_number" smallint not null check ("period_number" >= 1 and "period_number" <= 12),
+  "period_number" smallint not null constraint bsb_accounting_budget_lines_period_number_check check ("period_number" >= 1 and "period_number" <= 12),
   -- The dimension values the amount is for; actuals match lines that carry them.
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_budget_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   -- Minor units of the functional currency, in the account's natural sign.
   "amount" bigint not null,
   unique ("budget_id", "account_id", "period_number", "dimensions")
@@ -13483,16 +13483,16 @@ grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, 
 create table "better_supabase"."accounting_recognition_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "source_type" text not null check (length("source_type") >= 1 and length("source_type") <= 100),
-  "source_id" text not null check (length("source_id") >= 1 and length("source_id") <= 200),
-  "line_ref" text not null default '' check (length("line_ref") <= 200),
-  "amount" bigint not null check ("amount" > 0),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "source_type" text not null constraint bsb_accounting_recognition_schedules_source_type_check check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null constraint bsb_accounting_recognition_schedules_source_id_check check (length("source_id") >= 1 and length("source_id") <= 200),
+  "line_ref" text not null default '' constraint bsb_accounting_recognition_schedules_line_ref_check check (length("line_ref") <= 200),
+  "amount" bigint not null constraint bsb_accounting_recognition_schedules_amount_check check ("amount" > 0),
+  "currency" text not null constraint bsb_accounting_recognition_schedules_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "starts_on" date not null,
   "ends_on" date not null,
   "deferral_entry_id" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_recognition_schedules_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "source_type", "source_id", "line_ref")
 );
 alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
@@ -13506,8 +13506,8 @@ create table "better_supabase"."accounting_recognition_rows" (
   "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "due_on" date not null,
-  "amount" bigint not null check ("amount" > 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "amount" bigint not null constraint bsb_accounting_recognition_rows_amount_check check ("amount" > 0),
+  "status" text not null default 'pending' constraint bsb_accounting_recognition_rows_status_check check ("status" in ('pending', 'posted')),
   "entry_id" uuid,
   "posted_at" timestamptz
 );
@@ -14545,7 +14545,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:1954844e72685ade3ac3f201bd5927c48a085c049641604bb615181df0756162
+-- @bsb-hash sha256:4e91187cd5149aebad710d9da0e302d422470f57fe5549f75e74cdcdf634996c
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14558,8 +14558,8 @@ on conflict (name) do update
 
 -- better_supabase.accounting_settings is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_settings" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_settings" add column if not exists "functional_currency" text check ("functional_currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."accounting_settings" add column if not exists "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12);
+alter table "better_supabase"."accounting_settings" add column if not exists "functional_currency" text constraint bsb_accounting_settings_functional_currency_check check ("functional_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_settings" add column if not exists "fiscal_year_start_month" smallint not null default 1 constraint bsb_accounting_settings_fiscal_year_start_month_check check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12);
 alter table "better_supabase"."accounting_settings" add column if not exists "lock_date" date;
 alter table "better_supabase"."accounting_settings" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."accounting_settings" add column if not exists "updated_at" timestamptz not null default now();
@@ -14574,15 +14574,15 @@ create policy bsb_accounting_settings_select on "better_supabase"."accounting_se
 -- better_supabase.accounting_accounts is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_accounts" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_accounts" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_accounts" add column if not exists "code" text check (length("code") >= 1 and length("code") <= 50);
-alter table "better_supabase"."accounting_accounts" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."accounting_accounts" add column if not exists "type" text check ("type" in ('asset', 'liability', 'equity', 'income', 'expense'));
+alter table "better_supabase"."accounting_accounts" add column if not exists "code" text constraint bsb_accounting_accounts_code_check check (length("code") >= 1 and length("code") <= 50);
+alter table "better_supabase"."accounting_accounts" add column if not exists "name" text constraint bsb_accounting_accounts_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."accounting_accounts" add column if not exists "type" text constraint bsb_accounting_accounts_type_check check ("type" in ('asset', 'liability', 'equity', 'income', 'expense'));
 alter table "better_supabase"."accounting_accounts" add column if not exists "subtype" text;
 alter table "better_supabase"."accounting_accounts" add column if not exists "parent_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
-alter table "better_supabase"."accounting_accounts" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_accounts" add column if not exists "currency" text constraint bsb_accounting_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."accounting_accounts" add column if not exists "reconcilable" boolean not null default false;
-alter table "better_supabase"."accounting_accounts" add column if not exists "normal_side" text not null default 'debit' check ("normal_side" in ('debit', 'credit'));
-alter table "better_supabase"."accounting_accounts" add column if not exists "level" smallint not null default 1 check ("level" >= 1);
+alter table "better_supabase"."accounting_accounts" add column if not exists "normal_side" text not null default 'debit' constraint bsb_accounting_accounts_normal_side_check check ("normal_side" in ('debit', 'credit'));
+alter table "better_supabase"."accounting_accounts" add column if not exists "level" smallint not null default 1 constraint bsb_accounting_accounts_level_check check ("level" >= 1);
 alter table "better_supabase"."accounting_accounts" add column if not exists "default_tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete set null;
 alter table "better_supabase"."accounting_accounts" add column if not exists "active" boolean not null default true;
 alter table "better_supabase"."accounting_accounts" add column if not exists "archived_at" timestamptz;
@@ -14600,7 +14600,7 @@ create policy bsb_accounting_accounts_select on "better_supabase"."accounting_ac
 
 -- better_supabase.accounting_account_roles is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_account_roles" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_account_roles" add column if not exists "role" text check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense'));
+alter table "better_supabase"."accounting_account_roles" add column if not exists "role" text constraint bsb_accounting_account_roles_role_check check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense'));
 alter table "better_supabase"."accounting_account_roles" add column if not exists "account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
 alter table "better_supabase"."accounting_account_roles" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "accounting_account_roles_tenant_id_role_key" on "better_supabase"."accounting_account_roles" ("tenant_id", "role");
@@ -14615,11 +14615,11 @@ create policy bsb_accounting_account_roles_select on "better_supabase"."accounti
 -- better_supabase.accounting_journals is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_journals" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_journals" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_journals" add column if not exists "code" text check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$');
-alter table "better_supabase"."accounting_journals" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."accounting_journals" add column if not exists "type" text check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general'));
+alter table "better_supabase"."accounting_journals" add column if not exists "code" text constraint bsb_accounting_journals_code_check check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$');
+alter table "better_supabase"."accounting_journals" add column if not exists "name" text constraint bsb_accounting_journals_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."accounting_journals" add column if not exists "type" text constraint bsb_accounting_journals_type_check check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general'));
 alter table "better_supabase"."accounting_journals" add column if not exists "default_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
-alter table "better_supabase"."accounting_journals" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_journals" add column if not exists "currency" text constraint bsb_accounting_journals_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."accounting_journals" add column if not exists "contra_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
 alter table "better_supabase"."accounting_journals" add column if not exists "bank_account_id" uuid;
 alter table "better_supabase"."accounting_journals" add column if not exists "created_at" timestamptz not null default now();
@@ -14637,11 +14637,11 @@ create policy bsb_accounting_journals_select on "better_supabase"."accounting_jo
 -- better_supabase.accounting_periods is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_periods" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_periods" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_periods" add column if not exists "fiscal_year" integer check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999);
-alter table "better_supabase"."accounting_periods" add column if not exists "number" smallint check ("number" >= 1 and "number" <= 12);
+alter table "better_supabase"."accounting_periods" add column if not exists "fiscal_year" integer constraint bsb_accounting_periods_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999);
+alter table "better_supabase"."accounting_periods" add column if not exists "number" smallint constraint bsb_accounting_periods_number_check check ("number" >= 1 and "number" <= 12);
 alter table "better_supabase"."accounting_periods" add column if not exists "starts_on" date;
 alter table "better_supabase"."accounting_periods" add column if not exists "ends_on" date;
-alter table "better_supabase"."accounting_periods" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'closed', 'locked'));
+alter table "better_supabase"."accounting_periods" add column if not exists "status" text not null default 'open' constraint bsb_accounting_periods_status_check check ("status" in ('open', 'closed', 'locked'));
 alter table "better_supabase"."accounting_periods" add column if not exists "closed_at" timestamptz;
 alter table "better_supabase"."accounting_periods" add column if not exists "closed_by" uuid;
 alter table "better_supabase"."accounting_periods" add column if not exists "locked_at" timestamptz;
@@ -14665,12 +14665,12 @@ alter table "better_supabase"."accounting_entries" add column if not exists "seq
 alter table "better_supabase"."accounting_entries" add column if not exists "number" text;
 alter table "better_supabase"."accounting_entries" add column if not exists "entry_date" date;
 alter table "better_supabase"."accounting_entries" add column if not exists "period_id" uuid references "better_supabase"."accounting_periods" ("id") on delete restrict;
-alter table "better_supabase"."accounting_entries" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed'));
-alter table "better_supabase"."accounting_entries" add column if not exists "reference" text check ("reference" is null or length("reference") <= 200);
-alter table "better_supabase"."accounting_entries" add column if not exists "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."accounting_entries" add column if not exists "status" text not null default 'draft' constraint bsb_accounting_entries_status_check check ("status" in ('draft', 'posted', 'reversed'));
+alter table "better_supabase"."accounting_entries" add column if not exists "reference" text constraint bsb_accounting_entries_reference_check check ("reference" is null or length("reference") <= 200);
+alter table "better_supabase"."accounting_entries" add column if not exists "source_type" text constraint bsb_accounting_entries_source_type_check check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$');
 alter table "better_supabase"."accounting_entries" add column if not exists "source_id" text;
 alter table "better_supabase"."accounting_entries" add column if not exists "reverses_id" uuid references "better_supabase"."accounting_entries" ("id") on delete restrict;
-alter table "better_supabase"."accounting_entries" add column if not exists "memo" text check ("memo" is null or length("memo") <= 2000);
+alter table "better_supabase"."accounting_entries" add column if not exists "memo" text constraint bsb_accounting_entries_memo_check check ("memo" is null or length("memo") <= 2000);
 alter table "better_supabase"."accounting_entries" add column if not exists "posted_at" timestamptz;
 alter table "better_supabase"."accounting_entries" add column if not exists "posted_by" uuid;
 alter table "better_supabase"."accounting_entries" add column if not exists "created_by" uuid;
@@ -14692,8 +14692,8 @@ create policy bsb_accounting_entries_select on "better_supabase"."accounting_ent
 -- better_supabase.accounting_dimensions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_dimensions" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_dimensions" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_dimensions" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."accounting_dimensions" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."accounting_dimensions" add column if not exists "key" text constraint bsb_accounting_dimensions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."accounting_dimensions" add column if not exists "name" text constraint bsb_accounting_dimensions_name_check check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."accounting_dimensions" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "accounting_dimensions_tenant_id_key_key" on "better_supabase"."accounting_dimensions" ("tenant_id", "key");
 alter table "better_supabase"."accounting_dimensions" enable row level security;
@@ -14707,8 +14707,8 @@ create policy bsb_accounting_dimensions_select on "better_supabase"."accounting_
 alter table "better_supabase"."accounting_dimension_values" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_dimension_values" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."accounting_dimension_values" add column if not exists "dimension_id" uuid references "better_supabase"."accounting_dimensions" ("id") on delete cascade;
-alter table "better_supabase"."accounting_dimension_values" add column if not exists "code" text check (length("code") >= 1 and length("code") <= 100);
-alter table "better_supabase"."accounting_dimension_values" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."accounting_dimension_values" add column if not exists "code" text constraint bsb_accounting_dimension_values_code_check check (length("code") >= 1 and length("code") <= 100);
+alter table "better_supabase"."accounting_dimension_values" add column if not exists "name" text constraint bsb_accounting_dimension_values_name_check check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."accounting_dimension_values" add column if not exists "archived_at" timestamptz;
 create unique index if not exists "accounting_dimension_values_dimension_id_code_key" on "better_supabase"."accounting_dimension_values" ("dimension_id", "code");
 alter table "better_supabase"."accounting_dimension_values" enable row level security;
@@ -14720,10 +14720,10 @@ create policy bsb_accounting_dimension_values_select on "better_supabase"."accou
 
 -- better_supabase.accounting_fx_rates is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_fx_rates" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_fx_rates" add column if not exists "base" text check ("base" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."accounting_fx_rates" add column if not exists "quote" text check ("quote" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_fx_rates" add column if not exists "base" text constraint bsb_accounting_fx_rates_base_check check ("base" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_fx_rates" add column if not exists "quote" text constraint bsb_accounting_fx_rates_quote_check check ("quote" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."accounting_fx_rates" add column if not exists "on_date" date;
-alter table "better_supabase"."accounting_fx_rates" add column if not exists "rate" numeric check ("rate" > 0);
+alter table "better_supabase"."accounting_fx_rates" add column if not exists "rate" numeric constraint bsb_accounting_fx_rates_rate_check check ("rate" > 0);
 alter table "better_supabase"."accounting_fx_rates" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "accounting_fx_rates_tenant_id_base_quote_on_date_key" on "better_supabase"."accounting_fx_rates" ("tenant_id", "base", "quote", "on_date");
 alter table "better_supabase"."accounting_fx_rates" enable row level security;
@@ -14739,16 +14739,16 @@ alter table "better_supabase"."accounting_entry_lines" add column if not exists 
 alter table "better_supabase"."accounting_entry_lines" add column if not exists "entry_id" uuid references "better_supabase"."accounting_entries" ("id") on delete cascade;
 alter table "better_supabase"."accounting_entry_lines" add column if not exists "position" smallint not null default 0;
 alter table "better_supabase"."accounting_entry_lines" add column if not exists "account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
-alter table "better_supabase"."accounting_entry_lines" add column if not exists "debit" bigint not null default 0 check ("debit" >= 0);
-alter table "better_supabase"."accounting_entry_lines" add column if not exists "credit" bigint not null default 0 check ("credit" >= 0);
-alter table "better_supabase"."accounting_entry_lines" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "debit" bigint not null default 0 constraint bsb_accounting_entry_lines_debit_check check ("debit" >= 0);
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "credit" bigint not null default 0 constraint bsb_accounting_entry_lines_credit_check check ("credit" >= 0);
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "currency" text constraint bsb_accounting_entry_lines_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."accounting_entry_lines" add column if not exists "amount_currency" bigint;
-alter table "better_supabase"."accounting_entry_lines" add column if not exists "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0);
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "fx_rate" numeric constraint bsb_accounting_entry_lines_fx_rate_check check ("fx_rate" is null or "fx_rate" > 0);
 alter table "better_supabase"."accounting_entry_lines" add column if not exists "tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete restrict;
-alter table "better_supabase"."accounting_entry_lines" add column if not exists "tax_amount" bigint not null default 0 check ("tax_amount" >= 0);
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "tax_amount" bigint not null default 0 constraint bsb_accounting_entry_lines_tax_amount_check check ("tax_amount" >= 0);
 alter table "better_supabase"."accounting_entry_lines" add column if not exists "party_id" uuid;
-alter table "better_supabase"."accounting_entry_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object');
-alter table "better_supabase"."accounting_entry_lines" add column if not exists "description" text check ("description" is null or length("description") <= 500);
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_entry_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object');
+alter table "better_supabase"."accounting_entry_lines" add column if not exists "description" text constraint bsb_accounting_entry_lines_description_check check ("description" is null or length("description") <= 500);
 create index if not exists "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
 create index if not exists "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
 create index if not exists "accounting_entry_lines_party_idx" on "better_supabase"."accounting_entry_lines" ("tenant_id", "party_id") where "party_id" is not null;
@@ -14763,11 +14763,11 @@ create policy bsb_accounting_entry_lines_select on "better_supabase"."accounting
 -- better_supabase.accounting_opening_balances is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_opening_balances" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_opening_balances" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_opening_balances" add column if not exists "fiscal_year" integer check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999);
+alter table "better_supabase"."accounting_opening_balances" add column if not exists "fiscal_year" integer constraint bsb_accounting_opening_balances_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999);
 alter table "better_supabase"."accounting_opening_balances" add column if not exists "account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
 alter table "better_supabase"."accounting_opening_balances" add column if not exists "party_id" uuid;
-alter table "better_supabase"."accounting_opening_balances" add column if not exists "amount" bigint check ("amount" <> 0);
-alter table "better_supabase"."accounting_opening_balances" add column if not exists "source" text not null default 'imported' check ("source" in ('imported', 'carried'));
+alter table "better_supabase"."accounting_opening_balances" add column if not exists "amount" bigint constraint bsb_accounting_opening_balances_amount_check check ("amount" <> 0);
+alter table "better_supabase"."accounting_opening_balances" add column if not exists "source" text not null default 'imported' constraint bsb_accounting_opening_balances_source_check check ("source" in ('imported', 'carried'));
 alter table "better_supabase"."accounting_opening_balances" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."accounting_opening_balances" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "accounting_opening_balances_key_idx" on "better_supabase"."accounting_opening_balances" ("tenant_id", "fiscal_year", "account_id", coalesce("party_id", '00000000-0000-0000-0000-000000000000'::uuid));
@@ -17173,9 +17173,9 @@ grant execute on function "better_supabase"."accounting_tax_report"(uuid, date, 
 -- better_supabase.accounting_budgets is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_budgets" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_budgets" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_budgets" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."accounting_budgets" add column if not exists "fiscal_year" integer check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999);
-alter table "better_supabase"."accounting_budgets" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'approved', 'archived'));
+alter table "better_supabase"."accounting_budgets" add column if not exists "name" text constraint bsb_accounting_budgets_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."accounting_budgets" add column if not exists "fiscal_year" integer constraint bsb_accounting_budgets_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999);
+alter table "better_supabase"."accounting_budgets" add column if not exists "status" text not null default 'draft' constraint bsb_accounting_budgets_status_check check ("status" in ('draft', 'approved', 'archived'));
 alter table "better_supabase"."accounting_budgets" add column if not exists "created_by" uuid;
 alter table "better_supabase"."accounting_budgets" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."accounting_budgets" add column if not exists "updated_at" timestamptz not null default now();
@@ -17192,8 +17192,8 @@ alter table "better_supabase"."accounting_budget_lines" add column if not exists
 alter table "better_supabase"."accounting_budget_lines" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."accounting_budget_lines" add column if not exists "budget_id" uuid references "better_supabase"."accounting_budgets" ("id") on delete cascade;
 alter table "better_supabase"."accounting_budget_lines" add column if not exists "account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict;
-alter table "better_supabase"."accounting_budget_lines" add column if not exists "period_number" smallint check ("period_number" >= 1 and "period_number" <= 12);
-alter table "better_supabase"."accounting_budget_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object');
+alter table "better_supabase"."accounting_budget_lines" add column if not exists "period_number" smallint constraint bsb_accounting_budget_lines_period_number_check check ("period_number" >= 1 and "period_number" <= 12);
+alter table "better_supabase"."accounting_budget_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_budget_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object');
 alter table "better_supabase"."accounting_budget_lines" add column if not exists "amount" bigint;
 create unique index if not exists "accounting_budget_lines_budget_id_account_id_period_number_dime" on "better_supabase"."accounting_budget_lines" ("budget_id", "account_id", "period_number", "dimensions");
 create index if not exists "accounting_budget_lines_account_idx" on "better_supabase"."accounting_budget_lines" ("account_id");
@@ -17368,11 +17368,11 @@ grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, 
 -- better_supabase.accounting_recognition_schedules is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "source_type" text check (length("source_type") >= 1 and length("source_type") <= 100);
-alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "source_id" text check (length("source_id") >= 1 and length("source_id") <= 200);
-alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "line_ref" text not null default '' check (length("line_ref") <= 200);
-alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "amount" bigint check ("amount" > 0);
-alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "source_type" text constraint bsb_accounting_recognition_schedules_source_type_check check (length("source_type") >= 1 and length("source_type") <= 100);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "source_id" text constraint bsb_accounting_recognition_schedules_source_id_check check (length("source_id") >= 1 and length("source_id") <= 200);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "line_ref" text not null default '' constraint bsb_accounting_recognition_schedules_line_ref_check check (length("line_ref") <= 200);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "amount" bigint constraint bsb_accounting_recognition_schedules_amount_check check ("amount" > 0);
+alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "currency" text constraint bsb_accounting_recognition_schedules_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "starts_on" date;
 alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "ends_on" date;
 alter table "better_supabase"."accounting_recognition_schedules" add column if not exists "deferral_entry_id" uuid;
@@ -17387,8 +17387,8 @@ alter table "better_supabase"."accounting_recognition_rows" add column if not ex
 alter table "better_supabase"."accounting_recognition_rows" add column if not exists "schedule_id" uuid references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade;
 alter table "better_supabase"."accounting_recognition_rows" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."accounting_recognition_rows" add column if not exists "due_on" date;
-alter table "better_supabase"."accounting_recognition_rows" add column if not exists "amount" bigint check ("amount" > 0);
-alter table "better_supabase"."accounting_recognition_rows" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'posted'));
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "amount" bigint constraint bsb_accounting_recognition_rows_amount_check check ("amount" > 0);
+alter table "better_supabase"."accounting_recognition_rows" add column if not exists "status" text not null default 'pending' constraint bsb_accounting_recognition_rows_status_check check ("status" in ('pending', 'posted'));
 alter table "better_supabase"."accounting_recognition_rows" add column if not exists "entry_id" uuid;
 alter table "better_supabase"."accounting_recognition_rows" add column if not exists "posted_at" timestamptz;
 create index if not exists accounting_recognition_rows_schedule_idx on "better_supabase"."accounting_recognition_rows" ("schedule_id");
@@ -17955,7 +17955,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_146_accounting.sql
 -- better-supabase module: accounting
 -- @bsb-block accounting@1 managed
--- @bsb-hash sha256:b0b53af7311b3d15aba2d83a07a505f162d3bb1a9c1d5eae6bff3cc2846f1822
+-- @bsb-hash sha256:2160e7c502c470bff323be264050380f7735beebd3604e35156f356a55d3187a
 -- Double-entry books: a chart of accounts with account roles, journals, fiscal years of periods, balanced journal entries numbered per journal and year, dimensions, exchange rates, tax codes, the trial balance, profit and loss, balance sheet and general ledger, the period and year-end close, entries booked from invoices, expenses, stock, rent and gifts, tax reports and budgets.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17969,8 +17969,8 @@ on conflict (name) do update
 create table "better_supabase"."accounting_settings" (
   "org_id" uuid primary key,
   -- Every debit and credit is in minor units of this currency.
-  "functional_currency" text not null check ("functional_currency" ~ '^[A-Z]{3}$'),
-  "fiscal_year_start_month" smallint not null default 1 check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
+  "functional_currency" text not null constraint bsb_accounting_settings_functional_currency_check check ("functional_currency" ~ '^[A-Z]{3}$'),
+  "fiscal_year_start_month" smallint not null default 1 constraint bsb_accounting_settings_fiscal_year_start_month_check check ("fiscal_year_start_month" >= 1 and "fiscal_year_start_month" <= 12),
   -- Nothing posts on or before this date, whatever the period's status.
   "lock_date" date,
   "created_at" timestamptz not null default now(),
@@ -17987,18 +17987,18 @@ create policy bsb_accounting_settings_read on "better_supabase"."accounting_sett
 create table "better_supabase"."accounting_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
+  "code" text not null constraint bsb_accounting_accounts_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_accounting_accounts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_accounts_type_check check ("type" in ('asset', 'liability', 'equity', 'income', 'expense')),
   "subtype" text,
   "parent_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Lines on the account must be in this currency; null takes any.
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_accounts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "reconcilable" boolean not null default false,
   -- The side a positive balance sits on; reports show it next to the amount.
-  "normal_side" text not null default 'debit' check ("normal_side" in ('debit', 'credit')),
+  "normal_side" text not null default 'debit' constraint bsb_accounting_accounts_normal_side_check check ("normal_side" in ('debit', 'credit')),
   -- 1 for a top-level account, one more than the parent's for the rest.
-  "level" smallint not null default 1 check ("level" >= 1),
+  "level" smallint not null default 1 constraint bsb_accounting_accounts_level_check check ("level" >= 1),
   -- The tax code a line on this account takes when it names none.
   "default_tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete set null,
   -- An inactive account stays on the chart and in reports but takes no new lines.
@@ -18020,7 +18020,7 @@ create policy bsb_accounting_accounts_read on "better_supabase"."accounting_acco
 
 create table "better_supabase"."accounting_account_roles" (
   "org_id" uuid not null,
-  "role" text not null check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
+  "role" text not null constraint bsb_accounting_account_roles_role_check check ("role" in ('receivable', 'payable', 'bank', 'revenue', 'cogs', 'inventory', 'work_in_progress', 'tax_payable', 'tax_receivable', 'deferred_revenue', 'retained_earnings', 'fx_gain', 'fx_loss', 'fixed_asset', 'accumulated_depreciation', 'depreciation_expense', 'disposal_gain', 'disposal_loss', 'expense', 'suspense')),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "updated_at" timestamptz not null default now(),
   primary key ("org_id", "role")
@@ -18037,12 +18037,12 @@ create policy bsb_accounting_account_roles_read on "better_supabase"."accounting
 create table "better_supabase"."accounting_journals" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
+  "code" text not null constraint bsb_accounting_journals_code_check check ("code" ~ '^[A-Z0-9][A-Z0-9_-]{0,15}$'),
+  "name" text not null constraint bsb_accounting_journals_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_accounting_journals_type_check check ("type" in ('sales', 'purchase', 'bank', 'cash', 'general')),
   -- The bank or cash account a bank or cash journal posts against.
   "default_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
-  "currency" text check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text constraint bsb_accounting_journals_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   -- The counter account a bank or cash journal's lines offset by default.
   "contra_account_id" uuid references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The bank account (banking block) the journal books; its statements post here.
@@ -18065,18 +18065,18 @@ create table "better_supabase"."accounting_periods" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- The calendar year the fiscal year starts in.
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "number" smallint not null check ("number" >= 1 and "number" <= 12),
+  "fiscal_year" integer not null constraint bsb_accounting_periods_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "number" smallint not null constraint bsb_accounting_periods_number_check check ("number" >= 1 and "number" <= 12),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'closed', 'locked')),
+  "status" text not null default 'open' constraint bsb_accounting_periods_status_check check ("status" in ('open', 'closed', 'locked')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   -- A locked period takes no posting at all, not even an import.
   "locked_at" timestamptz,
   "locked_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_periods_check check ("ends_on" >= "starts_on"),
   unique ("org_id", "fiscal_year", "number")
 );
 create index "accounting_periods_dates_idx" on "better_supabase"."accounting_periods" ("org_id", "starts_on", "ends_on");
@@ -18098,20 +18098,20 @@ create table "better_supabase"."accounting_entries" (
   "number" text,
   "entry_date" date not null,
   "period_id" uuid references "better_supabase"."accounting_periods" ("id") on delete restrict,
-  "status" text not null default 'draft' check ("status" in ('draft', 'posted', 'reversed')),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'draft' constraint bsb_accounting_entries_status_check check ("status" in ('draft', 'posted', 'reversed')),
+  "reference" text constraint bsb_accounting_entries_reference_check check ("reference" is null or length("reference") <= 200),
   -- The document the entry books, such as invoice and its id.
-  "source_type" text check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "source_type" text constraint bsb_accounting_entries_source_type_check check ("source_type" is null or "source_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "source_id" text,
   "reverses_id" uuid references "better_supabase"."accounting_entries" ("id") on delete restrict,
-  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "memo" text constraint bsb_accounting_entries_memo_check check ("memo" is null or length("memo") <= 2000),
   "posted_at" timestamptz,
   "posted_by" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("source_type" is null) = ("source_id" is null)),
-  check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
+  constraint bsb_accounting_entries_check check (("source_type" is null) = ("source_id" is null)),
+  constraint bsb_accounting_entries_check1 check ("status" = 'draft' or ("number" is not null and "period_id" is not null and "posted_at" is not null))
 );
 create unique index "accounting_entries_number_idx" on "better_supabase"."accounting_entries" ("journal_id", "fiscal_year", "sequence") where "sequence" is not null;
 -- A document books once: a second entry for it waits until the first is reversed.
@@ -18131,8 +18131,8 @@ create table "better_supabase"."accounting_dimensions" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- The key lines use in their dimensions object, such as project or department.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_accounting_dimensions_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_accounting_dimensions_name_check check (length("name") >= 1 and length("name") <= 200),
   "created_at" timestamptz not null default now(),
   unique ("org_id", "key")
 );
@@ -18148,8 +18148,8 @@ create table "better_supabase"."accounting_dimension_values" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "dimension_id" uuid not null references "better_supabase"."accounting_dimensions" ("id") on delete cascade,
-  "code" text not null check (length("code") >= 1 and length("code") <= 100),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "code" text not null constraint bsb_accounting_dimension_values_code_check check (length("code") >= 1 and length("code") <= 100),
+  "name" text not null constraint bsb_accounting_dimension_values_name_check check (length("name") >= 1 and length("name") <= 200),
   "archived_at" timestamptz,
   unique ("dimension_id", "code")
 );
@@ -18163,14 +18163,14 @@ create policy bsb_accounting_dimension_values_read on "better_supabase"."account
 
 create table "better_supabase"."accounting_fx_rates" (
   "org_id" uuid not null,
-  "base" text not null check ("base" ~ '^[A-Z]{3}$'),
-  "quote" text not null check ("quote" ~ '^[A-Z]{3}$'),
+  "base" text not null constraint bsb_accounting_fx_rates_base_check check ("base" ~ '^[A-Z]{3}$'),
+  "quote" text not null constraint bsb_accounting_fx_rates_quote_check check ("quote" ~ '^[A-Z]{3}$'),
   "on_date" date not null,
   -- One unit of base costs rate units of quote.
-  "rate" numeric not null check ("rate" > 0),
+  "rate" numeric not null constraint bsb_accounting_fx_rates_rate_check check ("rate" > 0),
   "created_at" timestamptz not null default now(),
   primary key ("org_id", "base", "quote", "on_date"),
-  check ("base" <> "quote")
+  constraint bsb_accounting_fx_rates_check check ("base" <> "quote")
 );
 alter table "better_supabase"."accounting_fx_rates" enable row level security;
 revoke all on "better_supabase"."accounting_fx_rates" from public, anon, authenticated;
@@ -18187,21 +18187,21 @@ create table "better_supabase"."accounting_entry_lines" (
   "position" smallint not null default 0,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- Minor units of the functional currency; a line has one side.
-  "debit" bigint not null default 0 check ("debit" >= 0),
-  "credit" bigint not null default 0 check ("credit" >= 0),
+  "debit" bigint not null default 0 constraint bsb_accounting_entry_lines_debit_check check ("debit" >= 0),
+  "credit" bigint not null default 0 constraint bsb_accounting_entry_lines_credit_check check ("credit" >= 0),
   -- The transaction currency and its signed amount (positive is a debit).
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text not null constraint bsb_accounting_entry_lines_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "amount_currency" bigint not null,
-  "fx_rate" numeric check ("fx_rate" is null or "fx_rate" > 0),
+  "fx_rate" numeric constraint bsb_accounting_entry_lines_fx_rate_check check ("fx_rate" is null or "fx_rate" > 0),
   "tax_code_id" uuid references "better_supabase"."tax_codes" ("id") on delete restrict,
   -- The part of the line that is tax, in minor units of the functional currency.
-  "tax_amount" bigint not null default 0 check ("tax_amount" >= 0),
+  "tax_amount" bigint not null default 0 constraint bsb_accounting_entry_lines_tax_amount_check check ("tax_amount" >= 0),
   -- The customer, supplier or employee the line concerns.
   "party_id" uuid,
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
-  "description" text check ("description" is null or length("description") <= 500),
-  check (("debit" = 0) <> ("credit" = 0)),
-  check ("tax_amount" <= "debit" + "credit")
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_entry_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
+  "description" text constraint bsb_accounting_entry_lines_description_check check ("description" is null or length("description") <= 500),
+  constraint bsb_accounting_entry_lines_check check (("debit" = 0) <> ("credit" = 0)),
+  constraint bsb_accounting_entry_lines_check1 check ("tax_amount" <= "debit" + "credit")
 );
 create index "accounting_entry_lines_entry_idx" on "better_supabase"."accounting_entry_lines" ("entry_id", "position");
 create index "accounting_entry_lines_account_idx" on "better_supabase"."accounting_entry_lines" ("account_id");
@@ -18218,13 +18218,13 @@ create policy bsb_accounting_entry_lines_read on "better_supabase"."accounting_e
 create table "better_supabase"."accounting_opening_balances" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "fiscal_year" integer not null constraint bsb_accounting_opening_balances_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   "party_id" uuid,
   -- Signed minor units of the functional currency; a debit balance is positive.
-  "amount" bigint not null check ("amount" <> 0),
+  "amount" bigint not null constraint bsb_accounting_opening_balances_amount_check check ("amount" <> 0),
   -- imported rows come from the old books, carried rows from close_fiscal_year.
-  "source" text not null default 'imported' check ("source" in ('imported', 'carried')),
+  "source" text not null default 'imported' constraint bsb_accounting_opening_balances_source_check check ("source" in ('imported', 'carried')),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -20632,9 +20632,9 @@ grant execute on function "better_supabase"."accounting_tax_report"(uuid, date, 
 create table "better_supabase"."accounting_budgets" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "fiscal_year" integer not null check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved', 'archived')),
+  "name" text not null constraint bsb_accounting_budgets_name_check check (length("name") >= 1 and length("name") <= 200),
+  "fiscal_year" integer not null constraint bsb_accounting_budgets_fiscal_year_check check ("fiscal_year" >= 1900 and "fiscal_year" <= 9999),
+  "status" text not null default 'draft' constraint bsb_accounting_budgets_status_check check ("status" in ('draft', 'approved', 'archived')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -20654,9 +20654,9 @@ create table "better_supabase"."accounting_budget_lines" (
   "budget_id" uuid not null references "better_supabase"."accounting_budgets" ("id") on delete cascade,
   "account_id" uuid not null references "better_supabase"."accounting_accounts" ("id") on delete restrict,
   -- The period of the budget's fiscal year, 1 to 12.
-  "period_number" smallint not null check ("period_number" >= 1 and "period_number" <= 12),
+  "period_number" smallint not null constraint bsb_accounting_budget_lines_period_number_check check ("period_number" >= 1 and "period_number" <= 12),
   -- The dimension values the amount is for; actuals match lines that carry them.
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_accounting_budget_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   -- Minor units of the functional currency, in the account's natural sign.
   "amount" bigint not null,
   unique ("budget_id", "account_id", "period_number", "dimensions")
@@ -20834,16 +20834,16 @@ grant execute on function "better_supabase"."accounting_budget_vs_actual"(uuid, 
 create table "better_supabase"."accounting_recognition_schedules" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "source_type" text not null check (length("source_type") >= 1 and length("source_type") <= 100),
-  "source_id" text not null check (length("source_id") >= 1 and length("source_id") <= 200),
-  "line_ref" text not null default '' check (length("line_ref") <= 200),
-  "amount" bigint not null check ("amount" > 0),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "source_type" text not null constraint bsb_accounting_recognition_schedules_source_type_check check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null constraint bsb_accounting_recognition_schedules_source_id_check check (length("source_id") >= 1 and length("source_id") <= 200),
+  "line_ref" text not null default '' constraint bsb_accounting_recognition_schedules_line_ref_check check (length("line_ref") <= 200),
+  "amount" bigint not null constraint bsb_accounting_recognition_schedules_amount_check check ("amount" > 0),
+  "currency" text not null constraint bsb_accounting_recognition_schedules_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "starts_on" date not null,
   "ends_on" date not null,
   "deferral_entry_id" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_accounting_recognition_schedules_check check ("ends_on" >= "starts_on"),
   unique ("org_id", "source_type", "source_id", "line_ref")
 );
 alter table "better_supabase"."accounting_recognition_schedules" enable row level security;
@@ -20857,8 +20857,8 @@ create table "better_supabase"."accounting_recognition_rows" (
   "schedule_id" uuid not null references "better_supabase"."accounting_recognition_schedules" ("id") on delete cascade,
   "org_id" uuid not null,
   "due_on" date not null,
-  "amount" bigint not null check ("amount" > 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'posted')),
+  "amount" bigint not null constraint bsb_accounting_recognition_rows_amount_check check ("amount" > 0),
+  "status" text not null default 'pending' constraint bsb_accounting_recognition_rows_status_check check ("status" in ('pending', 'posted')),
   "entry_id" uuid,
   "posted_at" timestamptz
 );

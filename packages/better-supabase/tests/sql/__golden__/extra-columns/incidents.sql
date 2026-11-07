@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_127_incidents.sql
 -- better-supabase module: incidents
 -- @bsb-block incidents@4 managed
--- @bsb-hash sha256:130c9529598e44f88be76c06f63cdc5be559ac772195d1a8b07b6c3fe1d7af2c
+-- @bsb-hash sha256:bd6384d931847a174272c08138e03c9280f23355714cbe222db689ab1e06fcf8
 -- Incidents with a severity, a status timeline of updates, the components they affect and a postmortem, plus a public status page: component status, public incident updates and uptime history, readable anonymously through one function that returns only the fields marked public.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,12 +14,12 @@
 create table "better_supabase"."incident_status_components" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text check ("description" is null or length("description") <= 2000),
-  "group_name" text check ("group_name" is null or length("group_name") <= 100),
+  "name" text not null constraint bsb_incident_status_components_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_incident_status_components_description_check check ("description" is null or length("description") <= 2000),
+  "group_name" text constraint bsb_incident_status_components_group_name_check check ("group_name" is null or length("group_name") <= 100),
   -- Whether the component shows on the public status page.
   "public" boolean not null default true,
-  "status" text not null default 'operational' check ("status" in ('operational', 'maintenance', 'degraded', 'partial_outage', 'major_outage')),
+  "status" text not null default 'operational' constraint bsb_incident_status_components_status_check check ("status" in ('operational', 'maintenance', 'degraded', 'partial_outage', 'major_outage')),
   "position" integer not null default 0,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -39,10 +39,10 @@ create table "better_supabase"."incident_status_component_history" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "component_id" uuid not null,
-  "status" text not null check ("status" in ('operational', 'maintenance', 'degraded', 'partial_outage', 'major_outage')),
+  "status" text not null constraint bsb_incident_status_component_history_status_check check ("status" in ('operational', 'maintenance', 'degraded', 'partial_outage', 'major_outage')),
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz,
-  check ("ended_at" is null or "ended_at" >= "started_at"),
+  constraint bsb_incident_status_component_history_check check ("ended_at" is null or "ended_at" >= "started_at"),
   foreign key ("tenant_id", "component_id") references "better_supabase"."incident_status_components" ("tenant_id", "id") on delete cascade
 );
 create index "incident_status_component_history_component_idx" on "better_supabase"."incident_status_component_history" ("tenant_id", "component_id", "started_at");
@@ -58,11 +58,11 @@ create policy bsb_incident_status_component_history_read on "better_supabase"."i
 create table "better_supabase"."incidents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "title" text not null constraint bsb_incidents_title_check check (length("title") >= 1 and length("title") <= 200),
   -- Internal detail; the public status page never shows it.
-  "description" text check ("description" is null or length("description") <= 10000),
-  "severity" text not null default 'sev3' check ("severity" in ('sev1', 'sev2', 'sev3', 'sev4')),
-  "status" text not null default 'investigating' check ("status" in ('investigating', 'identified', 'monitoring', 'resolved')),
+  "description" text constraint bsb_incidents_description_check check ("description" is null or length("description") <= 10000),
+  "severity" text not null default 'sev3' constraint bsb_incidents_severity_check check ("severity" in ('sev1', 'sev2', 'sev3', 'sev4')),
+  "status" text not null default 'investigating' constraint bsb_incidents_status_check check ("status" in ('investigating', 'identified', 'monitoring', 'resolved')),
   -- Whether the incident, its public updates and its published postmortem
   -- summary show on the public status page.
   "public" boolean not null default false,
@@ -72,7 +72,7 @@ create table "better_supabase"."incidents" (
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("status" = 'resolved') = ("resolved_at" is not null)),
+  constraint bsb_incidents_check check (("status" = 'resolved') = ("resolved_at" is not null)),
   unique ("tenant_id", "id")
 );
 create index "incidents_tenant_idx" on "better_supabase"."incidents" ("tenant_id", "started_at" desc);
@@ -91,8 +91,8 @@ create table "better_supabase"."incident_updates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "incident_id" uuid not null,
-  "status" text not null check ("status" in ('investigating', 'identified', 'monitoring', 'resolved')),
-  "body" text not null check (length("body") >= 1 and length("body") <= 10000),
+  "status" text not null constraint bsb_incident_updates_status_check check ("status" in ('investigating', 'identified', 'monitoring', 'resolved')),
+  "body" text not null constraint bsb_incident_updates_body_check check (length("body") >= 1 and length("body") <= 10000),
   "public" boolean not null default false,
   "author_id" uuid,
   -- clock_timestamp keeps the timeline in order when one transaction posts
@@ -113,7 +113,7 @@ create table "better_supabase"."incident_impacts" (
   "tenant_id" uuid not null,
   "incident_id" uuid not null,
   "component_id" uuid not null,
-  "impact" text not null check ("impact" in ('maintenance', 'degraded', 'partial_outage', 'major_outage')),
+  "impact" text not null constraint bsb_incident_impacts_impact_check check ("impact" in ('maintenance', 'degraded', 'partial_outage', 'major_outage')),
   primary key ("incident_id", "component_id"),
   foreign key ("tenant_id", "incident_id") references "better_supabase"."incidents" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "component_id") references "better_supabase"."incident_status_components" ("tenant_id", "id") on delete cascade
@@ -133,11 +133,11 @@ create table "better_supabase"."incident_postmortems" (
   "tenant_id" uuid not null,
   "incident_id" uuid not null unique,
   -- The only postmortem field a public incident's status page shows.
-  "summary" text check ("summary" is null or length("summary") <= 4000),
-  "impact" text check ("impact" is null or length("impact") <= 10000),
-  "root_cause" text check ("root_cause" is null or length("root_cause") <= 10000),
-  "resolution" text check ("resolution" is null or length("resolution") <= 10000),
-  "status" text not null default 'draft' check ("status" in ('draft', 'published')),
+  "summary" text constraint bsb_incident_postmortems_summary_check check ("summary" is null or length("summary") <= 4000),
+  "impact" text constraint bsb_incident_postmortems_impact_check check ("impact" is null or length("impact") <= 10000),
+  "root_cause" text constraint bsb_incident_postmortems_root_cause_check check ("root_cause" is null or length("root_cause") <= 10000),
+  "resolution" text constraint bsb_incident_postmortems_resolution_check check ("resolution" is null or length("resolution") <= 10000),
+  "status" text not null default 'draft' constraint bsb_incident_postmortems_status_check check ("status" in ('draft', 'published')),
   "published_at" timestamptz,
   "author_id" uuid,
   "created_at" timestamptz not null default now(),
@@ -158,9 +158,9 @@ create policy bsb_incident_postmortems_read on "better_supabase"."incident_postm
 create table "better_supabase"."incident_status_pages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null unique,
-  "slug" text not null unique check ("slug" ~ '^[a-z0-9][a-z0-9-]{1,62}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 2000),
+  "slug" text not null unique constraint bsb_incident_status_pages_slug_check check ("slug" ~ '^[a-z0-9][a-z0-9-]{1,62}$'),
+  "title" text not null constraint bsb_incident_status_pages_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_incident_status_pages_description_check check ("description" is null or length("description") <= 2000),
   "published" boolean not null default false,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -178,9 +178,9 @@ create policy bsb_incident_status_pages_read on "better_supabase"."incident_stat
 create table "better_supabase"."incident_regulatory_profiles" (
   "incident_id" uuid primary key references "better_supabase"."incidents" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "regimes" text[] not null default '{}' check ("regimes" <@ array['nis2', 'dora', 'cra']),
+  "regimes" text[] not null default '{}' constraint bsb_incident_regulatory_profiles_regimes_check check ("regimes" <@ array['nis2', 'dora', 'cra']),
   "aware_at" timestamptz not null,
-  "classification" text check ("classification" is null or "classification" in ('major', 'non_major')),
+  "classification" text constraint bsb_incident_regulatory_profiles_classification_check check ("classification" is null or "classification" in ('major', 'non_major')),
   "classified_at" timestamptz,
   "significant" boolean not null default false,
   "actively_exploited" boolean not null default false,
@@ -203,14 +203,14 @@ create table "better_supabase"."incident_regulatory_filings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "incident_id" uuid not null references "better_supabase"."incidents" ("id") on delete cascade,
-  "regime" text not null check ("regime" in ('nis2', 'dora', 'cra')),
-  "stage" text not null check ("stage" in ('early_warning', 'notification', 'initial', 'intermediate', 'final')),
+  "regime" text not null constraint bsb_incident_regulatory_filings_regime_check check ("regime" in ('nis2', 'dora', 'cra')),
+  "stage" text not null constraint bsb_incident_regulatory_filings_stage_check check ("stage" in ('early_warning', 'notification', 'initial', 'intermediate', 'final')),
   "due_at" timestamptz,
   "reminder_id" uuid,
   "submitted_at" timestamptz,
   "submitted_by" uuid,
-  "reference" text check ("reference" is null or length("reference") <= 200),
-  "notes" text check ("notes" is null or length("notes") <= 5000),
+  "reference" text constraint bsb_incident_regulatory_filings_reference_check check ("reference" is null or length("reference") <= 200),
+  "notes" text constraint bsb_incident_regulatory_filings_notes_check check ("notes" is null or length("notes") <= 5000),
   "created_at" timestamptz not null default now(),
   unique ("incident_id", "regime", "stage")
 );

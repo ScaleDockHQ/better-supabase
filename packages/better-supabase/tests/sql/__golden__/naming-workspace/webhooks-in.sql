@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:d7147d875869f981a44e9bba3344eef41eaa786641f316d67868725015bf2325
+-- @bsb-hash sha256:cd09c179a91200018732fee15f90d6ba988c1b147ffb494d0c5c8678fa8e637d
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,7 +15,7 @@ create table "better_supabase"."incoming_webhooks" (
   tenant uuid not null,
   name text not null,
   token_hash text not null unique,
-  verify text not null default 'none' check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret')),
+  verify text not null default 'none' constraint bsb_incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret')),
   secret text,
   secret_id uuid,
   previous_secret text,
@@ -23,13 +23,13 @@ create table "better_supabase"."incoming_webhooks" (
   previous_secret_expires_at timestamptz,
   signature_header text,
   enabled boolean not null default true,
-  max_body_bytes integer not null default 1048576 check (max_body_bytes > 0),
+  max_body_bytes integer not null default 1048576 constraint bsb_incoming_webhooks_max_body_bytes_check check (max_body_bytes > 0),
   receive_count bigint not null default 0,
   last_received_at timestamptz,
   last_status integer,
   metadata jsonb not null default '{}',
-  subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200),
+  subject_type text constraint bsb_incoming_webhooks_subject_type_check check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  subject_id text constraint bsb_incoming_webhooks_subject_id_check check (length(subject_id) >= 1 and length(subject_id) <= 200),
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

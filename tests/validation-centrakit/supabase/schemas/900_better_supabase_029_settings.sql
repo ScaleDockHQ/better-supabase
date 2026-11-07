@@ -1,6 +1,6 @@
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:041ed24fc0d1ab28fc9d8d501a7ac60722cb39a13743e2fe74ce392cd24ae759
+-- @bsb-hash sha256:18ca11cf05f3814729df5dfc29bbfeff02123d052ba0b1149a725aa8ca0b50cf
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,7 +9,7 @@
 -- keys with a JSON Schema also get a pg_jsonschema check below.
 create table "better_supabase"."user_settings" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_user_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -36,7 +36,7 @@ create policy bsb_user_settings_own_delete on "better_supabase"."user_settings"
 
 create table "better_supabase"."organization_settings" (
   "organization_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_organization_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -65,7 +65,7 @@ create policy bsb_organization_settings_delete on "better_supabase"."organizatio
 -- rates or feature switches an admin console edits. Each key's permission
 -- (is_platform) guards writes, and its read rule decides who sees it.
 create table "better_supabase"."platform_settings" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text primary key constraint bsb_platform_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now()

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_109_reviews.sql
 -- better-supabase module: reviews
 -- @bsb-block reviews@2 managed
--- @bsb-hash sha256:b7c84a089e69ce8b7b99bb13b48ae8f16d10a0f93bb84927cbcbfd976adb1741
+-- @bsb-hash sha256:849e49fbff0854e0f742f652b63e99de5cfa4305cb30bb5f1e8d671ba912c3bf
 -- Ratings and reviews of catalog products and other subjects: one per user and subject, verified against paid orders, moderated before or after publishing through the moderation block, with a per-subject aggregate public storefronts can read.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,17 +9,17 @@
 create table "better_supabase"."reviews" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text not null constraint bsb_reviews_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_reviews_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "author_id" uuid references auth.users (id) on delete cascade,
-  "author_name" text check ("author_name" is null or length("author_name") <= 100),
-  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
-  "title" text check ("title" is null or length("title") <= 200),
-  "body" text check ("body" is null or length("body") <= 5000),
-  "status" text not null default 'pending' check ("status" in ('pending', 'published', 'rejected')),
+  "author_name" text constraint bsb_reviews_author_name_check check ("author_name" is null or length("author_name") <= 100),
+  "rating" smallint not null constraint bsb_reviews_rating_check check ("rating" >= 1 and "rating" <= 5),
+  "title" text constraint bsb_reviews_title_check check ("title" is null or length("title") <= 200),
+  "body" text constraint bsb_reviews_body_check check ("body" is null or length("body") <= 5000),
+  "status" text not null default 'pending' constraint bsb_reviews_status_check check ("status" in ('pending', 'published', 'rejected')),
   "verified" boolean not null default false,
-  "rejection_reason" text check ("rejection_reason" is null or length("rejection_reason") <= 1000),
-  "reply" text check ("reply" is null or length("reply") <= 5000),
+  "rejection_reason" text constraint bsb_reviews_rejection_reason_check check ("rejection_reason" is null or length("rejection_reason") <= 1000),
+  "reply" text constraint bsb_reviews_reply_check check ("reply" is null or length("reply") <= 5000),
   "replied_by" uuid,
   "replied_at" timestamptz,
   "published_at" timestamptz,

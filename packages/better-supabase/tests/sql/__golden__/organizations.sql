@@ -1,14 +1,14 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:505cda420102ab61ccc32996df4536bb3caffc60e6ebc7ae6b471dcf82f44a7c
+-- @bsb-hash sha256:2afd7174c8c0341a44ef182c1560a5189d64f31ef590e794aad53b130d0274c1
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create table "better_supabase"."organizations" (
   "id" uuid primary key default gen_random_uuid(),
-  "name" text not null check (length(btrim("name")) > 0),
+  "name" text not null constraint bsb_organizations_name_check check (length(btrim("name")) > 0),
   "slug" text not null,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -731,14 +731,14 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:df2247a781161a1184dac148d4ca8ba343fa175438dab8070a2ae9032591911a
+-- @bsb-hash sha256:15435c6d2cdba467e877ee76565195739142d71d41499603352b6dab1159c4c8
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create table "better_supabase"."organizations" (
   "id" uuid primary key default gen_random_uuid(),
-  "name" text not null check (length(btrim("name")) > 0),
+  "name" text not null constraint bsb_organizations_name_check check (length(btrim("name")) > 0),
   "slug" text not null,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -1570,7 +1570,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:e2816ac5f07e3fb4b5a93e2a8bf46050c480c354d06609372afb7ac21b6132f3
+-- @bsb-hash sha256:90c965c3348163c382feb80016659e03696c6edeb154cf859ac4ec62127f1cac
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1583,7 +1583,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 
 create table "app_private"."organizations" (
   "id" uuid primary key default gen_random_uuid(),
-  "name" text not null check (length(btrim("name")) > 0),
+  "name" text not null constraint bsb_organizations_name_check check (length(btrim("name")) > 0),
   "slug" text not null,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -2306,14 +2306,14 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:de95c9cd9f9a3a023d0fdda629a80b52ca25e861effebc970b792ad8186b63bc
+-- @bsb-hash sha256:2e52ae454d3bc1175fb32e8271b6ed7f632ebd3b5049543d4e38cabec2998b9b
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create table "better_supabase"."organizations" (
   "id" uuid primary key default gen_random_uuid(),
-  "name" text not null check (length(btrim("name")) > 0),
+  "name" text not null constraint bsb_organizations_name_check check (length(btrim("name")) > 0),
   "slug" text not null,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -3188,14 +3188,14 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:1703cb2017f3ed9daf49353505a8aee4dc6618d547d4f692eeb137f1995c4e29
+-- @bsb-hash sha256:7b9a5de1f2372fc193f367a55127d3710929c812a84f07099961d8325ba7c580
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- better_supabase.organizations is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."organizations" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."organizations" add column if not exists "name" text check (length(btrim("name")) > 0);
+alter table "better_supabase"."organizations" add column if not exists "name" text constraint bsb_organizations_name_check check (length(btrim("name")) > 0);
 alter table "better_supabase"."organizations" add column if not exists "slug" text;
 alter table "better_supabase"."organizations" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."organizations" add column if not exists "created_at" timestamptz not null default now();

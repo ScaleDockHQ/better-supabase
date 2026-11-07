@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:6068693f7f0ca08a09a10c3b4fbba0000b1f0c100fefb71ed76c8790fc3c5d8a
+-- @bsb-hash sha256:920807ec2638dc6419ed69beaccb86632a17a66e5665b35a346413cea5103782
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,12 +14,12 @@ create table "better_supabase"."care_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The client the plan is for: any registered subject type.
-  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 63),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "status" text not null default 'draft' check ("status" in ('draft', 'active', 'archived')),
+  "subject_type" text not null constraint bsb_care_plans_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 63),
+  "subject_id" text not null constraint bsb_care_plans_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "title" text not null constraint bsb_care_plans_title_check check (length("title") >= 1 and length("title") <= 300),
+  "status" text not null default 'draft' constraint bsb_care_plans_status_check check ("status" in ('draft', 'active', 'archived')),
   -- 1 for a subject's first plan, one more for each plan after it.
-  "version" integer not null default 1 check ("version" >= 1),
+  "version" integer not null default 1 constraint bsb_care_plans_version_check check ("version" >= 1),
   "starts_on" date,
   "review_on" date,
   "owner_id" uuid,
@@ -36,8 +36,8 @@ create table "better_supabase"."care_plans" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("status" = 'draft' or "published_at" is not null),
-  check ("status" <> 'archived' or "archived_at" is not null)
+  constraint bsb_care_plans_check check ("status" = 'draft' or "published_at" is not null),
+  constraint bsb_care_plans_check1 check ("status" <> 'archived' or "archived_at" is not null)
 );
 create unique index "care_plans_active_key" on "better_supabase"."care_plans" ("subject_type", "subject_id") where "status" = 'active';
 create index "care_plans_subject_idx" on "better_supabase"."care_plans" ("tenant_id", "subject_type", "subject_id", "version" desc);
@@ -57,12 +57,12 @@ create table "better_supabase"."care_plan_problems" (
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   -- One of options.codeSystems, such as icnp or snomed; the functions check it.
-  "code_system" text not null default 'custom' check (length("code_system") >= 1 and length("code_system") <= 63),
-  "code" text check ("code" is null or length("code") <= 100),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "description" text check ("description" is null or length("description") <= 10000),
-  "status" text not null default 'active' check ("status" in ('active', 'resolved')),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "code_system" text not null default 'custom' constraint bsb_care_plan_problems_code_system_check check (length("code_system") >= 1 and length("code_system") <= 63),
+  "code" text constraint bsb_care_plan_problems_code_check check ("code" is null or length("code") <= 100),
+  "title" text not null constraint bsb_care_plan_problems_title_check check (length("title") >= 1 and length("title") <= 300),
+  "description" text constraint bsb_care_plan_problems_description_check check ("description" is null or length("description") <= 10000),
+  "status" text not null default 'active' constraint bsb_care_plan_problems_status_check check ("status" in ('active', 'resolved')),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_problems_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "plan_id", "id"),
@@ -82,12 +82,12 @@ create table "better_supabase"."care_plan_goals" (
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   "problem_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
+  "title" text not null constraint bsb_care_plan_goals_title_check check (length("title") >= 1 and length("title") <= 300),
   "target_on" date,
-  "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
+  "status" text not null default 'planned' constraint bsb_care_plan_goals_status_check check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
   -- How progress is measured, such as { "kind": "score", "target": 3 }.
-  "measure" jsonb check ("measure" is null or jsonb_typeof("measure") = 'object'),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "measure" jsonb constraint bsb_care_plan_goals_measure_check check ("measure" is null or jsonb_typeof("measure") = 'object'),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_goals_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "plan_id", "id"),
@@ -107,15 +107,15 @@ create table "better_supabase"."care_plan_actions" (
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   "goal_id" uuid not null,
-  "kind" text not null default 'intervention' check ("kind" in ('intervention', 'appointment', 'task', 'measure')),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "instructions" text check ("instructions" is null or length("instructions") <= 10000),
+  "kind" text not null default 'intervention' constraint bsb_care_plan_actions_kind_check check ("kind" in ('intervention', 'appointment', 'task', 'measure')),
+  "title" text not null constraint bsb_care_plan_actions_title_check check (length("title") >= 1 and length("title") <= 300),
+  "instructions" text constraint bsb_care_plan_actions_instructions_check check ("instructions" is null or length("instructions") <= 10000),
   -- How often, such as { "every": "P1D", "times": ["08:00", "20:00"] }.
-  "frequency" jsonb check ("frequency" is null or jsonb_typeof("frequency") = 'object'),
+  "frequency" jsonb constraint bsb_care_plan_actions_frequency_check check ("frequency" is null or jsonb_typeof("frequency") = 'object'),
   -- The team role that carries the action out, such as nurse.
-  "team_role" text check ("team_role" is null or length("team_role") <= 63),
+  "team_role" text constraint bsb_care_plan_actions_team_role_check check ("team_role" is null or length("team_role") <= 63),
   -- For a measure: one of options.measureKinds when it lists any.
-  "measure_kind" text check ("measure_kind" is null or length("measure_kind") <= 63),
+  "measure_kind" text constraint bsb_care_plan_actions_measure_kind_check check ("measure_kind" is null or length("measure_kind") <= 63),
   -- The work item a task action created, with the tasks block.
   "task_id" uuid,
   -- The bookings series an appointment action placed.
@@ -123,21 +123,21 @@ create table "better_supabase"."care_plan_actions" (
   -- A measure always needs an approval before it starts.
   "requires_approval" boolean not null default false,
   "approval_id" uuid,
-  "review_every" interval check ("review_every" is null or "review_every" > interval '0'),
+  "review_every" interval constraint bsb_care_plan_actions_review_every_check check ("review_every" is null or "review_every" > interval '0'),
   "reviewed_at" timestamptz,
   -- The review moment due_care_plan_reviews last reported.
   "review_notified_at" timestamptz,
   "starts_on" date,
   "ends_on" date,
-  "status" text not null default 'planned' check ("status" in ('planned', 'active', 'ended')),
+  "status" text not null default 'planned' constraint bsb_care_plan_actions_status_check check ("status" in ('planned', 'active', 'ended')),
   "started_at" timestamptz,
   "ended_at" timestamptz,
-  "end_reason" text check ("end_reason" is null or length("end_reason") <= 2000),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "end_reason" text constraint bsb_care_plan_actions_end_reason_check check ("end_reason" is null or length("end_reason") <= 2000),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_actions_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("kind" <> 'measure' or "requires_approval"),
-  check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_care_plan_actions_check check ("kind" <> 'measure' or "requires_approval"),
+  constraint bsb_care_plan_actions_check1 check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
   foreign key ("tenant_id", "plan_id", "goal_id") references "better_supabase"."care_plan_goals" ("tenant_id", "plan_id", "id") on delete cascade
 );
 create index "care_plan_actions_goal_idx" on "better_supabase"."care_plan_actions" ("tenant_id", "plan_id", "goal_id");
@@ -159,8 +159,8 @@ create table "better_supabase"."care_plan_evaluations" (
   "goal_id" uuid not null,
   "evaluated_at" timestamptz not null default now(),
   -- The goal's status the evaluation found.
-  "status" text not null check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
-  "outcome" text check ("outcome" is null or length("outcome") <= 10000),
+  "status" text not null constraint bsb_care_plan_evaluations_status_check check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
+  "outcome" text constraint bsb_care_plan_evaluations_outcome_check check ("outcome" is null or length("outcome") <= 10000),
   -- The forms submission that recorded the evaluation, if one did.
   "submission_id" uuid,
   "author_id" uuid,
@@ -1494,7 +1494,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:e2509aa7b9786b6ed9e427eb3a7482d7a63049af3b3681f2d5aa0265f14abfba
+-- @bsb-hash sha256:f8d6e5d9bc1d019b0504a2fddd38dbcd97ed7ef8e241be95ac8d759876508e3c
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1507,12 +1507,12 @@ create table "better_supabase"."care_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The client the plan is for: any registered subject type.
-  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 63),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "status" text not null default 'draft' check ("status" in ('draft', 'active', 'archived')),
+  "subject_type" text not null constraint bsb_care_plans_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 63),
+  "subject_id" text not null constraint bsb_care_plans_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "title" text not null constraint bsb_care_plans_title_check check (length("title") >= 1 and length("title") <= 300),
+  "status" text not null default 'draft' constraint bsb_care_plans_status_check check ("status" in ('draft', 'active', 'archived')),
   -- 1 for a subject's first plan, one more for each plan after it.
-  "version" integer not null default 1 check ("version" >= 1),
+  "version" integer not null default 1 constraint bsb_care_plans_version_check check ("version" >= 1),
   "starts_on" date,
   "review_on" date,
   "owner_id" uuid,
@@ -1529,8 +1529,8 @@ create table "better_supabase"."care_plans" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("status" = 'draft' or "published_at" is not null),
-  check ("status" <> 'archived' or "archived_at" is not null)
+  constraint bsb_care_plans_check check ("status" = 'draft' or "published_at" is not null),
+  constraint bsb_care_plans_check1 check ("status" <> 'archived' or "archived_at" is not null)
 );
 create unique index "care_plans_active_key" on "better_supabase"."care_plans" ("subject_type", "subject_id") where "status" = 'active';
 create index "care_plans_subject_idx" on "better_supabase"."care_plans" ("tenant_id", "subject_type", "subject_id", "version" desc);
@@ -1550,12 +1550,12 @@ create table "better_supabase"."care_plan_problems" (
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   -- One of options.codeSystems, such as icnp or snomed; the functions check it.
-  "code_system" text not null default 'custom' check (length("code_system") >= 1 and length("code_system") <= 63),
-  "code" text check ("code" is null or length("code") <= 100),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "description" text check ("description" is null or length("description") <= 10000),
-  "status" text not null default 'active' check ("status" in ('active', 'resolved')),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "code_system" text not null default 'custom' constraint bsb_care_plan_problems_code_system_check check (length("code_system") >= 1 and length("code_system") <= 63),
+  "code" text constraint bsb_care_plan_problems_code_check check ("code" is null or length("code") <= 100),
+  "title" text not null constraint bsb_care_plan_problems_title_check check (length("title") >= 1 and length("title") <= 300),
+  "description" text constraint bsb_care_plan_problems_description_check check ("description" is null or length("description") <= 10000),
+  "status" text not null default 'active' constraint bsb_care_plan_problems_status_check check ("status" in ('active', 'resolved')),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_problems_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "plan_id", "id"),
@@ -1575,12 +1575,12 @@ create table "better_supabase"."care_plan_goals" (
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   "problem_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
+  "title" text not null constraint bsb_care_plan_goals_title_check check (length("title") >= 1 and length("title") <= 300),
   "target_on" date,
-  "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
+  "status" text not null default 'planned' constraint bsb_care_plan_goals_status_check check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
   -- How progress is measured, such as { "kind": "score", "target": 3 }.
-  "measure" jsonb check ("measure" is null or jsonb_typeof("measure") = 'object'),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "measure" jsonb constraint bsb_care_plan_goals_measure_check check ("measure" is null or jsonb_typeof("measure") = 'object'),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_goals_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "plan_id", "id"),
@@ -1600,15 +1600,15 @@ create table "better_supabase"."care_plan_actions" (
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   "goal_id" uuid not null,
-  "kind" text not null default 'intervention' check ("kind" in ('intervention', 'appointment', 'task', 'measure')),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "instructions" text check ("instructions" is null or length("instructions") <= 10000),
+  "kind" text not null default 'intervention' constraint bsb_care_plan_actions_kind_check check ("kind" in ('intervention', 'appointment', 'task', 'measure')),
+  "title" text not null constraint bsb_care_plan_actions_title_check check (length("title") >= 1 and length("title") <= 300),
+  "instructions" text constraint bsb_care_plan_actions_instructions_check check ("instructions" is null or length("instructions") <= 10000),
   -- How often, such as { "every": "P1D", "times": ["08:00", "20:00"] }.
-  "frequency" jsonb check ("frequency" is null or jsonb_typeof("frequency") = 'object'),
+  "frequency" jsonb constraint bsb_care_plan_actions_frequency_check check ("frequency" is null or jsonb_typeof("frequency") = 'object'),
   -- The team role that carries the action out, such as nurse.
-  "team_role" text check ("team_role" is null or length("team_role") <= 63),
+  "team_role" text constraint bsb_care_plan_actions_team_role_check check ("team_role" is null or length("team_role") <= 63),
   -- For a measure: one of options.measureKinds when it lists any.
-  "measure_kind" text check ("measure_kind" is null or length("measure_kind") <= 63),
+  "measure_kind" text constraint bsb_care_plan_actions_measure_kind_check check ("measure_kind" is null or length("measure_kind") <= 63),
   -- The work item a task action created, with the tasks block.
   "task_id" uuid,
   -- The bookings series an appointment action placed.
@@ -1616,21 +1616,21 @@ create table "better_supabase"."care_plan_actions" (
   -- A measure always needs an approval before it starts.
   "requires_approval" boolean not null default false,
   "approval_id" uuid,
-  "review_every" interval check ("review_every" is null or "review_every" > interval '0'),
+  "review_every" interval constraint bsb_care_plan_actions_review_every_check check ("review_every" is null or "review_every" > interval '0'),
   "reviewed_at" timestamptz,
   -- The review moment due_care_plan_reviews last reported.
   "review_notified_at" timestamptz,
   "starts_on" date,
   "ends_on" date,
-  "status" text not null default 'planned' check ("status" in ('planned', 'active', 'ended')),
+  "status" text not null default 'planned' constraint bsb_care_plan_actions_status_check check ("status" in ('planned', 'active', 'ended')),
   "started_at" timestamptz,
   "ended_at" timestamptz,
-  "end_reason" text check ("end_reason" is null or length("end_reason") <= 2000),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "end_reason" text constraint bsb_care_plan_actions_end_reason_check check ("end_reason" is null or length("end_reason") <= 2000),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_actions_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("kind" <> 'measure' or "requires_approval"),
-  check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_care_plan_actions_check check ("kind" <> 'measure' or "requires_approval"),
+  constraint bsb_care_plan_actions_check1 check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
   foreign key ("tenant_id", "plan_id", "goal_id") references "better_supabase"."care_plan_goals" ("tenant_id", "plan_id", "id") on delete cascade
 );
 create index "care_plan_actions_goal_idx" on "better_supabase"."care_plan_actions" ("tenant_id", "plan_id", "goal_id");
@@ -1652,8 +1652,8 @@ create table "better_supabase"."care_plan_evaluations" (
   "goal_id" uuid not null,
   "evaluated_at" timestamptz not null default now(),
   -- The goal's status the evaluation found.
-  "status" text not null check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
-  "outcome" text check ("outcome" is null or length("outcome") <= 10000),
+  "status" text not null constraint bsb_care_plan_evaluations_status_check check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
+  "outcome" text constraint bsb_care_plan_evaluations_outcome_check check ("outcome" is null or length("outcome") <= 10000),
   -- The forms submission that recorded the evaluation, if one did.
   "submission_id" uuid,
   "author_id" uuid,
@@ -3285,7 +3285,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:2bf48c3914678c5a04f2bf8b6a2fe8e39104b121a71385158525c38bedcddf8e
+-- @bsb-hash sha256:5dd361f1816baf21b6462bd4a92d81f0c86e06a15ab10123241e21544569760c
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3303,12 +3303,12 @@ create table "app_private"."care_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The client the plan is for: any registered subject type.
-  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 63),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "status" text not null default 'draft' check ("status" in ('draft', 'active', 'archived')),
+  "subject_type" text not null constraint bsb_care_plans_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 63),
+  "subject_id" text not null constraint bsb_care_plans_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "title" text not null constraint bsb_care_plans_title_check check (length("title") >= 1 and length("title") <= 300),
+  "status" text not null default 'draft' constraint bsb_care_plans_status_check check ("status" in ('draft', 'active', 'archived')),
   -- 1 for a subject's first plan, one more for each plan after it.
-  "version" integer not null default 1 check ("version" >= 1),
+  "version" integer not null default 1 constraint bsb_care_plans_version_check check ("version" >= 1),
   "starts_on" date,
   "review_on" date,
   "owner_id" uuid,
@@ -3325,8 +3325,8 @@ create table "app_private"."care_plans" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("status" = 'draft' or "published_at" is not null),
-  check ("status" <> 'archived' or "archived_at" is not null)
+  constraint bsb_care_plans_check check ("status" = 'draft' or "published_at" is not null),
+  constraint bsb_care_plans_check1 check ("status" <> 'archived' or "archived_at" is not null)
 );
 create unique index "care_plans_active_key" on "app_private"."care_plans" ("subject_type", "subject_id") where "status" = 'active';
 create index "care_plans_subject_idx" on "app_private"."care_plans" ("tenant_id", "subject_type", "subject_id", "version" desc);
@@ -3346,12 +3346,12 @@ create table "app_private"."care_plan_problems" (
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   -- One of options.codeSystems, such as icnp or snomed; the functions check it.
-  "code_system" text not null default 'custom' check (length("code_system") >= 1 and length("code_system") <= 63),
-  "code" text check ("code" is null or length("code") <= 100),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "description" text check ("description" is null or length("description") <= 10000),
-  "status" text not null default 'active' check ("status" in ('active', 'resolved')),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "code_system" text not null default 'custom' constraint bsb_care_plan_problems_code_system_check check (length("code_system") >= 1 and length("code_system") <= 63),
+  "code" text constraint bsb_care_plan_problems_code_check check ("code" is null or length("code") <= 100),
+  "title" text not null constraint bsb_care_plan_problems_title_check check (length("title") >= 1 and length("title") <= 300),
+  "description" text constraint bsb_care_plan_problems_description_check check ("description" is null or length("description") <= 10000),
+  "status" text not null default 'active' constraint bsb_care_plan_problems_status_check check ("status" in ('active', 'resolved')),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_problems_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "plan_id", "id"),
@@ -3371,12 +3371,12 @@ create table "app_private"."care_plan_goals" (
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   "problem_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
+  "title" text not null constraint bsb_care_plan_goals_title_check check (length("title") >= 1 and length("title") <= 300),
   "target_on" date,
-  "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
+  "status" text not null default 'planned' constraint bsb_care_plan_goals_status_check check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
   -- How progress is measured, such as { "kind": "score", "target": 3 }.
-  "measure" jsonb check ("measure" is null or jsonb_typeof("measure") = 'object'),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "measure" jsonb constraint bsb_care_plan_goals_measure_check check ("measure" is null or jsonb_typeof("measure") = 'object'),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_goals_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "plan_id", "id"),
@@ -3396,15 +3396,15 @@ create table "app_private"."care_plan_actions" (
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   "goal_id" uuid not null,
-  "kind" text not null default 'intervention' check ("kind" in ('intervention', 'appointment', 'task', 'measure')),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "instructions" text check ("instructions" is null or length("instructions") <= 10000),
+  "kind" text not null default 'intervention' constraint bsb_care_plan_actions_kind_check check ("kind" in ('intervention', 'appointment', 'task', 'measure')),
+  "title" text not null constraint bsb_care_plan_actions_title_check check (length("title") >= 1 and length("title") <= 300),
+  "instructions" text constraint bsb_care_plan_actions_instructions_check check ("instructions" is null or length("instructions") <= 10000),
   -- How often, such as { "every": "P1D", "times": ["08:00", "20:00"] }.
-  "frequency" jsonb check ("frequency" is null or jsonb_typeof("frequency") = 'object'),
+  "frequency" jsonb constraint bsb_care_plan_actions_frequency_check check ("frequency" is null or jsonb_typeof("frequency") = 'object'),
   -- The team role that carries the action out, such as nurse.
-  "team_role" text check ("team_role" is null or length("team_role") <= 63),
+  "team_role" text constraint bsb_care_plan_actions_team_role_check check ("team_role" is null or length("team_role") <= 63),
   -- For a measure: one of options.measureKinds when it lists any.
-  "measure_kind" text check ("measure_kind" is null or length("measure_kind") <= 63),
+  "measure_kind" text constraint bsb_care_plan_actions_measure_kind_check check ("measure_kind" is null or length("measure_kind") <= 63),
   -- The work item a task action created, with the tasks block.
   "task_id" uuid,
   -- The bookings series an appointment action placed.
@@ -3412,21 +3412,21 @@ create table "app_private"."care_plan_actions" (
   -- A measure always needs an approval before it starts.
   "requires_approval" boolean not null default false,
   "approval_id" uuid,
-  "review_every" interval check ("review_every" is null or "review_every" > interval '0'),
+  "review_every" interval constraint bsb_care_plan_actions_review_every_check check ("review_every" is null or "review_every" > interval '0'),
   "reviewed_at" timestamptz,
   -- The review moment due_care_plan_reviews last reported.
   "review_notified_at" timestamptz,
   "starts_on" date,
   "ends_on" date,
-  "status" text not null default 'planned' check ("status" in ('planned', 'active', 'ended')),
+  "status" text not null default 'planned' constraint bsb_care_plan_actions_status_check check ("status" in ('planned', 'active', 'ended')),
   "started_at" timestamptz,
   "ended_at" timestamptz,
-  "end_reason" text check ("end_reason" is null or length("end_reason") <= 2000),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "end_reason" text constraint bsb_care_plan_actions_end_reason_check check ("end_reason" is null or length("end_reason") <= 2000),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_actions_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("kind" <> 'measure' or "requires_approval"),
-  check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_care_plan_actions_check check ("kind" <> 'measure' or "requires_approval"),
+  constraint bsb_care_plan_actions_check1 check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
   foreign key ("tenant_id", "plan_id", "goal_id") references "app_private"."care_plan_goals" ("tenant_id", "plan_id", "id") on delete cascade
 );
 create index "care_plan_actions_goal_idx" on "app_private"."care_plan_actions" ("tenant_id", "plan_id", "goal_id");
@@ -3448,8 +3448,8 @@ create table "app_private"."care_plan_evaluations" (
   "goal_id" uuid not null,
   "evaluated_at" timestamptz not null default now(),
   -- The goal's status the evaluation found.
-  "status" text not null check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
-  "outcome" text check ("outcome" is null or length("outcome") <= 10000),
+  "status" text not null constraint bsb_care_plan_evaluations_status_check check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
+  "outcome" text constraint bsb_care_plan_evaluations_outcome_check check ("outcome" is null or length("outcome") <= 10000),
   -- The forms submission that recorded the evaluation, if one did.
   "submission_id" uuid,
   "author_id" uuid,
@@ -4783,7 +4783,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:ababbfe7c49323d979f762ee41b65184edc4251adf68c1331305bb8516c8b857
+-- @bsb-hash sha256:19bddce48150bdab7976f2ffc65117dcf4121904c488873f31b8e59920908f99
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4796,12 +4796,12 @@ create table "better_supabase"."care_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The client the plan is for: any registered subject type.
-  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 63),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "status" text not null default 'draft' check ("status" in ('draft', 'active', 'archived')),
+  "subject_type" text not null constraint bsb_care_plans_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 63),
+  "subject_id" text not null constraint bsb_care_plans_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "title" text not null constraint bsb_care_plans_title_check check (length("title") >= 1 and length("title") <= 300),
+  "status" text not null default 'draft' constraint bsb_care_plans_status_check check ("status" in ('draft', 'active', 'archived')),
   -- 1 for a subject's first plan, one more for each plan after it.
-  "version" integer not null default 1 check ("version" >= 1),
+  "version" integer not null default 1 constraint bsb_care_plans_version_check check ("version" >= 1),
   "starts_on" date,
   "review_on" date,
   "owner_id" uuid,
@@ -4818,8 +4818,8 @@ create table "better_supabase"."care_plans" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("status" = 'draft' or "published_at" is not null),
-  check ("status" <> 'archived' or "archived_at" is not null)
+  constraint bsb_care_plans_check check ("status" = 'draft' or "published_at" is not null),
+  constraint bsb_care_plans_check1 check ("status" <> 'archived' or "archived_at" is not null)
 );
 create unique index "care_plans_active_key" on "better_supabase"."care_plans" ("subject_type", "subject_id") where "status" = 'active';
 create index "care_plans_subject_idx" on "better_supabase"."care_plans" ("tenant_id", "subject_type", "subject_id", "version" desc);
@@ -4839,12 +4839,12 @@ create table "better_supabase"."care_plan_problems" (
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   -- One of options.codeSystems, such as icnp or snomed; the functions check it.
-  "code_system" text not null default 'custom' check (length("code_system") >= 1 and length("code_system") <= 63),
-  "code" text check ("code" is null or length("code") <= 100),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "description" text check ("description" is null or length("description") <= 10000),
-  "status" text not null default 'active' check ("status" in ('active', 'resolved')),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "code_system" text not null default 'custom' constraint bsb_care_plan_problems_code_system_check check (length("code_system") >= 1 and length("code_system") <= 63),
+  "code" text constraint bsb_care_plan_problems_code_check check ("code" is null or length("code") <= 100),
+  "title" text not null constraint bsb_care_plan_problems_title_check check (length("title") >= 1 and length("title") <= 300),
+  "description" text constraint bsb_care_plan_problems_description_check check ("description" is null or length("description") <= 10000),
+  "status" text not null default 'active' constraint bsb_care_plan_problems_status_check check ("status" in ('active', 'resolved')),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_problems_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "plan_id", "id"),
@@ -4864,12 +4864,12 @@ create table "better_supabase"."care_plan_goals" (
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   "problem_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
+  "title" text not null constraint bsb_care_plan_goals_title_check check (length("title") >= 1 and length("title") <= 300),
   "target_on" date,
-  "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
+  "status" text not null default 'planned' constraint bsb_care_plan_goals_status_check check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
   -- How progress is measured, such as { "kind": "score", "target": 3 }.
-  "measure" jsonb check ("measure" is null or jsonb_typeof("measure") = 'object'),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "measure" jsonb constraint bsb_care_plan_goals_measure_check check ("measure" is null or jsonb_typeof("measure") = 'object'),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_goals_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "plan_id", "id"),
@@ -4889,15 +4889,15 @@ create table "better_supabase"."care_plan_actions" (
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
   "goal_id" uuid not null,
-  "kind" text not null default 'intervention' check ("kind" in ('intervention', 'appointment', 'task', 'measure')),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "instructions" text check ("instructions" is null or length("instructions") <= 10000),
+  "kind" text not null default 'intervention' constraint bsb_care_plan_actions_kind_check check ("kind" in ('intervention', 'appointment', 'task', 'measure')),
+  "title" text not null constraint bsb_care_plan_actions_title_check check (length("title") >= 1 and length("title") <= 300),
+  "instructions" text constraint bsb_care_plan_actions_instructions_check check ("instructions" is null or length("instructions") <= 10000),
   -- How often, such as { "every": "P1D", "times": ["08:00", "20:00"] }.
-  "frequency" jsonb check ("frequency" is null or jsonb_typeof("frequency") = 'object'),
+  "frequency" jsonb constraint bsb_care_plan_actions_frequency_check check ("frequency" is null or jsonb_typeof("frequency") = 'object'),
   -- The team role that carries the action out, such as nurse.
-  "team_role" text check ("team_role" is null or length("team_role") <= 63),
+  "team_role" text constraint bsb_care_plan_actions_team_role_check check ("team_role" is null or length("team_role") <= 63),
   -- For a measure: one of options.measureKinds when it lists any.
-  "measure_kind" text check ("measure_kind" is null or length("measure_kind") <= 63),
+  "measure_kind" text constraint bsb_care_plan_actions_measure_kind_check check ("measure_kind" is null or length("measure_kind") <= 63),
   -- The work item a task action created, with the tasks block.
   "task_id" uuid,
   -- The bookings series an appointment action placed.
@@ -4905,21 +4905,21 @@ create table "better_supabase"."care_plan_actions" (
   -- A measure always needs an approval before it starts.
   "requires_approval" boolean not null default false,
   "approval_id" uuid,
-  "review_every" interval check ("review_every" is null or "review_every" > interval '0'),
+  "review_every" interval constraint bsb_care_plan_actions_review_every_check check ("review_every" is null or "review_every" > interval '0'),
   "reviewed_at" timestamptz,
   -- The review moment due_care_plan_reviews last reported.
   "review_notified_at" timestamptz,
   "starts_on" date,
   "ends_on" date,
-  "status" text not null default 'planned' check ("status" in ('planned', 'active', 'ended')),
+  "status" text not null default 'planned' constraint bsb_care_plan_actions_status_check check ("status" in ('planned', 'active', 'ended')),
   "started_at" timestamptz,
   "ended_at" timestamptz,
-  "end_reason" text check ("end_reason" is null or length("end_reason") <= 2000),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "end_reason" text constraint bsb_care_plan_actions_end_reason_check check ("end_reason" is null or length("end_reason") <= 2000),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_actions_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("kind" <> 'measure' or "requires_approval"),
-  check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_care_plan_actions_check check ("kind" <> 'measure' or "requires_approval"),
+  constraint bsb_care_plan_actions_check1 check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
   foreign key ("tenant_id", "plan_id", "goal_id") references "better_supabase"."care_plan_goals" ("tenant_id", "plan_id", "id") on delete cascade
 );
 create index "care_plan_actions_goal_idx" on "better_supabase"."care_plan_actions" ("tenant_id", "plan_id", "goal_id");
@@ -4941,8 +4941,8 @@ create table "better_supabase"."care_plan_evaluations" (
   "goal_id" uuid not null,
   "evaluated_at" timestamptz not null default now(),
   -- The goal's status the evaluation found.
-  "status" text not null check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
-  "outcome" text check ("outcome" is null or length("outcome") <= 10000),
+  "status" text not null constraint bsb_care_plan_evaluations_status_check check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
+  "outcome" text constraint bsb_care_plan_evaluations_outcome_check check ("outcome" is null or length("outcome") <= 10000),
   -- The forms submission that recorded the evaluation, if one did.
   "submission_id" uuid,
   "author_id" uuid,
@@ -6482,7 +6482,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:655753831292c410df3ac87f721fb685b7639fdff646ee0c3fb65ba694d83376
+-- @bsb-hash sha256:3d0f64497038265247ac3c05ad1552c47054c21aa4581464781f622fd4371056
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6494,11 +6494,11 @@ on conflict (name) do update
 -- better_supabase.care_plans is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."care_plans" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."care_plans" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."care_plans" add column if not exists "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 63);
-alter table "better_supabase"."care_plans" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-alter table "better_supabase"."care_plans" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 300);
-alter table "better_supabase"."care_plans" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'active', 'archived'));
-alter table "better_supabase"."care_plans" add column if not exists "version" integer not null default 1 check ("version" >= 1);
+alter table "better_supabase"."care_plans" add column if not exists "subject_type" text constraint bsb_care_plans_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 63);
+alter table "better_supabase"."care_plans" add column if not exists "subject_id" text constraint bsb_care_plans_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."care_plans" add column if not exists "title" text constraint bsb_care_plans_title_check check (length("title") >= 1 and length("title") <= 300);
+alter table "better_supabase"."care_plans" add column if not exists "status" text not null default 'draft' constraint bsb_care_plans_status_check check ("status" in ('draft', 'active', 'archived'));
+alter table "better_supabase"."care_plans" add column if not exists "version" integer not null default 1 constraint bsb_care_plans_version_check check ("version" >= 1);
 alter table "better_supabase"."care_plans" add column if not exists "starts_on" date;
 alter table "better_supabase"."care_plans" add column if not exists "review_on" date;
 alter table "better_supabase"."care_plans" add column if not exists "owner_id" uuid;
@@ -6529,12 +6529,12 @@ create policy bsb_care_plans_read on "better_supabase"."care_plans"
 alter table "better_supabase"."care_plan_problems" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."care_plan_problems" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."care_plan_problems" add column if not exists "plan_id" uuid;
-alter table "better_supabase"."care_plan_problems" add column if not exists "code_system" text not null default 'custom' check (length("code_system") >= 1 and length("code_system") <= 63);
-alter table "better_supabase"."care_plan_problems" add column if not exists "code" text check ("code" is null or length("code") <= 100);
-alter table "better_supabase"."care_plan_problems" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 300);
-alter table "better_supabase"."care_plan_problems" add column if not exists "description" text check ("description" is null or length("description") <= 10000);
-alter table "better_supabase"."care_plan_problems" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'resolved'));
-alter table "better_supabase"."care_plan_problems" add column if not exists "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$');
+alter table "better_supabase"."care_plan_problems" add column if not exists "code_system" text not null default 'custom' constraint bsb_care_plan_problems_code_system_check check (length("code_system") >= 1 and length("code_system") <= 63);
+alter table "better_supabase"."care_plan_problems" add column if not exists "code" text constraint bsb_care_plan_problems_code_check check ("code" is null or length("code") <= 100);
+alter table "better_supabase"."care_plan_problems" add column if not exists "title" text constraint bsb_care_plan_problems_title_check check (length("title") >= 1 and length("title") <= 300);
+alter table "better_supabase"."care_plan_problems" add column if not exists "description" text constraint bsb_care_plan_problems_description_check check ("description" is null or length("description") <= 10000);
+alter table "better_supabase"."care_plan_problems" add column if not exists "status" text not null default 'active' constraint bsb_care_plan_problems_status_check check ("status" in ('active', 'resolved'));
+alter table "better_supabase"."care_plan_problems" add column if not exists "rank" text collate "C" not null default 'V' constraint bsb_care_plan_problems_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$');
 alter table "better_supabase"."care_plan_problems" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."care_plan_problems" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_care_plan_problems_tenant_plan_id_key" on "better_supabase"."care_plan_problems" ("tenant_id", "plan_id", "id");
@@ -6551,11 +6551,11 @@ alter table "better_supabase"."care_plan_goals" add column if not exists "id" uu
 alter table "better_supabase"."care_plan_goals" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."care_plan_goals" add column if not exists "plan_id" uuid;
 alter table "better_supabase"."care_plan_goals" add column if not exists "problem_id" uuid;
-alter table "better_supabase"."care_plan_goals" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 300);
+alter table "better_supabase"."care_plan_goals" add column if not exists "title" text constraint bsb_care_plan_goals_title_check check (length("title") >= 1 and length("title") <= 300);
 alter table "better_supabase"."care_plan_goals" add column if not exists "target_on" date;
-alter table "better_supabase"."care_plan_goals" add column if not exists "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled'));
-alter table "better_supabase"."care_plan_goals" add column if not exists "measure" jsonb check ("measure" is null or jsonb_typeof("measure") = 'object');
-alter table "better_supabase"."care_plan_goals" add column if not exists "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$');
+alter table "better_supabase"."care_plan_goals" add column if not exists "status" text not null default 'planned' constraint bsb_care_plan_goals_status_check check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled'));
+alter table "better_supabase"."care_plan_goals" add column if not exists "measure" jsonb constraint bsb_care_plan_goals_measure_check check ("measure" is null or jsonb_typeof("measure") = 'object');
+alter table "better_supabase"."care_plan_goals" add column if not exists "rank" text collate "C" not null default 'V' constraint bsb_care_plan_goals_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$');
 alter table "better_supabase"."care_plan_goals" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."care_plan_goals" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_care_plan_goals_tenant_plan_id_key" on "better_supabase"."care_plan_goals" ("tenant_id", "plan_id", "id");
@@ -6572,26 +6572,26 @@ alter table "better_supabase"."care_plan_actions" add column if not exists "id" 
 alter table "better_supabase"."care_plan_actions" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."care_plan_actions" add column if not exists "plan_id" uuid;
 alter table "better_supabase"."care_plan_actions" add column if not exists "goal_id" uuid;
-alter table "better_supabase"."care_plan_actions" add column if not exists "kind" text not null default 'intervention' check ("kind" in ('intervention', 'appointment', 'task', 'measure'));
-alter table "better_supabase"."care_plan_actions" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 300);
-alter table "better_supabase"."care_plan_actions" add column if not exists "instructions" text check ("instructions" is null or length("instructions") <= 10000);
-alter table "better_supabase"."care_plan_actions" add column if not exists "frequency" jsonb check ("frequency" is null or jsonb_typeof("frequency") = 'object');
-alter table "better_supabase"."care_plan_actions" add column if not exists "team_role" text check ("team_role" is null or length("team_role") <= 63);
-alter table "better_supabase"."care_plan_actions" add column if not exists "measure_kind" text check ("measure_kind" is null or length("measure_kind") <= 63);
+alter table "better_supabase"."care_plan_actions" add column if not exists "kind" text not null default 'intervention' constraint bsb_care_plan_actions_kind_check check ("kind" in ('intervention', 'appointment', 'task', 'measure'));
+alter table "better_supabase"."care_plan_actions" add column if not exists "title" text constraint bsb_care_plan_actions_title_check check (length("title") >= 1 and length("title") <= 300);
+alter table "better_supabase"."care_plan_actions" add column if not exists "instructions" text constraint bsb_care_plan_actions_instructions_check check ("instructions" is null or length("instructions") <= 10000);
+alter table "better_supabase"."care_plan_actions" add column if not exists "frequency" jsonb constraint bsb_care_plan_actions_frequency_check check ("frequency" is null or jsonb_typeof("frequency") = 'object');
+alter table "better_supabase"."care_plan_actions" add column if not exists "team_role" text constraint bsb_care_plan_actions_team_role_check check ("team_role" is null or length("team_role") <= 63);
+alter table "better_supabase"."care_plan_actions" add column if not exists "measure_kind" text constraint bsb_care_plan_actions_measure_kind_check check ("measure_kind" is null or length("measure_kind") <= 63);
 alter table "better_supabase"."care_plan_actions" add column if not exists "task_id" uuid;
 alter table "better_supabase"."care_plan_actions" add column if not exists "booking_series_id" uuid;
 alter table "better_supabase"."care_plan_actions" add column if not exists "requires_approval" boolean not null default false;
 alter table "better_supabase"."care_plan_actions" add column if not exists "approval_id" uuid;
-alter table "better_supabase"."care_plan_actions" add column if not exists "review_every" interval check ("review_every" is null or "review_every" > interval '0');
+alter table "better_supabase"."care_plan_actions" add column if not exists "review_every" interval constraint bsb_care_plan_actions_review_every_check check ("review_every" is null or "review_every" > interval '0');
 alter table "better_supabase"."care_plan_actions" add column if not exists "reviewed_at" timestamptz;
 alter table "better_supabase"."care_plan_actions" add column if not exists "review_notified_at" timestamptz;
 alter table "better_supabase"."care_plan_actions" add column if not exists "starts_on" date;
 alter table "better_supabase"."care_plan_actions" add column if not exists "ends_on" date;
-alter table "better_supabase"."care_plan_actions" add column if not exists "status" text not null default 'planned' check ("status" in ('planned', 'active', 'ended'));
+alter table "better_supabase"."care_plan_actions" add column if not exists "status" text not null default 'planned' constraint bsb_care_plan_actions_status_check check ("status" in ('planned', 'active', 'ended'));
 alter table "better_supabase"."care_plan_actions" add column if not exists "started_at" timestamptz;
 alter table "better_supabase"."care_plan_actions" add column if not exists "ended_at" timestamptz;
-alter table "better_supabase"."care_plan_actions" add column if not exists "end_reason" text check ("end_reason" is null or length("end_reason") <= 2000);
-alter table "better_supabase"."care_plan_actions" add column if not exists "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$');
+alter table "better_supabase"."care_plan_actions" add column if not exists "end_reason" text constraint bsb_care_plan_actions_end_reason_check check ("end_reason" is null or length("end_reason") <= 2000);
+alter table "better_supabase"."care_plan_actions" add column if not exists "rank" text collate "C" not null default 'V' constraint bsb_care_plan_actions_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$');
 alter table "better_supabase"."care_plan_actions" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."care_plan_actions" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists "care_plan_actions_goal_idx" on "better_supabase"."care_plan_actions" ("tenant_id", "plan_id", "goal_id");
@@ -6611,8 +6611,8 @@ alter table "better_supabase"."care_plan_evaluations" add column if not exists "
 alter table "better_supabase"."care_plan_evaluations" add column if not exists "plan_id" uuid;
 alter table "better_supabase"."care_plan_evaluations" add column if not exists "goal_id" uuid;
 alter table "better_supabase"."care_plan_evaluations" add column if not exists "evaluated_at" timestamptz not null default now();
-alter table "better_supabase"."care_plan_evaluations" add column if not exists "status" text check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled'));
-alter table "better_supabase"."care_plan_evaluations" add column if not exists "outcome" text check ("outcome" is null or length("outcome") <= 10000);
+alter table "better_supabase"."care_plan_evaluations" add column if not exists "status" text constraint bsb_care_plan_evaluations_status_check check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled'));
+alter table "better_supabase"."care_plan_evaluations" add column if not exists "outcome" text constraint bsb_care_plan_evaluations_outcome_check check ("outcome" is null or length("outcome") <= 10000);
 alter table "better_supabase"."care_plan_evaluations" add column if not exists "submission_id" uuid;
 alter table "better_supabase"."care_plan_evaluations" add column if not exists "author_id" uuid;
 create index if not exists "care_plan_evaluations_goal_idx" on "better_supabase"."care_plan_evaluations" ("tenant_id", "plan_id", "goal_id", "evaluated_at" desc);
@@ -7942,7 +7942,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_151_care_plans.sql
 -- better-supabase module: care-plans
 -- @bsb-block care-plans@1 managed
--- @bsb-hash sha256:2c27d5e925dec2b56518b19e9753b7c260102d5b9bd4e9c656cb6d078d8c2a4f
+-- @bsb-hash sha256:5ecf0966b2e135e3283deb77806b6593df258f8facf0ba83468e9bb49662da3a
 -- Care plans per client: problems with codes from your code systems, goals and the actions that reach them, evaluations over time, one active plan per client published as a version, agreement through a signature, and restrictive measures that start only once approved.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7955,12 +7955,12 @@ create table "better_supabase"."care_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- The client the plan is for: any registered subject type.
-  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 63),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "status" text not null default 'draft' check ("status" in ('draft', 'active', 'archived')),
+  "subject_type" text not null constraint bsb_care_plans_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 63),
+  "subject_id" text not null constraint bsb_care_plans_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "title" text not null constraint bsb_care_plans_title_check check (length("title") >= 1 and length("title") <= 300),
+  "status" text not null default 'draft' constraint bsb_care_plans_status_check check ("status" in ('draft', 'active', 'archived')),
   -- 1 for a subject's first plan, one more for each plan after it.
-  "version" integer not null default 1 check ("version" >= 1),
+  "version" integer not null default 1 constraint bsb_care_plans_version_check check ("version" >= 1),
   "starts_on" date,
   "review_on" date,
   "owner_id" uuid,
@@ -7977,8 +7977,8 @@ create table "better_supabase"."care_plans" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "id"),
-  check ("status" = 'draft' or "published_at" is not null),
-  check ("status" <> 'archived' or "archived_at" is not null)
+  constraint bsb_care_plans_check check ("status" = 'draft' or "published_at" is not null),
+  constraint bsb_care_plans_check1 check ("status" <> 'archived' or "archived_at" is not null)
 );
 create unique index "care_plans_active_key" on "better_supabase"."care_plans" ("subject_type", "subject_id") where "status" = 'active';
 create index "care_plans_subject_idx" on "better_supabase"."care_plans" ("org_id", "subject_type", "subject_id", "version" desc);
@@ -7998,12 +7998,12 @@ create table "better_supabase"."care_plan_problems" (
   "org_id" uuid not null,
   "plan_id" uuid not null,
   -- One of options.codeSystems, such as icnp or snomed; the functions check it.
-  "code_system" text not null default 'custom' check (length("code_system") >= 1 and length("code_system") <= 63),
-  "code" text check ("code" is null or length("code") <= 100),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "description" text check ("description" is null or length("description") <= 10000),
-  "status" text not null default 'active' check ("status" in ('active', 'resolved')),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "code_system" text not null default 'custom' constraint bsb_care_plan_problems_code_system_check check (length("code_system") >= 1 and length("code_system") <= 63),
+  "code" text constraint bsb_care_plan_problems_code_check check ("code" is null or length("code") <= 100),
+  "title" text not null constraint bsb_care_plan_problems_title_check check (length("title") >= 1 and length("title") <= 300),
+  "description" text constraint bsb_care_plan_problems_description_check check ("description" is null or length("description") <= 10000),
+  "status" text not null default 'active' constraint bsb_care_plan_problems_status_check check ("status" in ('active', 'resolved')),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_problems_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "plan_id", "id"),
@@ -8023,12 +8023,12 @@ create table "better_supabase"."care_plan_goals" (
   "org_id" uuid not null,
   "plan_id" uuid not null,
   "problem_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
+  "title" text not null constraint bsb_care_plan_goals_title_check check (length("title") >= 1 and length("title") <= 300),
   "target_on" date,
-  "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
+  "status" text not null default 'planned' constraint bsb_care_plan_goals_status_check check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
   -- How progress is measured, such as { "kind": "score", "target": 3 }.
-  "measure" jsonb check ("measure" is null or jsonb_typeof("measure") = 'object'),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "measure" jsonb constraint bsb_care_plan_goals_measure_check check ("measure" is null or jsonb_typeof("measure") = 'object'),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_goals_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "plan_id", "id"),
@@ -8048,15 +8048,15 @@ create table "better_supabase"."care_plan_actions" (
   "org_id" uuid not null,
   "plan_id" uuid not null,
   "goal_id" uuid not null,
-  "kind" text not null default 'intervention' check ("kind" in ('intervention', 'appointment', 'task', 'measure')),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "instructions" text check ("instructions" is null or length("instructions") <= 10000),
+  "kind" text not null default 'intervention' constraint bsb_care_plan_actions_kind_check check ("kind" in ('intervention', 'appointment', 'task', 'measure')),
+  "title" text not null constraint bsb_care_plan_actions_title_check check (length("title") >= 1 and length("title") <= 300),
+  "instructions" text constraint bsb_care_plan_actions_instructions_check check ("instructions" is null or length("instructions") <= 10000),
   -- How often, such as { "every": "P1D", "times": ["08:00", "20:00"] }.
-  "frequency" jsonb check ("frequency" is null or jsonb_typeof("frequency") = 'object'),
+  "frequency" jsonb constraint bsb_care_plan_actions_frequency_check check ("frequency" is null or jsonb_typeof("frequency") = 'object'),
   -- The team role that carries the action out, such as nurse.
-  "team_role" text check ("team_role" is null or length("team_role") <= 63),
+  "team_role" text constraint bsb_care_plan_actions_team_role_check check ("team_role" is null or length("team_role") <= 63),
   -- For a measure: one of options.measureKinds when it lists any.
-  "measure_kind" text check ("measure_kind" is null or length("measure_kind") <= 63),
+  "measure_kind" text constraint bsb_care_plan_actions_measure_kind_check check ("measure_kind" is null or length("measure_kind") <= 63),
   -- The work item a task action created, with the tasks block.
   "task_id" uuid,
   -- The bookings series an appointment action placed.
@@ -8064,21 +8064,21 @@ create table "better_supabase"."care_plan_actions" (
   -- A measure always needs an approval before it starts.
   "requires_approval" boolean not null default false,
   "approval_id" uuid,
-  "review_every" interval check ("review_every" is null or "review_every" > interval '0'),
+  "review_every" interval constraint bsb_care_plan_actions_review_every_check check ("review_every" is null or "review_every" > interval '0'),
   "reviewed_at" timestamptz,
   -- The review moment due_care_plan_reviews last reported.
   "review_notified_at" timestamptz,
   "starts_on" date,
   "ends_on" date,
-  "status" text not null default 'planned' check ("status" in ('planned', 'active', 'ended')),
+  "status" text not null default 'planned' constraint bsb_care_plan_actions_status_check check ("status" in ('planned', 'active', 'ended')),
   "started_at" timestamptz,
   "ended_at" timestamptz,
-  "end_reason" text check ("end_reason" is null or length("end_reason") <= 2000),
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "end_reason" text constraint bsb_care_plan_actions_end_reason_check check ("end_reason" is null or length("end_reason") <= 2000),
+  "rank" text collate "C" not null default 'V' constraint bsb_care_plan_actions_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("kind" <> 'measure' or "requires_approval"),
-  check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_care_plan_actions_check check ("kind" <> 'measure' or "requires_approval"),
+  constraint bsb_care_plan_actions_check1 check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
   foreign key ("org_id", "plan_id", "goal_id") references "better_supabase"."care_plan_goals" ("org_id", "plan_id", "id") on delete cascade
 );
 create index "care_plan_actions_goal_idx" on "better_supabase"."care_plan_actions" ("org_id", "plan_id", "goal_id");
@@ -8100,8 +8100,8 @@ create table "better_supabase"."care_plan_evaluations" (
   "goal_id" uuid not null,
   "evaluated_at" timestamptz not null default now(),
   -- The goal's status the evaluation found.
-  "status" text not null check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
-  "outcome" text check ("outcome" is null or length("outcome") <= 10000),
+  "status" text not null constraint bsb_care_plan_evaluations_status_check check ("status" in ('planned', 'in_progress', 'achieved', 'not_achieved', 'canceled')),
+  "outcome" text constraint bsb_care_plan_evaluations_outcome_check check ("outcome" is null or length("outcome") <= 10000),
   -- The forms submission that recorded the evaluation, if one did.
   "submission_id" uuid,
   "author_id" uuid,

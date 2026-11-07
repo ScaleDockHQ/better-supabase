@@ -1,6 +1,6 @@
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:b416f0b90455843ed109a488fd8d2609262e8c67a45ae5a79a2a1057c3b94db5
+-- @bsb-hash sha256:7d1e8cc1c6d56ed1ec6947080375e7c34a137227cf8e64d874fa9238c5cec550
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,10 +9,10 @@
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
 create table "better_supabase"."streams" (
-  "id" text primary key check (length("id") >= 1 and length("id") <= 200),
+  "id" text primary key constraint bsb_streams_id_check check (length("id") >= 1 and length("id") <= 200),
   "tenant_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'default' check (length("kind") >= 1 and length("kind") <= 100),
+  "kind" text not null default 'default' constraint bsb_streams_kind_check check (length("kind") >= 1 and length("kind") <= 100),
   "wake" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "closed_at" timestamptz,
@@ -32,7 +32,7 @@ create policy bsb_streams_owner_read on "better_supabase"."streams"
 
 create table "better_supabase"."stream_chunks" (
   "stream_id" text not null references "better_supabase"."streams" ("id") on delete cascade,
-  "idx" integer not null check ("idx" >= 0),
+  "idx" integer not null constraint bsb_stream_chunks_idx_check check ("idx" >= 0),
   "data" bytea not null,
   primary key ("stream_id", "idx")
 );
@@ -52,7 +52,7 @@ create policy bsb_stream_chunks_owner_read on "better_supabase"."stream_chunks"
 -- not an integer makes stream_kv_incr fail with Redis's own error text, which
 -- is how the package learns a stream is DONE. The service role only.
 create table "better_supabase"."stream_kv" (
-  "key" text primary key check (length("key") >= 1 and length("key") <= 400),
+  "key" text primary key constraint bsb_stream_kv_key_check check (length("key") >= 1 and length("key") <= 400),
   "value" text not null,
   "expires_at" timestamptz
 );

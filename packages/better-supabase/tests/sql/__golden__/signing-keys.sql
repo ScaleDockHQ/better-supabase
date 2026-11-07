@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_104_signing_keys.sql
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:e0fe378ee8f97fc22d23bfedeb9d5b648d5ca425182791dbaadfb4b0fb669c48
+-- @bsb-hash sha256:2a29a87cbff3f83ba7963cb85c954473bc437d99a1fcd4d006a6ca22ead0b89f
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,13 +11,13 @@
 -- key stays in the JWKS until publish_until, the latest exp a signer noted.
 create table "better_supabase"."signing_keys" (
   "id" uuid primary key default gen_random_uuid(),
-  "owner_type" text not null check ("owner_type" ~ '^[a-z][a-z0-9_-]{0,39}$'),
-  "owner_id" text not null check (length("owner_id") >= 1 and length("owner_id") <= 200),
-  "kid" text not null unique check (length("kid") >= 1 and length("kid") <= 200),
-  "alg" text not null check ("alg" in ('Ed25519', 'ES256')),
-  "public_jwk" jsonb not null check (not ("public_jwk" ? 'd')),
+  "owner_type" text not null constraint bsb_signing_keys_owner_type_check check ("owner_type" ~ '^[a-z][a-z0-9_-]{0,39}$'),
+  "owner_id" text not null constraint bsb_signing_keys_owner_id_check check (length("owner_id") >= 1 and length("owner_id") <= 200),
+  "kid" text not null unique constraint bsb_signing_keys_kid_check check (length("kid") >= 1 and length("kid") <= 200),
+  "alg" text not null constraint bsb_signing_keys_alg_check check ("alg" in ('Ed25519', 'ES256')),
+  "public_jwk" jsonb not null constraint bsb_signing_keys_public_jwk_check check (not ("public_jwk" ? 'd')),
   "vault_secret_id" uuid not null,
-  "state" text not null default 'active' check ("state" in ('active', 'retired')),
+  "state" text not null default 'active' constraint bsb_signing_keys_state_check check ("state" in ('active', 'retired')),
   "publish_until" timestamptz,
   "created_at" timestamptz not null default now(),
   "retired_at" timestamptz
@@ -247,7 +247,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_104_signing_keys.sql
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:2a8c08fb659956850f492b388ac950eaacf78a268cd0f92930c4059cf2fc25c0
+-- @bsb-hash sha256:256cdb414f8add218c9dc329f89c58a7c141a7d670e64e4f31c184905c41ba9d
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -257,13 +257,13 @@ on conflict (name) do update
 -- key stays in the JWKS until publish_until, the latest exp a signer noted.
 create table "better_supabase"."signing_keys" (
   "id" uuid primary key default gen_random_uuid(),
-  "owner_type" text not null check ("owner_type" ~ '^[a-z][a-z0-9_-]{0,39}$'),
-  "owner_id" text not null check (length("owner_id") >= 1 and length("owner_id") <= 200),
-  "kid" text not null unique check (length("kid") >= 1 and length("kid") <= 200),
-  "alg" text not null check ("alg" in ('Ed25519', 'ES256')),
-  "public_jwk" jsonb not null check (not ("public_jwk" ? 'd')),
+  "owner_type" text not null constraint bsb_signing_keys_owner_type_check check ("owner_type" ~ '^[a-z][a-z0-9_-]{0,39}$'),
+  "owner_id" text not null constraint bsb_signing_keys_owner_id_check check (length("owner_id") >= 1 and length("owner_id") <= 200),
+  "kid" text not null unique constraint bsb_signing_keys_kid_check check (length("kid") >= 1 and length("kid") <= 200),
+  "alg" text not null constraint bsb_signing_keys_alg_check check ("alg" in ('Ed25519', 'ES256')),
+  "public_jwk" jsonb not null constraint bsb_signing_keys_public_jwk_check check (not ("public_jwk" ? 'd')),
   "vault_secret_id" uuid not null,
-  "state" text not null default 'active' check ("state" in ('active', 'retired')),
+  "state" text not null default 'active' constraint bsb_signing_keys_state_check check ("state" in ('active', 'retired')),
   "publish_until" timestamptz,
   "created_at" timestamptz not null default now(),
   "retired_at" timestamptz
@@ -514,7 +514,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_104_signing_keys.sql
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:4d92205b56a39baa1351c8aa7f36163c54c8da587cae891c354bb1dd681dd7af
+-- @bsb-hash sha256:87b29670abf2a06f30d8d7b0529bf1ed87fd2c8df10b2ae1221bb97c0b0b0fbd
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -529,13 +529,13 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- key stays in the JWKS until publish_until, the latest exp a signer noted.
 create table "app_private"."signing_keys" (
   "id" uuid primary key default gen_random_uuid(),
-  "owner_type" text not null check ("owner_type" ~ '^[a-z][a-z0-9_-]{0,39}$'),
-  "owner_id" text not null check (length("owner_id") >= 1 and length("owner_id") <= 200),
-  "kid" text not null unique check (length("kid") >= 1 and length("kid") <= 200),
-  "alg" text not null check ("alg" in ('Ed25519', 'ES256')),
-  "public_jwk" jsonb not null check (not ("public_jwk" ? 'd')),
+  "owner_type" text not null constraint bsb_signing_keys_owner_type_check check ("owner_type" ~ '^[a-z][a-z0-9_-]{0,39}$'),
+  "owner_id" text not null constraint bsb_signing_keys_owner_id_check check (length("owner_id") >= 1 and length("owner_id") <= 200),
+  "kid" text not null unique constraint bsb_signing_keys_kid_check check (length("kid") >= 1 and length("kid") <= 200),
+  "alg" text not null constraint bsb_signing_keys_alg_check check ("alg" in ('Ed25519', 'ES256')),
+  "public_jwk" jsonb not null constraint bsb_signing_keys_public_jwk_check check (not ("public_jwk" ? 'd')),
   "vault_secret_id" uuid not null,
-  "state" text not null default 'active' check ("state" in ('active', 'retired')),
+  "state" text not null default 'active' constraint bsb_signing_keys_state_check check ("state" in ('active', 'retired')),
   "publish_until" timestamptz,
   "created_at" timestamptz not null default now(),
   "retired_at" timestamptz
@@ -765,7 +765,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_104_signing_keys.sql
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:e371324ac28aa00ff7015b0a5b05ce2a428d128f68ff11a6027f3d8b24a7bf07
+-- @bsb-hash sha256:aab5e7c3bc91504d69627e544cd63c3c4bb6efeb14a5b3d0de46faeb9e2eb840
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -775,13 +775,13 @@ on conflict (name) do update
 -- key stays in the JWKS until publish_until, the latest exp a signer noted.
 create table "better_supabase"."signing_keys" (
   "id" uuid primary key default gen_random_uuid(),
-  "owner_type" text not null check ("owner_type" ~ '^[a-z][a-z0-9_-]{0,39}$'),
-  "owner_id" text not null check (length("owner_id") >= 1 and length("owner_id") <= 200),
-  "kid" text not null unique check (length("kid") >= 1 and length("kid") <= 200),
-  "alg" text not null check ("alg" in ('Ed25519', 'ES256')),
-  "public_jwk" jsonb not null check (not ("public_jwk" ? 'd')),
+  "owner_type" text not null constraint bsb_signing_keys_owner_type_check check ("owner_type" ~ '^[a-z][a-z0-9_-]{0,39}$'),
+  "owner_id" text not null constraint bsb_signing_keys_owner_id_check check (length("owner_id") >= 1 and length("owner_id") <= 200),
+  "kid" text not null unique constraint bsb_signing_keys_kid_check check (length("kid") >= 1 and length("kid") <= 200),
+  "alg" text not null constraint bsb_signing_keys_alg_check check ("alg" in ('Ed25519', 'ES256')),
+  "public_jwk" jsonb not null constraint bsb_signing_keys_public_jwk_check check (not ("public_jwk" ? 'd')),
   "vault_secret_id" uuid not null,
-  "state" text not null default 'active' check ("state" in ('active', 'retired')),
+  "state" text not null default 'active' constraint bsb_signing_keys_state_check check ("state" in ('active', 'retired')),
   "publish_until" timestamptz,
   "created_at" timestamptz not null default now(),
   "retired_at" timestamptz
@@ -1080,7 +1080,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_104_signing_keys.sql
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:a6f92611bb65e94df56cffcc3f29a00596c22f7527a55b88cfa4484aba924752
+-- @bsb-hash sha256:7a1a8395fb7fbf4fb5c6a29f0db3ab4fa699c5466d26d61e478f15ffbf713dc4
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1090,13 +1090,13 @@ on conflict (name) do update
 -- key stays in the JWKS until publish_until, the latest exp a signer noted.
 -- better_supabase.signing_keys is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."signing_keys" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."signing_keys" add column if not exists "owner_type" text check ("owner_type" ~ '^[a-z][a-z0-9_-]{0,39}$');
-alter table "better_supabase"."signing_keys" add column if not exists "owner_id" text check (length("owner_id") >= 1 and length("owner_id") <= 200);
-alter table "better_supabase"."signing_keys" add column if not exists "kid" text check (length("kid") >= 1 and length("kid") <= 200);
-alter table "better_supabase"."signing_keys" add column if not exists "alg" text check ("alg" in ('Ed25519', 'ES256'));
-alter table "better_supabase"."signing_keys" add column if not exists "public_jwk" jsonb check (not ("public_jwk" ? 'd'));
+alter table "better_supabase"."signing_keys" add column if not exists "owner_type" text constraint bsb_signing_keys_owner_type_check check ("owner_type" ~ '^[a-z][a-z0-9_-]{0,39}$');
+alter table "better_supabase"."signing_keys" add column if not exists "owner_id" text constraint bsb_signing_keys_owner_id_check check (length("owner_id") >= 1 and length("owner_id") <= 200);
+alter table "better_supabase"."signing_keys" add column if not exists "kid" text constraint bsb_signing_keys_kid_check check (length("kid") >= 1 and length("kid") <= 200);
+alter table "better_supabase"."signing_keys" add column if not exists "alg" text constraint bsb_signing_keys_alg_check check ("alg" in ('Ed25519', 'ES256'));
+alter table "better_supabase"."signing_keys" add column if not exists "public_jwk" jsonb constraint bsb_signing_keys_public_jwk_check check (not ("public_jwk" ? 'd'));
 alter table "better_supabase"."signing_keys" add column if not exists "vault_secret_id" uuid;
-alter table "better_supabase"."signing_keys" add column if not exists "state" text not null default 'active' check ("state" in ('active', 'retired'));
+alter table "better_supabase"."signing_keys" add column if not exists "state" text not null default 'active' constraint bsb_signing_keys_state_check check ("state" in ('active', 'retired'));
 alter table "better_supabase"."signing_keys" add column if not exists "publish_until" timestamptz;
 alter table "better_supabase"."signing_keys" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."signing_keys" add column if not exists "retired_at" timestamptz;

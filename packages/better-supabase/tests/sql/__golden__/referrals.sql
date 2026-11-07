@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:c78d8bdf7176d61feba80ff5a0c114e979a4f2223493ed2641abf251bf0f384a
+-- @bsb-hash sha256:fd7a4eb82cb57d95e2171b9cf9b6f867c0114c948b327bada5c8b0e6a9e64ae4
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,20 +12,20 @@
 create table "better_supabase"."referral_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9]{4,32}$'),
+  "code" text not null constraint bsb_referral_codes_code_check check ("code" ~ '^[A-Z0-9]{4,32}$'),
   "referrer_id" uuid not null,
   -- The invitation the code was made for, so accepting it attributes the referral.
   "invitation_id" uuid,
-  "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
-  "reward_unit" text check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
-  "max_uses" integer check ("max_uses" is null or "max_uses" > 0),
+  "reward_amount" bigint not null default 0 constraint bsb_referral_codes_reward_amount_check check ("reward_amount" >= 0),
+  "reward_unit" text constraint bsb_referral_codes_reward_unit_check check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
+  "max_uses" integer constraint bsb_referral_codes_max_uses_check check ("max_uses" is null or "max_uses" > 0),
   "uses" integer not null default 0,
   "active" boolean not null default true,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
   unique ("tenant_id", "id"),
-  check ("reward_amount" = 0 or "reward_unit" is not null)
+  constraint bsb_referral_codes_check check ("reward_amount" = 0 or "reward_unit" is not null)
 );
 create index referral_codes_referrer_idx on "better_supabase"."referral_codes" ("tenant_id", "referrer_id");
 create unique index referral_codes_invitation_key on "better_supabase"."referral_codes" ("tenant_id", "invitation_id") where "invitation_id" is not null;
@@ -44,10 +44,10 @@ create table "better_supabase"."referrals" (
   "referrer_id" uuid not null,
   "referred_user_id" uuid,
   "referred_organization_id" uuid,
-  "referred_email" text check ("referred_email" is null or length("referred_email") <= 320),
-  "status" text not null default 'attributed' check ("status" in ('attributed', 'qualified', 'rewarded', 'void')),
+  "referred_email" text constraint bsb_referrals_referred_email_check check ("referred_email" is null or length("referred_email") <= 320),
+  "status" text not null default 'attributed' constraint bsb_referrals_status_check check ("status" in ('attributed', 'qualified', 'rewarded', 'void')),
   -- The reward as the code promised it when the referral was attributed.
-  "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
+  "reward_amount" bigint not null default 0 constraint bsb_referrals_reward_amount_check check ("reward_amount" >= 0),
   "reward_unit" text,
   "qualified_at" timestamptz,
   "qualified_by" text,
@@ -55,7 +55,7 @@ create table "better_supabase"."referrals" (
   "ledger_transaction_id" uuid,
   "voided_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
+  constraint bsb_referrals_check check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
   foreign key ("tenant_id", "code_id") references "better_supabase"."referral_codes" ("tenant_id", "id") on delete cascade
 );
 create unique index referrals_user_key on "better_supabase"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;
@@ -392,7 +392,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:5d1a246d4b47c0f6d4d06d3dba8d793534a9c60fdd6488aedaf3c30b569cf2ef
+-- @bsb-hash sha256:f89b14e7a1d21153aeb29d97e640176f50612e9b8f093e359b1f8cb7b73cf6e3
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -403,20 +403,20 @@ on conflict (name) do update
 create table "better_supabase"."referral_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9]{4,32}$'),
+  "code" text not null constraint bsb_referral_codes_code_check check ("code" ~ '^[A-Z0-9]{4,32}$'),
   "referrer_id" uuid not null,
   -- The invitation the code was made for, so accepting it attributes the referral.
   "invitation_id" uuid,
-  "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
-  "reward_unit" text check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
-  "max_uses" integer check ("max_uses" is null or "max_uses" > 0),
+  "reward_amount" bigint not null default 0 constraint bsb_referral_codes_reward_amount_check check ("reward_amount" >= 0),
+  "reward_unit" text constraint bsb_referral_codes_reward_unit_check check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
+  "max_uses" integer constraint bsb_referral_codes_max_uses_check check ("max_uses" is null or "max_uses" > 0),
   "uses" integer not null default 0,
   "active" boolean not null default true,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
   unique ("tenant_id", "id"),
-  check ("reward_amount" = 0 or "reward_unit" is not null)
+  constraint bsb_referral_codes_check check ("reward_amount" = 0 or "reward_unit" is not null)
 );
 create index referral_codes_referrer_idx on "better_supabase"."referral_codes" ("tenant_id", "referrer_id");
 create unique index referral_codes_invitation_key on "better_supabase"."referral_codes" ("tenant_id", "invitation_id") where "invitation_id" is not null;
@@ -435,10 +435,10 @@ create table "better_supabase"."referrals" (
   "referrer_id" uuid not null,
   "referred_user_id" uuid,
   "referred_organization_id" uuid,
-  "referred_email" text check ("referred_email" is null or length("referred_email") <= 320),
-  "status" text not null default 'attributed' check ("status" in ('attributed', 'qualified', 'rewarded', 'void')),
+  "referred_email" text constraint bsb_referrals_referred_email_check check ("referred_email" is null or length("referred_email") <= 320),
+  "status" text not null default 'attributed' constraint bsb_referrals_status_check check ("status" in ('attributed', 'qualified', 'rewarded', 'void')),
   -- The reward as the code promised it when the referral was attributed.
-  "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
+  "reward_amount" bigint not null default 0 constraint bsb_referrals_reward_amount_check check ("reward_amount" >= 0),
   "reward_unit" text,
   "qualified_at" timestamptz,
   "qualified_by" text,
@@ -446,7 +446,7 @@ create table "better_supabase"."referrals" (
   "ledger_transaction_id" uuid,
   "voided_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
+  constraint bsb_referrals_check check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
   foreign key ("tenant_id", "code_id") references "better_supabase"."referral_codes" ("tenant_id", "id") on delete cascade
 );
 create unique index referrals_user_key on "better_supabase"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;
@@ -833,7 +833,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:d99e68eacc9c4de65f0a5eeefcdf125090eb40ab12fecfdaf48376d4fc2f00ce
+-- @bsb-hash sha256:49566f214949e5fe8fffb8b257debcd6f54abbecfc88eab1abddee42b7f8228f
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -849,20 +849,20 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."referral_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9]{4,32}$'),
+  "code" text not null constraint bsb_referral_codes_code_check check ("code" ~ '^[A-Z0-9]{4,32}$'),
   "referrer_id" uuid not null,
   -- The invitation the code was made for, so accepting it attributes the referral.
   "invitation_id" uuid,
-  "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
-  "reward_unit" text check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
-  "max_uses" integer check ("max_uses" is null or "max_uses" > 0),
+  "reward_amount" bigint not null default 0 constraint bsb_referral_codes_reward_amount_check check ("reward_amount" >= 0),
+  "reward_unit" text constraint bsb_referral_codes_reward_unit_check check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
+  "max_uses" integer constraint bsb_referral_codes_max_uses_check check ("max_uses" is null or "max_uses" > 0),
   "uses" integer not null default 0,
   "active" boolean not null default true,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
   unique ("tenant_id", "id"),
-  check ("reward_amount" = 0 or "reward_unit" is not null)
+  constraint bsb_referral_codes_check check ("reward_amount" = 0 or "reward_unit" is not null)
 );
 create index referral_codes_referrer_idx on "app_private"."referral_codes" ("tenant_id", "referrer_id");
 create unique index referral_codes_invitation_key on "app_private"."referral_codes" ("tenant_id", "invitation_id") where "invitation_id" is not null;
@@ -881,10 +881,10 @@ create table "app_private"."referrals" (
   "referrer_id" uuid not null,
   "referred_user_id" uuid,
   "referred_organization_id" uuid,
-  "referred_email" text check ("referred_email" is null or length("referred_email") <= 320),
-  "status" text not null default 'attributed' check ("status" in ('attributed', 'qualified', 'rewarded', 'void')),
+  "referred_email" text constraint bsb_referrals_referred_email_check check ("referred_email" is null or length("referred_email") <= 320),
+  "status" text not null default 'attributed' constraint bsb_referrals_status_check check ("status" in ('attributed', 'qualified', 'rewarded', 'void')),
   -- The reward as the code promised it when the referral was attributed.
-  "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
+  "reward_amount" bigint not null default 0 constraint bsb_referrals_reward_amount_check check ("reward_amount" >= 0),
   "reward_unit" text,
   "qualified_at" timestamptz,
   "qualified_by" text,
@@ -892,7 +892,7 @@ create table "app_private"."referrals" (
   "ledger_transaction_id" uuid,
   "voided_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
+  constraint bsb_referrals_check check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
   foreign key ("tenant_id", "code_id") references "app_private"."referral_codes" ("tenant_id", "id") on delete cascade
 );
 create unique index referrals_user_key on "app_private"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;
@@ -1229,7 +1229,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:af518b4e934f8582ca9f188018e0b797350ff5880daf78306af40270472b2cbc
+-- @bsb-hash sha256:f9b08853ab31a2c32c39ecc04bc88006826c0cd4cfa9e0d54fb10e468eb87337
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1240,20 +1240,20 @@ on conflict (name) do update
 create table "better_supabase"."referral_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9]{4,32}$'),
+  "code" text not null constraint bsb_referral_codes_code_check check ("code" ~ '^[A-Z0-9]{4,32}$'),
   "referrer_id" uuid not null,
   -- The invitation the code was made for, so accepting it attributes the referral.
   "invitation_id" uuid,
-  "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
-  "reward_unit" text check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
-  "max_uses" integer check ("max_uses" is null or "max_uses" > 0),
+  "reward_amount" bigint not null default 0 constraint bsb_referral_codes_reward_amount_check check ("reward_amount" >= 0),
+  "reward_unit" text constraint bsb_referral_codes_reward_unit_check check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
+  "max_uses" integer constraint bsb_referral_codes_max_uses_check check ("max_uses" is null or "max_uses" > 0),
   "uses" integer not null default 0,
   "active" boolean not null default true,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
   unique ("tenant_id", "id"),
-  check ("reward_amount" = 0 or "reward_unit" is not null)
+  constraint bsb_referral_codes_check check ("reward_amount" = 0 or "reward_unit" is not null)
 );
 create index referral_codes_referrer_idx on "better_supabase"."referral_codes" ("tenant_id", "referrer_id");
 create unique index referral_codes_invitation_key on "better_supabase"."referral_codes" ("tenant_id", "invitation_id") where "invitation_id" is not null;
@@ -1272,10 +1272,10 @@ create table "better_supabase"."referrals" (
   "referrer_id" uuid not null,
   "referred_user_id" uuid,
   "referred_organization_id" uuid,
-  "referred_email" text check ("referred_email" is null or length("referred_email") <= 320),
-  "status" text not null default 'attributed' check ("status" in ('attributed', 'qualified', 'rewarded', 'void')),
+  "referred_email" text constraint bsb_referrals_referred_email_check check ("referred_email" is null or length("referred_email") <= 320),
+  "status" text not null default 'attributed' constraint bsb_referrals_status_check check ("status" in ('attributed', 'qualified', 'rewarded', 'void')),
   -- The reward as the code promised it when the referral was attributed.
-  "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
+  "reward_amount" bigint not null default 0 constraint bsb_referrals_reward_amount_check check ("reward_amount" >= 0),
   "reward_unit" text,
   "qualified_at" timestamptz,
   "qualified_by" text,
@@ -1283,7 +1283,7 @@ create table "better_supabase"."referrals" (
   "ledger_transaction_id" uuid,
   "voided_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
+  constraint bsb_referrals_check check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
   foreign key ("tenant_id", "code_id") references "better_supabase"."referral_codes" ("tenant_id", "id") on delete cascade
 );
 create unique index referrals_user_key on "better_supabase"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;
@@ -1689,7 +1689,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:6606ba04ddb5c063ead3f972a4de17428bfd9d5949697d3b7ffc4bca6ef94a1a
+-- @bsb-hash sha256:e34fb7e167e9e53e42e6a9a627058c0581898c18b93b8b6ef63f360519575349
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1700,12 +1700,12 @@ on conflict (name) do update
 -- better_supabase.referral_codes is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."referral_codes" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."referral_codes" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."referral_codes" add column if not exists "code" text check ("code" ~ '^[A-Z0-9]{4,32}$');
+alter table "better_supabase"."referral_codes" add column if not exists "code" text constraint bsb_referral_codes_code_check check ("code" ~ '^[A-Z0-9]{4,32}$');
 alter table "better_supabase"."referral_codes" add column if not exists "referrer_id" uuid;
 alter table "better_supabase"."referral_codes" add column if not exists "invitation_id" uuid;
-alter table "better_supabase"."referral_codes" add column if not exists "reward_amount" bigint not null default 0 check ("reward_amount" >= 0);
-alter table "better_supabase"."referral_codes" add column if not exists "reward_unit" text check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32);
-alter table "better_supabase"."referral_codes" add column if not exists "max_uses" integer check ("max_uses" is null or "max_uses" > 0);
+alter table "better_supabase"."referral_codes" add column if not exists "reward_amount" bigint not null default 0 constraint bsb_referral_codes_reward_amount_check check ("reward_amount" >= 0);
+alter table "better_supabase"."referral_codes" add column if not exists "reward_unit" text constraint bsb_referral_codes_reward_unit_check check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32);
+alter table "better_supabase"."referral_codes" add column if not exists "max_uses" integer constraint bsb_referral_codes_max_uses_check check ("max_uses" is null or "max_uses" > 0);
 alter table "better_supabase"."referral_codes" add column if not exists "uses" integer not null default 0;
 alter table "better_supabase"."referral_codes" add column if not exists "active" boolean not null default true;
 alter table "better_supabase"."referral_codes" add column if not exists "expires_at" timestamptz;
@@ -1726,9 +1726,9 @@ alter table "better_supabase"."referrals" add column if not exists "code_id" uui
 alter table "better_supabase"."referrals" add column if not exists "referrer_id" uuid;
 alter table "better_supabase"."referrals" add column if not exists "referred_user_id" uuid;
 alter table "better_supabase"."referrals" add column if not exists "referred_organization_id" uuid;
-alter table "better_supabase"."referrals" add column if not exists "referred_email" text check ("referred_email" is null or length("referred_email") <= 320);
-alter table "better_supabase"."referrals" add column if not exists "status" text not null default 'attributed' check ("status" in ('attributed', 'qualified', 'rewarded', 'void'));
-alter table "better_supabase"."referrals" add column if not exists "reward_amount" bigint not null default 0 check ("reward_amount" >= 0);
+alter table "better_supabase"."referrals" add column if not exists "referred_email" text constraint bsb_referrals_referred_email_check check ("referred_email" is null or length("referred_email") <= 320);
+alter table "better_supabase"."referrals" add column if not exists "status" text not null default 'attributed' constraint bsb_referrals_status_check check ("status" in ('attributed', 'qualified', 'rewarded', 'void'));
+alter table "better_supabase"."referrals" add column if not exists "reward_amount" bigint not null default 0 constraint bsb_referrals_reward_amount_check check ("reward_amount" >= 0);
 alter table "better_supabase"."referrals" add column if not exists "reward_unit" text;
 alter table "better_supabase"."referrals" add column if not exists "qualified_at" timestamptz;
 alter table "better_supabase"."referrals" add column if not exists "qualified_by" text;
@@ -2069,7 +2069,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_173_referrals.sql
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:799832674b251090664b81fca44c149709ef9477185dc3f2932aa3d672996a94
+-- @bsb-hash sha256:d1a41b57c9ba90135409caa90db65f7f61f4e64c5dd57f7f9deab66995a7357d
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2080,20 +2080,20 @@ on conflict (name) do update
 create table "better_supabase"."referral_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9]{4,32}$'),
+  "code" text not null constraint bsb_referral_codes_code_check check ("code" ~ '^[A-Z0-9]{4,32}$'),
   "referrer_id" uuid not null,
   -- The invitation the code was made for, so accepting it attributes the referral.
   "invitation_id" uuid,
-  "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
-  "reward_unit" text check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
-  "max_uses" integer check ("max_uses" is null or "max_uses" > 0),
+  "reward_amount" bigint not null default 0 constraint bsb_referral_codes_reward_amount_check check ("reward_amount" >= 0),
+  "reward_unit" text constraint bsb_referral_codes_reward_unit_check check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
+  "max_uses" integer constraint bsb_referral_codes_max_uses_check check ("max_uses" is null or "max_uses" > 0),
   "uses" integer not null default 0,
   "active" boolean not null default true,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("org_id", "code"),
   unique ("org_id", "id"),
-  check ("reward_amount" = 0 or "reward_unit" is not null)
+  constraint bsb_referral_codes_check check ("reward_amount" = 0 or "reward_unit" is not null)
 );
 create index referral_codes_referrer_idx on "better_supabase"."referral_codes" ("org_id", "referrer_id");
 create unique index referral_codes_invitation_key on "better_supabase"."referral_codes" ("org_id", "invitation_id") where "invitation_id" is not null;
@@ -2112,10 +2112,10 @@ create table "better_supabase"."referrals" (
   "referrer_id" uuid not null,
   "referred_user_id" uuid,
   "referred_organization_id" uuid,
-  "referred_email" text check ("referred_email" is null or length("referred_email") <= 320),
-  "status" text not null default 'attributed' check ("status" in ('attributed', 'qualified', 'rewarded', 'void')),
+  "referred_email" text constraint bsb_referrals_referred_email_check check ("referred_email" is null or length("referred_email") <= 320),
+  "status" text not null default 'attributed' constraint bsb_referrals_status_check check ("status" in ('attributed', 'qualified', 'rewarded', 'void')),
   -- The reward as the code promised it when the referral was attributed.
-  "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
+  "reward_amount" bigint not null default 0 constraint bsb_referrals_reward_amount_check check ("reward_amount" >= 0),
   "reward_unit" text,
   "qualified_at" timestamptz,
   "qualified_by" text,
@@ -2123,7 +2123,7 @@ create table "better_supabase"."referrals" (
   "ledger_transaction_id" uuid,
   "voided_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
+  constraint bsb_referrals_check check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
   foreign key ("org_id", "code_id") references "better_supabase"."referral_codes" ("org_id", "id") on delete cascade
 );
 create unique index referrals_user_key on "better_supabase"."referrals" ("org_id", "referred_user_id") where "referred_user_id" is not null;

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:de08a65ca8749af927c21102cfbf5a6a51ce3e85514870a72afe00bac035b8df
+-- @bsb-hash sha256:1ba997ba55ce1118205eb5bc3047469363124e2cee2958f26b91d21a90b2a24e
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,18 +13,18 @@
 create table "better_supabase"."work_centers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_work_centers_name_check check (length("name") >= 1 and length("name") <= 200),
   -- The machine or line, an asset of the assets block.
   "asset_id" uuid,
-  "hours_per_day" numeric(5, 2) not null default 8 check ("hours_per_day" > 0 and "hours_per_day" <= 24),
+  "hours_per_day" numeric(5, 2) not null default 8 constraint bsb_work_centers_hours_per_day_check check ("hours_per_day" > 0 and "hours_per_day" <= 24),
   -- Minor units per hour of work, in currency.
-  "cost_rate" bigint not null default 0 check ("cost_rate" >= 0),
-  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
+  "cost_rate" bigint not null default 0 constraint bsb_work_centers_cost_rate_check check ("cost_rate" >= 0),
+  "currency" char(3) constraint bsb_work_centers_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("cost_rate" = 0 or "currency" is not null)
+  constraint bsb_work_centers_check check ("cost_rate" = 0 or "currency" is not null)
 );
 create index "work_centers_tenant_idx" on "better_supabase"."work_centers" ("tenant_id", "name");
 create index "work_centers_asset_idx" on "better_supabase"."work_centers" ("asset_id") where "asset_id" is not null;
@@ -42,11 +42,11 @@ create table "better_supabase"."boms" (
   -- The variant the bill of materials makes.
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- 1, 2, 3 per variant; a production order pins one version.
-  "version" integer not null check ("version" > 0),
-  "status" text not null default 'draft' check ("status" in ('draft', 'active', 'archived')),
+  "version" integer not null constraint bsb_boms_version_check check ("version" > 0),
+  "status" text not null default 'draft' constraint bsb_boms_status_check check ("status" in ('draft', 'active', 'archived')),
   -- How much of the variant one run of the components makes.
-  "quantity" numeric(20, 6) not null default 1 check ("quantity" > 0),
-  "note" text check ("note" is null or length("note") <= 10000),
+  "quantity" numeric(20, 6) not null default 1 constraint bsb_boms_quantity_check check ("quantity" > 0),
+  "note" text constraint bsb_boms_note_check check ("note" is null or length("note") <= 10000),
   "activated_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -70,15 +70,15 @@ create table "better_supabase"."bom_operations" (
   "tenant_id" uuid not null,
   "bom_id" uuid not null,
   -- 10, 20, 30: the order operations run in.
-  "sequence" integer not null check ("sequence" > 0),
+  "sequence" integer not null constraint bsb_bom_operations_sequence_check check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "setup_minutes" numeric(10, 2) not null default 0 check ("setup_minutes" >= 0),
-  "run_minutes_per_unit" numeric(10, 4) not null default 0 check ("run_minutes_per_unit" >= 0),
+  "title" text not null constraint bsb_bom_operations_title_check check (length("title") >= 1 and length("title") <= 200),
+  "setup_minutes" numeric(10, 2) not null default 0 constraint bsb_bom_operations_setup_minutes_check check ("setup_minutes" >= 0),
+  "run_minutes_per_unit" numeric(10, 4) not null default 0 constraint bsb_bom_operations_run_minutes_per_unit_check check ("run_minutes_per_unit" >= 0),
   -- A drive node with the work instructions.
   "instructions_node_id" uuid,
   -- An inspection kind; starting the operation schedules one.
-  "inspection_template" text check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63),
+  "inspection_template" text constraint bsb_bom_operations_inspection_template_check check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63),
   unique ("bom_id", "sequence"),
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "work_center_id") references "better_supabase"."work_centers" ("tenant_id", "id") on delete restrict
@@ -101,9 +101,9 @@ create table "better_supabase"."bom_components" (
   "position" integer not null default 0,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- Per bom quantity of the made variant, in the component's unit.
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_bom_components_quantity_check check ("quantity" > 0),
   -- Expected loss in basis points: 250 plans 2.5% more.
-  "scrap_bps" integer not null default 0 check ("scrap_bps" >= 0 and "scrap_bps" <= 10000),
+  "scrap_bps" integer not null default 0 constraint bsb_bom_components_scrap_bps_check check ("scrap_bps" >= 0 and "scrap_bps" <= 10000),
   -- The operation that uses it, or null for the start of the run.
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete cascade
@@ -123,25 +123,25 @@ create table "better_supabase"."production_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- MO-2026-0001, from the numbering block when it numbers production orders.
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_production_orders_number_check check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- The bill of materials version the order was planned with.
   "bom_id" uuid not null,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_production_orders_quantity_check check ("quantity" > 0),
   -- The inventory location the components come from and the output goes to.
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete restrict,
   "due_on" date,
-  "status" text not null default 'draft' check ("status" in ('draft', 'released', 'in_progress', 'done', 'canceled')),
-  "produced_quantity" numeric(20, 6) not null default 0 check ("produced_quantity" >= 0),
-  "scrap_quantity" numeric(20, 6) not null default 0 check ("scrap_quantity" >= 0),
+  "status" text not null default 'draft' constraint bsb_production_orders_status_check check ("status" in ('draft', 'released', 'in_progress', 'done', 'canceled')),
+  "produced_quantity" numeric(20, 6) not null default 0 constraint bsb_production_orders_produced_quantity_check check ("produced_quantity" >= 0),
+  "scrap_quantity" numeric(20, 6) not null default 0 constraint bsb_production_orders_scrap_quantity_check check ("scrap_quantity" >= 0),
   "output_lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete set null,
   -- What completion valued the output at, in minor units of currency: the
   -- consumed components' stock value and the work centers' labor.
   "material_cost" bigint not null default 0,
-  "labor_cost" bigint not null default 0 check ("labor_cost" >= 0),
+  "labor_cost" bigint not null default 0 constraint bsb_production_orders_labor_cost_check check ("labor_cost" >= 0),
   "currency" char(3),
-  "note" text check ("note" is null or length("note") <= 10000),
+  "note" text constraint bsb_production_orders_note_check check ("note" is null or length("note") <= 10000),
   "released_at" timestamptz,
   "started_at" timestamptz,
   "completed_at" timestamptz,
@@ -171,17 +171,17 @@ create table "better_supabase"."production_order_operations" (
   "tenant_id" uuid not null,
   "order_id" uuid not null,
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
-  "sequence" integer not null check ("sequence" > 0),
+  "sequence" integer not null constraint bsb_production_order_operations_sequence_check check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "title" text not null constraint bsb_production_order_operations_title_check check (length("title") >= 1 and length("title") <= 200),
   -- Setup plus run time for the order's quantity.
-  "planned_minutes" numeric(12, 2) not null default 0 check ("planned_minutes" >= 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'in_progress', 'done')),
+  "planned_minutes" numeric(12, 2) not null default 0 constraint bsb_production_order_operations_planned_minutes_check check ("planned_minutes" >= 0),
+  "status" text not null default 'pending' constraint bsb_production_order_operations_status_check check ("status" in ('pending', 'in_progress', 'done')),
   "started_at" timestamptz,
   "finished_at" timestamptz,
   "operator_id" uuid,
   -- The minutes worked, set when the operation finishes.
-  "minutes" numeric(12, 2) check ("minutes" is null or "minutes" >= 0),
+  "minutes" numeric(12, 2) constraint bsb_production_order_operations_minutes_check check ("minutes" is null or "minutes" >= 0),
   -- The inspection its inspection template scheduled.
   "inspection_id" uuid,
   unique ("order_id", "sequence"),
@@ -206,8 +206,8 @@ create table "better_supabase"."production_consumptions" (
   "order_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
-  "serial" text check ("serial" is null or length("serial") >= 1 and length("serial") <= 100),
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "serial" text constraint bsb_production_consumptions_serial_check check ("serial" is null or length("serial") >= 1 and length("serial") <= 100),
+  "quantity" numeric(20, 6) not null constraint bsb_production_consumptions_quantity_check check ("quantity" > 0),
   -- The stock value it took, in minor units of currency; 0 without costing.
   "cost" bigint not null default 0,
   "currency" char(3),
@@ -237,7 +237,7 @@ create table "better_supabase"."stock_lot_links" (
   "child_lot_id" uuid not null references "better_supabase"."stock_lots" ("id") on delete cascade,
   "order_id" uuid not null,
   -- How much of the child lot went into the parent.
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_stock_lot_links_quantity_check check ("quantity" > 0),
   "created_at" timestamptz not null default now(),
   primary key ("parent_lot_id", "child_lot_id", "order_id"),
   foreign key ("tenant_id", "order_id") references "better_supabase"."production_orders" ("tenant_id", "id") on delete cascade
@@ -1825,7 +1825,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:9580a05157bbe11fc5ef89d2044be1a394999c0fb89c8b2728595ce3db8fe33f
+-- @bsb-hash sha256:3dd0fa7d718594e29d895ca864f317db1dcf4c891d997961d6ce405c14e1439b
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1837,18 +1837,18 @@ on conflict (name) do update
 create table "better_supabase"."work_centers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_work_centers_name_check check (length("name") >= 1 and length("name") <= 200),
   -- The machine or line, an asset of the assets block.
   "asset_id" uuid references "better_supabase"."assets" ("id") on delete set null,
-  "hours_per_day" numeric(5, 2) not null default 8 check ("hours_per_day" > 0 and "hours_per_day" <= 24),
+  "hours_per_day" numeric(5, 2) not null default 8 constraint bsb_work_centers_hours_per_day_check check ("hours_per_day" > 0 and "hours_per_day" <= 24),
   -- Minor units per hour of work, in currency.
-  "cost_rate" bigint not null default 0 check ("cost_rate" >= 0),
-  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
+  "cost_rate" bigint not null default 0 constraint bsb_work_centers_cost_rate_check check ("cost_rate" >= 0),
+  "currency" char(3) constraint bsb_work_centers_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("cost_rate" = 0 or "currency" is not null)
+  constraint bsb_work_centers_check check ("cost_rate" = 0 or "currency" is not null)
 );
 create index "work_centers_tenant_idx" on "better_supabase"."work_centers" ("tenant_id", "name");
 create index "work_centers_asset_idx" on "better_supabase"."work_centers" ("asset_id") where "asset_id" is not null;
@@ -1866,11 +1866,11 @@ create table "better_supabase"."boms" (
   -- The variant the bill of materials makes.
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- 1, 2, 3 per variant; a production order pins one version.
-  "version" integer not null check ("version" > 0),
-  "status" text not null default 'draft' check ("status" in ('draft', 'active', 'archived')),
+  "version" integer not null constraint bsb_boms_version_check check ("version" > 0),
+  "status" text not null default 'draft' constraint bsb_boms_status_check check ("status" in ('draft', 'active', 'archived')),
   -- How much of the variant one run of the components makes.
-  "quantity" numeric(20, 6) not null default 1 check ("quantity" > 0),
-  "note" text check ("note" is null or length("note") <= 10000),
+  "quantity" numeric(20, 6) not null default 1 constraint bsb_boms_quantity_check check ("quantity" > 0),
+  "note" text constraint bsb_boms_note_check check ("note" is null or length("note") <= 10000),
   "activated_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -1894,15 +1894,15 @@ create table "better_supabase"."bom_operations" (
   "tenant_id" uuid not null,
   "bom_id" uuid not null,
   -- 10, 20, 30: the order operations run in.
-  "sequence" integer not null check ("sequence" > 0),
+  "sequence" integer not null constraint bsb_bom_operations_sequence_check check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "setup_minutes" numeric(10, 2) not null default 0 check ("setup_minutes" >= 0),
-  "run_minutes_per_unit" numeric(10, 4) not null default 0 check ("run_minutes_per_unit" >= 0),
+  "title" text not null constraint bsb_bom_operations_title_check check (length("title") >= 1 and length("title") <= 200),
+  "setup_minutes" numeric(10, 2) not null default 0 constraint bsb_bom_operations_setup_minutes_check check ("setup_minutes" >= 0),
+  "run_minutes_per_unit" numeric(10, 4) not null default 0 constraint bsb_bom_operations_run_minutes_per_unit_check check ("run_minutes_per_unit" >= 0),
   -- A drive node with the work instructions.
   "instructions_node_id" uuid references "better_supabase"."drive_nodes" ("id") on delete set null,
   -- An inspection kind; starting the operation schedules one.
-  "inspection_template" text check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63),
+  "inspection_template" text constraint bsb_bom_operations_inspection_template_check check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63),
   unique ("bom_id", "sequence"),
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "work_center_id") references "better_supabase"."work_centers" ("tenant_id", "id") on delete restrict
@@ -1925,9 +1925,9 @@ create table "better_supabase"."bom_components" (
   "position" integer not null default 0,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- Per bom quantity of the made variant, in the component's unit.
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_bom_components_quantity_check check ("quantity" > 0),
   -- Expected loss in basis points: 250 plans 2.5% more.
-  "scrap_bps" integer not null default 0 check ("scrap_bps" >= 0 and "scrap_bps" <= 10000),
+  "scrap_bps" integer not null default 0 constraint bsb_bom_components_scrap_bps_check check ("scrap_bps" >= 0 and "scrap_bps" <= 10000),
   -- The operation that uses it, or null for the start of the run.
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete cascade
@@ -1947,25 +1947,25 @@ create table "better_supabase"."production_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- MO-2026-0001, from the numbering block when it numbers production orders.
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_production_orders_number_check check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- The bill of materials version the order was planned with.
   "bom_id" uuid not null,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_production_orders_quantity_check check ("quantity" > 0),
   -- The inventory location the components come from and the output goes to.
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete restrict,
   "due_on" date,
-  "status" text not null default 'draft' check ("status" in ('draft', 'released', 'in_progress', 'done', 'canceled')),
-  "produced_quantity" numeric(20, 6) not null default 0 check ("produced_quantity" >= 0),
-  "scrap_quantity" numeric(20, 6) not null default 0 check ("scrap_quantity" >= 0),
+  "status" text not null default 'draft' constraint bsb_production_orders_status_check check ("status" in ('draft', 'released', 'in_progress', 'done', 'canceled')),
+  "produced_quantity" numeric(20, 6) not null default 0 constraint bsb_production_orders_produced_quantity_check check ("produced_quantity" >= 0),
+  "scrap_quantity" numeric(20, 6) not null default 0 constraint bsb_production_orders_scrap_quantity_check check ("scrap_quantity" >= 0),
   "output_lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete set null,
   -- What completion valued the output at, in minor units of currency: the
   -- consumed components' stock value and the work centers' labor.
   "material_cost" bigint not null default 0,
-  "labor_cost" bigint not null default 0 check ("labor_cost" >= 0),
+  "labor_cost" bigint not null default 0 constraint bsb_production_orders_labor_cost_check check ("labor_cost" >= 0),
   "currency" char(3),
-  "note" text check ("note" is null or length("note") <= 10000),
+  "note" text constraint bsb_production_orders_note_check check ("note" is null or length("note") <= 10000),
   "released_at" timestamptz,
   "started_at" timestamptz,
   "completed_at" timestamptz,
@@ -1995,17 +1995,17 @@ create table "better_supabase"."production_order_operations" (
   "tenant_id" uuid not null,
   "order_id" uuid not null,
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
-  "sequence" integer not null check ("sequence" > 0),
+  "sequence" integer not null constraint bsb_production_order_operations_sequence_check check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "title" text not null constraint bsb_production_order_operations_title_check check (length("title") >= 1 and length("title") <= 200),
   -- Setup plus run time for the order's quantity.
-  "planned_minutes" numeric(12, 2) not null default 0 check ("planned_minutes" >= 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'in_progress', 'done')),
+  "planned_minutes" numeric(12, 2) not null default 0 constraint bsb_production_order_operations_planned_minutes_check check ("planned_minutes" >= 0),
+  "status" text not null default 'pending' constraint bsb_production_order_operations_status_check check ("status" in ('pending', 'in_progress', 'done')),
   "started_at" timestamptz,
   "finished_at" timestamptz,
   "operator_id" uuid,
   -- The minutes worked, set when the operation finishes.
-  "minutes" numeric(12, 2) check ("minutes" is null or "minutes" >= 0),
+  "minutes" numeric(12, 2) constraint bsb_production_order_operations_minutes_check check ("minutes" is null or "minutes" >= 0),
   -- The inspection its inspection template scheduled.
   "inspection_id" uuid references "better_supabase"."inspections" ("id") on delete set null,
   unique ("order_id", "sequence"),
@@ -2030,8 +2030,8 @@ create table "better_supabase"."production_consumptions" (
   "order_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
-  "serial" text check ("serial" is null or length("serial") >= 1 and length("serial") <= 100),
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "serial" text constraint bsb_production_consumptions_serial_check check ("serial" is null or length("serial") >= 1 and length("serial") <= 100),
+  "quantity" numeric(20, 6) not null constraint bsb_production_consumptions_quantity_check check ("quantity" > 0),
   -- The stock value it took, in minor units of currency; 0 without costing.
   "cost" bigint not null default 0,
   "currency" char(3),
@@ -2061,7 +2061,7 @@ create table "better_supabase"."stock_lot_links" (
   "child_lot_id" uuid not null references "better_supabase"."stock_lots" ("id") on delete cascade,
   "order_id" uuid not null,
   -- How much of the child lot went into the parent.
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_stock_lot_links_quantity_check check ("quantity" > 0),
   "created_at" timestamptz not null default now(),
   primary key ("parent_lot_id", "child_lot_id", "order_id"),
   foreign key ("tenant_id", "order_id") references "better_supabase"."production_orders" ("tenant_id", "id") on delete cascade
@@ -3742,7 +3742,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:0d33b0223efb4611ffe6bfb1ebbb5e541a19415a5568c58150c7e9ba0687d0ca
+-- @bsb-hash sha256:9e7d2e4ff4822cf2b08e97eefacea786e98c9609d6f648962223da3d2c887738
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3759,18 +3759,18 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."work_centers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_work_centers_name_check check (length("name") >= 1 and length("name") <= 200),
   -- The machine or line, an asset of the assets block.
   "asset_id" uuid,
-  "hours_per_day" numeric(5, 2) not null default 8 check ("hours_per_day" > 0 and "hours_per_day" <= 24),
+  "hours_per_day" numeric(5, 2) not null default 8 constraint bsb_work_centers_hours_per_day_check check ("hours_per_day" > 0 and "hours_per_day" <= 24),
   -- Minor units per hour of work, in currency.
-  "cost_rate" bigint not null default 0 check ("cost_rate" >= 0),
-  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
+  "cost_rate" bigint not null default 0 constraint bsb_work_centers_cost_rate_check check ("cost_rate" >= 0),
+  "currency" char(3) constraint bsb_work_centers_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("cost_rate" = 0 or "currency" is not null)
+  constraint bsb_work_centers_check check ("cost_rate" = 0 or "currency" is not null)
 );
 create index "work_centers_tenant_idx" on "app_private"."work_centers" ("tenant_id", "name");
 create index "work_centers_asset_idx" on "app_private"."work_centers" ("asset_id") where "asset_id" is not null;
@@ -3788,11 +3788,11 @@ create table "app_private"."boms" (
   -- The variant the bill of materials makes.
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- 1, 2, 3 per variant; a production order pins one version.
-  "version" integer not null check ("version" > 0),
-  "status" text not null default 'draft' check ("status" in ('draft', 'active', 'archived')),
+  "version" integer not null constraint bsb_boms_version_check check ("version" > 0),
+  "status" text not null default 'draft' constraint bsb_boms_status_check check ("status" in ('draft', 'active', 'archived')),
   -- How much of the variant one run of the components makes.
-  "quantity" numeric(20, 6) not null default 1 check ("quantity" > 0),
-  "note" text check ("note" is null or length("note") <= 10000),
+  "quantity" numeric(20, 6) not null default 1 constraint bsb_boms_quantity_check check ("quantity" > 0),
+  "note" text constraint bsb_boms_note_check check ("note" is null or length("note") <= 10000),
   "activated_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -3816,15 +3816,15 @@ create table "app_private"."bom_operations" (
   "tenant_id" uuid not null,
   "bom_id" uuid not null,
   -- 10, 20, 30: the order operations run in.
-  "sequence" integer not null check ("sequence" > 0),
+  "sequence" integer not null constraint bsb_bom_operations_sequence_check check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "setup_minutes" numeric(10, 2) not null default 0 check ("setup_minutes" >= 0),
-  "run_minutes_per_unit" numeric(10, 4) not null default 0 check ("run_minutes_per_unit" >= 0),
+  "title" text not null constraint bsb_bom_operations_title_check check (length("title") >= 1 and length("title") <= 200),
+  "setup_minutes" numeric(10, 2) not null default 0 constraint bsb_bom_operations_setup_minutes_check check ("setup_minutes" >= 0),
+  "run_minutes_per_unit" numeric(10, 4) not null default 0 constraint bsb_bom_operations_run_minutes_per_unit_check check ("run_minutes_per_unit" >= 0),
   -- A drive node with the work instructions.
   "instructions_node_id" uuid,
   -- An inspection kind; starting the operation schedules one.
-  "inspection_template" text check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63),
+  "inspection_template" text constraint bsb_bom_operations_inspection_template_check check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63),
   unique ("bom_id", "sequence"),
   foreign key ("tenant_id", "bom_id") references "app_private"."boms" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "work_center_id") references "app_private"."work_centers" ("tenant_id", "id") on delete restrict
@@ -3847,9 +3847,9 @@ create table "app_private"."bom_components" (
   "position" integer not null default 0,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- Per bom quantity of the made variant, in the component's unit.
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_bom_components_quantity_check check ("quantity" > 0),
   -- Expected loss in basis points: 250 plans 2.5% more.
-  "scrap_bps" integer not null default 0 check ("scrap_bps" >= 0 and "scrap_bps" <= 10000),
+  "scrap_bps" integer not null default 0 constraint bsb_bom_components_scrap_bps_check check ("scrap_bps" >= 0 and "scrap_bps" <= 10000),
   -- The operation that uses it, or null for the start of the run.
   "operation_id" uuid references "app_private"."bom_operations" ("id") on delete set null,
   foreign key ("tenant_id", "bom_id") references "app_private"."boms" ("tenant_id", "id") on delete cascade
@@ -3869,25 +3869,25 @@ create table "app_private"."production_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- MO-2026-0001, from the numbering block when it numbers production orders.
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_production_orders_number_check check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- The bill of materials version the order was planned with.
   "bom_id" uuid not null,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_production_orders_quantity_check check ("quantity" > 0),
   -- The inventory location the components come from and the output goes to.
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete restrict,
   "due_on" date,
-  "status" text not null default 'draft' check ("status" in ('draft', 'released', 'in_progress', 'done', 'canceled')),
-  "produced_quantity" numeric(20, 6) not null default 0 check ("produced_quantity" >= 0),
-  "scrap_quantity" numeric(20, 6) not null default 0 check ("scrap_quantity" >= 0),
+  "status" text not null default 'draft' constraint bsb_production_orders_status_check check ("status" in ('draft', 'released', 'in_progress', 'done', 'canceled')),
+  "produced_quantity" numeric(20, 6) not null default 0 constraint bsb_production_orders_produced_quantity_check check ("produced_quantity" >= 0),
+  "scrap_quantity" numeric(20, 6) not null default 0 constraint bsb_production_orders_scrap_quantity_check check ("scrap_quantity" >= 0),
   "output_lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete set null,
   -- What completion valued the output at, in minor units of currency: the
   -- consumed components' stock value and the work centers' labor.
   "material_cost" bigint not null default 0,
-  "labor_cost" bigint not null default 0 check ("labor_cost" >= 0),
+  "labor_cost" bigint not null default 0 constraint bsb_production_orders_labor_cost_check check ("labor_cost" >= 0),
   "currency" char(3),
-  "note" text check ("note" is null or length("note") <= 10000),
+  "note" text constraint bsb_production_orders_note_check check ("note" is null or length("note") <= 10000),
   "released_at" timestamptz,
   "started_at" timestamptz,
   "completed_at" timestamptz,
@@ -3917,17 +3917,17 @@ create table "app_private"."production_order_operations" (
   "tenant_id" uuid not null,
   "order_id" uuid not null,
   "operation_id" uuid references "app_private"."bom_operations" ("id") on delete set null,
-  "sequence" integer not null check ("sequence" > 0),
+  "sequence" integer not null constraint bsb_production_order_operations_sequence_check check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "title" text not null constraint bsb_production_order_operations_title_check check (length("title") >= 1 and length("title") <= 200),
   -- Setup plus run time for the order's quantity.
-  "planned_minutes" numeric(12, 2) not null default 0 check ("planned_minutes" >= 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'in_progress', 'done')),
+  "planned_minutes" numeric(12, 2) not null default 0 constraint bsb_production_order_operations_planned_minutes_check check ("planned_minutes" >= 0),
+  "status" text not null default 'pending' constraint bsb_production_order_operations_status_check check ("status" in ('pending', 'in_progress', 'done')),
   "started_at" timestamptz,
   "finished_at" timestamptz,
   "operator_id" uuid,
   -- The minutes worked, set when the operation finishes.
-  "minutes" numeric(12, 2) check ("minutes" is null or "minutes" >= 0),
+  "minutes" numeric(12, 2) constraint bsb_production_order_operations_minutes_check check ("minutes" is null or "minutes" >= 0),
   -- The inspection its inspection template scheduled.
   "inspection_id" uuid,
   unique ("order_id", "sequence"),
@@ -3952,8 +3952,8 @@ create table "app_private"."production_consumptions" (
   "order_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
-  "serial" text check ("serial" is null or length("serial") >= 1 and length("serial") <= 100),
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "serial" text constraint bsb_production_consumptions_serial_check check ("serial" is null or length("serial") >= 1 and length("serial") <= 100),
+  "quantity" numeric(20, 6) not null constraint bsb_production_consumptions_quantity_check check ("quantity" > 0),
   -- The stock value it took, in minor units of currency; 0 without costing.
   "cost" bigint not null default 0,
   "currency" char(3),
@@ -3983,7 +3983,7 @@ create table "app_private"."stock_lot_links" (
   "child_lot_id" uuid not null references "better_supabase"."stock_lots" ("id") on delete cascade,
   "order_id" uuid not null,
   -- How much of the child lot went into the parent.
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_stock_lot_links_quantity_check check ("quantity" > 0),
   "created_at" timestamptz not null default now(),
   primary key ("parent_lot_id", "child_lot_id", "order_id"),
   foreign key ("tenant_id", "order_id") references "app_private"."production_orders" ("tenant_id", "id") on delete cascade
@@ -5571,7 +5571,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:c267d4f34c4d728bd91fdd88b86ce04f6667536275b7619e21ce55ced73135a5
+-- @bsb-hash sha256:1b2e607bd0b0ff3c120f50805c8dec059c86829b132da978f92721b95c9eab25
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5583,18 +5583,18 @@ on conflict (name) do update
 create table "better_supabase"."work_centers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_work_centers_name_check check (length("name") >= 1 and length("name") <= 200),
   -- The machine or line, an asset of the assets block.
   "asset_id" uuid,
-  "hours_per_day" numeric(5, 2) not null default 8 check ("hours_per_day" > 0 and "hours_per_day" <= 24),
+  "hours_per_day" numeric(5, 2) not null default 8 constraint bsb_work_centers_hours_per_day_check check ("hours_per_day" > 0 and "hours_per_day" <= 24),
   -- Minor units per hour of work, in currency.
-  "cost_rate" bigint not null default 0 check ("cost_rate" >= 0),
-  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
+  "cost_rate" bigint not null default 0 constraint bsb_work_centers_cost_rate_check check ("cost_rate" >= 0),
+  "currency" char(3) constraint bsb_work_centers_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("cost_rate" = 0 or "currency" is not null)
+  constraint bsb_work_centers_check check ("cost_rate" = 0 or "currency" is not null)
 );
 create index "work_centers_tenant_idx" on "better_supabase"."work_centers" ("tenant_id", "name");
 create index "work_centers_asset_idx" on "better_supabase"."work_centers" ("asset_id") where "asset_id" is not null;
@@ -5612,11 +5612,11 @@ create table "better_supabase"."boms" (
   -- The variant the bill of materials makes.
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- 1, 2, 3 per variant; a production order pins one version.
-  "version" integer not null check ("version" > 0),
-  "status" text not null default 'draft' check ("status" in ('draft', 'active', 'archived')),
+  "version" integer not null constraint bsb_boms_version_check check ("version" > 0),
+  "status" text not null default 'draft' constraint bsb_boms_status_check check ("status" in ('draft', 'active', 'archived')),
   -- How much of the variant one run of the components makes.
-  "quantity" numeric(20, 6) not null default 1 check ("quantity" > 0),
-  "note" text check ("note" is null or length("note") <= 10000),
+  "quantity" numeric(20, 6) not null default 1 constraint bsb_boms_quantity_check check ("quantity" > 0),
+  "note" text constraint bsb_boms_note_check check ("note" is null or length("note") <= 10000),
   "activated_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -5640,15 +5640,15 @@ create table "better_supabase"."bom_operations" (
   "tenant_id" uuid not null,
   "bom_id" uuid not null,
   -- 10, 20, 30: the order operations run in.
-  "sequence" integer not null check ("sequence" > 0),
+  "sequence" integer not null constraint bsb_bom_operations_sequence_check check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "setup_minutes" numeric(10, 2) not null default 0 check ("setup_minutes" >= 0),
-  "run_minutes_per_unit" numeric(10, 4) not null default 0 check ("run_minutes_per_unit" >= 0),
+  "title" text not null constraint bsb_bom_operations_title_check check (length("title") >= 1 and length("title") <= 200),
+  "setup_minutes" numeric(10, 2) not null default 0 constraint bsb_bom_operations_setup_minutes_check check ("setup_minutes" >= 0),
+  "run_minutes_per_unit" numeric(10, 4) not null default 0 constraint bsb_bom_operations_run_minutes_per_unit_check check ("run_minutes_per_unit" >= 0),
   -- A drive node with the work instructions.
   "instructions_node_id" uuid,
   -- An inspection kind; starting the operation schedules one.
-  "inspection_template" text check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63),
+  "inspection_template" text constraint bsb_bom_operations_inspection_template_check check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63),
   unique ("bom_id", "sequence"),
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "work_center_id") references "better_supabase"."work_centers" ("tenant_id", "id") on delete restrict
@@ -5671,9 +5671,9 @@ create table "better_supabase"."bom_components" (
   "position" integer not null default 0,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- Per bom quantity of the made variant, in the component's unit.
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_bom_components_quantity_check check ("quantity" > 0),
   -- Expected loss in basis points: 250 plans 2.5% more.
-  "scrap_bps" integer not null default 0 check ("scrap_bps" >= 0 and "scrap_bps" <= 10000),
+  "scrap_bps" integer not null default 0 constraint bsb_bom_components_scrap_bps_check check ("scrap_bps" >= 0 and "scrap_bps" <= 10000),
   -- The operation that uses it, or null for the start of the run.
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
   foreign key ("tenant_id", "bom_id") references "better_supabase"."boms" ("tenant_id", "id") on delete cascade
@@ -5693,25 +5693,25 @@ create table "better_supabase"."production_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- MO-2026-0001, from the numbering block when it numbers production orders.
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_production_orders_number_check check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- The bill of materials version the order was planned with.
   "bom_id" uuid not null,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_production_orders_quantity_check check ("quantity" > 0),
   -- The inventory location the components come from and the output goes to.
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete restrict,
   "due_on" date,
-  "status" text not null default 'draft' check ("status" in ('draft', 'released', 'in_progress', 'done', 'canceled')),
-  "produced_quantity" numeric(20, 6) not null default 0 check ("produced_quantity" >= 0),
-  "scrap_quantity" numeric(20, 6) not null default 0 check ("scrap_quantity" >= 0),
+  "status" text not null default 'draft' constraint bsb_production_orders_status_check check ("status" in ('draft', 'released', 'in_progress', 'done', 'canceled')),
+  "produced_quantity" numeric(20, 6) not null default 0 constraint bsb_production_orders_produced_quantity_check check ("produced_quantity" >= 0),
+  "scrap_quantity" numeric(20, 6) not null default 0 constraint bsb_production_orders_scrap_quantity_check check ("scrap_quantity" >= 0),
   "output_lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete set null,
   -- What completion valued the output at, in minor units of currency: the
   -- consumed components' stock value and the work centers' labor.
   "material_cost" bigint not null default 0,
-  "labor_cost" bigint not null default 0 check ("labor_cost" >= 0),
+  "labor_cost" bigint not null default 0 constraint bsb_production_orders_labor_cost_check check ("labor_cost" >= 0),
   "currency" char(3),
-  "note" text check ("note" is null or length("note") <= 10000),
+  "note" text constraint bsb_production_orders_note_check check ("note" is null or length("note") <= 10000),
   "released_at" timestamptz,
   "started_at" timestamptz,
   "completed_at" timestamptz,
@@ -5741,17 +5741,17 @@ create table "better_supabase"."production_order_operations" (
   "tenant_id" uuid not null,
   "order_id" uuid not null,
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
-  "sequence" integer not null check ("sequence" > 0),
+  "sequence" integer not null constraint bsb_production_order_operations_sequence_check check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "title" text not null constraint bsb_production_order_operations_title_check check (length("title") >= 1 and length("title") <= 200),
   -- Setup plus run time for the order's quantity.
-  "planned_minutes" numeric(12, 2) not null default 0 check ("planned_minutes" >= 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'in_progress', 'done')),
+  "planned_minutes" numeric(12, 2) not null default 0 constraint bsb_production_order_operations_planned_minutes_check check ("planned_minutes" >= 0),
+  "status" text not null default 'pending' constraint bsb_production_order_operations_status_check check ("status" in ('pending', 'in_progress', 'done')),
   "started_at" timestamptz,
   "finished_at" timestamptz,
   "operator_id" uuid,
   -- The minutes worked, set when the operation finishes.
-  "minutes" numeric(12, 2) check ("minutes" is null or "minutes" >= 0),
+  "minutes" numeric(12, 2) constraint bsb_production_order_operations_minutes_check check ("minutes" is null or "minutes" >= 0),
   -- The inspection its inspection template scheduled.
   "inspection_id" uuid,
   unique ("order_id", "sequence"),
@@ -5776,8 +5776,8 @@ create table "better_supabase"."production_consumptions" (
   "order_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
-  "serial" text check ("serial" is null or length("serial") >= 1 and length("serial") <= 100),
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "serial" text constraint bsb_production_consumptions_serial_check check ("serial" is null or length("serial") >= 1 and length("serial") <= 100),
+  "quantity" numeric(20, 6) not null constraint bsb_production_consumptions_quantity_check check ("quantity" > 0),
   -- The stock value it took, in minor units of currency; 0 without costing.
   "cost" bigint not null default 0,
   "currency" char(3),
@@ -5807,7 +5807,7 @@ create table "better_supabase"."stock_lot_links" (
   "child_lot_id" uuid not null references "better_supabase"."stock_lots" ("id") on delete cascade,
   "order_id" uuid not null,
   -- How much of the child lot went into the parent.
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_stock_lot_links_quantity_check check ("quantity" > 0),
   "created_at" timestamptz not null default now(),
   primary key ("parent_lot_id", "child_lot_id", "order_id"),
   foreign key ("tenant_id", "order_id") references "better_supabase"."production_orders" ("tenant_id", "id") on delete cascade
@@ -7598,7 +7598,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:5ef8aab2e76acaa42d77bcece764a8b7d1192a67aa2e1a72f102b465e1fc0ec9
+-- @bsb-hash sha256:55a310e3377a1bb588df85971bba0ab660d81f465f8216acc55ad11f3f62bbb3
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7610,11 +7610,11 @@ on conflict (name) do update
 -- better_supabase.work_centers is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."work_centers" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."work_centers" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."work_centers" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."work_centers" add column if not exists "name" text constraint bsb_work_centers_name_check check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."work_centers" add column if not exists "asset_id" uuid;
-alter table "better_supabase"."work_centers" add column if not exists "hours_per_day" numeric(5, 2) not null default 8 check ("hours_per_day" > 0 and "hours_per_day" <= 24);
-alter table "better_supabase"."work_centers" add column if not exists "cost_rate" bigint not null default 0 check ("cost_rate" >= 0);
-alter table "better_supabase"."work_centers" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."work_centers" add column if not exists "hours_per_day" numeric(5, 2) not null default 8 constraint bsb_work_centers_hours_per_day_check check ("hours_per_day" > 0 and "hours_per_day" <= 24);
+alter table "better_supabase"."work_centers" add column if not exists "cost_rate" bigint not null default 0 constraint bsb_work_centers_cost_rate_check check ("cost_rate" >= 0);
+alter table "better_supabase"."work_centers" add column if not exists "currency" char(3) constraint bsb_work_centers_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."work_centers" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."work_centers" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."work_centers" add column if not exists "updated_at" timestamptz not null default now();
@@ -7632,10 +7632,10 @@ create policy bsb_work_centers_read on "better_supabase"."work_centers"
 alter table "better_supabase"."boms" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."boms" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."boms" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete restrict;
-alter table "better_supabase"."boms" add column if not exists "version" integer check ("version" > 0);
-alter table "better_supabase"."boms" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'active', 'archived'));
-alter table "better_supabase"."boms" add column if not exists "quantity" numeric(20, 6) not null default 1 check ("quantity" > 0);
-alter table "better_supabase"."boms" add column if not exists "note" text check ("note" is null or length("note") <= 10000);
+alter table "better_supabase"."boms" add column if not exists "version" integer constraint bsb_boms_version_check check ("version" > 0);
+alter table "better_supabase"."boms" add column if not exists "status" text not null default 'draft' constraint bsb_boms_status_check check ("status" in ('draft', 'active', 'archived'));
+alter table "better_supabase"."boms" add column if not exists "quantity" numeric(20, 6) not null default 1 constraint bsb_boms_quantity_check check ("quantity" > 0);
+alter table "better_supabase"."boms" add column if not exists "note" text constraint bsb_boms_note_check check ("note" is null or length("note") <= 10000);
 alter table "better_supabase"."boms" add column if not exists "activated_at" timestamptz;
 alter table "better_supabase"."boms" add column if not exists "created_by" uuid;
 alter table "better_supabase"."boms" add column if not exists "created_at" timestamptz not null default now();
@@ -7656,13 +7656,13 @@ create policy bsb_boms_read on "better_supabase"."boms"
 alter table "better_supabase"."bom_operations" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."bom_operations" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."bom_operations" add column if not exists "bom_id" uuid;
-alter table "better_supabase"."bom_operations" add column if not exists "sequence" integer check ("sequence" > 0);
+alter table "better_supabase"."bom_operations" add column if not exists "sequence" integer constraint bsb_bom_operations_sequence_check check ("sequence" > 0);
 alter table "better_supabase"."bom_operations" add column if not exists "work_center_id" uuid;
-alter table "better_supabase"."bom_operations" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
-alter table "better_supabase"."bom_operations" add column if not exists "setup_minutes" numeric(10, 2) not null default 0 check ("setup_minutes" >= 0);
-alter table "better_supabase"."bom_operations" add column if not exists "run_minutes_per_unit" numeric(10, 4) not null default 0 check ("run_minutes_per_unit" >= 0);
+alter table "better_supabase"."bom_operations" add column if not exists "title" text constraint bsb_bom_operations_title_check check (length("title") >= 1 and length("title") <= 200);
+alter table "better_supabase"."bom_operations" add column if not exists "setup_minutes" numeric(10, 2) not null default 0 constraint bsb_bom_operations_setup_minutes_check check ("setup_minutes" >= 0);
+alter table "better_supabase"."bom_operations" add column if not exists "run_minutes_per_unit" numeric(10, 4) not null default 0 constraint bsb_bom_operations_run_minutes_per_unit_check check ("run_minutes_per_unit" >= 0);
 alter table "better_supabase"."bom_operations" add column if not exists "instructions_node_id" uuid;
-alter table "better_supabase"."bom_operations" add column if not exists "inspection_template" text check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63);
+alter table "better_supabase"."bom_operations" add column if not exists "inspection_template" text constraint bsb_bom_operations_inspection_template_check check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63);
 create unique index if not exists "bsb_bom_operations_bom_sequence_key" on "better_supabase"."bom_operations" ("bom_id", "sequence");
 create index if not exists "bom_operations_parent_idx" on "better_supabase"."bom_operations" ("tenant_id", "bom_id", "sequence");
 create index if not exists "bom_operations_center_idx" on "better_supabase"."bom_operations" ("tenant_id", "work_center_id");
@@ -7680,8 +7680,8 @@ alter table "better_supabase"."bom_components" add column if not exists "tenant_
 alter table "better_supabase"."bom_components" add column if not exists "bom_id" uuid;
 alter table "better_supabase"."bom_components" add column if not exists "position" integer not null default 0;
 alter table "better_supabase"."bom_components" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete restrict;
-alter table "better_supabase"."bom_components" add column if not exists "quantity" numeric(20, 6) check ("quantity" > 0);
-alter table "better_supabase"."bom_components" add column if not exists "scrap_bps" integer not null default 0 check ("scrap_bps" >= 0 and "scrap_bps" <= 10000);
+alter table "better_supabase"."bom_components" add column if not exists "quantity" numeric(20, 6) constraint bsb_bom_components_quantity_check check ("quantity" > 0);
+alter table "better_supabase"."bom_components" add column if not exists "scrap_bps" integer not null default 0 constraint bsb_bom_components_scrap_bps_check check ("scrap_bps" >= 0 and "scrap_bps" <= 10000);
 alter table "better_supabase"."bom_components" add column if not exists "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null;
 create index if not exists "bom_components_parent_idx" on "better_supabase"."bom_components" ("tenant_id", "bom_id", "position");
 create index if not exists "bom_components_variant_idx" on "better_supabase"."bom_components" ("variant_id");
@@ -7696,21 +7696,21 @@ create policy bsb_bom_components_read on "better_supabase"."bom_components"
 -- better_supabase.production_orders is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."production_orders" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."production_orders" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."production_orders" add column if not exists "number" text check (length("number") >= 1 and length("number") <= 100);
+alter table "better_supabase"."production_orders" add column if not exists "number" text constraint bsb_production_orders_number_check check (length("number") >= 1 and length("number") <= 100);
 alter table "better_supabase"."production_orders" add column if not exists "sequence" bigint;
 alter table "better_supabase"."production_orders" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete restrict;
 alter table "better_supabase"."production_orders" add column if not exists "bom_id" uuid;
-alter table "better_supabase"."production_orders" add column if not exists "quantity" numeric(20, 6) check ("quantity" > 0);
+alter table "better_supabase"."production_orders" add column if not exists "quantity" numeric(20, 6) constraint bsb_production_orders_quantity_check check ("quantity" > 0);
 alter table "better_supabase"."production_orders" add column if not exists "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete restrict;
 alter table "better_supabase"."production_orders" add column if not exists "due_on" date;
-alter table "better_supabase"."production_orders" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'released', 'in_progress', 'done', 'canceled'));
-alter table "better_supabase"."production_orders" add column if not exists "produced_quantity" numeric(20, 6) not null default 0 check ("produced_quantity" >= 0);
-alter table "better_supabase"."production_orders" add column if not exists "scrap_quantity" numeric(20, 6) not null default 0 check ("scrap_quantity" >= 0);
+alter table "better_supabase"."production_orders" add column if not exists "status" text not null default 'draft' constraint bsb_production_orders_status_check check ("status" in ('draft', 'released', 'in_progress', 'done', 'canceled'));
+alter table "better_supabase"."production_orders" add column if not exists "produced_quantity" numeric(20, 6) not null default 0 constraint bsb_production_orders_produced_quantity_check check ("produced_quantity" >= 0);
+alter table "better_supabase"."production_orders" add column if not exists "scrap_quantity" numeric(20, 6) not null default 0 constraint bsb_production_orders_scrap_quantity_check check ("scrap_quantity" >= 0);
 alter table "better_supabase"."production_orders" add column if not exists "output_lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete set null;
 alter table "better_supabase"."production_orders" add column if not exists "material_cost" bigint not null default 0;
-alter table "better_supabase"."production_orders" add column if not exists "labor_cost" bigint not null default 0 check ("labor_cost" >= 0);
+alter table "better_supabase"."production_orders" add column if not exists "labor_cost" bigint not null default 0 constraint bsb_production_orders_labor_cost_check check ("labor_cost" >= 0);
 alter table "better_supabase"."production_orders" add column if not exists "currency" char(3);
-alter table "better_supabase"."production_orders" add column if not exists "note" text check ("note" is null or length("note") <= 10000);
+alter table "better_supabase"."production_orders" add column if not exists "note" text constraint bsb_production_orders_note_check check ("note" is null or length("note") <= 10000);
 alter table "better_supabase"."production_orders" add column if not exists "released_at" timestamptz;
 alter table "better_supabase"."production_orders" add column if not exists "started_at" timestamptz;
 alter table "better_supabase"."production_orders" add column if not exists "completed_at" timestamptz;
@@ -7737,15 +7737,15 @@ alter table "better_supabase"."production_order_operations" add column if not ex
 alter table "better_supabase"."production_order_operations" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."production_order_operations" add column if not exists "order_id" uuid;
 alter table "better_supabase"."production_order_operations" add column if not exists "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null;
-alter table "better_supabase"."production_order_operations" add column if not exists "sequence" integer check ("sequence" > 0);
+alter table "better_supabase"."production_order_operations" add column if not exists "sequence" integer constraint bsb_production_order_operations_sequence_check check ("sequence" > 0);
 alter table "better_supabase"."production_order_operations" add column if not exists "work_center_id" uuid;
-alter table "better_supabase"."production_order_operations" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
-alter table "better_supabase"."production_order_operations" add column if not exists "planned_minutes" numeric(12, 2) not null default 0 check ("planned_minutes" >= 0);
-alter table "better_supabase"."production_order_operations" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'in_progress', 'done'));
+alter table "better_supabase"."production_order_operations" add column if not exists "title" text constraint bsb_production_order_operations_title_check check (length("title") >= 1 and length("title") <= 200);
+alter table "better_supabase"."production_order_operations" add column if not exists "planned_minutes" numeric(12, 2) not null default 0 constraint bsb_production_order_operations_planned_minutes_check check ("planned_minutes" >= 0);
+alter table "better_supabase"."production_order_operations" add column if not exists "status" text not null default 'pending' constraint bsb_production_order_operations_status_check check ("status" in ('pending', 'in_progress', 'done'));
 alter table "better_supabase"."production_order_operations" add column if not exists "started_at" timestamptz;
 alter table "better_supabase"."production_order_operations" add column if not exists "finished_at" timestamptz;
 alter table "better_supabase"."production_order_operations" add column if not exists "operator_id" uuid;
-alter table "better_supabase"."production_order_operations" add column if not exists "minutes" numeric(12, 2) check ("minutes" is null or "minutes" >= 0);
+alter table "better_supabase"."production_order_operations" add column if not exists "minutes" numeric(12, 2) constraint bsb_production_order_operations_minutes_check check ("minutes" is null or "minutes" >= 0);
 alter table "better_supabase"."production_order_operations" add column if not exists "inspection_id" uuid;
 create unique index if not exists "bsb_production_order_operations_order_sequence_key" on "better_supabase"."production_order_operations" ("order_id", "sequence");
 create index if not exists "production_order_operations_parent_idx" on "better_supabase"."production_order_operations" ("tenant_id", "order_id", "sequence");
@@ -7765,8 +7765,8 @@ alter table "better_supabase"."production_consumptions" add column if not exists
 alter table "better_supabase"."production_consumptions" add column if not exists "order_id" uuid;
 alter table "better_supabase"."production_consumptions" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete restrict;
 alter table "better_supabase"."production_consumptions" add column if not exists "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict;
-alter table "better_supabase"."production_consumptions" add column if not exists "serial" text check ("serial" is null or length("serial") >= 1 and length("serial") <= 100);
-alter table "better_supabase"."production_consumptions" add column if not exists "quantity" numeric(20, 6) check ("quantity" > 0);
+alter table "better_supabase"."production_consumptions" add column if not exists "serial" text constraint bsb_production_consumptions_serial_check check ("serial" is null or length("serial") >= 1 and length("serial") <= 100);
+alter table "better_supabase"."production_consumptions" add column if not exists "quantity" numeric(20, 6) constraint bsb_production_consumptions_quantity_check check ("quantity" > 0);
 alter table "better_supabase"."production_consumptions" add column if not exists "cost" bigint not null default 0;
 alter table "better_supabase"."production_consumptions" add column if not exists "currency" char(3);
 alter table "better_supabase"."production_consumptions" add column if not exists "movement_id" uuid;
@@ -7790,7 +7790,7 @@ alter table "better_supabase"."stock_lot_links" add column if not exists "tenant
 alter table "better_supabase"."stock_lot_links" add column if not exists "parent_lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete cascade;
 alter table "better_supabase"."stock_lot_links" add column if not exists "child_lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete cascade;
 alter table "better_supabase"."stock_lot_links" add column if not exists "order_id" uuid;
-alter table "better_supabase"."stock_lot_links" add column if not exists "quantity" numeric(20, 6) check ("quantity" > 0);
+alter table "better_supabase"."stock_lot_links" add column if not exists "quantity" numeric(20, 6) constraint bsb_stock_lot_links_quantity_check check ("quantity" > 0);
 alter table "better_supabase"."stock_lot_links" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_stock_lot_links_parent_child_order_key" on "better_supabase"."stock_lot_links" ("parent_lot_id", "child_lot_id", "order_id");
 create index if not exists "stock_lot_links_child_idx" on "better_supabase"."stock_lot_links" ("child_lot_id");
@@ -9375,7 +9375,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_154_manufacturing.sql
 -- better-supabase module: manufacturing
 -- @bsb-block manufacturing@1 managed
--- @bsb-hash sha256:5713832c957719bc7f9a3468376216918b49e3532f31877442b35d67c59b1770
+-- @bsb-hash sha256:f03dca156184d7b968352e5a96a1d327b8c41358822275700745cf2bcecab80b
 -- Versioned bills of materials with routings on work centers, production orders numbered MO-2026-0001 that allocate and consume components and receive the output at component plus work center cost through inventory, lot genealogy and recall, and material requirements that suggest purchase and production orders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9387,18 +9387,18 @@ on conflict (name) do update
 create table "better_supabase"."work_centers" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_work_centers_name_check check (length("name") >= 1 and length("name") <= 200),
   -- The machine or line, an asset of the assets block.
   "asset_id" uuid,
-  "hours_per_day" numeric(5, 2) not null default 8 check ("hours_per_day" > 0 and "hours_per_day" <= 24),
+  "hours_per_day" numeric(5, 2) not null default 8 constraint bsb_work_centers_hours_per_day_check check ("hours_per_day" > 0 and "hours_per_day" <= 24),
   -- Minor units per hour of work, in currency.
-  "cost_rate" bigint not null default 0 check ("cost_rate" >= 0),
-  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
+  "cost_rate" bigint not null default 0 constraint bsb_work_centers_cost_rate_check check ("cost_rate" >= 0),
+  "currency" char(3) constraint bsb_work_centers_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "id"),
-  check ("cost_rate" = 0 or "currency" is not null)
+  constraint bsb_work_centers_check check ("cost_rate" = 0 or "currency" is not null)
 );
 create index "work_centers_tenant_idx" on "better_supabase"."work_centers" ("org_id", "name");
 create index "work_centers_asset_idx" on "better_supabase"."work_centers" ("asset_id") where "asset_id" is not null;
@@ -9416,11 +9416,11 @@ create table "better_supabase"."boms" (
   -- The variant the bill of materials makes.
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- 1, 2, 3 per variant; a production order pins one version.
-  "version" integer not null check ("version" > 0),
-  "status" text not null default 'draft' check ("status" in ('draft', 'active', 'archived')),
+  "version" integer not null constraint bsb_boms_version_check check ("version" > 0),
+  "status" text not null default 'draft' constraint bsb_boms_status_check check ("status" in ('draft', 'active', 'archived')),
   -- How much of the variant one run of the components makes.
-  "quantity" numeric(20, 6) not null default 1 check ("quantity" > 0),
-  "note" text check ("note" is null or length("note") <= 10000),
+  "quantity" numeric(20, 6) not null default 1 constraint bsb_boms_quantity_check check ("quantity" > 0),
+  "note" text constraint bsb_boms_note_check check ("note" is null or length("note") <= 10000),
   "activated_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -9444,15 +9444,15 @@ create table "better_supabase"."bom_operations" (
   "org_id" uuid not null,
   "bom_id" uuid not null,
   -- 10, 20, 30: the order operations run in.
-  "sequence" integer not null check ("sequence" > 0),
+  "sequence" integer not null constraint bsb_bom_operations_sequence_check check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "setup_minutes" numeric(10, 2) not null default 0 check ("setup_minutes" >= 0),
-  "run_minutes_per_unit" numeric(10, 4) not null default 0 check ("run_minutes_per_unit" >= 0),
+  "title" text not null constraint bsb_bom_operations_title_check check (length("title") >= 1 and length("title") <= 200),
+  "setup_minutes" numeric(10, 2) not null default 0 constraint bsb_bom_operations_setup_minutes_check check ("setup_minutes" >= 0),
+  "run_minutes_per_unit" numeric(10, 4) not null default 0 constraint bsb_bom_operations_run_minutes_per_unit_check check ("run_minutes_per_unit" >= 0),
   -- A drive node with the work instructions.
   "instructions_node_id" uuid,
   -- An inspection kind; starting the operation schedules one.
-  "inspection_template" text check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63),
+  "inspection_template" text constraint bsb_bom_operations_inspection_template_check check ("inspection_template" is null or length("inspection_template") >= 1 and length("inspection_template") <= 63),
   unique ("bom_id", "sequence"),
   foreign key ("org_id", "bom_id") references "better_supabase"."boms" ("org_id", "id") on delete cascade,
   foreign key ("org_id", "work_center_id") references "better_supabase"."work_centers" ("org_id", "id") on delete restrict
@@ -9475,9 +9475,9 @@ create table "better_supabase"."bom_components" (
   "position" integer not null default 0,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- Per bom quantity of the made variant, in the component's unit.
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_bom_components_quantity_check check ("quantity" > 0),
   -- Expected loss in basis points: 250 plans 2.5% more.
-  "scrap_bps" integer not null default 0 check ("scrap_bps" >= 0 and "scrap_bps" <= 10000),
+  "scrap_bps" integer not null default 0 constraint bsb_bom_components_scrap_bps_check check ("scrap_bps" >= 0 and "scrap_bps" <= 10000),
   -- The operation that uses it, or null for the start of the run.
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
   foreign key ("org_id", "bom_id") references "better_supabase"."boms" ("org_id", "id") on delete cascade
@@ -9497,25 +9497,25 @@ create table "better_supabase"."production_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- MO-2026-0001, from the numbering block when it numbers production orders.
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_production_orders_number_check check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   -- The bill of materials version the order was planned with.
   "bom_id" uuid not null,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_production_orders_quantity_check check ("quantity" > 0),
   -- The inventory location the components come from and the output goes to.
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete restrict,
   "due_on" date,
-  "status" text not null default 'draft' check ("status" in ('draft', 'released', 'in_progress', 'done', 'canceled')),
-  "produced_quantity" numeric(20, 6) not null default 0 check ("produced_quantity" >= 0),
-  "scrap_quantity" numeric(20, 6) not null default 0 check ("scrap_quantity" >= 0),
+  "status" text not null default 'draft' constraint bsb_production_orders_status_check check ("status" in ('draft', 'released', 'in_progress', 'done', 'canceled')),
+  "produced_quantity" numeric(20, 6) not null default 0 constraint bsb_production_orders_produced_quantity_check check ("produced_quantity" >= 0),
+  "scrap_quantity" numeric(20, 6) not null default 0 constraint bsb_production_orders_scrap_quantity_check check ("scrap_quantity" >= 0),
   "output_lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete set null,
   -- What completion valued the output at, in minor units of currency: the
   -- consumed components' stock value and the work centers' labor.
   "material_cost" bigint not null default 0,
-  "labor_cost" bigint not null default 0 check ("labor_cost" >= 0),
+  "labor_cost" bigint not null default 0 constraint bsb_production_orders_labor_cost_check check ("labor_cost" >= 0),
   "currency" char(3),
-  "note" text check ("note" is null or length("note") <= 10000),
+  "note" text constraint bsb_production_orders_note_check check ("note" is null or length("note") <= 10000),
   "released_at" timestamptz,
   "started_at" timestamptz,
   "completed_at" timestamptz,
@@ -9545,17 +9545,17 @@ create table "better_supabase"."production_order_operations" (
   "org_id" uuid not null,
   "order_id" uuid not null,
   "operation_id" uuid references "better_supabase"."bom_operations" ("id") on delete set null,
-  "sequence" integer not null check ("sequence" > 0),
+  "sequence" integer not null constraint bsb_production_order_operations_sequence_check check ("sequence" > 0),
   "work_center_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "title" text not null constraint bsb_production_order_operations_title_check check (length("title") >= 1 and length("title") <= 200),
   -- Setup plus run time for the order's quantity.
-  "planned_minutes" numeric(12, 2) not null default 0 check ("planned_minutes" >= 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'in_progress', 'done')),
+  "planned_minutes" numeric(12, 2) not null default 0 constraint bsb_production_order_operations_planned_minutes_check check ("planned_minutes" >= 0),
+  "status" text not null default 'pending' constraint bsb_production_order_operations_status_check check ("status" in ('pending', 'in_progress', 'done')),
   "started_at" timestamptz,
   "finished_at" timestamptz,
   "operator_id" uuid,
   -- The minutes worked, set when the operation finishes.
-  "minutes" numeric(12, 2) check ("minutes" is null or "minutes" >= 0),
+  "minutes" numeric(12, 2) constraint bsb_production_order_operations_minutes_check check ("minutes" is null or "minutes" >= 0),
   -- The inspection its inspection template scheduled.
   "inspection_id" uuid,
   unique ("order_id", "sequence"),
@@ -9580,8 +9580,8 @@ create table "better_supabase"."production_consumptions" (
   "order_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
-  "serial" text check ("serial" is null or length("serial") >= 1 and length("serial") <= 100),
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "serial" text constraint bsb_production_consumptions_serial_check check ("serial" is null or length("serial") >= 1 and length("serial") <= 100),
+  "quantity" numeric(20, 6) not null constraint bsb_production_consumptions_quantity_check check ("quantity" > 0),
   -- The stock value it took, in minor units of currency; 0 without costing.
   "cost" bigint not null default 0,
   "currency" char(3),
@@ -9611,7 +9611,7 @@ create table "better_supabase"."stock_lot_links" (
   "child_lot_id" uuid not null references "better_supabase"."stock_lots" ("id") on delete cascade,
   "order_id" uuid not null,
   -- How much of the child lot went into the parent.
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_stock_lot_links_quantity_check check ("quantity" > 0),
   "created_at" timestamptz not null default now(),
   primary key ("parent_lot_id", "child_lot_id", "order_id"),
   foreign key ("org_id", "order_id") references "better_supabase"."production_orders" ("org_id", "id") on delete cascade

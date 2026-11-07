@@ -4,6 +4,7 @@ import { modulePermissionKeys } from "../../../src/sql/introspect.ts";
 import { resolveBlocks } from "../../../src/sql/registry.ts";
 import { moduleBody, renderBlocks } from "../../../src/sql/render.ts";
 import { entryOf } from "../../fixtures/block-entry.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 describe("webhooks-in module", () => {
   it("stores hashed tokens, hides secrets and checks the access contract", () => {
@@ -18,7 +19,9 @@ describe("webhooks-in module", () => {
 
     expect(sql).toContain('create table "better_supabase"."incoming_webhooks"');
     expect(sql).toContain("token_hash text not null unique");
-    expect(sql).toContain("default 65536 check (max_body_bytes > 0)");
+    expect(unnamedChecks(sql)).toContain(
+      "default 65536 check (max_body_bytes > 0)",
+    );
     expect(sql).toContain("'integrations.manage'");
     expect(sql).toContain("tenant_ids_with('webhooks.read')");
     expect(sql).not.toMatch(/grant select \([^)]*\bsecret\b/);

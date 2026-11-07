@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_059_tags.sql
 -- better-supabase module: tags
 -- @bsb-block tags@2 managed
--- @bsb-hash sha256:7d6e1e81a2eca20821c46862676ab9e0bbdb7162287c4632daa5352df17e9adf
+-- @bsb-hash sha256:c6188aea746526f24e0724ff622c96cc3b173e81480f08e7bf02c0b1613fd4e2
 -- Tenant tags with a kind, and a link from a tag to a subject. Over the app's tables it can use one link table per subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,7 +10,7 @@ create table "better_supabase"."tags" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
   "kind" text not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 80),
+  "name" text not null constraint bsb_tags_name_check check (length("name") >= 1 and length("name") <= 80),
   "slug" text not null,
   "color" text,
   "description" text,

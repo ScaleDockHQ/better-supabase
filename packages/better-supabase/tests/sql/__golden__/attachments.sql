@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:fb59c572b5a8e7b60652069373004997fff6dcd782b4ad63eda77db371441966
+-- @bsb-hash sha256:913eec6ad7abba757d041a095d81b6cd37d98caa5732eeb6f2e474a269994a6b
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16,9 +16,9 @@
 create table "better_supabase"."attachment_document_types" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
-  "name" text not null check (length(btrim("name")) between 1 and 200),
-  "fields" jsonb not null default '{}'::jsonb check (jsonb_typeof("fields") = 'object'),
+  "key" text not null constraint bsb_attachment_document_types_key_check check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
+  "name" text not null constraint bsb_attachment_document_types_name_check check (length(btrim("name")) between 1 and 200),
+  "fields" jsonb not null default '{}'::jsonb constraint bsb_attachment_document_types_fields_check check (jsonb_typeof("fields") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("organization_id", "key")
@@ -218,41 +218,41 @@ grant execute on function "better_supabase"."delete_attachment_document_type"(uu
 create table "better_supabase"."attachments" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text constraint bsb_attachments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_attachments_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "bucket" text not null default 'attachments',
   "object_path" text,
-  "name" text not null check (length("name") >= 1 and length("name") <= 255),
-  "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
+  "name" text not null constraint bsb_attachments_name_check check (length("name") >= 1 and length("name") <= 255),
+  "mime_type" text not null constraint bsb_attachments_mime_type_check check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null default 'pending' constraint bsb_attachments_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "uploaded_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default clock_timestamp(),
   "uploaded_at" timestamptz,
   "scanned_at" timestamptz,
-  check (("subject_type" is null) = ("subject_id" is null))
+  constraint bsb_attachments_check check (("subject_type" is null) = ("subject_id" is null))
 );
 -- The current version (replace_attachment() adds one) and the image or
 -- document size the client measured: width and height in pixels, pages.
-alter table "better_supabase"."attachments" add column "version" integer not null default 1 check ("version" >= 1);
+alter table "better_supabase"."attachments" add column "version" integer not null default 1 constraint bsb_attachments_version_check check ("version" >= 1);
 -- The SHA-256 of the file's bytes, hex, recorded by the scan step from the
 -- stored object. A client never supplies it.
-alter table "better_supabase"."attachments" add column "sha256" text check ("sha256" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."attachments" add column "sha256" text constraint bsb_attachments_sha256_check check ("sha256" ~ '^[0-9a-f]{64}$');
 alter table "better_supabase"."attachments" add column "hash_verified_at" timestamptz;
-alter table "better_supabase"."attachments" add column "width" integer check ("width" > 0);
-alter table "better_supabase"."attachments" add column "height" integer check ("height" > 0);
-alter table "better_supabase"."attachments" add column "pages" integer check ("pages" > 0);
+alter table "better_supabase"."attachments" add column "width" integer constraint bsb_attachments_width_check check ("width" > 0);
+alter table "better_supabase"."attachments" add column "height" integer constraint bsb_attachments_height_check check ("height" > 0);
+alter table "better_supabase"."attachments" add column "pages" integer constraint bsb_attachments_pages_check check ("pages" > 0);
 -- App data about the file (a caption, the source, a page count), set on create.
-alter table "better_supabase"."attachments" add column "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."attachments" add column "metadata" jsonb not null default '{}' constraint bsb_attachments_metadata_check check (jsonb_typeof("metadata") = 'object');
 -- Where a record came from and what it is (ADR 0157). storage_status follows
 -- the upload: stored once uploaded_at is set, pending_upload until then, and
 -- missing for a record whose file never arrived.
 alter table "better_supabase"."attachments" add column "document_type_id" uuid references "better_supabase"."attachment_document_types" ("id") on delete restrict;
-alter table "better_supabase"."attachments" add column "source" text check (length("source") >= 1 and length("source") <= 200);
-alter table "better_supabase"."attachments" add column "external_id" text check (length("external_id") >= 1 and length("external_id") <= 500);
-alter table "better_supabase"."attachments" add column "storage_status" text not null default 'pending_upload' check ("storage_status" in ('stored', 'pending_upload', 'missing'));
-alter table "better_supabase"."attachments" add column "source_path" text check (length("source_path") >= 1 and length("source_path") <= 2000);
+alter table "better_supabase"."attachments" add column "source" text constraint bsb_attachments_source_check check (length("source") >= 1 and length("source") <= 200);
+alter table "better_supabase"."attachments" add column "external_id" text constraint bsb_attachments_external_id_check check (length("external_id") >= 1 and length("external_id") <= 500);
+alter table "better_supabase"."attachments" add column "storage_status" text not null default 'pending_upload' constraint bsb_attachments_storage_status_check check ("storage_status" in ('stored', 'pending_upload', 'missing'));
+alter table "better_supabase"."attachments" add column "source_path" text constraint bsb_attachments_source_path_check check (length("source_path") >= 1 and length("source_path") <= 2000);
 alter table "better_supabase"."attachments" add constraint "bsb_attachments_external"
   check (("source" is null) = ("external_id" is null));
 create unique index attachments_external_idx on "better_supabase"."attachments" ("organization_id", "source", "external_id") where "source" is not null;
@@ -441,7 +441,7 @@ create table "better_supabase"."attachment_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "attachment_id" uuid not null references "better_supabase"."attachments" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
+  "version" integer not null constraint bsb_attachment_versions_version_check check ("version" >= 1),
   "bucket" text not null,
   "object_path" text not null,
   "name" text not null,
@@ -450,7 +450,7 @@ create table "better_supabase"."attachment_versions" (
   "width" integer,
   "height" integer,
   "pages" integer,
-  "status" text not null check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null constraint bsb_attachment_versions_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "uploaded_by" uuid references auth.users (id) on delete set null,
   "uploaded_at" timestamptz,
@@ -939,7 +939,7 @@ $$;
 create table "better_supabase"."scanned_objects" (
   "bucket" text not null,
   "object_path" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null default 'pending' constraint bsb_scanned_objects_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "created_at" timestamptz not null default now(),
   "scanned_at" timestamptz,
@@ -1139,7 +1139,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:208b3c8ad2324afdbe2292b43aad79d9f91858f2f1af7cd749d5669d33bae74c
+-- @bsb-hash sha256:4754b9f4efa675a7dc8b0bf607e1316173ee6bc115f0a57680592d7f8e2ca98d
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1154,9 +1154,9 @@ on conflict (name) do update
 create table "better_supabase"."attachment_document_types" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
-  "name" text not null check (length(btrim("name")) between 1 and 200),
-  "fields" jsonb not null default '{}'::jsonb check (jsonb_typeof("fields") = 'object'),
+  "key" text not null constraint bsb_attachment_document_types_key_check check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
+  "name" text not null constraint bsb_attachment_document_types_name_check check (length(btrim("name")) between 1 and 200),
+  "fields" jsonb not null default '{}'::jsonb constraint bsb_attachment_document_types_fields_check check (jsonb_typeof("fields") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("organization_id", "key")
@@ -1356,41 +1356,41 @@ grant execute on function "better_supabase"."delete_attachment_document_type"(uu
 create table "better_supabase"."attachments" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text constraint bsb_attachments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_attachments_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "bucket" text not null default 'attachments',
   "object_path" text,
-  "name" text not null check (length("name") >= 1 and length("name") <= 255),
-  "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
+  "name" text not null constraint bsb_attachments_name_check check (length("name") >= 1 and length("name") <= 255),
+  "mime_type" text not null constraint bsb_attachments_mime_type_check check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null default 'pending' constraint bsb_attachments_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "uploaded_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default clock_timestamp(),
   "uploaded_at" timestamptz,
   "scanned_at" timestamptz,
-  check (("subject_type" is null) = ("subject_id" is null))
+  constraint bsb_attachments_check check (("subject_type" is null) = ("subject_id" is null))
 );
 -- The current version (replace_attachment() adds one) and the image or
 -- document size the client measured: width and height in pixels, pages.
-alter table "better_supabase"."attachments" add column "version" integer not null default 1 check ("version" >= 1);
+alter table "better_supabase"."attachments" add column "version" integer not null default 1 constraint bsb_attachments_version_check check ("version" >= 1);
 -- The SHA-256 of the file's bytes, hex, recorded by the scan step from the
 -- stored object. A client never supplies it.
-alter table "better_supabase"."attachments" add column "sha256" text check ("sha256" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."attachments" add column "sha256" text constraint bsb_attachments_sha256_check check ("sha256" ~ '^[0-9a-f]{64}$');
 alter table "better_supabase"."attachments" add column "hash_verified_at" timestamptz;
-alter table "better_supabase"."attachments" add column "width" integer check ("width" > 0);
-alter table "better_supabase"."attachments" add column "height" integer check ("height" > 0);
-alter table "better_supabase"."attachments" add column "pages" integer check ("pages" > 0);
+alter table "better_supabase"."attachments" add column "width" integer constraint bsb_attachments_width_check check ("width" > 0);
+alter table "better_supabase"."attachments" add column "height" integer constraint bsb_attachments_height_check check ("height" > 0);
+alter table "better_supabase"."attachments" add column "pages" integer constraint bsb_attachments_pages_check check ("pages" > 0);
 -- App data about the file (a caption, the source, a page count), set on create.
-alter table "better_supabase"."attachments" add column "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."attachments" add column "metadata" jsonb not null default '{}' constraint bsb_attachments_metadata_check check (jsonb_typeof("metadata") = 'object');
 -- Where a record came from and what it is (ADR 0157). storage_status follows
 -- the upload: stored once uploaded_at is set, pending_upload until then, and
 -- missing for a record whose file never arrived.
 alter table "better_supabase"."attachments" add column "document_type_id" uuid references "better_supabase"."attachment_document_types" ("id") on delete restrict;
-alter table "better_supabase"."attachments" add column "source" text check (length("source") >= 1 and length("source") <= 200);
-alter table "better_supabase"."attachments" add column "external_id" text check (length("external_id") >= 1 and length("external_id") <= 500);
-alter table "better_supabase"."attachments" add column "storage_status" text not null default 'pending_upload' check ("storage_status" in ('stored', 'pending_upload', 'missing'));
-alter table "better_supabase"."attachments" add column "source_path" text check (length("source_path") >= 1 and length("source_path") <= 2000);
+alter table "better_supabase"."attachments" add column "source" text constraint bsb_attachments_source_check check (length("source") >= 1 and length("source") <= 200);
+alter table "better_supabase"."attachments" add column "external_id" text constraint bsb_attachments_external_id_check check (length("external_id") >= 1 and length("external_id") <= 500);
+alter table "better_supabase"."attachments" add column "storage_status" text not null default 'pending_upload' constraint bsb_attachments_storage_status_check check ("storage_status" in ('stored', 'pending_upload', 'missing'));
+alter table "better_supabase"."attachments" add column "source_path" text constraint bsb_attachments_source_path_check check (length("source_path") >= 1 and length("source_path") <= 2000);
 alter table "better_supabase"."attachments" add constraint "bsb_attachments_external"
   check (("source" is null) = ("external_id" is null));
 create unique index attachments_external_idx on "better_supabase"."attachments" ("organization_id", "source", "external_id") where "source" is not null;
@@ -1589,7 +1589,7 @@ create table "better_supabase"."attachment_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "attachment_id" uuid not null references "better_supabase"."attachments" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
+  "version" integer not null constraint bsb_attachment_versions_version_check check ("version" >= 1),
   "bucket" text not null,
   "object_path" text not null,
   "name" text not null,
@@ -1598,7 +1598,7 @@ create table "better_supabase"."attachment_versions" (
   "width" integer,
   "height" integer,
   "pages" integer,
-  "status" text not null check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null constraint bsb_attachment_versions_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "uploaded_by" uuid references auth.users (id) on delete set null,
   "uploaded_at" timestamptz,
@@ -2219,7 +2219,7 @@ $$;
 create table "better_supabase"."scanned_objects" (
   "bucket" text not null,
   "object_path" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null default 'pending' constraint bsb_scanned_objects_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "created_at" timestamptz not null default now(),
   "scanned_at" timestamptz,
@@ -2422,7 +2422,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:fe41f2d991be2d8350c6a42fef67982b1e57ccfbd94b5cf3e82a4c2f5d31ddc7
+-- @bsb-hash sha256:e907c69f3b06101aade8b02a4674419b02fae5ce9860574a78fb9158d23b109a
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2442,9 +2442,9 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."attachment_document_types" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
-  "name" text not null check (length(btrim("name")) between 1 and 200),
-  "fields" jsonb not null default '{}'::jsonb check (jsonb_typeof("fields") = 'object'),
+  "key" text not null constraint bsb_attachment_document_types_key_check check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
+  "name" text not null constraint bsb_attachment_document_types_name_check check (length(btrim("name")) between 1 and 200),
+  "fields" jsonb not null default '{}'::jsonb constraint bsb_attachment_document_types_fields_check check (jsonb_typeof("fields") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("organization_id", "key")
@@ -2644,41 +2644,41 @@ grant execute on function "app_private"."delete_attachment_document_type"(uuid, 
 create table "app_private"."attachments" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text constraint bsb_attachments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_attachments_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "bucket" text not null default 'attachments',
   "object_path" text,
-  "name" text not null check (length("name") >= 1 and length("name") <= 255),
-  "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
+  "name" text not null constraint bsb_attachments_name_check check (length("name") >= 1 and length("name") <= 255),
+  "mime_type" text not null constraint bsb_attachments_mime_type_check check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null default 'pending' constraint bsb_attachments_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "uploaded_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default clock_timestamp(),
   "uploaded_at" timestamptz,
   "scanned_at" timestamptz,
-  check (("subject_type" is null) = ("subject_id" is null))
+  constraint bsb_attachments_check check (("subject_type" is null) = ("subject_id" is null))
 );
 -- The current version (replace_attachment() adds one) and the image or
 -- document size the client measured: width and height in pixels, pages.
-alter table "app_private"."attachments" add column "version" integer not null default 1 check ("version" >= 1);
+alter table "app_private"."attachments" add column "version" integer not null default 1 constraint bsb_attachments_version_check check ("version" >= 1);
 -- The SHA-256 of the file's bytes, hex, recorded by the scan step from the
 -- stored object. A client never supplies it.
-alter table "app_private"."attachments" add column "sha256" text check ("sha256" ~ '^[0-9a-f]{64}$');
+alter table "app_private"."attachments" add column "sha256" text constraint bsb_attachments_sha256_check check ("sha256" ~ '^[0-9a-f]{64}$');
 alter table "app_private"."attachments" add column "hash_verified_at" timestamptz;
-alter table "app_private"."attachments" add column "width" integer check ("width" > 0);
-alter table "app_private"."attachments" add column "height" integer check ("height" > 0);
-alter table "app_private"."attachments" add column "pages" integer check ("pages" > 0);
+alter table "app_private"."attachments" add column "width" integer constraint bsb_attachments_width_check check ("width" > 0);
+alter table "app_private"."attachments" add column "height" integer constraint bsb_attachments_height_check check ("height" > 0);
+alter table "app_private"."attachments" add column "pages" integer constraint bsb_attachments_pages_check check ("pages" > 0);
 -- App data about the file (a caption, the source, a page count), set on create.
-alter table "app_private"."attachments" add column "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
+alter table "app_private"."attachments" add column "metadata" jsonb not null default '{}' constraint bsb_attachments_metadata_check check (jsonb_typeof("metadata") = 'object');
 -- Where a record came from and what it is (ADR 0157). storage_status follows
 -- the upload: stored once uploaded_at is set, pending_upload until then, and
 -- missing for a record whose file never arrived.
 alter table "app_private"."attachments" add column "document_type_id" uuid references "app_private"."attachment_document_types" ("id") on delete restrict;
-alter table "app_private"."attachments" add column "source" text check (length("source") >= 1 and length("source") <= 200);
-alter table "app_private"."attachments" add column "external_id" text check (length("external_id") >= 1 and length("external_id") <= 500);
-alter table "app_private"."attachments" add column "storage_status" text not null default 'pending_upload' check ("storage_status" in ('stored', 'pending_upload', 'missing'));
-alter table "app_private"."attachments" add column "source_path" text check (length("source_path") >= 1 and length("source_path") <= 2000);
+alter table "app_private"."attachments" add column "source" text constraint bsb_attachments_source_check check (length("source") >= 1 and length("source") <= 200);
+alter table "app_private"."attachments" add column "external_id" text constraint bsb_attachments_external_id_check check (length("external_id") >= 1 and length("external_id") <= 500);
+alter table "app_private"."attachments" add column "storage_status" text not null default 'pending_upload' constraint bsb_attachments_storage_status_check check ("storage_status" in ('stored', 'pending_upload', 'missing'));
+alter table "app_private"."attachments" add column "source_path" text constraint bsb_attachments_source_path_check check (length("source_path") >= 1 and length("source_path") <= 2000);
 alter table "app_private"."attachments" add constraint "bsb_attachments_external"
   check (("source" is null) = ("external_id" is null));
 create unique index attachments_external_idx on "app_private"."attachments" ("organization_id", "source", "external_id") where "source" is not null;
@@ -2867,7 +2867,7 @@ create table "app_private"."attachment_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "attachment_id" uuid not null references "app_private"."attachments" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
+  "version" integer not null constraint bsb_attachment_versions_version_check check ("version" >= 1),
   "bucket" text not null,
   "object_path" text not null,
   "name" text not null,
@@ -2876,7 +2876,7 @@ create table "app_private"."attachment_versions" (
   "width" integer,
   "height" integer,
   "pages" integer,
-  "status" text not null check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null constraint bsb_attachment_versions_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "uploaded_by" uuid references auth.users (id) on delete set null,
   "uploaded_at" timestamptz,
@@ -3365,7 +3365,7 @@ $$;
 create table "app_private"."scanned_objects" (
   "bucket" text not null,
   "object_path" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null default 'pending' constraint bsb_scanned_objects_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "created_at" timestamptz not null default now(),
   "scanned_at" timestamptz,
@@ -3565,7 +3565,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:f1fd419fe3a5a3b4ac98b7bc9b28d8c8b7611cf75dbc2aa27578f8e414bd50e2
+-- @bsb-hash sha256:f1c2000ad29614558c9b6e935a36de55a26683cce1ce0196421f2b69abe55247
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3580,9 +3580,9 @@ on conflict (name) do update
 create table "better_supabase"."attachment_document_types" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
-  "name" text not null check (length(btrim("name")) between 1 and 200),
-  "fields" jsonb not null default '{}'::jsonb check (jsonb_typeof("fields") = 'object'),
+  "key" text not null constraint bsb_attachment_document_types_key_check check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
+  "name" text not null constraint bsb_attachment_document_types_name_check check (length(btrim("name")) between 1 and 200),
+  "fields" jsonb not null default '{}'::jsonb constraint bsb_attachment_document_types_fields_check check (jsonb_typeof("fields") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("organization_id", "key")
@@ -3782,41 +3782,41 @@ grant execute on function "better_supabase"."delete_attachment_document_type"(uu
 create table "better_supabase"."attachments" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text constraint bsb_attachments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_attachments_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "bucket" text not null default 'attachments',
   "object_path" text,
-  "name" text not null check (length("name") >= 1 and length("name") <= 255),
-  "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
+  "name" text not null constraint bsb_attachments_name_check check (length("name") >= 1 and length("name") <= 255),
+  "mime_type" text not null constraint bsb_attachments_mime_type_check check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null default 'pending' constraint bsb_attachments_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "uploaded_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default clock_timestamp(),
   "uploaded_at" timestamptz,
   "scanned_at" timestamptz,
-  check (("subject_type" is null) = ("subject_id" is null))
+  constraint bsb_attachments_check check (("subject_type" is null) = ("subject_id" is null))
 );
 -- The current version (replace_attachment() adds one) and the image or
 -- document size the client measured: width and height in pixels, pages.
-alter table "better_supabase"."attachments" add column "version" integer not null default 1 check ("version" >= 1);
+alter table "better_supabase"."attachments" add column "version" integer not null default 1 constraint bsb_attachments_version_check check ("version" >= 1);
 -- The SHA-256 of the file's bytes, hex, recorded by the scan step from the
 -- stored object. A client never supplies it.
-alter table "better_supabase"."attachments" add column "sha256" text check ("sha256" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."attachments" add column "sha256" text constraint bsb_attachments_sha256_check check ("sha256" ~ '^[0-9a-f]{64}$');
 alter table "better_supabase"."attachments" add column "hash_verified_at" timestamptz;
-alter table "better_supabase"."attachments" add column "width" integer check ("width" > 0);
-alter table "better_supabase"."attachments" add column "height" integer check ("height" > 0);
-alter table "better_supabase"."attachments" add column "pages" integer check ("pages" > 0);
+alter table "better_supabase"."attachments" add column "width" integer constraint bsb_attachments_width_check check ("width" > 0);
+alter table "better_supabase"."attachments" add column "height" integer constraint bsb_attachments_height_check check ("height" > 0);
+alter table "better_supabase"."attachments" add column "pages" integer constraint bsb_attachments_pages_check check ("pages" > 0);
 -- App data about the file (a caption, the source, a page count), set on create.
-alter table "better_supabase"."attachments" add column "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."attachments" add column "metadata" jsonb not null default '{}' constraint bsb_attachments_metadata_check check (jsonb_typeof("metadata") = 'object');
 -- Where a record came from and what it is (ADR 0157). storage_status follows
 -- the upload: stored once uploaded_at is set, pending_upload until then, and
 -- missing for a record whose file never arrived.
 alter table "better_supabase"."attachments" add column "document_type_id" uuid references "better_supabase"."attachment_document_types" ("id") on delete restrict;
-alter table "better_supabase"."attachments" add column "source" text check (length("source") >= 1 and length("source") <= 200);
-alter table "better_supabase"."attachments" add column "external_id" text check (length("external_id") >= 1 and length("external_id") <= 500);
-alter table "better_supabase"."attachments" add column "storage_status" text not null default 'pending_upload' check ("storage_status" in ('stored', 'pending_upload', 'missing'));
-alter table "better_supabase"."attachments" add column "source_path" text check (length("source_path") >= 1 and length("source_path") <= 2000);
+alter table "better_supabase"."attachments" add column "source" text constraint bsb_attachments_source_check check (length("source") >= 1 and length("source") <= 200);
+alter table "better_supabase"."attachments" add column "external_id" text constraint bsb_attachments_external_id_check check (length("external_id") >= 1 and length("external_id") <= 500);
+alter table "better_supabase"."attachments" add column "storage_status" text not null default 'pending_upload' constraint bsb_attachments_storage_status_check check ("storage_status" in ('stored', 'pending_upload', 'missing'));
+alter table "better_supabase"."attachments" add column "source_path" text constraint bsb_attachments_source_path_check check (length("source_path") >= 1 and length("source_path") <= 2000);
 alter table "better_supabase"."attachments" add constraint "bsb_attachments_external"
   check (("source" is null) = ("external_id" is null));
 create unique index attachments_external_idx on "better_supabase"."attachments" ("organization_id", "source", "external_id") where "source" is not null;
@@ -4005,7 +4005,7 @@ create table "better_supabase"."attachment_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "attachment_id" uuid not null references "better_supabase"."attachments" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
+  "version" integer not null constraint bsb_attachment_versions_version_check check ("version" >= 1),
   "bucket" text not null,
   "object_path" text not null,
   "name" text not null,
@@ -4014,7 +4014,7 @@ create table "better_supabase"."attachment_versions" (
   "width" integer,
   "height" integer,
   "pages" integer,
-  "status" text not null check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null constraint bsb_attachment_versions_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "uploaded_by" uuid references auth.users (id) on delete set null,
   "uploaded_at" timestamptz,
@@ -4503,7 +4503,7 @@ $$;
 create table "better_supabase"."scanned_objects" (
   "bucket" text not null,
   "object_path" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null default 'pending' constraint bsb_scanned_objects_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "created_at" timestamptz not null default now(),
   "scanned_at" timestamptz,
@@ -4888,7 +4888,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:e547e1ca9825364a04025194f2a593c936143e74736b34fdaeb50aeafa82beb4
+-- @bsb-hash sha256:db464702b59d6b6d5c6d390bb417c03e92ecf1f5ebe6665938df23bb45955605
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4903,9 +4903,9 @@ on conflict (name) do update
 -- better_supabase.attachment_document_types is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."attachment_document_types" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."attachment_document_types" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."attachment_document_types" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$');
-alter table "better_supabase"."attachment_document_types" add column if not exists "name" text check (length(btrim("name")) between 1 and 200);
-alter table "better_supabase"."attachment_document_types" add column if not exists "fields" jsonb not null default '{}'::jsonb check (jsonb_typeof("fields") = 'object');
+alter table "better_supabase"."attachment_document_types" add column if not exists "key" text constraint bsb_attachment_document_types_key_check check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$');
+alter table "better_supabase"."attachment_document_types" add column if not exists "name" text constraint bsb_attachment_document_types_name_check check (length(btrim("name")) between 1 and 200);
+alter table "better_supabase"."attachment_document_types" add column if not exists "fields" jsonb not null default '{}'::jsonb constraint bsb_attachment_document_types_fields_check check (jsonb_typeof("fields") = 'object');
 alter table "better_supabase"."attachment_document_types" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."attachment_document_types" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_attachment_document_types_key" on "better_supabase"."attachment_document_types" ("organization_id", "key");
@@ -5103,14 +5103,14 @@ grant execute on function "better_supabase"."delete_attachment_document_type"(uu
 -- better_supabase.attachments is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."attachments" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."attachments" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."attachments" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."attachments" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."attachments" add column if not exists "subject_type" text constraint bsb_attachments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."attachments" add column if not exists "subject_id" text constraint bsb_attachments_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."attachments" add column if not exists "bucket" text not null default 'attachments';
 alter table "better_supabase"."attachments" add column if not exists "object_path" text;
-alter table "better_supabase"."attachments" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 255);
-alter table "better_supabase"."attachments" add column if not exists "mime_type" text check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$');
+alter table "better_supabase"."attachments" add column if not exists "name" text constraint bsb_attachments_name_check check (length("name") >= 1 and length("name") <= 255);
+alter table "better_supabase"."attachments" add column if not exists "mime_type" text constraint bsb_attachments_mime_type_check check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$');
 alter table "better_supabase"."attachments" add column if not exists "size" bigint;
-alter table "better_supabase"."attachments" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed'));
+alter table "better_supabase"."attachments" add column if not exists "status" text not null default 'pending' constraint bsb_attachments_status_check check ("status" in ('pending', 'clean', 'infected', 'failed'));
 alter table "better_supabase"."attachments" add column if not exists "scan_detail" text;
 alter table "better_supabase"."attachments" add column if not exists "uploaded_by" uuid references auth.users (id) on delete set null default auth.uid();
 alter table "better_supabase"."attachments" add column if not exists "created_at" timestamptz not null default clock_timestamp();
@@ -5118,16 +5118,16 @@ alter table "better_supabase"."attachments" add column if not exists "uploaded_a
 alter table "better_supabase"."attachments" add column if not exists "scanned_at" timestamptz;
 -- The current version (replace_attachment() adds one) and the image or
 -- document size the client measured: width and height in pixels, pages.
-alter table "better_supabase"."attachments" add column if not exists "version" integer not null default 1 check ("version" >= 1);
+alter table "better_supabase"."attachments" add column if not exists "version" integer not null default 1 constraint bsb_attachments_version_check check ("version" >= 1);
 -- The SHA-256 of the file's bytes, hex, recorded by the scan step from the
 -- stored object. A client never supplies it.
-alter table "better_supabase"."attachments" add column if not exists "sha256" text check ("sha256" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."attachments" add column if not exists "sha256" text constraint bsb_attachments_sha256_check check ("sha256" ~ '^[0-9a-f]{64}$');
 alter table "better_supabase"."attachments" add column if not exists "hash_verified_at" timestamptz;
-alter table "better_supabase"."attachments" add column if not exists "width" integer check ("width" > 0);
-alter table "better_supabase"."attachments" add column if not exists "height" integer check ("height" > 0);
-alter table "better_supabase"."attachments" add column if not exists "pages" integer check ("pages" > 0);
+alter table "better_supabase"."attachments" add column if not exists "width" integer constraint bsb_attachments_width_check check ("width" > 0);
+alter table "better_supabase"."attachments" add column if not exists "height" integer constraint bsb_attachments_height_check check ("height" > 0);
+alter table "better_supabase"."attachments" add column if not exists "pages" integer constraint bsb_attachments_pages_check check ("pages" > 0);
 -- App data about the file (a caption, the source, a page count), set on create.
-alter table "better_supabase"."attachments" add column if not exists "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."attachments" add column if not exists "metadata" jsonb not null default '{}' constraint bsb_attachments_metadata_check check (jsonb_typeof("metadata") = 'object');
 -- The bucket, size limit and MIME types come from the module options, so a
 -- re-run applies changed options to an existing table.
 create unique index if not exists attachments_object_idx on "better_supabase"."attachments" ("bucket", "object_path");
@@ -5235,7 +5235,7 @@ create policy bsb_attachments_receive on realtime.messages
 alter table "better_supabase"."attachment_versions" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."attachment_versions" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."attachment_versions" add column if not exists "attachment_id" uuid references "better_supabase"."attachments" ("id") on delete cascade;
-alter table "better_supabase"."attachment_versions" add column if not exists "version" integer check ("version" >= 1);
+alter table "better_supabase"."attachment_versions" add column if not exists "version" integer constraint bsb_attachment_versions_version_check check ("version" >= 1);
 alter table "better_supabase"."attachment_versions" add column if not exists "bucket" text;
 alter table "better_supabase"."attachment_versions" add column if not exists "object_path" text;
 alter table "better_supabase"."attachment_versions" add column if not exists "name" text;
@@ -5244,7 +5244,7 @@ alter table "better_supabase"."attachment_versions" add column if not exists "si
 alter table "better_supabase"."attachment_versions" add column if not exists "width" integer;
 alter table "better_supabase"."attachment_versions" add column if not exists "height" integer;
 alter table "better_supabase"."attachment_versions" add column if not exists "pages" integer;
-alter table "better_supabase"."attachment_versions" add column if not exists "status" text check ("status" in ('pending', 'clean', 'infected', 'failed'));
+alter table "better_supabase"."attachment_versions" add column if not exists "status" text constraint bsb_attachment_versions_status_check check ("status" in ('pending', 'clean', 'infected', 'failed'));
 alter table "better_supabase"."attachment_versions" add column if not exists "scan_detail" text;
 alter table "better_supabase"."attachment_versions" add column if not exists "uploaded_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."attachment_versions" add column if not exists "uploaded_at" timestamptz;
@@ -5620,7 +5620,7 @@ $$;
 -- better_supabase.scanned_objects is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."scanned_objects" add column if not exists "bucket" text;
 alter table "better_supabase"."scanned_objects" add column if not exists "object_path" text;
-alter table "better_supabase"."scanned_objects" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed'));
+alter table "better_supabase"."scanned_objects" add column if not exists "status" text not null default 'pending' constraint bsb_scanned_objects_status_check check ("status" in ('pending', 'clean', 'infected', 'failed'));
 alter table "better_supabase"."scanned_objects" add column if not exists "scan_detail" text;
 alter table "better_supabase"."scanned_objects" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."scanned_objects" add column if not exists "scanned_at" timestamptz;
@@ -5818,7 +5818,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:f83660169fa7cf886987b7f3e2f0bc601f092e65df287f1ff50cdb7e7946a29a
+-- @bsb-hash sha256:49d20034080c205898de7ce7f9d6c085142291c96f29e7fcc2abb09eef5db853
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5833,9 +5833,9 @@ on conflict (name) do update
 create table "better_supabase"."attachment_document_types" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
-  "name" text not null check (length(btrim("name")) between 1 and 200),
-  "fields" jsonb not null default '{}'::jsonb check (jsonb_typeof("fields") = 'object'),
+  "key" text not null constraint bsb_attachment_document_types_key_check check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
+  "name" text not null constraint bsb_attachment_document_types_name_check check (length(btrim("name")) between 1 and 200),
+  "fields" jsonb not null default '{}'::jsonb constraint bsb_attachment_document_types_fields_check check (jsonb_typeof("fields") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "key")
@@ -6035,41 +6035,41 @@ grant execute on function "better_supabase"."delete_attachment_document_type"(uu
 create table "better_supabase"."attachments" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text constraint bsb_attachments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_attachments_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "bucket" text not null default 'attachments',
   "object_path" text,
-  "name" text not null check (length("name") >= 1 and length("name") <= 255),
-  "mime_type" text not null check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
+  "name" text not null constraint bsb_attachments_name_check check (length("name") >= 1 and length("name") <= 255),
+  "mime_type" text not null constraint bsb_attachments_mime_type_check check ("mime_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "size" bigint not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null default 'pending' constraint bsb_attachments_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "uploaded_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default clock_timestamp(),
   "uploaded_at" timestamptz,
   "scanned_at" timestamptz,
-  check (("subject_type" is null) = ("subject_id" is null))
+  constraint bsb_attachments_check check (("subject_type" is null) = ("subject_id" is null))
 );
 -- The current version (replace_attachment() adds one) and the image or
 -- document size the client measured: width and height in pixels, pages.
-alter table "better_supabase"."attachments" add column "version" integer not null default 1 check ("version" >= 1);
+alter table "better_supabase"."attachments" add column "version" integer not null default 1 constraint bsb_attachments_version_check check ("version" >= 1);
 -- The SHA-256 of the file's bytes, hex, recorded by the scan step from the
 -- stored object. A client never supplies it.
-alter table "better_supabase"."attachments" add column "sha256" text check ("sha256" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."attachments" add column "sha256" text constraint bsb_attachments_sha256_check check ("sha256" ~ '^[0-9a-f]{64}$');
 alter table "better_supabase"."attachments" add column "hash_verified_at" timestamptz;
-alter table "better_supabase"."attachments" add column "width" integer check ("width" > 0);
-alter table "better_supabase"."attachments" add column "height" integer check ("height" > 0);
-alter table "better_supabase"."attachments" add column "pages" integer check ("pages" > 0);
+alter table "better_supabase"."attachments" add column "width" integer constraint bsb_attachments_width_check check ("width" > 0);
+alter table "better_supabase"."attachments" add column "height" integer constraint bsb_attachments_height_check check ("height" > 0);
+alter table "better_supabase"."attachments" add column "pages" integer constraint bsb_attachments_pages_check check ("pages" > 0);
 -- App data about the file (a caption, the source, a page count), set on create.
-alter table "better_supabase"."attachments" add column "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."attachments" add column "metadata" jsonb not null default '{}' constraint bsb_attachments_metadata_check check (jsonb_typeof("metadata") = 'object');
 -- Where a record came from and what it is (ADR 0157). storage_status follows
 -- the upload: stored once uploaded_at is set, pending_upload until then, and
 -- missing for a record whose file never arrived.
 alter table "better_supabase"."attachments" add column "document_type_id" uuid references "better_supabase"."attachment_document_types" ("id") on delete restrict;
-alter table "better_supabase"."attachments" add column "source" text check (length("source") >= 1 and length("source") <= 200);
-alter table "better_supabase"."attachments" add column "external_id" text check (length("external_id") >= 1 and length("external_id") <= 500);
-alter table "better_supabase"."attachments" add column "storage_status" text not null default 'pending_upload' check ("storage_status" in ('stored', 'pending_upload', 'missing'));
-alter table "better_supabase"."attachments" add column "source_path" text check (length("source_path") >= 1 and length("source_path") <= 2000);
+alter table "better_supabase"."attachments" add column "source" text constraint bsb_attachments_source_check check (length("source") >= 1 and length("source") <= 200);
+alter table "better_supabase"."attachments" add column "external_id" text constraint bsb_attachments_external_id_check check (length("external_id") >= 1 and length("external_id") <= 500);
+alter table "better_supabase"."attachments" add column "storage_status" text not null default 'pending_upload' constraint bsb_attachments_storage_status_check check ("storage_status" in ('stored', 'pending_upload', 'missing'));
+alter table "better_supabase"."attachments" add column "source_path" text constraint bsb_attachments_source_path_check check (length("source_path") >= 1 and length("source_path") <= 2000);
 alter table "better_supabase"."attachments" add constraint "bsb_attachments_external"
   check (("source" is null) = ("external_id" is null));
 create unique index attachments_external_idx on "better_supabase"."attachments" ("org_id", "source", "external_id") where "source" is not null;
@@ -6258,7 +6258,7 @@ create table "better_supabase"."attachment_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "attachment_id" uuid not null references "better_supabase"."attachments" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
+  "version" integer not null constraint bsb_attachment_versions_version_check check ("version" >= 1),
   "bucket" text not null,
   "object_path" text not null,
   "name" text not null,
@@ -6267,7 +6267,7 @@ create table "better_supabase"."attachment_versions" (
   "width" integer,
   "height" integer,
   "pages" integer,
-  "status" text not null check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null constraint bsb_attachment_versions_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "uploaded_by" uuid references auth.users (id) on delete set null,
   "uploaded_at" timestamptz,
@@ -6756,7 +6756,7 @@ $$;
 create table "better_supabase"."scanned_objects" (
   "bucket" text not null,
   "object_path" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'clean', 'infected', 'failed')),
+  "status" text not null default 'pending' constraint bsb_scanned_objects_status_check check ("status" in ('pending', 'clean', 'infected', 'failed')),
   "scan_detail" text,
   "created_at" timestamptz not null default now(),
   "scanned_at" timestamptz,

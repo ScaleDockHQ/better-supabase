@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_085_promotions.sql
 -- better-supabase module: promotions
 -- @bsb-block promotions@1 managed
--- @bsb-hash sha256:bffd87bca5b6e801281fb5ae7e136ed7cdb5944b9cffaf7da1a1c78ca552bfa1
+-- @bsb-hash sha256:ecaa65553098ab37ab1fe26be106d599ab52b73d537c9cc62cd44be8b9d7b7dc
 -- Percentage, fixed and free-shipping promotions, automatic or by code, with usage limits and stacking rules, priced into orders carts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,30 +12,30 @@
 create table "better_supabase"."promotions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text check (length("description") <= 2000),
-  "kind" text not null check ("kind" in ('percentage', 'fixed', 'free_shipping')),
-  "percent" numeric(5, 2) check ("percent" > 0 and "percent" <= 100),
-  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
-  "amount" bigint check ("amount" > 0),
-  "min_subtotal" bigint check ("min_subtotal" > 0),
-  "scope" text not null default 'order' check ("scope" in ('order', 'products', 'categories', 'collections')),
+  "name" text not null constraint bsb_promotions_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_promotions_description_check check (length("description") <= 2000),
+  "kind" text not null constraint bsb_promotions_kind_check check ("kind" in ('percentage', 'fixed', 'free_shipping')),
+  "percent" numeric(5, 2) constraint bsb_promotions_percent_check check ("percent" > 0 and "percent" <= 100),
+  "currency" char(3) constraint bsb_promotions_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint constraint bsb_promotions_amount_check check ("amount" > 0),
+  "min_subtotal" bigint constraint bsb_promotions_min_subtotal_check check ("min_subtotal" > 0),
+  "scope" text not null default 'order' constraint bsb_promotions_scope_check check ("scope" in ('order', 'products', 'categories', 'collections')),
   "target_ids" uuid[] not null default '{}',
   "starts_at" timestamptz,
   "ends_at" timestamptz,
-  "usage_limit" integer check ("usage_limit" > 0),
-  "per_customer_limit" integer check ("per_customer_limit" > 0),
-  "redemptions" integer not null default 0 check ("redemptions" >= 0),
+  "usage_limit" integer constraint bsb_promotions_usage_limit_check check ("usage_limit" > 0),
+  "per_customer_limit" integer constraint bsb_promotions_per_customer_limit_check check ("per_customer_limit" > 0),
+  "redemptions" integer not null default 0 constraint bsb_promotions_redemptions_check check ("redemptions" >= 0),
   "stackable" boolean not null default false,
   "priority" integer not null default 0,
   "automatic" boolean not null default false,
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("kind" = 'percentage') = ("percent" is not null)),
-  check (("kind" = 'fixed') = ("amount" is not null)),
-  check (("amount" is null and "min_subtotal" is null) or "currency" is not null),
-  check ("ends_at" is null or "starts_at" is null or "ends_at" > "starts_at")
+  constraint bsb_promotions_check check (("kind" = 'percentage') = ("percent" is not null)),
+  constraint bsb_promotions_check1 check (("kind" = 'fixed') = ("amount" is not null)),
+  constraint bsb_promotions_check2 check (("amount" is null and "min_subtotal" is null) or "currency" is not null),
+  constraint bsb_promotions_check3 check ("ends_at" is null or "starts_at" is null or "ends_at" > "starts_at")
 );
 create index promotions_tenant_idx on "better_supabase"."promotions" ("tenant_id", "active", "automatic");
 alter table "better_supabase"."promotions" enable row level security;
@@ -50,9 +50,9 @@ create table "better_supabase"."promotion_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "promotion_id" uuid not null references "better_supabase"."promotions" ("id") on delete cascade,
-  "code" text not null check ("code" ~ '^[A-Z0-9_-]{3,40}$'),
-  "usage_limit" integer check ("usage_limit" > 0),
-  "redemptions" integer not null default 0 check ("redemptions" >= 0),
+  "code" text not null constraint bsb_promotion_codes_code_check check ("code" ~ '^[A-Z0-9_-]{3,40}$'),
+  "usage_limit" integer constraint bsb_promotion_codes_usage_limit_check check ("usage_limit" > 0),
+  "redemptions" integer not null default 0 constraint bsb_promotion_codes_redemptions_check check ("redemptions" >= 0),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
 );
@@ -89,9 +89,9 @@ create table "better_supabase"."promotion_redemptions" (
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
   "customer_id" uuid references auth.users (id) on delete set null,
   "email" text,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "amount" bigint not null check ("amount" >= 0),
-  "status" text not null default 'redeemed' check ("status" in ('redeemed', 'released')),
+  "currency" char(3) not null constraint bsb_promotion_redemptions_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint not null constraint bsb_promotion_redemptions_amount_check check ("amount" >= 0),
+  "status" text not null default 'redeemed' constraint bsb_promotion_redemptions_status_check check ("status" in ('redeemed', 'released')),
   "created_at" timestamptz not null default now(),
   "released_at" timestamptz,
   unique ("order_id", "promotion_id")

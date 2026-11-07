@@ -8,6 +8,7 @@ import {
   renderBlocks,
 } from "../../../src/sql/render.ts";
 import { moduleProvider } from "../../fixtures/authorization-provider.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const schemaOf = (names: readonly string[]) =>
   renderBlocks(names, {})
@@ -85,7 +86,7 @@ describe("workflow-editor module", () => {
     expect(body).toContain(
       'add column "published_by" uuid references auth.users (id) on delete set null',
     );
-    expect(body).toContain(
+    expect(unnamedChecks(body)).toContain(
       `add column "owner_kind" text check ("owner_kind" in ('user', 'organization'))`,
     );
 

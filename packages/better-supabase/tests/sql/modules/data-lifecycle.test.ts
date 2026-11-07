@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const sqlOf = (
   names: readonly string[],
@@ -602,7 +603,7 @@ describe("data-lifecycle module", () => {
       expect(sql).toContain(
         'create table "better_supabase"."data_subject_requests"',
       );
-      expect(sql).toContain(
+      expect(unnamedChecks(sql)).toContain(
         `"kind" text not null check ("kind" in ('access', 'erasure', 'rectification', 'portability'))`,
       );
       expect(sql).toContain(

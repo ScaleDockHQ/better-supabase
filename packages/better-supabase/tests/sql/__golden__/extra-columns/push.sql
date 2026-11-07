@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_054_push.sql
 -- better-supabase module: push
 -- @bsb-block push@3 managed
--- @bsb-hash sha256:5ff05c7192ad4d6acd4ea1d44046272ed07aea84707909c2e0eee02c1018d17f
+-- @bsb-hash sha256:5b8678166cd88855b0b72382b3c05ba95b56e851833ecbbd132106c78a4a7d42
 -- The push tokens of each user's devices (Expo, FCM, APNs or Web Push) with RLS, behind register_push_device and unregister_push_device for the user and push_tokens_for and prune_push_tokens for the service role. With notifications, push_tickets keeps Expo's tickets per delivery for the receipt check. better-supabase/blocks/push registers Expo devices and sends through the Expo Push API.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,11 +14,11 @@
 create table "better_supabase"."push_devices" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "token" text not null unique check (length("token") >= 1 and length("token") <= 4096),
-  "platform" text not null check ("platform" in ('ios', 'android', 'web')),
-  "provider" text not null default 'expo' check ("provider" in ('expo', 'fcm', 'apns', 'webpush')),
-  "device_name" text check (length("device_name") <= 200),
-  "app_version" text check (length("app_version") <= 50),
+  "token" text not null unique constraint bsb_push_devices_token_check check (length("token") >= 1 and length("token") <= 4096),
+  "platform" text not null constraint bsb_push_devices_platform_check check ("platform" in ('ios', 'android', 'web')),
+  "provider" text not null default 'expo' constraint bsb_push_devices_provider_check check ("provider" in ('expo', 'fcm', 'apns', 'webpush')),
+  "device_name" text constraint bsb_push_devices_device_name_check check (length("device_name") <= 200),
+  "app_version" text constraint bsb_push_devices_app_version_check check (length("app_version") <= 50),
   "created_at" timestamptz not null default now(),
   "last_seen_at" timestamptz not null default now()
 );

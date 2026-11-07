@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:48fb89c597ff3968203e8cd5f4a46009c7f02ca9a24ac6bfb75eb224f810d751
+-- @bsb-hash sha256:03e647fec66161b0e8e228cff132729e8770419f2700853d3ecf2279508cded4
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,9 +11,9 @@ create table "better_supabase"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "instructions" text not null default '' check (length("instructions") <= 20000),
-  "default_model" text check (length("default_model") <= 200),
+  "name" text not null constraint bsb_ai_projects_name_check check (length("name") >= 1 and length("name") <= 200),
+  "instructions" text not null default '' constraint bsb_ai_projects_instructions_check check (length("instructions") <= 20000),
+  "default_model" text constraint bsb_ai_projects_default_model_check check (length("default_model") <= 200),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -35,11 +35,11 @@ create table "better_supabase"."ai_chats" (
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "project_id" uuid references "better_supabase"."ai_projects" ("id") on delete set null,
-  "agent_id" text check (length("agent_id") <= 200),
-  "title" text not null default '' check (length("title") <= 300),
-  "model" text check (length("model") <= 200),
-  "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'shared')),
-  "mode" text check (length("mode") <= 100),
+  "agent_id" text constraint bsb_ai_chats_agent_id_check check (length("agent_id") <= 200),
+  "title" text not null default '' constraint bsb_ai_chats_title_check check (length("title") <= 300),
+  "model" text constraint bsb_ai_chats_model_check check (length("model") <= 200),
+  "visibility" text not null default 'private' constraint bsb_ai_chats_visibility_check check ("visibility" in ('private', 'organization', 'shared')),
+  "mode" text constraint bsb_ai_chats_mode_check check (length("mode") <= 100),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "is_temporary" boolean not null default false,
@@ -51,7 +51,7 @@ create table "better_supabase"."ai_chats" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, "title")) stored,
-  check (not "is_temporary" or "expires_at" is not null)
+  constraint bsb_ai_chats_check check (not "is_temporary" or "expires_at" is not null)
 );
 create index ai_chats_owner_idx on "better_supabase"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
 create index ai_chats_tenant_idx on "better_supabase"."ai_chats" ("organization_id");
@@ -71,14 +71,14 @@ create table "better_supabase"."ai_chat_participants" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'user' check ("kind" in ('user', 'team', 'customer', 'external')),
+  "kind" text not null default 'user' constraint bsb_ai_chat_participants_kind_check check ("kind" in ('user', 'team', 'customer', 'external')),
   "team_id" uuid,
   "customer_user_id" uuid references auth.users (id) on delete cascade,
-  "email" text check (length("email") <= 320),
-  "role" text not null default 'viewer' check ("role" in ('viewer', 'editor')),
+  "email" text constraint bsb_ai_chat_participants_email_check check (length("email") <= 320),
+  "role" text not null default 'viewer' constraint bsb_ai_chat_participants_role_check check ("role" in ('viewer', 'editor')),
   "added_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
-  check (
+  constraint bsb_ai_chat_participants_check check (
     ("kind" = 'user' and "user_id" is not null)
     or ("kind" = 'team' and "team_id" is not null)
     or ("kind" = 'customer' and "customer_user_id" is not null)
@@ -111,20 +111,20 @@ create policy bsb_ai_chats_read on "better_supabase"."ai_chats"
 -- parts holds the canonical AI message parts; native the SDK's own shape.
 create table "better_supabase"."ai_messages" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "id" text not null check (length("id") >= 1 and length("id") <= 200),
+  "id" text not null constraint bsb_ai_messages_id_check check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
   "owner_id" uuid not null,
   "author_id" uuid references auth.users (id) on delete set null,
-  "role" text not null check ("role" in ('system', 'user', 'assistant', 'tool')),
-  "parts" jsonb not null default '[]' check (
+  "role" text not null constraint bsb_ai_messages_role_check check ("role" in ('system', 'user', 'assistant', 'tool')),
+  "parts" jsonb not null default '[]' constraint bsb_ai_messages_parts_check check (
     jsonb_typeof("parts") = 'array'
     and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))')
   ),
-  "format" text not null default 'canonical' check (length("format") >= 1 and length("format") <= 50),
+  "format" text not null default 'canonical' constraint bsb_ai_messages_format_check check (length("format") >= 1 and length("format") <= 50),
   "native" jsonb,
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_messages_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "model" text,
-  "status" text not null default 'complete' check ("status" in ('complete', 'aborted', 'error')),
+  "status" text not null default 'complete' constraint bsb_ai_messages_status_check check ("status" in ('complete', 'aborted', 'error')),
   "seq" bigint generated always as identity,
   "created_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, jsonb_path_query_array("parts", '$[*] ? (@.type == "text").text'))) stored,
@@ -150,13 +150,13 @@ create table "better_supabase"."ai_runs" (
   "owner_id" uuid not null,
   "assistant_message_id" text,
   "stream_id" text,
-  "engine" text not null default 'ai-sdk' check (length("engine") >= 1 and length("engine") <= 50),
-  "external_run_id" text check (length("external_run_id") <= 200),
+  "engine" text not null default 'ai-sdk' constraint bsb_ai_runs_engine_check check (length("engine") >= 1 and length("engine") <= 50),
+  "external_run_id" text constraint bsb_ai_runs_external_run_id_check check (length("external_run_id") <= 200),
   "model" text,
-  "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
+  "status" text not null default 'running' constraint bsb_ai_runs_status_check check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
   "provider_generation_id" text,
-  "usage" jsonb not null default '{}' check (jsonb_typeof("usage") = 'object'),
-  "cost_micro_usd" bigint check ("cost_micro_usd" >= 0),
+  "usage" jsonb not null default '{}' constraint bsb_ai_runs_usage_check check (jsonb_typeof("usage") = 'object'),
+  "cost_micro_usd" bigint constraint bsb_ai_runs_cost_micro_usd_check check ("cost_micro_usd" >= 0),
   "error" text,
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz
@@ -175,16 +175,16 @@ create policy bsb_ai_runs_owner_read on "better_supabase"."ai_runs"
 
 -- Tool calls that wait for a person: requested by the server, decided once.
 create table "better_supabase"."ai_tool_approvals" (
-  "approval_id" text primary key check (length("approval_id") >= 1 and length("approval_id") <= 200),
+  "approval_id" text primary key constraint bsb_ai_tool_approvals_approval_id_check check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "message_id" text,
-  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
+  "tool" text not null constraint bsb_ai_tool_approvals_tool_check check (length("tool") >= 1 and length("tool") <= 200),
   "tool_call_id" text not null,
   "input" jsonb,
-  "decision" text check ("decision" in ('approved', 'denied')),
-  "reason" text check (length("reason") <= 2000),
+  "decision" text constraint bsb_ai_tool_approvals_decision_check check ("decision" in ('approved', 'denied')),
+  "reason" text constraint bsb_ai_tool_approvals_reason_check check (length("reason") <= 2000),
   "signature" text,
   "decided_by" uuid,
   "decided_at" timestamptz,
@@ -205,8 +205,8 @@ create policy bsb_ai_tool_approvals_owner_read on "better_supabase"."ai_tool_app
 -- runs (deny).
 create table "better_supabase"."ai_tool_policies" (
   "organization_id" uuid not null,
-  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
-  "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
+  "tool" text not null constraint bsb_ai_tool_policies_tool_check check (length("tool") >= 1 and length("tool") <= 200),
+  "policy" text not null constraint bsb_ai_tool_policies_policy_check check ("policy" in ('auto', 'ask', 'deny')),
   "updated_at" timestamptz not null default now(),
   primary key ("organization_id", "tool")
 );
@@ -221,7 +221,7 @@ create table "better_supabase"."ai_pending_inputs" (
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "tool_call_id" text,
-  "question" text not null check (length("question") >= 1 and length("question") <= 2000),
+  "question" text not null constraint bsb_ai_pending_inputs_question_check check (length("question") >= 1 and length("question") <= 2000),
   "schema" jsonb,
   "answer" jsonb,
   "answered_at" timestamptz,
@@ -243,7 +243,7 @@ create table "better_supabase"."ai_message_sources" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "source_id" text not null,
-  "source_type" text not null default 'url' check ("source_type" in ('url', 'document')),
+  "source_type" text not null default 'url' constraint bsb_ai_message_sources_source_type_check check ("source_type" in ('url', 'document')),
   "url" text,
   "title" text,
   "provider_metadata" jsonb,
@@ -263,9 +263,9 @@ create table "better_supabase"."ai_message_feedback" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" in (-1, 1)),
-  "reason" text check (length("reason") <= 200),
-  "comment" text check (length("comment") <= 4000),
+  "rating" smallint not null constraint bsb_ai_message_feedback_rating_check check ("rating" in (-1, 1)),
+  "reason" text constraint bsb_ai_message_feedback_reason_check check (length("reason") <= 200),
+  "comment" text constraint bsb_ai_message_feedback_comment_check check (length("comment") <= 4000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id", "user_id"),
@@ -285,7 +285,7 @@ create policy bsb_ai_message_feedback_own_read on "better_supabase"."ai_message_
 create table "better_supabase"."ai_chat_shares" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "token_hash" text not null unique check ("token_hash" ~ '^[0-9a-f]{64}$'),
+  "token_hash" text not null unique constraint bsb_ai_chat_shares_token_hash_check check ("token_hash" ~ '^[0-9a-f]{64}$'),
   "leaf_id" text not null,
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "created_at" timestamptz not null default now(),
@@ -302,7 +302,7 @@ grant all on "better_supabase"."ai_chat_shares" to service_role;
 -- Only the SQL functions read the salt.
 create table "better_supabase"."ai_chat_links" (
   "chat_id" uuid primary key references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "salt" text not null check (length("salt") >= 16),
+  "salt" text not null constraint bsb_ai_chat_links_salt_check check (length("salt") >= 16),
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "rotated_at" timestamptz not null default now()
 );
@@ -314,7 +314,7 @@ grant all on "better_supabase"."ai_chat_links" to service_role;
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
 create table "better_supabase"."ai_model_catalog" (
-  "model_id" text primary key check (length("model_id") >= 1 and length("model_id") <= 200),
+  "model_id" text primary key constraint bsb_ai_model_catalog_model_id_check check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
   "pricing" jsonb not null default '{}',
@@ -334,10 +334,10 @@ create table "better_supabase"."ai_moderation_events" (
   "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete set null,
   "message_id" text,
   "user_id" uuid references auth.users (id) on delete set null,
-  "stage" text not null check ("stage" in ('input', 'output', 'tool')),
-  "category" text not null check (length("category") >= 1 and length("category") <= 100),
+  "stage" text not null constraint bsb_ai_moderation_events_stage_check check ("stage" in ('input', 'output', 'tool')),
+  "category" text not null constraint bsb_ai_moderation_events_category_check check (length("category") >= 1 and length("category") <= 100),
   "score" real,
-  "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
+  "action" text not null constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
 create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("organization_id", "created_at" desc);
@@ -353,10 +353,10 @@ create table "better_supabase"."ai_run_steps" (
   "run_id" uuid not null references "better_supabase"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
-  "step_key" text not null check (length("step_key") >= 1 and length("step_key") <= 200),
-  "label" text not null check (length("label") >= 1 and length("label") <= 300),
-  "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped')),
-  "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object'),
+  "step_key" text not null constraint bsb_ai_run_steps_step_key_check check (length("step_key") >= 1 and length("step_key") <= 200),
+  "label" text not null constraint bsb_ai_run_steps_label_check check (length("label") >= 1 and length("label") <= 300),
+  "status" text not null default 'running' constraint bsb_ai_run_steps_status_check check ("status" in ('running', 'done', 'error', 'skipped')),
+  "detail" jsonb not null default '{}' constraint bsb_ai_run_steps_detail_check check (jsonb_typeof("detail") = 'object'),
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz,
   unique ("run_id", "step_key")
@@ -376,12 +376,12 @@ create policy bsb_ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
 -- keep two turns from driving one sandbox. Experimental.
 create table "better_supabase"."ai_harness_sessions" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "harness_id" text not null check (length("harness_id") >= 1 and length("harness_id") <= 200),
+  "harness_id" text not null constraint bsb_ai_harness_sessions_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
-  "status" text not null default 'active' check ("status" in ('active', 'idle', 'stopped', 'error')),
-  "lock_holder" text check (length("lock_holder") <= 200),
+  "status" text not null default 'active' constraint bsb_ai_harness_sessions_status_check check ("status" in ('active', 'idle', 'stopped', 'error')),
+  "lock_holder" text constraint bsb_ai_harness_sessions_lock_holder_check check (length("lock_holder") <= 200),
   "locked_until" timestamptz,
   "last_active_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
@@ -2147,14 +2147,14 @@ create table "better_supabase"."ai_sandboxes" (
   "organization_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "harness_id" text check (length("harness_id") >= 1 and length("harness_id") <= 200),
-  "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
-  "container_id" text check (length("container_id") <= 200),
-  "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
-  "idle_seconds" integer not null default 600 check ("idle_seconds" > 0),
-  "error" text check (length("error") <= 4000),
+  "harness_id" text constraint bsb_ai_sandboxes_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
+  "provider" text not null constraint bsb_ai_sandboxes_provider_check check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
+  "sandbox_id" text not null constraint bsb_ai_sandboxes_sandbox_id_check check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
+  "container_id" text constraint bsb_ai_sandboxes_container_id_check check (length("container_id") <= 200),
+  "status" text not null default 'running' constraint bsb_ai_sandboxes_status_check check ("status" in ('running', 'stopping', 'stopped')),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_sandboxes_metadata_check check (jsonb_typeof("metadata") = 'object'),
+  "idle_seconds" integer not null default 600 constraint bsb_ai_sandboxes_idle_seconds_check check ("idle_seconds" > 0),
+  "error" text constraint bsb_ai_sandboxes_error_check check (length("error") <= 4000),
   "last_used_at" timestamptz not null default now(),
   "expires_at" timestamptz,
   "stopped_at" timestamptz,
@@ -2777,7 +2777,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:f8a341eac7a035261aaa1ea206bb13d004628aa7b2d72970569fd9dbb6d152bf
+-- @bsb-hash sha256:d98f01f0ca2206844d3faedffd48a76b55fe686a51e93befbf85efbdc54ee15d
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2787,9 +2787,9 @@ create table "better_supabase"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "instructions" text not null default '' check (length("instructions") <= 20000),
-  "default_model" text check (length("default_model") <= 200),
+  "name" text not null constraint bsb_ai_projects_name_check check (length("name") >= 1 and length("name") <= 200),
+  "instructions" text not null default '' constraint bsb_ai_projects_instructions_check check (length("instructions") <= 20000),
+  "default_model" text constraint bsb_ai_projects_default_model_check check (length("default_model") <= 200),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -2811,11 +2811,11 @@ create table "better_supabase"."ai_chats" (
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "project_id" uuid references "better_supabase"."ai_projects" ("id") on delete set null,
-  "agent_id" text check (length("agent_id") <= 200),
-  "title" text not null default '' check (length("title") <= 300),
-  "model" text check (length("model") <= 200),
-  "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'shared')),
-  "mode" text check (length("mode") <= 100),
+  "agent_id" text constraint bsb_ai_chats_agent_id_check check (length("agent_id") <= 200),
+  "title" text not null default '' constraint bsb_ai_chats_title_check check (length("title") <= 300),
+  "model" text constraint bsb_ai_chats_model_check check (length("model") <= 200),
+  "visibility" text not null default 'private' constraint bsb_ai_chats_visibility_check check ("visibility" in ('private', 'organization', 'shared')),
+  "mode" text constraint bsb_ai_chats_mode_check check (length("mode") <= 100),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "is_temporary" boolean not null default false,
@@ -2827,7 +2827,7 @@ create table "better_supabase"."ai_chats" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, "title")) stored,
-  check (not "is_temporary" or "expires_at" is not null)
+  constraint bsb_ai_chats_check check (not "is_temporary" or "expires_at" is not null)
 );
 create index ai_chats_owner_idx on "better_supabase"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
 create index ai_chats_tenant_idx on "better_supabase"."ai_chats" ("organization_id");
@@ -2847,14 +2847,14 @@ create table "better_supabase"."ai_chat_participants" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'user' check ("kind" in ('user', 'team', 'customer', 'external')),
+  "kind" text not null default 'user' constraint bsb_ai_chat_participants_kind_check check ("kind" in ('user', 'team', 'customer', 'external')),
   "team_id" uuid,
   "customer_user_id" uuid references auth.users (id) on delete cascade,
-  "email" text check (length("email") <= 320),
-  "role" text not null default 'viewer' check ("role" in ('viewer', 'editor')),
+  "email" text constraint bsb_ai_chat_participants_email_check check (length("email") <= 320),
+  "role" text not null default 'viewer' constraint bsb_ai_chat_participants_role_check check ("role" in ('viewer', 'editor')),
   "added_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
-  check (
+  constraint bsb_ai_chat_participants_check check (
     ("kind" = 'user' and "user_id" is not null)
     or ("kind" = 'team' and "team_id" is not null)
     or ("kind" = 'customer' and "customer_user_id" is not null)
@@ -2887,20 +2887,20 @@ create policy bsb_ai_chats_read on "better_supabase"."ai_chats"
 -- parts holds the canonical AI message parts; native the SDK's own shape.
 create table "better_supabase"."ai_messages" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "id" text not null check (length("id") >= 1 and length("id") <= 200),
+  "id" text not null constraint bsb_ai_messages_id_check check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
   "owner_id" uuid not null,
   "author_id" uuid references auth.users (id) on delete set null,
-  "role" text not null check ("role" in ('system', 'user', 'assistant', 'tool')),
-  "parts" jsonb not null default '[]' check (
+  "role" text not null constraint bsb_ai_messages_role_check check ("role" in ('system', 'user', 'assistant', 'tool')),
+  "parts" jsonb not null default '[]' constraint bsb_ai_messages_parts_check check (
     jsonb_typeof("parts") = 'array'
     and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))')
   ),
-  "format" text not null default 'canonical' check (length("format") >= 1 and length("format") <= 50),
+  "format" text not null default 'canonical' constraint bsb_ai_messages_format_check check (length("format") >= 1 and length("format") <= 50),
   "native" jsonb,
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_messages_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "model" text,
-  "status" text not null default 'complete' check ("status" in ('complete', 'aborted', 'error')),
+  "status" text not null default 'complete' constraint bsb_ai_messages_status_check check ("status" in ('complete', 'aborted', 'error')),
   "seq" bigint generated always as identity,
   "created_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, jsonb_path_query_array("parts", '$[*] ? (@.type == "text").text'))) stored,
@@ -2926,13 +2926,13 @@ create table "better_supabase"."ai_runs" (
   "owner_id" uuid not null,
   "assistant_message_id" text,
   "stream_id" text,
-  "engine" text not null default 'ai-sdk' check (length("engine") >= 1 and length("engine") <= 50),
-  "external_run_id" text check (length("external_run_id") <= 200),
+  "engine" text not null default 'ai-sdk' constraint bsb_ai_runs_engine_check check (length("engine") >= 1 and length("engine") <= 50),
+  "external_run_id" text constraint bsb_ai_runs_external_run_id_check check (length("external_run_id") <= 200),
   "model" text,
-  "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
+  "status" text not null default 'running' constraint bsb_ai_runs_status_check check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
   "provider_generation_id" text,
-  "usage" jsonb not null default '{}' check (jsonb_typeof("usage") = 'object'),
-  "cost_micro_usd" bigint check ("cost_micro_usd" >= 0),
+  "usage" jsonb not null default '{}' constraint bsb_ai_runs_usage_check check (jsonb_typeof("usage") = 'object'),
+  "cost_micro_usd" bigint constraint bsb_ai_runs_cost_micro_usd_check check ("cost_micro_usd" >= 0),
   "error" text,
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz
@@ -2951,16 +2951,16 @@ create policy bsb_ai_runs_owner_read on "better_supabase"."ai_runs"
 
 -- Tool calls that wait for a person: requested by the server, decided once.
 create table "better_supabase"."ai_tool_approvals" (
-  "approval_id" text primary key check (length("approval_id") >= 1 and length("approval_id") <= 200),
+  "approval_id" text primary key constraint bsb_ai_tool_approvals_approval_id_check check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "message_id" text,
-  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
+  "tool" text not null constraint bsb_ai_tool_approvals_tool_check check (length("tool") >= 1 and length("tool") <= 200),
   "tool_call_id" text not null,
   "input" jsonb,
-  "decision" text check ("decision" in ('approved', 'denied')),
-  "reason" text check (length("reason") <= 2000),
+  "decision" text constraint bsb_ai_tool_approvals_decision_check check ("decision" in ('approved', 'denied')),
+  "reason" text constraint bsb_ai_tool_approvals_reason_check check (length("reason") <= 2000),
   "signature" text,
   "decided_by" uuid,
   "decided_at" timestamptz,
@@ -2981,8 +2981,8 @@ create policy bsb_ai_tool_approvals_owner_read on "better_supabase"."ai_tool_app
 -- runs (deny).
 create table "better_supabase"."ai_tool_policies" (
   "organization_id" uuid not null,
-  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
-  "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
+  "tool" text not null constraint bsb_ai_tool_policies_tool_check check (length("tool") >= 1 and length("tool") <= 200),
+  "policy" text not null constraint bsb_ai_tool_policies_policy_check check ("policy" in ('auto', 'ask', 'deny')),
   "updated_at" timestamptz not null default now(),
   primary key ("organization_id", "tool")
 );
@@ -2997,7 +2997,7 @@ create table "better_supabase"."ai_pending_inputs" (
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "tool_call_id" text,
-  "question" text not null check (length("question") >= 1 and length("question") <= 2000),
+  "question" text not null constraint bsb_ai_pending_inputs_question_check check (length("question") >= 1 and length("question") <= 2000),
   "schema" jsonb,
   "answer" jsonb,
   "answered_at" timestamptz,
@@ -3019,7 +3019,7 @@ create table "better_supabase"."ai_message_sources" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "source_id" text not null,
-  "source_type" text not null default 'url' check ("source_type" in ('url', 'document')),
+  "source_type" text not null default 'url' constraint bsb_ai_message_sources_source_type_check check ("source_type" in ('url', 'document')),
   "url" text,
   "title" text,
   "provider_metadata" jsonb,
@@ -3039,9 +3039,9 @@ create table "better_supabase"."ai_message_feedback" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" in (-1, 1)),
-  "reason" text check (length("reason") <= 200),
-  "comment" text check (length("comment") <= 4000),
+  "rating" smallint not null constraint bsb_ai_message_feedback_rating_check check ("rating" in (-1, 1)),
+  "reason" text constraint bsb_ai_message_feedback_reason_check check (length("reason") <= 200),
+  "comment" text constraint bsb_ai_message_feedback_comment_check check (length("comment") <= 4000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id", "user_id"),
@@ -3061,7 +3061,7 @@ create policy bsb_ai_message_feedback_own_read on "better_supabase"."ai_message_
 create table "better_supabase"."ai_chat_shares" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "token_hash" text not null unique check ("token_hash" ~ '^[0-9a-f]{64}$'),
+  "token_hash" text not null unique constraint bsb_ai_chat_shares_token_hash_check check ("token_hash" ~ '^[0-9a-f]{64}$'),
   "leaf_id" text not null,
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "created_at" timestamptz not null default now(),
@@ -3078,7 +3078,7 @@ grant all on "better_supabase"."ai_chat_shares" to service_role;
 -- Only the SQL functions read the salt.
 create table "better_supabase"."ai_chat_links" (
   "chat_id" uuid primary key references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "salt" text not null check (length("salt") >= 16),
+  "salt" text not null constraint bsb_ai_chat_links_salt_check check (length("salt") >= 16),
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "rotated_at" timestamptz not null default now()
 );
@@ -3090,7 +3090,7 @@ grant all on "better_supabase"."ai_chat_links" to service_role;
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
 create table "better_supabase"."ai_model_catalog" (
-  "model_id" text primary key check (length("model_id") >= 1 and length("model_id") <= 200),
+  "model_id" text primary key constraint bsb_ai_model_catalog_model_id_check check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
   "pricing" jsonb not null default '{}',
@@ -3110,10 +3110,10 @@ create table "better_supabase"."ai_moderation_events" (
   "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete set null,
   "message_id" text,
   "user_id" uuid references auth.users (id) on delete set null,
-  "stage" text not null check ("stage" in ('input', 'output', 'tool')),
-  "category" text not null check (length("category") >= 1 and length("category") <= 100),
+  "stage" text not null constraint bsb_ai_moderation_events_stage_check check ("stage" in ('input', 'output', 'tool')),
+  "category" text not null constraint bsb_ai_moderation_events_category_check check (length("category") >= 1 and length("category") <= 100),
   "score" real,
-  "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
+  "action" text not null constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
 create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("organization_id", "created_at" desc);
@@ -3129,10 +3129,10 @@ create table "better_supabase"."ai_run_steps" (
   "run_id" uuid not null references "better_supabase"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
-  "step_key" text not null check (length("step_key") >= 1 and length("step_key") <= 200),
-  "label" text not null check (length("label") >= 1 and length("label") <= 300),
-  "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped')),
-  "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object'),
+  "step_key" text not null constraint bsb_ai_run_steps_step_key_check check (length("step_key") >= 1 and length("step_key") <= 200),
+  "label" text not null constraint bsb_ai_run_steps_label_check check (length("label") >= 1 and length("label") <= 300),
+  "status" text not null default 'running' constraint bsb_ai_run_steps_status_check check ("status" in ('running', 'done', 'error', 'skipped')),
+  "detail" jsonb not null default '{}' constraint bsb_ai_run_steps_detail_check check (jsonb_typeof("detail") = 'object'),
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz,
   unique ("run_id", "step_key")
@@ -3152,12 +3152,12 @@ create policy bsb_ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
 -- keep two turns from driving one sandbox. Experimental.
 create table "better_supabase"."ai_harness_sessions" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "harness_id" text not null check (length("harness_id") >= 1 and length("harness_id") <= 200),
+  "harness_id" text not null constraint bsb_ai_harness_sessions_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
-  "status" text not null default 'active' check ("status" in ('active', 'idle', 'stopped', 'error')),
-  "lock_holder" text check (length("lock_holder") <= 200),
+  "status" text not null default 'active' constraint bsb_ai_harness_sessions_status_check check ("status" in ('active', 'idle', 'stopped', 'error')),
+  "lock_holder" text constraint bsb_ai_harness_sessions_lock_holder_check check (length("lock_holder") <= 200),
   "locked_until" timestamptz,
   "last_active_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
@@ -4853,14 +4853,14 @@ create table "better_supabase"."ai_sandboxes" (
   "organization_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "harness_id" text check (length("harness_id") >= 1 and length("harness_id") <= 200),
-  "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
-  "container_id" text check (length("container_id") <= 200),
-  "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
-  "idle_seconds" integer not null default 600 check ("idle_seconds" > 0),
-  "error" text check (length("error") <= 4000),
+  "harness_id" text constraint bsb_ai_sandboxes_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
+  "provider" text not null constraint bsb_ai_sandboxes_provider_check check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
+  "sandbox_id" text not null constraint bsb_ai_sandboxes_sandbox_id_check check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
+  "container_id" text constraint bsb_ai_sandboxes_container_id_check check (length("container_id") <= 200),
+  "status" text not null default 'running' constraint bsb_ai_sandboxes_status_check check ("status" in ('running', 'stopping', 'stopped')),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_sandboxes_metadata_check check (jsonb_typeof("metadata") = 'object'),
+  "idle_seconds" integer not null default 600 constraint bsb_ai_sandboxes_idle_seconds_check check ("idle_seconds" > 0),
+  "error" text constraint bsb_ai_sandboxes_error_check check (length("error") <= 4000),
   "last_used_at" timestamptz not null default now(),
   "expires_at" timestamptz,
   "stopped_at" timestamptz,
@@ -5487,7 +5487,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:29b3ab71b0ae00c041688025606ebf622a28fe206ea8b07b96122ee1ecce3860
+-- @bsb-hash sha256:48ccbc63ce830d751c833ad603142a5adedb3d731ed0fc4e572a94c1abbc6671
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5502,9 +5502,9 @@ create table "app_private"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "instructions" text not null default '' check (length("instructions") <= 20000),
-  "default_model" text check (length("default_model") <= 200),
+  "name" text not null constraint bsb_ai_projects_name_check check (length("name") >= 1 and length("name") <= 200),
+  "instructions" text not null default '' constraint bsb_ai_projects_instructions_check check (length("instructions") <= 20000),
+  "default_model" text constraint bsb_ai_projects_default_model_check check (length("default_model") <= 200),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -5526,11 +5526,11 @@ create table "app_private"."ai_chats" (
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "project_id" uuid references "app_private"."ai_projects" ("id") on delete set null,
-  "agent_id" text check (length("agent_id") <= 200),
-  "title" text not null default '' check (length("title") <= 300),
-  "model" text check (length("model") <= 200),
-  "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'shared')),
-  "mode" text check (length("mode") <= 100),
+  "agent_id" text constraint bsb_ai_chats_agent_id_check check (length("agent_id") <= 200),
+  "title" text not null default '' constraint bsb_ai_chats_title_check check (length("title") <= 300),
+  "model" text constraint bsb_ai_chats_model_check check (length("model") <= 200),
+  "visibility" text not null default 'private' constraint bsb_ai_chats_visibility_check check ("visibility" in ('private', 'organization', 'shared')),
+  "mode" text constraint bsb_ai_chats_mode_check check (length("mode") <= 100),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "is_temporary" boolean not null default false,
@@ -5542,7 +5542,7 @@ create table "app_private"."ai_chats" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, "title")) stored,
-  check (not "is_temporary" or "expires_at" is not null)
+  constraint bsb_ai_chats_check check (not "is_temporary" or "expires_at" is not null)
 );
 create index ai_chats_owner_idx on "app_private"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
 create index ai_chats_tenant_idx on "app_private"."ai_chats" ("organization_id");
@@ -5562,14 +5562,14 @@ create table "app_private"."ai_chat_participants" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'user' check ("kind" in ('user', 'team', 'customer', 'external')),
+  "kind" text not null default 'user' constraint bsb_ai_chat_participants_kind_check check ("kind" in ('user', 'team', 'customer', 'external')),
   "team_id" uuid,
   "customer_user_id" uuid references auth.users (id) on delete cascade,
-  "email" text check (length("email") <= 320),
-  "role" text not null default 'viewer' check ("role" in ('viewer', 'editor')),
+  "email" text constraint bsb_ai_chat_participants_email_check check (length("email") <= 320),
+  "role" text not null default 'viewer' constraint bsb_ai_chat_participants_role_check check ("role" in ('viewer', 'editor')),
   "added_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
-  check (
+  constraint bsb_ai_chat_participants_check check (
     ("kind" = 'user' and "user_id" is not null)
     or ("kind" = 'team' and "team_id" is not null)
     or ("kind" = 'customer' and "customer_user_id" is not null)
@@ -5602,20 +5602,20 @@ create policy bsb_ai_chats_read on "app_private"."ai_chats"
 -- parts holds the canonical AI message parts; native the SDK's own shape.
 create table "app_private"."ai_messages" (
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
-  "id" text not null check (length("id") >= 1 and length("id") <= 200),
+  "id" text not null constraint bsb_ai_messages_id_check check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
   "owner_id" uuid not null,
   "author_id" uuid references auth.users (id) on delete set null,
-  "role" text not null check ("role" in ('system', 'user', 'assistant', 'tool')),
-  "parts" jsonb not null default '[]' check (
+  "role" text not null constraint bsb_ai_messages_role_check check ("role" in ('system', 'user', 'assistant', 'tool')),
+  "parts" jsonb not null default '[]' constraint bsb_ai_messages_parts_check check (
     jsonb_typeof("parts") = 'array'
     and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))')
   ),
-  "format" text not null default 'canonical' check (length("format") >= 1 and length("format") <= 50),
+  "format" text not null default 'canonical' constraint bsb_ai_messages_format_check check (length("format") >= 1 and length("format") <= 50),
   "native" jsonb,
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_messages_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "model" text,
-  "status" text not null default 'complete' check ("status" in ('complete', 'aborted', 'error')),
+  "status" text not null default 'complete' constraint bsb_ai_messages_status_check check ("status" in ('complete', 'aborted', 'error')),
   "seq" bigint generated always as identity,
   "created_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, jsonb_path_query_array("parts", '$[*] ? (@.type == "text").text'))) stored,
@@ -5641,13 +5641,13 @@ create table "app_private"."ai_runs" (
   "owner_id" uuid not null,
   "assistant_message_id" text,
   "stream_id" text,
-  "engine" text not null default 'ai-sdk' check (length("engine") >= 1 and length("engine") <= 50),
-  "external_run_id" text check (length("external_run_id") <= 200),
+  "engine" text not null default 'ai-sdk' constraint bsb_ai_runs_engine_check check (length("engine") >= 1 and length("engine") <= 50),
+  "external_run_id" text constraint bsb_ai_runs_external_run_id_check check (length("external_run_id") <= 200),
   "model" text,
-  "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
+  "status" text not null default 'running' constraint bsb_ai_runs_status_check check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
   "provider_generation_id" text,
-  "usage" jsonb not null default '{}' check (jsonb_typeof("usage") = 'object'),
-  "cost_micro_usd" bigint check ("cost_micro_usd" >= 0),
+  "usage" jsonb not null default '{}' constraint bsb_ai_runs_usage_check check (jsonb_typeof("usage") = 'object'),
+  "cost_micro_usd" bigint constraint bsb_ai_runs_cost_micro_usd_check check ("cost_micro_usd" >= 0),
   "error" text,
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz
@@ -5666,16 +5666,16 @@ create policy bsb_ai_runs_owner_read on "app_private"."ai_runs"
 
 -- Tool calls that wait for a person: requested by the server, decided once.
 create table "app_private"."ai_tool_approvals" (
-  "approval_id" text primary key check (length("approval_id") >= 1 and length("approval_id") <= 200),
+  "approval_id" text primary key constraint bsb_ai_tool_approvals_approval_id_check check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "app_private"."ai_runs" ("id") on delete set null,
   "message_id" text,
-  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
+  "tool" text not null constraint bsb_ai_tool_approvals_tool_check check (length("tool") >= 1 and length("tool") <= 200),
   "tool_call_id" text not null,
   "input" jsonb,
-  "decision" text check ("decision" in ('approved', 'denied')),
-  "reason" text check (length("reason") <= 2000),
+  "decision" text constraint bsb_ai_tool_approvals_decision_check check ("decision" in ('approved', 'denied')),
+  "reason" text constraint bsb_ai_tool_approvals_reason_check check (length("reason") <= 2000),
   "signature" text,
   "decided_by" uuid,
   "decided_at" timestamptz,
@@ -5696,8 +5696,8 @@ create policy bsb_ai_tool_approvals_owner_read on "app_private"."ai_tool_approva
 -- runs (deny).
 create table "app_private"."ai_tool_policies" (
   "organization_id" uuid not null,
-  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
-  "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
+  "tool" text not null constraint bsb_ai_tool_policies_tool_check check (length("tool") >= 1 and length("tool") <= 200),
+  "policy" text not null constraint bsb_ai_tool_policies_policy_check check ("policy" in ('auto', 'ask', 'deny')),
   "updated_at" timestamptz not null default now(),
   primary key ("organization_id", "tool")
 );
@@ -5712,7 +5712,7 @@ create table "app_private"."ai_pending_inputs" (
   "owner_id" uuid not null,
   "run_id" uuid references "app_private"."ai_runs" ("id") on delete set null,
   "tool_call_id" text,
-  "question" text not null check (length("question") >= 1 and length("question") <= 2000),
+  "question" text not null constraint bsb_ai_pending_inputs_question_check check (length("question") >= 1 and length("question") <= 2000),
   "schema" jsonb,
   "answer" jsonb,
   "answered_at" timestamptz,
@@ -5734,7 +5734,7 @@ create table "app_private"."ai_message_sources" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "source_id" text not null,
-  "source_type" text not null default 'url' check ("source_type" in ('url', 'document')),
+  "source_type" text not null default 'url' constraint bsb_ai_message_sources_source_type_check check ("source_type" in ('url', 'document')),
   "url" text,
   "title" text,
   "provider_metadata" jsonb,
@@ -5754,9 +5754,9 @@ create table "app_private"."ai_message_feedback" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" in (-1, 1)),
-  "reason" text check (length("reason") <= 200),
-  "comment" text check (length("comment") <= 4000),
+  "rating" smallint not null constraint bsb_ai_message_feedback_rating_check check ("rating" in (-1, 1)),
+  "reason" text constraint bsb_ai_message_feedback_reason_check check (length("reason") <= 200),
+  "comment" text constraint bsb_ai_message_feedback_comment_check check (length("comment") <= 4000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id", "user_id"),
@@ -5776,7 +5776,7 @@ create policy bsb_ai_message_feedback_own_read on "app_private"."ai_message_feed
 create table "app_private"."ai_chat_shares" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
-  "token_hash" text not null unique check ("token_hash" ~ '^[0-9a-f]{64}$'),
+  "token_hash" text not null unique constraint bsb_ai_chat_shares_token_hash_check check ("token_hash" ~ '^[0-9a-f]{64}$'),
   "leaf_id" text not null,
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "created_at" timestamptz not null default now(),
@@ -5793,7 +5793,7 @@ grant all on "app_private"."ai_chat_shares" to service_role;
 -- Only the SQL functions read the salt.
 create table "app_private"."ai_chat_links" (
   "chat_id" uuid primary key references "app_private"."ai_chats" ("id") on delete cascade,
-  "salt" text not null check (length("salt") >= 16),
+  "salt" text not null constraint bsb_ai_chat_links_salt_check check (length("salt") >= 16),
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "rotated_at" timestamptz not null default now()
 );
@@ -5805,7 +5805,7 @@ grant all on "app_private"."ai_chat_links" to service_role;
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
 create table "app_private"."ai_model_catalog" (
-  "model_id" text primary key check (length("model_id") >= 1 and length("model_id") <= 200),
+  "model_id" text primary key constraint bsb_ai_model_catalog_model_id_check check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
   "pricing" jsonb not null default '{}',
@@ -5825,10 +5825,10 @@ create table "app_private"."ai_moderation_events" (
   "chat_id" uuid references "app_private"."ai_chats" ("id") on delete set null,
   "message_id" text,
   "user_id" uuid references auth.users (id) on delete set null,
-  "stage" text not null check ("stage" in ('input', 'output', 'tool')),
-  "category" text not null check (length("category") >= 1 and length("category") <= 100),
+  "stage" text not null constraint bsb_ai_moderation_events_stage_check check ("stage" in ('input', 'output', 'tool')),
+  "category" text not null constraint bsb_ai_moderation_events_category_check check (length("category") >= 1 and length("category") <= 100),
   "score" real,
-  "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
+  "action" text not null constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
 create index ai_moderation_events_tenant_idx on "app_private"."ai_moderation_events" ("organization_id", "created_at" desc);
@@ -5844,10 +5844,10 @@ create table "app_private"."ai_run_steps" (
   "run_id" uuid not null references "app_private"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
-  "step_key" text not null check (length("step_key") >= 1 and length("step_key") <= 200),
-  "label" text not null check (length("label") >= 1 and length("label") <= 300),
-  "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped')),
-  "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object'),
+  "step_key" text not null constraint bsb_ai_run_steps_step_key_check check (length("step_key") >= 1 and length("step_key") <= 200),
+  "label" text not null constraint bsb_ai_run_steps_label_check check (length("label") >= 1 and length("label") <= 300),
+  "status" text not null default 'running' constraint bsb_ai_run_steps_status_check check ("status" in ('running', 'done', 'error', 'skipped')),
+  "detail" jsonb not null default '{}' constraint bsb_ai_run_steps_detail_check check (jsonb_typeof("detail") = 'object'),
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz,
   unique ("run_id", "step_key")
@@ -5867,12 +5867,12 @@ create policy bsb_ai_run_steps_owner_read on "app_private"."ai_run_steps"
 -- keep two turns from driving one sandbox. Experimental.
 create table "app_private"."ai_harness_sessions" (
   "chat_id" uuid not null references "app_private"."ai_chats" ("id") on delete cascade,
-  "harness_id" text not null check (length("harness_id") >= 1 and length("harness_id") <= 200),
+  "harness_id" text not null constraint bsb_ai_harness_sessions_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
-  "status" text not null default 'active' check ("status" in ('active', 'idle', 'stopped', 'error')),
-  "lock_holder" text check (length("lock_holder") <= 200),
+  "status" text not null default 'active' constraint bsb_ai_harness_sessions_status_check check ("status" in ('active', 'idle', 'stopped', 'error')),
+  "lock_holder" text constraint bsb_ai_harness_sessions_lock_holder_check check (length("lock_holder") <= 200),
   "locked_until" timestamptz,
   "last_active_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
@@ -7638,14 +7638,14 @@ create table "app_private"."ai_sandboxes" (
   "organization_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "harness_id" text check (length("harness_id") >= 1 and length("harness_id") <= 200),
-  "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
-  "container_id" text check (length("container_id") <= 200),
-  "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
-  "idle_seconds" integer not null default 600 check ("idle_seconds" > 0),
-  "error" text check (length("error") <= 4000),
+  "harness_id" text constraint bsb_ai_sandboxes_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
+  "provider" text not null constraint bsb_ai_sandboxes_provider_check check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
+  "sandbox_id" text not null constraint bsb_ai_sandboxes_sandbox_id_check check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
+  "container_id" text constraint bsb_ai_sandboxes_container_id_check check (length("container_id") <= 200),
+  "status" text not null default 'running' constraint bsb_ai_sandboxes_status_check check ("status" in ('running', 'stopping', 'stopped')),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_sandboxes_metadata_check check (jsonb_typeof("metadata") = 'object'),
+  "idle_seconds" integer not null default 600 constraint bsb_ai_sandboxes_idle_seconds_check check ("idle_seconds" > 0),
+  "error" text constraint bsb_ai_sandboxes_error_check check (length("error") <= 4000),
   "last_used_at" timestamptz not null default now(),
   "expires_at" timestamptz,
   "stopped_at" timestamptz,
@@ -8268,7 +8268,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:b673c389d26bc9d4d4ea84470d5fe816151cd9cb360dc4e4356e4bd5c4175f9c
+-- @bsb-hash sha256:fbd93bd78204df1b35a453ae70d2d348c6797de255ceac2528bc336b147e3071
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8278,9 +8278,9 @@ create table "better_supabase"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "instructions" text not null default '' check (length("instructions") <= 20000),
-  "default_model" text check (length("default_model") <= 200),
+  "name" text not null constraint bsb_ai_projects_name_check check (length("name") >= 1 and length("name") <= 200),
+  "instructions" text not null default '' constraint bsb_ai_projects_instructions_check check (length("instructions") <= 20000),
+  "default_model" text constraint bsb_ai_projects_default_model_check check (length("default_model") <= 200),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -8302,11 +8302,11 @@ create table "better_supabase"."ai_chats" (
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "project_id" uuid references "better_supabase"."ai_projects" ("id") on delete set null,
-  "agent_id" text check (length("agent_id") <= 200),
-  "title" text not null default '' check (length("title") <= 300),
-  "model" text check (length("model") <= 200),
-  "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'shared')),
-  "mode" text check (length("mode") <= 100),
+  "agent_id" text constraint bsb_ai_chats_agent_id_check check (length("agent_id") <= 200),
+  "title" text not null default '' constraint bsb_ai_chats_title_check check (length("title") <= 300),
+  "model" text constraint bsb_ai_chats_model_check check (length("model") <= 200),
+  "visibility" text not null default 'private' constraint bsb_ai_chats_visibility_check check ("visibility" in ('private', 'organization', 'shared')),
+  "mode" text constraint bsb_ai_chats_mode_check check (length("mode") <= 100),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "is_temporary" boolean not null default false,
@@ -8318,7 +8318,7 @@ create table "better_supabase"."ai_chats" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, "title")) stored,
-  check (not "is_temporary" or "expires_at" is not null)
+  constraint bsb_ai_chats_check check (not "is_temporary" or "expires_at" is not null)
 );
 create index ai_chats_owner_idx on "better_supabase"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
 create index ai_chats_tenant_idx on "better_supabase"."ai_chats" ("organization_id");
@@ -8338,14 +8338,14 @@ create table "better_supabase"."ai_chat_participants" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'user' check ("kind" in ('user', 'team', 'customer', 'external')),
+  "kind" text not null default 'user' constraint bsb_ai_chat_participants_kind_check check ("kind" in ('user', 'team', 'customer', 'external')),
   "team_id" uuid,
   "customer_user_id" uuid references auth.users (id) on delete cascade,
-  "email" text check (length("email") <= 320),
-  "role" text not null default 'viewer' check ("role" in ('viewer', 'editor')),
+  "email" text constraint bsb_ai_chat_participants_email_check check (length("email") <= 320),
+  "role" text not null default 'viewer' constraint bsb_ai_chat_participants_role_check check ("role" in ('viewer', 'editor')),
   "added_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
-  check (
+  constraint bsb_ai_chat_participants_check check (
     ("kind" = 'user' and "user_id" is not null)
     or ("kind" = 'team' and "team_id" is not null)
     or ("kind" = 'customer' and "customer_user_id" is not null)
@@ -8378,20 +8378,20 @@ create policy bsb_ai_chats_read on "better_supabase"."ai_chats"
 -- parts holds the canonical AI message parts; native the SDK's own shape.
 create table "better_supabase"."ai_messages" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "id" text not null check (length("id") >= 1 and length("id") <= 200),
+  "id" text not null constraint bsb_ai_messages_id_check check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
   "owner_id" uuid not null,
   "author_id" uuid references auth.users (id) on delete set null,
-  "role" text not null check ("role" in ('system', 'user', 'assistant', 'tool')),
-  "parts" jsonb not null default '[]' check (
+  "role" text not null constraint bsb_ai_messages_role_check check ("role" in ('system', 'user', 'assistant', 'tool')),
+  "parts" jsonb not null default '[]' constraint bsb_ai_messages_parts_check check (
     jsonb_typeof("parts") = 'array'
     and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))')
   ),
-  "format" text not null default 'canonical' check (length("format") >= 1 and length("format") <= 50),
+  "format" text not null default 'canonical' constraint bsb_ai_messages_format_check check (length("format") >= 1 and length("format") <= 50),
   "native" jsonb,
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_messages_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "model" text,
-  "status" text not null default 'complete' check ("status" in ('complete', 'aborted', 'error')),
+  "status" text not null default 'complete' constraint bsb_ai_messages_status_check check ("status" in ('complete', 'aborted', 'error')),
   "seq" bigint generated always as identity,
   "created_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, jsonb_path_query_array("parts", '$[*] ? (@.type == "text").text'))) stored,
@@ -8417,13 +8417,13 @@ create table "better_supabase"."ai_runs" (
   "owner_id" uuid not null,
   "assistant_message_id" text,
   "stream_id" text,
-  "engine" text not null default 'ai-sdk' check (length("engine") >= 1 and length("engine") <= 50),
-  "external_run_id" text check (length("external_run_id") <= 200),
+  "engine" text not null default 'ai-sdk' constraint bsb_ai_runs_engine_check check (length("engine") >= 1 and length("engine") <= 50),
+  "external_run_id" text constraint bsb_ai_runs_external_run_id_check check (length("external_run_id") <= 200),
   "model" text,
-  "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
+  "status" text not null default 'running' constraint bsb_ai_runs_status_check check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
   "provider_generation_id" text,
-  "usage" jsonb not null default '{}' check (jsonb_typeof("usage") = 'object'),
-  "cost_micro_usd" bigint check ("cost_micro_usd" >= 0),
+  "usage" jsonb not null default '{}' constraint bsb_ai_runs_usage_check check (jsonb_typeof("usage") = 'object'),
+  "cost_micro_usd" bigint constraint bsb_ai_runs_cost_micro_usd_check check ("cost_micro_usd" >= 0),
   "error" text,
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz
@@ -8442,16 +8442,16 @@ create policy bsb_ai_runs_owner_read on "better_supabase"."ai_runs"
 
 -- Tool calls that wait for a person: requested by the server, decided once.
 create table "better_supabase"."ai_tool_approvals" (
-  "approval_id" text primary key check (length("approval_id") >= 1 and length("approval_id") <= 200),
+  "approval_id" text primary key constraint bsb_ai_tool_approvals_approval_id_check check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "message_id" text,
-  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
+  "tool" text not null constraint bsb_ai_tool_approvals_tool_check check (length("tool") >= 1 and length("tool") <= 200),
   "tool_call_id" text not null,
   "input" jsonb,
-  "decision" text check ("decision" in ('approved', 'denied')),
-  "reason" text check (length("reason") <= 2000),
+  "decision" text constraint bsb_ai_tool_approvals_decision_check check ("decision" in ('approved', 'denied')),
+  "reason" text constraint bsb_ai_tool_approvals_reason_check check (length("reason") <= 2000),
   "signature" text,
   "decided_by" uuid,
   "decided_at" timestamptz,
@@ -8472,8 +8472,8 @@ create policy bsb_ai_tool_approvals_owner_read on "better_supabase"."ai_tool_app
 -- runs (deny).
 create table "better_supabase"."ai_tool_policies" (
   "organization_id" uuid not null,
-  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
-  "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
+  "tool" text not null constraint bsb_ai_tool_policies_tool_check check (length("tool") >= 1 and length("tool") <= 200),
+  "policy" text not null constraint bsb_ai_tool_policies_policy_check check ("policy" in ('auto', 'ask', 'deny')),
   "updated_at" timestamptz not null default now(),
   primary key ("organization_id", "tool")
 );
@@ -8488,7 +8488,7 @@ create table "better_supabase"."ai_pending_inputs" (
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "tool_call_id" text,
-  "question" text not null check (length("question") >= 1 and length("question") <= 2000),
+  "question" text not null constraint bsb_ai_pending_inputs_question_check check (length("question") >= 1 and length("question") <= 2000),
   "schema" jsonb,
   "answer" jsonb,
   "answered_at" timestamptz,
@@ -8510,7 +8510,7 @@ create table "better_supabase"."ai_message_sources" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "source_id" text not null,
-  "source_type" text not null default 'url' check ("source_type" in ('url', 'document')),
+  "source_type" text not null default 'url' constraint bsb_ai_message_sources_source_type_check check ("source_type" in ('url', 'document')),
   "url" text,
   "title" text,
   "provider_metadata" jsonb,
@@ -8530,9 +8530,9 @@ create table "better_supabase"."ai_message_feedback" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" in (-1, 1)),
-  "reason" text check (length("reason") <= 200),
-  "comment" text check (length("comment") <= 4000),
+  "rating" smallint not null constraint bsb_ai_message_feedback_rating_check check ("rating" in (-1, 1)),
+  "reason" text constraint bsb_ai_message_feedback_reason_check check (length("reason") <= 200),
+  "comment" text constraint bsb_ai_message_feedback_comment_check check (length("comment") <= 4000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id", "user_id"),
@@ -8552,7 +8552,7 @@ create policy bsb_ai_message_feedback_own_read on "better_supabase"."ai_message_
 create table "better_supabase"."ai_chat_shares" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "token_hash" text not null unique check ("token_hash" ~ '^[0-9a-f]{64}$'),
+  "token_hash" text not null unique constraint bsb_ai_chat_shares_token_hash_check check ("token_hash" ~ '^[0-9a-f]{64}$'),
   "leaf_id" text not null,
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "created_at" timestamptz not null default now(),
@@ -8569,7 +8569,7 @@ grant all on "better_supabase"."ai_chat_shares" to service_role;
 -- Only the SQL functions read the salt.
 create table "better_supabase"."ai_chat_links" (
   "chat_id" uuid primary key references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "salt" text not null check (length("salt") >= 16),
+  "salt" text not null constraint bsb_ai_chat_links_salt_check check (length("salt") >= 16),
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "rotated_at" timestamptz not null default now()
 );
@@ -8581,7 +8581,7 @@ grant all on "better_supabase"."ai_chat_links" to service_role;
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
 create table "better_supabase"."ai_model_catalog" (
-  "model_id" text primary key check (length("model_id") >= 1 and length("model_id") <= 200),
+  "model_id" text primary key constraint bsb_ai_model_catalog_model_id_check check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
   "pricing" jsonb not null default '{}',
@@ -8601,10 +8601,10 @@ create table "better_supabase"."ai_moderation_events" (
   "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete set null,
   "message_id" text,
   "user_id" uuid references auth.users (id) on delete set null,
-  "stage" text not null check ("stage" in ('input', 'output', 'tool')),
-  "category" text not null check (length("category") >= 1 and length("category") <= 100),
+  "stage" text not null constraint bsb_ai_moderation_events_stage_check check ("stage" in ('input', 'output', 'tool')),
+  "category" text not null constraint bsb_ai_moderation_events_category_check check (length("category") >= 1 and length("category") <= 100),
   "score" real,
-  "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
+  "action" text not null constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
 create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("organization_id", "created_at" desc);
@@ -8620,10 +8620,10 @@ create table "better_supabase"."ai_run_steps" (
   "run_id" uuid not null references "better_supabase"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
-  "step_key" text not null check (length("step_key") >= 1 and length("step_key") <= 200),
-  "label" text not null check (length("label") >= 1 and length("label") <= 300),
-  "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped')),
-  "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object'),
+  "step_key" text not null constraint bsb_ai_run_steps_step_key_check check (length("step_key") >= 1 and length("step_key") <= 200),
+  "label" text not null constraint bsb_ai_run_steps_label_check check (length("label") >= 1 and length("label") <= 300),
+  "status" text not null default 'running' constraint bsb_ai_run_steps_status_check check ("status" in ('running', 'done', 'error', 'skipped')),
+  "detail" jsonb not null default '{}' constraint bsb_ai_run_steps_detail_check check (jsonb_typeof("detail") = 'object'),
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz,
   unique ("run_id", "step_key")
@@ -8643,12 +8643,12 @@ create policy bsb_ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
 -- keep two turns from driving one sandbox. Experimental.
 create table "better_supabase"."ai_harness_sessions" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "harness_id" text not null check (length("harness_id") >= 1 and length("harness_id") <= 200),
+  "harness_id" text not null constraint bsb_ai_harness_sessions_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
-  "status" text not null default 'active' check ("status" in ('active', 'idle', 'stopped', 'error')),
-  "lock_holder" text check (length("lock_holder") <= 200),
+  "status" text not null default 'active' constraint bsb_ai_harness_sessions_status_check check ("status" in ('active', 'idle', 'stopped', 'error')),
+  "lock_holder" text constraint bsb_ai_harness_sessions_lock_holder_check check (length("lock_holder") <= 200),
   "locked_until" timestamptz,
   "last_active_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
@@ -10414,14 +10414,14 @@ create table "better_supabase"."ai_sandboxes" (
   "organization_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "harness_id" text check (length("harness_id") >= 1 and length("harness_id") <= 200),
-  "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
-  "container_id" text check (length("container_id") <= 200),
-  "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
-  "idle_seconds" integer not null default 600 check ("idle_seconds" > 0),
-  "error" text check (length("error") <= 4000),
+  "harness_id" text constraint bsb_ai_sandboxes_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
+  "provider" text not null constraint bsb_ai_sandboxes_provider_check check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
+  "sandbox_id" text not null constraint bsb_ai_sandboxes_sandbox_id_check check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
+  "container_id" text constraint bsb_ai_sandboxes_container_id_check check (length("container_id") <= 200),
+  "status" text not null default 'running' constraint bsb_ai_sandboxes_status_check check ("status" in ('running', 'stopping', 'stopped')),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_sandboxes_metadata_check check (jsonb_typeof("metadata") = 'object'),
+  "idle_seconds" integer not null default 600 constraint bsb_ai_sandboxes_idle_seconds_check check ("idle_seconds" > 0),
+  "error" text constraint bsb_ai_sandboxes_error_check check (length("error") <= 4000),
   "last_used_at" timestamptz not null default now(),
   "expires_at" timestamptz,
   "stopped_at" timestamptz,
@@ -11619,7 +11619,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:48a23921151dafa2bb150fa47e90f3be02640088be66e4a7417d71088f34af22
+-- @bsb-hash sha256:2a0155b4ae7e33b38b9567a8d0ff5f7d03cc83842ed03997d07e4dbf4bc42d04
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11629,9 +11629,9 @@ on conflict (name) do update
 alter table "better_supabase"."ai_projects" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."ai_projects" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."ai_projects" add column if not exists "owner_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."ai_projects" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."ai_projects" add column if not exists "instructions" text not null default '' check (length("instructions") <= 20000);
-alter table "better_supabase"."ai_projects" add column if not exists "default_model" text check (length("default_model") <= 200);
+alter table "better_supabase"."ai_projects" add column if not exists "name" text constraint bsb_ai_projects_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."ai_projects" add column if not exists "instructions" text not null default '' constraint bsb_ai_projects_instructions_check check (length("instructions") <= 20000);
+alter table "better_supabase"."ai_projects" add column if not exists "default_model" text constraint bsb_ai_projects_default_model_check check (length("default_model") <= 200);
 alter table "better_supabase"."ai_projects" add column if not exists "pinned" boolean not null default false;
 alter table "better_supabase"."ai_projects" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."ai_projects" add column if not exists "created_at" timestamptz not null default now();
@@ -11651,11 +11651,11 @@ alter table "better_supabase"."ai_chats" add column if not exists "id" uuid defa
 alter table "better_supabase"."ai_chats" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."ai_chats" add column if not exists "owner_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."ai_chats" add column if not exists "project_id" uuid references "better_supabase"."ai_projects" ("id") on delete set null;
-alter table "better_supabase"."ai_chats" add column if not exists "agent_id" text check (length("agent_id") <= 200);
-alter table "better_supabase"."ai_chats" add column if not exists "title" text not null default '' check (length("title") <= 300);
-alter table "better_supabase"."ai_chats" add column if not exists "model" text check (length("model") <= 200);
-alter table "better_supabase"."ai_chats" add column if not exists "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'shared'));
-alter table "better_supabase"."ai_chats" add column if not exists "mode" text check (length("mode") <= 100);
+alter table "better_supabase"."ai_chats" add column if not exists "agent_id" text constraint bsb_ai_chats_agent_id_check check (length("agent_id") <= 200);
+alter table "better_supabase"."ai_chats" add column if not exists "title" text not null default '' constraint bsb_ai_chats_title_check check (length("title") <= 300);
+alter table "better_supabase"."ai_chats" add column if not exists "model" text constraint bsb_ai_chats_model_check check (length("model") <= 200);
+alter table "better_supabase"."ai_chats" add column if not exists "visibility" text not null default 'private' constraint bsb_ai_chats_visibility_check check ("visibility" in ('private', 'organization', 'shared'));
+alter table "better_supabase"."ai_chats" add column if not exists "mode" text constraint bsb_ai_chats_mode_check check (length("mode") <= 100);
 alter table "better_supabase"."ai_chats" add column if not exists "pinned" boolean not null default false;
 alter table "better_supabase"."ai_chats" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."ai_chats" add column if not exists "is_temporary" boolean not null default false;
@@ -11684,11 +11684,11 @@ grant select on "better_supabase"."ai_chats" to authenticated;
 alter table "better_supabase"."ai_chat_participants" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."ai_chat_participants" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
 alter table "better_supabase"."ai_chat_participants" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."ai_chat_participants" add column if not exists "kind" text not null default 'user' check ("kind" in ('user', 'team', 'customer', 'external'));
+alter table "better_supabase"."ai_chat_participants" add column if not exists "kind" text not null default 'user' constraint bsb_ai_chat_participants_kind_check check ("kind" in ('user', 'team', 'customer', 'external'));
 alter table "better_supabase"."ai_chat_participants" add column if not exists "team_id" uuid;
 alter table "better_supabase"."ai_chat_participants" add column if not exists "customer_user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."ai_chat_participants" add column if not exists "email" text check (length("email") <= 320);
-alter table "better_supabase"."ai_chat_participants" add column if not exists "role" text not null default 'viewer' check ("role" in ('viewer', 'editor'));
+alter table "better_supabase"."ai_chat_participants" add column if not exists "email" text constraint bsb_ai_chat_participants_email_check check (length("email") <= 320);
+alter table "better_supabase"."ai_chat_participants" add column if not exists "role" text not null default 'viewer' constraint bsb_ai_chat_participants_role_check check ("role" in ('viewer', 'editor'));
 alter table "better_supabase"."ai_chat_participants" add column if not exists "added_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."ai_chat_participants" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists ai_chat_participants_user_key on "better_supabase"."ai_chat_participants" ("chat_id", "user_id") where "kind" = 'user';
@@ -11716,17 +11716,17 @@ create policy bsb_ai_chats_select on "better_supabase"."ai_chats"
 -- parts holds the canonical AI message parts; native the SDK's own shape.
 -- better_supabase.ai_messages is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_messages" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
-alter table "better_supabase"."ai_messages" add column if not exists "id" text check (length("id") >= 1 and length("id") <= 200);
+alter table "better_supabase"."ai_messages" add column if not exists "id" text constraint bsb_ai_messages_id_check check (length("id") >= 1 and length("id") <= 200);
 alter table "better_supabase"."ai_messages" add column if not exists "parent_id" text;
 alter table "better_supabase"."ai_messages" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."ai_messages" add column if not exists "author_id" uuid references auth.users (id) on delete set null;
-alter table "better_supabase"."ai_messages" add column if not exists "role" text check ("role" in ('system', 'user', 'assistant', 'tool'));
-alter table "better_supabase"."ai_messages" add column if not exists "parts" jsonb not null default '[]' check ( jsonb_typeof("parts") = 'array' and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))') );
-alter table "better_supabase"."ai_messages" add column if not exists "format" text not null default 'canonical' check (length("format") >= 1 and length("format") <= 50);
+alter table "better_supabase"."ai_messages" add column if not exists "role" text constraint bsb_ai_messages_role_check check ("role" in ('system', 'user', 'assistant', 'tool'));
+alter table "better_supabase"."ai_messages" add column if not exists "parts" jsonb not null default '[]' constraint bsb_ai_messages_parts_check check ( jsonb_typeof("parts") = 'array' and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))') );
+alter table "better_supabase"."ai_messages" add column if not exists "format" text not null default 'canonical' constraint bsb_ai_messages_format_check check (length("format") >= 1 and length("format") <= 50);
 alter table "better_supabase"."ai_messages" add column if not exists "native" jsonb;
-alter table "better_supabase"."ai_messages" add column if not exists "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."ai_messages" add column if not exists "metadata" jsonb not null default '{}' constraint bsb_ai_messages_metadata_check check (jsonb_typeof("metadata") = 'object');
 alter table "better_supabase"."ai_messages" add column if not exists "model" text;
-alter table "better_supabase"."ai_messages" add column if not exists "status" text not null default 'complete' check ("status" in ('complete', 'aborted', 'error'));
+alter table "better_supabase"."ai_messages" add column if not exists "status" text not null default 'complete' constraint bsb_ai_messages_status_check check ("status" in ('complete', 'aborted', 'error'));
 alter table "better_supabase"."ai_messages" add column if not exists "seq" bigint generated always as identity;
 alter table "better_supabase"."ai_messages" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."ai_messages" add column if not exists "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, jsonb_path_query_array("parts", '$[*] ? (@.type == "text").text'))) stored;
@@ -11749,13 +11749,13 @@ alter table "better_supabase"."ai_runs" add column if not exists "chat_id" uuid 
 alter table "better_supabase"."ai_runs" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."ai_runs" add column if not exists "assistant_message_id" text;
 alter table "better_supabase"."ai_runs" add column if not exists "stream_id" text;
-alter table "better_supabase"."ai_runs" add column if not exists "engine" text not null default 'ai-sdk' check (length("engine") >= 1 and length("engine") <= 50);
-alter table "better_supabase"."ai_runs" add column if not exists "external_run_id" text check (length("external_run_id") <= 200);
+alter table "better_supabase"."ai_runs" add column if not exists "engine" text not null default 'ai-sdk' constraint bsb_ai_runs_engine_check check (length("engine") >= 1 and length("engine") <= 50);
+alter table "better_supabase"."ai_runs" add column if not exists "external_run_id" text constraint bsb_ai_runs_external_run_id_check check (length("external_run_id") <= 200);
 alter table "better_supabase"."ai_runs" add column if not exists "model" text;
-alter table "better_supabase"."ai_runs" add column if not exists "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled'));
+alter table "better_supabase"."ai_runs" add column if not exists "status" text not null default 'running' constraint bsb_ai_runs_status_check check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled'));
 alter table "better_supabase"."ai_runs" add column if not exists "provider_generation_id" text;
-alter table "better_supabase"."ai_runs" add column if not exists "usage" jsonb not null default '{}' check (jsonb_typeof("usage") = 'object');
-alter table "better_supabase"."ai_runs" add column if not exists "cost_micro_usd" bigint check ("cost_micro_usd" >= 0);
+alter table "better_supabase"."ai_runs" add column if not exists "usage" jsonb not null default '{}' constraint bsb_ai_runs_usage_check check (jsonb_typeof("usage") = 'object');
+alter table "better_supabase"."ai_runs" add column if not exists "cost_micro_usd" bigint constraint bsb_ai_runs_cost_micro_usd_check check ("cost_micro_usd" >= 0);
 alter table "better_supabase"."ai_runs" add column if not exists "error" text;
 alter table "better_supabase"."ai_runs" add column if not exists "started_at" timestamptz not null default now();
 alter table "better_supabase"."ai_runs" add column if not exists "ended_at" timestamptz;
@@ -11772,16 +11772,16 @@ create policy bsb_ai_runs_select on "better_supabase"."ai_runs"
 
 -- Tool calls that wait for a person: requested by the server, decided once.
 -- better_supabase.ai_tool_approvals is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."ai_tool_approvals" add column if not exists "approval_id" text check (length("approval_id") >= 1 and length("approval_id") <= 200);
+alter table "better_supabase"."ai_tool_approvals" add column if not exists "approval_id" text constraint bsb_ai_tool_approvals_approval_id_check check (length("approval_id") >= 1 and length("approval_id") <= 200);
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "message_id" text;
-alter table "better_supabase"."ai_tool_approvals" add column if not exists "tool" text check (length("tool") >= 1 and length("tool") <= 200);
+alter table "better_supabase"."ai_tool_approvals" add column if not exists "tool" text constraint bsb_ai_tool_approvals_tool_check check (length("tool") >= 1 and length("tool") <= 200);
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "tool_call_id" text;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "input" jsonb;
-alter table "better_supabase"."ai_tool_approvals" add column if not exists "decision" text check ("decision" in ('approved', 'denied'));
-alter table "better_supabase"."ai_tool_approvals" add column if not exists "reason" text check (length("reason") <= 2000);
+alter table "better_supabase"."ai_tool_approvals" add column if not exists "decision" text constraint bsb_ai_tool_approvals_decision_check check ("decision" in ('approved', 'denied'));
+alter table "better_supabase"."ai_tool_approvals" add column if not exists "reason" text constraint bsb_ai_tool_approvals_reason_check check (length("reason") <= 2000);
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "signature" text;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "decided_by" uuid;
 alter table "better_supabase"."ai_tool_approvals" add column if not exists "decided_at" timestamptz;
@@ -11801,8 +11801,8 @@ create policy bsb_ai_tool_approvals_select on "better_supabase"."ai_tool_approva
 -- runs (deny).
 -- better_supabase.ai_tool_policies is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_tool_policies" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."ai_tool_policies" add column if not exists "tool" text check (length("tool") >= 1 and length("tool") <= 200);
-alter table "better_supabase"."ai_tool_policies" add column if not exists "policy" text check ("policy" in ('auto', 'ask', 'deny'));
+alter table "better_supabase"."ai_tool_policies" add column if not exists "tool" text constraint bsb_ai_tool_policies_tool_check check (length("tool") >= 1 and length("tool") <= 200);
+alter table "better_supabase"."ai_tool_policies" add column if not exists "policy" text constraint bsb_ai_tool_policies_policy_check check ("policy" in ('auto', 'ask', 'deny'));
 alter table "better_supabase"."ai_tool_policies" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_ai_tool_policies_tool_key" on "better_supabase"."ai_tool_policies" ("organization_id", "tool");
 alter table "better_supabase"."ai_tool_policies" enable row level security;
@@ -11815,7 +11815,7 @@ alter table "better_supabase"."ai_pending_inputs" add column if not exists "chat
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null;
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "tool_call_id" text;
-alter table "better_supabase"."ai_pending_inputs" add column if not exists "question" text check (length("question") >= 1 and length("question") <= 2000);
+alter table "better_supabase"."ai_pending_inputs" add column if not exists "question" text constraint bsb_ai_pending_inputs_question_check check (length("question") >= 1 and length("question") <= 2000);
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "schema" jsonb;
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "answer" jsonb;
 alter table "better_supabase"."ai_pending_inputs" add column if not exists "answered_at" timestamptz;
@@ -11835,7 +11835,7 @@ create policy bsb_ai_pending_inputs_select on "better_supabase"."ai_pending_inpu
 alter table "better_supabase"."ai_message_sources" add column if not exists "chat_id" uuid;
 alter table "better_supabase"."ai_message_sources" add column if not exists "message_id" text;
 alter table "better_supabase"."ai_message_sources" add column if not exists "source_id" text;
-alter table "better_supabase"."ai_message_sources" add column if not exists "source_type" text not null default 'url' check ("source_type" in ('url', 'document'));
+alter table "better_supabase"."ai_message_sources" add column if not exists "source_type" text not null default 'url' constraint bsb_ai_message_sources_source_type_check check ("source_type" in ('url', 'document'));
 alter table "better_supabase"."ai_message_sources" add column if not exists "url" text;
 alter table "better_supabase"."ai_message_sources" add column if not exists "title" text;
 alter table "better_supabase"."ai_message_sources" add column if not exists "provider_metadata" jsonb;
@@ -11851,9 +11851,9 @@ create policy bsb_ai_message_sources_select on "better_supabase"."ai_message_sou
 alter table "better_supabase"."ai_message_feedback" add column if not exists "chat_id" uuid;
 alter table "better_supabase"."ai_message_feedback" add column if not exists "message_id" text;
 alter table "better_supabase"."ai_message_feedback" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."ai_message_feedback" add column if not exists "rating" smallint check ("rating" in (-1, 1));
-alter table "better_supabase"."ai_message_feedback" add column if not exists "reason" text check (length("reason") <= 200);
-alter table "better_supabase"."ai_message_feedback" add column if not exists "comment" text check (length("comment") <= 4000);
+alter table "better_supabase"."ai_message_feedback" add column if not exists "rating" smallint constraint bsb_ai_message_feedback_rating_check check ("rating" in (-1, 1));
+alter table "better_supabase"."ai_message_feedback" add column if not exists "reason" text constraint bsb_ai_message_feedback_reason_check check (length("reason") <= 200);
+alter table "better_supabase"."ai_message_feedback" add column if not exists "comment" text constraint bsb_ai_message_feedback_comment_check check (length("comment") <= 4000);
 alter table "better_supabase"."ai_message_feedback" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."ai_message_feedback" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists ai_message_feedback_user_idx on "better_supabase"."ai_message_feedback" ("user_id");
@@ -11870,7 +11870,7 @@ create policy bsb_ai_message_feedback_select on "better_supabase"."ai_message_fe
 -- better_supabase.ai_chat_shares is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_chat_shares" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."ai_chat_shares" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
-alter table "better_supabase"."ai_chat_shares" add column if not exists "token_hash" text check ("token_hash" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."ai_chat_shares" add column if not exists "token_hash" text constraint bsb_ai_chat_shares_token_hash_check check ("token_hash" ~ '^[0-9a-f]{64}$');
 alter table "better_supabase"."ai_chat_shares" add column if not exists "leaf_id" text;
 alter table "better_supabase"."ai_chat_shares" add column if not exists "created_by" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."ai_chat_shares" add column if not exists "created_at" timestamptz not null default now();
@@ -11886,7 +11886,7 @@ grant all on "better_supabase"."ai_chat_shares" to service_role;
 -- Only the SQL functions read the salt.
 -- better_supabase.ai_chat_links is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_chat_links" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
-alter table "better_supabase"."ai_chat_links" add column if not exists "salt" text check (length("salt") >= 16);
+alter table "better_supabase"."ai_chat_links" add column if not exists "salt" text constraint bsb_ai_chat_links_salt_check check (length("salt") >= 16);
 alter table "better_supabase"."ai_chat_links" add column if not exists "created_by" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."ai_chat_links" add column if not exists "rotated_at" timestamptz not null default now();
 create index if not exists ai_chat_links_created_by_idx on "better_supabase"."ai_chat_links" ("created_by");
@@ -11897,7 +11897,7 @@ grant all on "better_supabase"."ai_chat_links" to service_role;
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
 -- better_supabase.ai_model_catalog is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."ai_model_catalog" add column if not exists "model_id" text check (length("model_id") >= 1 and length("model_id") <= 200);
+alter table "better_supabase"."ai_model_catalog" add column if not exists "model_id" text constraint bsb_ai_model_catalog_model_id_check check (length("model_id") >= 1 and length("model_id") <= 200);
 alter table "better_supabase"."ai_model_catalog" add column if not exists "provider" text not null default '';
 alter table "better_supabase"."ai_model_catalog" add column if not exists "name" text not null default '';
 alter table "better_supabase"."ai_model_catalog" add column if not exists "pricing" jsonb not null default '{}';
@@ -11916,10 +11916,10 @@ alter table "better_supabase"."ai_moderation_events" add column if not exists "o
 alter table "better_supabase"."ai_moderation_events" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete set null;
 alter table "better_supabase"."ai_moderation_events" add column if not exists "message_id" text;
 alter table "better_supabase"."ai_moderation_events" add column if not exists "user_id" uuid references auth.users (id) on delete set null;
-alter table "better_supabase"."ai_moderation_events" add column if not exists "stage" text check ("stage" in ('input', 'output', 'tool'));
-alter table "better_supabase"."ai_moderation_events" add column if not exists "category" text check (length("category") >= 1 and length("category") <= 100);
+alter table "better_supabase"."ai_moderation_events" add column if not exists "stage" text constraint bsb_ai_moderation_events_stage_check check ("stage" in ('input', 'output', 'tool'));
+alter table "better_supabase"."ai_moderation_events" add column if not exists "category" text constraint bsb_ai_moderation_events_category_check check (length("category") >= 1 and length("category") <= 100);
 alter table "better_supabase"."ai_moderation_events" add column if not exists "score" real;
-alter table "better_supabase"."ai_moderation_events" add column if not exists "action" text check ("action" in ('allow', 'flag', 'redact', 'block'));
+alter table "better_supabase"."ai_moderation_events" add column if not exists "action" text constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block'));
 alter table "better_supabase"."ai_moderation_events" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("organization_id", "created_at" desc);
 create index if not exists ai_moderation_events_chat_idx on "better_supabase"."ai_moderation_events" ("chat_id");
@@ -11933,10 +11933,10 @@ alter table "better_supabase"."ai_run_steps" add column if not exists "id" uuid 
 alter table "better_supabase"."ai_run_steps" add column if not exists "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete cascade;
 alter table "better_supabase"."ai_run_steps" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
 alter table "better_supabase"."ai_run_steps" add column if not exists "owner_id" uuid;
-alter table "better_supabase"."ai_run_steps" add column if not exists "step_key" text check (length("step_key") >= 1 and length("step_key") <= 200);
-alter table "better_supabase"."ai_run_steps" add column if not exists "label" text check (length("label") >= 1 and length("label") <= 300);
-alter table "better_supabase"."ai_run_steps" add column if not exists "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped'));
-alter table "better_supabase"."ai_run_steps" add column if not exists "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object');
+alter table "better_supabase"."ai_run_steps" add column if not exists "step_key" text constraint bsb_ai_run_steps_step_key_check check (length("step_key") >= 1 and length("step_key") <= 200);
+alter table "better_supabase"."ai_run_steps" add column if not exists "label" text constraint bsb_ai_run_steps_label_check check (length("label") >= 1 and length("label") <= 300);
+alter table "better_supabase"."ai_run_steps" add column if not exists "status" text not null default 'running' constraint bsb_ai_run_steps_status_check check ("status" in ('running', 'done', 'error', 'skipped'));
+alter table "better_supabase"."ai_run_steps" add column if not exists "detail" jsonb not null default '{}' constraint bsb_ai_run_steps_detail_check check (jsonb_typeof("detail") = 'object');
 alter table "better_supabase"."ai_run_steps" add column if not exists "started_at" timestamptz not null default now();
 alter table "better_supabase"."ai_run_steps" add column if not exists "ended_at" timestamptz;
 create index if not exists ai_run_steps_chat_idx on "better_supabase"."ai_run_steps" ("chat_id");
@@ -11954,12 +11954,12 @@ create policy bsb_ai_run_steps_select on "better_supabase"."ai_run_steps"
 -- keep two turns from driving one sandbox. Experimental.
 -- better_supabase.ai_harness_sessions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete cascade;
-alter table "better_supabase"."ai_harness_sessions" add column if not exists "harness_id" text check (length("harness_id") >= 1 and length("harness_id") <= 200);
+alter table "better_supabase"."ai_harness_sessions" add column if not exists "harness_id" text constraint bsb_ai_harness_sessions_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200);
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "owner_id" uuid;
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "resume_state" jsonb;
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "continue_state" jsonb;
-alter table "better_supabase"."ai_harness_sessions" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'idle', 'stopped', 'error'));
-alter table "better_supabase"."ai_harness_sessions" add column if not exists "lock_holder" text check (length("lock_holder") <= 200);
+alter table "better_supabase"."ai_harness_sessions" add column if not exists "status" text not null default 'active' constraint bsb_ai_harness_sessions_status_check check ("status" in ('active', 'idle', 'stopped', 'error'));
+alter table "better_supabase"."ai_harness_sessions" add column if not exists "lock_holder" text constraint bsb_ai_harness_sessions_lock_holder_check check (length("lock_holder") <= 200);
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "locked_until" timestamptz;
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "last_active_at" timestamptz not null default now();
 alter table "better_supabase"."ai_harness_sessions" add column if not exists "created_at" timestamptz not null default now();
@@ -13722,14 +13722,14 @@ alter table "better_supabase"."ai_sandboxes" add column if not exists "id" uuid 
 alter table "better_supabase"."ai_sandboxes" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."ai_sandboxes" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."ai_sandboxes" add column if not exists "chat_id" uuid;
-alter table "better_supabase"."ai_sandboxes" add column if not exists "harness_id" text check (length("harness_id") >= 1 and length("harness_id") <= 200);
-alter table "better_supabase"."ai_sandboxes" add column if not exists "provider" text check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$');
-alter table "better_supabase"."ai_sandboxes" add column if not exists "sandbox_id" text check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200);
-alter table "better_supabase"."ai_sandboxes" add column if not exists "container_id" text check (length("container_id") <= 200);
-alter table "better_supabase"."ai_sandboxes" add column if not exists "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped'));
-alter table "better_supabase"."ai_sandboxes" add column if not exists "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object');
-alter table "better_supabase"."ai_sandboxes" add column if not exists "idle_seconds" integer not null default 600 check ("idle_seconds" > 0);
-alter table "better_supabase"."ai_sandboxes" add column if not exists "error" text check (length("error") <= 4000);
+alter table "better_supabase"."ai_sandboxes" add column if not exists "harness_id" text constraint bsb_ai_sandboxes_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200);
+alter table "better_supabase"."ai_sandboxes" add column if not exists "provider" text constraint bsb_ai_sandboxes_provider_check check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$');
+alter table "better_supabase"."ai_sandboxes" add column if not exists "sandbox_id" text constraint bsb_ai_sandboxes_sandbox_id_check check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200);
+alter table "better_supabase"."ai_sandboxes" add column if not exists "container_id" text constraint bsb_ai_sandboxes_container_id_check check (length("container_id") <= 200);
+alter table "better_supabase"."ai_sandboxes" add column if not exists "status" text not null default 'running' constraint bsb_ai_sandboxes_status_check check ("status" in ('running', 'stopping', 'stopped'));
+alter table "better_supabase"."ai_sandboxes" add column if not exists "metadata" jsonb not null default '{}' constraint bsb_ai_sandboxes_metadata_check check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."ai_sandboxes" add column if not exists "idle_seconds" integer not null default 600 constraint bsb_ai_sandboxes_idle_seconds_check check ("idle_seconds" > 0);
+alter table "better_supabase"."ai_sandboxes" add column if not exists "error" text constraint bsb_ai_sandboxes_error_check check (length("error") <= 4000);
 alter table "better_supabase"."ai_sandboxes" add column if not exists "last_used_at" timestamptz not null default now();
 alter table "better_supabase"."ai_sandboxes" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."ai_sandboxes" add column if not exists "stopped_at" timestamptz;
@@ -14350,7 +14350,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_047_ai_chat.sql
 -- better-supabase module: ai-chat
 -- @bsb-block ai-chat@6 managed
--- @bsb-hash sha256:4b664ca7a75147bff6fac1f6b60e537ae899ffb9b83fa29c1842620c5f215e76
+-- @bsb-hash sha256:a5d73a4022c2461db6aa83cfd33c9cbbc47c251e389a5137788f7341f7d9d332
 -- Chats, projects, participants and a message tree (or one linear list) in the canonical AI message format or the SDK's own parts, with runs (and the id of a durable engine's run), run steps for progress, a compare-and-set stream claim, harness sessions, tool approvals and policies, pending inputs, cited sources, feedback, hashed share links, a model catalog per plan, moderation events and private Realtime topics per chat and per user.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14360,9 +14360,9 @@ create table "better_supabase"."ai_projects" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "instructions" text not null default '' check (length("instructions") <= 20000),
-  "default_model" text check (length("default_model") <= 200),
+  "name" text not null constraint bsb_ai_projects_name_check check (length("name") >= 1 and length("name") <= 200),
+  "instructions" text not null default '' constraint bsb_ai_projects_instructions_check check (length("instructions") <= 20000),
+  "default_model" text constraint bsb_ai_projects_default_model_check check (length("default_model") <= 200),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -14384,11 +14384,11 @@ create table "better_supabase"."ai_chats" (
   "org_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "project_id" uuid references "better_supabase"."ai_projects" ("id") on delete set null,
-  "agent_id" text check (length("agent_id") <= 200),
-  "title" text not null default '' check (length("title") <= 300),
-  "model" text check (length("model") <= 200),
-  "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'shared')),
-  "mode" text check (length("mode") <= 100),
+  "agent_id" text constraint bsb_ai_chats_agent_id_check check (length("agent_id") <= 200),
+  "title" text not null default '' constraint bsb_ai_chats_title_check check (length("title") <= 300),
+  "model" text constraint bsb_ai_chats_model_check check (length("model") <= 200),
+  "visibility" text not null default 'private' constraint bsb_ai_chats_visibility_check check ("visibility" in ('private', 'organization', 'shared')),
+  "mode" text constraint bsb_ai_chats_mode_check check (length("mode") <= 100),
   "pinned" boolean not null default false,
   "archived_at" timestamptz,
   "is_temporary" boolean not null default false,
@@ -14400,7 +14400,7 @@ create table "better_supabase"."ai_chats" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, "title")) stored,
-  check (not "is_temporary" or "expires_at" is not null)
+  constraint bsb_ai_chats_check check (not "is_temporary" or "expires_at" is not null)
 );
 create index ai_chats_owner_idx on "better_supabase"."ai_chats" ("owner_id", "last_message_at" desc, "id" desc);
 create index ai_chats_tenant_idx on "better_supabase"."ai_chats" ("org_id");
@@ -14420,14 +14420,14 @@ create table "better_supabase"."ai_chat_participants" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'user' check ("kind" in ('user', 'team', 'customer', 'external')),
+  "kind" text not null default 'user' constraint bsb_ai_chat_participants_kind_check check ("kind" in ('user', 'team', 'customer', 'external')),
   "team_id" uuid,
   "customer_user_id" uuid references auth.users (id) on delete cascade,
-  "email" text check (length("email") <= 320),
-  "role" text not null default 'viewer' check ("role" in ('viewer', 'editor')),
+  "email" text constraint bsb_ai_chat_participants_email_check check (length("email") <= 320),
+  "role" text not null default 'viewer' constraint bsb_ai_chat_participants_role_check check ("role" in ('viewer', 'editor')),
   "added_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
-  check (
+  constraint bsb_ai_chat_participants_check check (
     ("kind" = 'user' and "user_id" is not null)
     or ("kind" = 'team' and "team_id" is not null)
     or ("kind" = 'customer' and "customer_user_id" is not null)
@@ -14460,20 +14460,20 @@ create policy bsb_ai_chats_read on "better_supabase"."ai_chats"
 -- parts holds the canonical AI message parts; native the SDK's own shape.
 create table "better_supabase"."ai_messages" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "id" text not null check (length("id") >= 1 and length("id") <= 200),
+  "id" text not null constraint bsb_ai_messages_id_check check (length("id") >= 1 and length("id") <= 200),
   "parent_id" text,
   "owner_id" uuid not null,
   "author_id" uuid references auth.users (id) on delete set null,
-  "role" text not null check ("role" in ('system', 'user', 'assistant', 'tool')),
-  "parts" jsonb not null default '[]' check (
+  "role" text not null constraint bsb_ai_messages_role_check check ("role" in ('system', 'user', 'assistant', 'tool')),
+  "parts" jsonb not null default '[]' constraint bsb_ai_messages_parts_check check (
     jsonb_typeof("parts") = 'array'
     and not jsonb_path_exists("parts", '$[*] ? (!(@.type == "text" || @.type == "reasoning" || @.type == "file" || @.type == "tool-call" || @.type == "tool-result" || @.type == "tool-approval" || @.type == "source" || @.type == "data" || @.type == "step"))')
   ),
-  "format" text not null default 'canonical' check (length("format") >= 1 and length("format") <= 50),
+  "format" text not null default 'canonical' constraint bsb_ai_messages_format_check check (length("format") >= 1 and length("format") <= 50),
   "native" jsonb,
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_messages_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "model" text,
-  "status" text not null default 'complete' check ("status" in ('complete', 'aborted', 'error')),
+  "status" text not null default 'complete' constraint bsb_ai_messages_status_check check ("status" in ('complete', 'aborted', 'error')),
   "seq" bigint generated always as identity,
   "created_at" timestamptz not null default now(),
   "search_tsv" tsvector generated always as (to_tsvector('simple'::regconfig, jsonb_path_query_array("parts", '$[*] ? (@.type == "text").text'))) stored,
@@ -14499,13 +14499,13 @@ create table "better_supabase"."ai_runs" (
   "owner_id" uuid not null,
   "assistant_message_id" text,
   "stream_id" text,
-  "engine" text not null default 'ai-sdk' check (length("engine") >= 1 and length("engine") <= 50),
-  "external_run_id" text check (length("external_run_id") <= 200),
+  "engine" text not null default 'ai-sdk' constraint bsb_ai_runs_engine_check check (length("engine") >= 1 and length("engine") <= 50),
+  "external_run_id" text constraint bsb_ai_runs_external_run_id_check check (length("external_run_id") <= 200),
   "model" text,
-  "status" text not null default 'running' check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
+  "status" text not null default 'running' constraint bsb_ai_runs_status_check check ("status" in ('queued', 'running', 'cancel_requested', 'completed', 'failed', 'cancelled')),
   "provider_generation_id" text,
-  "usage" jsonb not null default '{}' check (jsonb_typeof("usage") = 'object'),
-  "cost_micro_usd" bigint check ("cost_micro_usd" >= 0),
+  "usage" jsonb not null default '{}' constraint bsb_ai_runs_usage_check check (jsonb_typeof("usage") = 'object'),
+  "cost_micro_usd" bigint constraint bsb_ai_runs_cost_micro_usd_check check ("cost_micro_usd" >= 0),
   "error" text,
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz
@@ -14524,16 +14524,16 @@ create policy bsb_ai_runs_owner_read on "better_supabase"."ai_runs"
 
 -- Tool calls that wait for a person: requested by the server, decided once.
 create table "better_supabase"."ai_tool_approvals" (
-  "approval_id" text primary key check (length("approval_id") >= 1 and length("approval_id") <= 200),
+  "approval_id" text primary key constraint bsb_ai_tool_approvals_approval_id_check check (length("approval_id") >= 1 and length("approval_id") <= 200),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "message_id" text,
-  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
+  "tool" text not null constraint bsb_ai_tool_approvals_tool_check check (length("tool") >= 1 and length("tool") <= 200),
   "tool_call_id" text not null,
   "input" jsonb,
-  "decision" text check ("decision" in ('approved', 'denied')),
-  "reason" text check (length("reason") <= 2000),
+  "decision" text constraint bsb_ai_tool_approvals_decision_check check ("decision" in ('approved', 'denied')),
+  "reason" text constraint bsb_ai_tool_approvals_reason_check check (length("reason") <= 2000),
   "signature" text,
   "decided_by" uuid,
   "decided_at" timestamptz,
@@ -14554,8 +14554,8 @@ create policy bsb_ai_tool_approvals_owner_read on "better_supabase"."ai_tool_app
 -- runs (deny).
 create table "better_supabase"."ai_tool_policies" (
   "org_id" uuid not null,
-  "tool" text not null check (length("tool") >= 1 and length("tool") <= 200),
-  "policy" text not null check ("policy" in ('auto', 'ask', 'deny')),
+  "tool" text not null constraint bsb_ai_tool_policies_tool_check check (length("tool") >= 1 and length("tool") <= 200),
+  "policy" text not null constraint bsb_ai_tool_policies_policy_check check ("policy" in ('auto', 'ask', 'deny')),
   "updated_at" timestamptz not null default now(),
   primary key ("org_id", "tool")
 );
@@ -14570,7 +14570,7 @@ create table "better_supabase"."ai_pending_inputs" (
   "owner_id" uuid not null,
   "run_id" uuid references "better_supabase"."ai_runs" ("id") on delete set null,
   "tool_call_id" text,
-  "question" text not null check (length("question") >= 1 and length("question") <= 2000),
+  "question" text not null constraint bsb_ai_pending_inputs_question_check check (length("question") >= 1 and length("question") <= 2000),
   "schema" jsonb,
   "answer" jsonb,
   "answered_at" timestamptz,
@@ -14592,7 +14592,7 @@ create table "better_supabase"."ai_message_sources" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "source_id" text not null,
-  "source_type" text not null default 'url' check ("source_type" in ('url', 'document')),
+  "source_type" text not null default 'url' constraint bsb_ai_message_sources_source_type_check check ("source_type" in ('url', 'document')),
   "url" text,
   "title" text,
   "provider_metadata" jsonb,
@@ -14612,9 +14612,9 @@ create table "better_supabase"."ai_message_feedback" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" in (-1, 1)),
-  "reason" text check (length("reason") <= 200),
-  "comment" text check (length("comment") <= 4000),
+  "rating" smallint not null constraint bsb_ai_message_feedback_rating_check check ("rating" in (-1, 1)),
+  "reason" text constraint bsb_ai_message_feedback_reason_check check (length("reason") <= 200),
+  "comment" text constraint bsb_ai_message_feedback_comment_check check (length("comment") <= 4000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id", "user_id"),
@@ -14634,7 +14634,7 @@ create policy bsb_ai_message_feedback_own_read on "better_supabase"."ai_message_
 create table "better_supabase"."ai_chat_shares" (
   "id" uuid primary key default gen_random_uuid(),
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "token_hash" text not null unique check ("token_hash" ~ '^[0-9a-f]{64}$'),
+  "token_hash" text not null unique constraint bsb_ai_chat_shares_token_hash_check check ("token_hash" ~ '^[0-9a-f]{64}$'),
   "leaf_id" text not null,
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "created_at" timestamptz not null default now(),
@@ -14651,7 +14651,7 @@ grant all on "better_supabase"."ai_chat_shares" to service_role;
 -- Only the SQL functions read the salt.
 create table "better_supabase"."ai_chat_links" (
   "chat_id" uuid primary key references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "salt" text not null check (length("salt") >= 16),
+  "salt" text not null constraint bsb_ai_chat_links_salt_check check (length("salt") >= 16),
   "created_by" uuid not null references auth.users (id) on delete cascade,
   "rotated_at" timestamptz not null default now()
 );
@@ -14663,7 +14663,7 @@ grant all on "better_supabase"."ai_chat_links" to service_role;
 -- The models a tenant may pick, refreshed from the gateway. plans limits a
 -- model to tenants with one of those entitlements; empty means everyone.
 create table "better_supabase"."ai_model_catalog" (
-  "model_id" text primary key check (length("model_id") >= 1 and length("model_id") <= 200),
+  "model_id" text primary key constraint bsb_ai_model_catalog_model_id_check check (length("model_id") >= 1 and length("model_id") <= 200),
   "provider" text not null default '',
   "name" text not null default '',
   "pricing" jsonb not null default '{}',
@@ -14683,10 +14683,10 @@ create table "better_supabase"."ai_moderation_events" (
   "chat_id" uuid references "better_supabase"."ai_chats" ("id") on delete set null,
   "message_id" text,
   "user_id" uuid references auth.users (id) on delete set null,
-  "stage" text not null check ("stage" in ('input', 'output', 'tool')),
-  "category" text not null check (length("category") >= 1 and length("category") <= 100),
+  "stage" text not null constraint bsb_ai_moderation_events_stage_check check ("stage" in ('input', 'output', 'tool')),
+  "category" text not null constraint bsb_ai_moderation_events_category_check check (length("category") >= 1 and length("category") <= 100),
   "score" real,
-  "action" text not null check ("action" in ('allow', 'flag', 'redact', 'block')),
+  "action" text not null constraint bsb_ai_moderation_events_action_check check ("action" in ('allow', 'flag', 'redact', 'block')),
   "created_at" timestamptz not null default now()
 );
 create index ai_moderation_events_tenant_idx on "better_supabase"."ai_moderation_events" ("org_id", "created_at" desc);
@@ -14702,10 +14702,10 @@ create table "better_supabase"."ai_run_steps" (
   "run_id" uuid not null references "better_supabase"."ai_runs" ("id") on delete cascade,
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
   "owner_id" uuid not null,
-  "step_key" text not null check (length("step_key") >= 1 and length("step_key") <= 200),
-  "label" text not null check (length("label") >= 1 and length("label") <= 300),
-  "status" text not null default 'running' check ("status" in ('running', 'done', 'error', 'skipped')),
-  "detail" jsonb not null default '{}' check (jsonb_typeof("detail") = 'object'),
+  "step_key" text not null constraint bsb_ai_run_steps_step_key_check check (length("step_key") >= 1 and length("step_key") <= 200),
+  "label" text not null constraint bsb_ai_run_steps_label_check check (length("label") >= 1 and length("label") <= 300),
+  "status" text not null default 'running' constraint bsb_ai_run_steps_status_check check ("status" in ('running', 'done', 'error', 'skipped')),
+  "detail" jsonb not null default '{}' constraint bsb_ai_run_steps_detail_check check (jsonb_typeof("detail") = 'object'),
   "started_at" timestamptz not null default now(),
   "ended_at" timestamptz,
   unique ("run_id", "step_key")
@@ -14725,12 +14725,12 @@ create policy bsb_ai_run_steps_owner_read on "better_supabase"."ai_run_steps"
 -- keep two turns from driving one sandbox. Experimental.
 create table "better_supabase"."ai_harness_sessions" (
   "chat_id" uuid not null references "better_supabase"."ai_chats" ("id") on delete cascade,
-  "harness_id" text not null check (length("harness_id") >= 1 and length("harness_id") <= 200),
+  "harness_id" text not null constraint bsb_ai_harness_sessions_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
   "owner_id" uuid not null,
   "resume_state" jsonb,
   "continue_state" jsonb,
-  "status" text not null default 'active' check ("status" in ('active', 'idle', 'stopped', 'error')),
-  "lock_holder" text check (length("lock_holder") <= 200),
+  "status" text not null default 'active' constraint bsb_ai_harness_sessions_status_check check ("status" in ('active', 'idle', 'stopped', 'error')),
+  "lock_holder" text constraint bsb_ai_harness_sessions_lock_holder_check check (length("lock_holder") <= 200),
   "locked_until" timestamptz,
   "last_active_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
@@ -16496,14 +16496,14 @@ create table "better_supabase"."ai_sandboxes" (
   "org_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "harness_id" text check (length("harness_id") >= 1 and length("harness_id") <= 200),
-  "provider" text not null check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
-  "sandbox_id" text not null check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
-  "container_id" text check (length("container_id") <= 200),
-  "status" text not null default 'running' check ("status" in ('running', 'stopping', 'stopped')),
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
-  "idle_seconds" integer not null default 600 check ("idle_seconds" > 0),
-  "error" text check (length("error") <= 4000),
+  "harness_id" text constraint bsb_ai_sandboxes_harness_id_check check (length("harness_id") >= 1 and length("harness_id") <= 200),
+  "provider" text not null constraint bsb_ai_sandboxes_provider_check check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
+  "sandbox_id" text not null constraint bsb_ai_sandboxes_sandbox_id_check check (length("sandbox_id") >= 1 and length("sandbox_id") <= 200),
+  "container_id" text constraint bsb_ai_sandboxes_container_id_check check (length("container_id") <= 200),
+  "status" text not null default 'running' constraint bsb_ai_sandboxes_status_check check ("status" in ('running', 'stopping', 'stopped')),
+  "metadata" jsonb not null default '{}' constraint bsb_ai_sandboxes_metadata_check check (jsonb_typeof("metadata") = 'object'),
+  "idle_seconds" integer not null default 600 constraint bsb_ai_sandboxes_idle_seconds_check check ("idle_seconds" > 0),
+  "error" text constraint bsb_ai_sandboxes_error_check check (length("error") <= 4000),
   "last_used_at" timestamptz not null default now(),
   "expires_at" timestamptz,
   "stopped_at" timestamptz,

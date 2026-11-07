@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:81bbff0820f2b10586caf9b2d9ca609e2b98e3b74f4892151d95b05997a5480b
+-- @bsb-hash sha256:f9938783ace844d7b1c4f27f46136260816a62440d510b733e26b1b4e29175cb
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,8 +14,8 @@
 create table "better_supabase"."service_principals" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 120),
-  "role" text not null check (length("role") >= 1 and length("role") <= 200),
+  "name" text not null constraint bsb_service_principals_name_check check (length("name") >= 1 and length("name") <= 120),
+  "role" text not null constraint bsb_service_principals_role_check check (length("role") >= 1 and length("role") <= 200),
   "is_default" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -230,7 +230,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:d185ba0800ca2ecb8391d04f4f3baa879b9dcede4519b04f0256e091683ce03f
+-- @bsb-hash sha256:c92237997babb9a926ca87c22e30949604211bb54f3b7113f5b1343d4e1260a0
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -243,8 +243,8 @@ on conflict (name) do update
 create table "better_supabase"."service_principals" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 120),
-  "role" text not null check (length("role") >= 1 and length("role") <= 200),
+  "name" text not null constraint bsb_service_principals_name_check check (length("name") >= 1 and length("name") <= 120),
+  "role" text not null constraint bsb_service_principals_role_check check (length("role") >= 1 and length("role") <= 200),
   "is_default" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -489,7 +489,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:1e4886425b194aa407b8f7f1a65ce244124b294ca021b4f4083516517247e000
+-- @bsb-hash sha256:a4382861c912fd2830749d04a5dc630597bfaf6b37f34f61441bbbcc75207b89
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -507,8 +507,8 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."service_principals" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 120),
-  "role" text not null check (length("role") >= 1 and length("role") <= 200),
+  "name" text not null constraint bsb_service_principals_name_check check (length("name") >= 1 and length("name") <= 120),
+  "role" text not null constraint bsb_service_principals_role_check check (length("role") >= 1 and length("role") <= 200),
   "is_default" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -723,7 +723,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:6fc4b8ea55fc6eae7761c4216590878a53713baab865640ed0a487db3455aff7
+-- @bsb-hash sha256:a3a9a4e28c7992846182383c9af15ce62a61f4b46ff727995a68994835d6b81b
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -736,8 +736,8 @@ on conflict (name) do update
 create table "better_supabase"."service_principals" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 120),
-  "role" text not null check (length("role") >= 1 and length("role") <= 200),
+  "name" text not null constraint bsb_service_principals_name_check check (length("name") >= 1 and length("name") <= 120),
+  "role" text not null constraint bsb_service_principals_role_check check (length("role") >= 1 and length("role") <= 200),
   "is_default" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -1003,7 +1003,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:3b2b5a08956ad60debb20e433f91e5ae6ecce185f765df85a34ad22dc91838f5
+-- @bsb-hash sha256:eb5706c1a96952b64e80420a5d230e5fd21eef5cef0bd9f6e77c340effade917
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1016,8 +1016,8 @@ on conflict (name) do update
 -- better_supabase.service_principals is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."service_principals" add column if not exists "id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."service_principals" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."service_principals" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 120);
-alter table "better_supabase"."service_principals" add column if not exists "role" text check (length("role") >= 1 and length("role") <= 200);
+alter table "better_supabase"."service_principals" add column if not exists "name" text constraint bsb_service_principals_name_check check (length("name") >= 1 and length("name") <= 120);
+alter table "better_supabase"."service_principals" add column if not exists "role" text constraint bsb_service_principals_role_check check (length("role") >= 1 and length("role") <= 200);
 alter table "better_supabase"."service_principals" add column if not exists "is_default" boolean not null default false;
 alter table "better_supabase"."service_principals" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."service_principals" add column if not exists "created_at" timestamptz not null default now();
@@ -1229,7 +1229,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_090_service_accounts.sql
 -- better-supabase module: service-accounts
 -- @bsb-block service-accounts@1 managed
--- @bsb-hash sha256:e26e0c6412a39247ed76a9e8d4787b85d675d26034d7a7d4f17a76f3ac20de20
+-- @bsb-hash sha256:1194ae1a986e1b57d6ff5edb40ebeee3e62a66e27b7f817a980d846b0a4d7bdd
 -- Non-human tenant members backed by auth.users rows that can't sign in, with roles through memberships. Organization-owned workflow versions and service webhook endpoints run as the tenant's default principal.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1242,8 +1242,8 @@ on conflict (name) do update
 create table "better_supabase"."service_principals" (
   "id" uuid primary key references auth.users (id) on delete cascade,
   "org_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 120),
-  "role" text not null check (length("role") >= 1 and length("role") <= 200),
+  "name" text not null constraint bsb_service_principals_name_check check (length("name") >= 1 and length("name") <= 120),
+  "role" text not null constraint bsb_service_principals_role_check check (length("role") >= 1 and length("role") <= 200),
   "is_default" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),

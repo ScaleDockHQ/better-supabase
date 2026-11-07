@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:9067903f7ec1abeaa11f6c92ca928474ad6124e1e26e089b7fdc47a9a6a03fe0
+-- @bsb-hash sha256:02af6c54fec7900430af253578dfa0f12e535fdcf4a5d9b0a087da35ff026d11
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,14 +13,14 @@
 create table "better_supabase"."periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "kind" text not null constraint bsb_periods_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'locked', 'closed')),
+  "status" text not null default 'open' constraint bsb_periods_status_check check ("status" in ('open', 'locked', 'closed')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "kind", "starts_on")
 );
 create index "periods_range_idx" on "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on");
@@ -322,7 +322,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:c42c0616a90cab85c4e04b60340119a8d4f58695f8afdbb708bef242e4f82ef0
+-- @bsb-hash sha256:1659b8e851a178103a29f58ca43c77bd03211019aa4eb22c1b37fca546da4fb8
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -334,14 +334,14 @@ on conflict (name) do update
 create table "better_supabase"."periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "kind" text not null constraint bsb_periods_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'locked', 'closed')),
+  "status" text not null default 'open' constraint bsb_periods_status_check check ("status" in ('open', 'locked', 'closed')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "kind", "starts_on")
 );
 create index "periods_range_idx" on "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on");
@@ -718,7 +718,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:007e8776a35720b07082ab25cdb194b6a3a3040123fcf3439fbb15d22591f70c
+-- @bsb-hash sha256:60c42d70e91192920ffc63819fc4ae670f1c036ea9765d38380bb41aa3bd8b79
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -735,14 +735,14 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "kind" text not null constraint bsb_periods_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'locked', 'closed')),
+  "status" text not null default 'open' constraint bsb_periods_status_check check ("status" in ('open', 'locked', 'closed')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "kind", "starts_on")
 );
 create index "periods_range_idx" on "app_private"."periods" ("tenant_id", "kind", "starts_on", "ends_on");
@@ -1044,7 +1044,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:4b659f1e91ca93327e5de662a8b98a62e9c650c06a707eb393b3f44c1ce02af1
+-- @bsb-hash sha256:91cbd8b218c9bb40a8c3e6a5e8a3618e04e315d335b206aa8868473cedd47d98
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1056,14 +1056,14 @@ on conflict (name) do update
 create table "better_supabase"."periods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "kind" text not null constraint bsb_periods_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'locked', 'closed')),
+  "status" text not null default 'open' constraint bsb_periods_status_check check ("status" in ('open', 'locked', 'closed')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_periods_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "kind", "starts_on")
 );
 create index "periods_range_idx" on "better_supabase"."periods" ("tenant_id", "kind", "starts_on", "ends_on");
@@ -1444,7 +1444,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:65e736cd24f7d4728d2e3c46ef54ab53c87b1dc82ba7e15f39b7a74026564cf8
+-- @bsb-hash sha256:a21ac90635d2289339258d783d761d0dcc0af8e860d9f8a318bde3194d5ce46f
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1456,10 +1456,10 @@ on conflict (name) do update
 -- better_supabase.periods is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."periods" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."periods" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."periods" add column if not exists "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."periods" add column if not exists "kind" text constraint bsb_periods_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$');
 alter table "better_supabase"."periods" add column if not exists "starts_on" date;
 alter table "better_supabase"."periods" add column if not exists "ends_on" date;
-alter table "better_supabase"."periods" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'locked', 'closed'));
+alter table "better_supabase"."periods" add column if not exists "status" text not null default 'open' constraint bsb_periods_status_check check ("status" in ('open', 'locked', 'closed'));
 alter table "better_supabase"."periods" add column if not exists "closed_at" timestamptz;
 alter table "better_supabase"."periods" add column if not exists "closed_by" uuid;
 alter table "better_supabase"."periods" add column if not exists "created_at" timestamptz not null default now();
@@ -1762,7 +1762,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_170_periods.sql
 -- better-supabase module: periods
 -- @bsb-block periods@1 managed
--- @bsb-hash sha256:0c4e7d057e3ec9309745ff2afbc4f402a1b31621e3ccc7e39392c7239ca19062
+-- @bsb-hash sha256:a745e0355eb8c629c274a31e8807999abd4dc5e025ffa23ad57331d387f76c09
 -- Dated periods per kind with open, locked and closed states, a lookup by date and a close protocol where blocks contribute close blockers and an on-close step.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1774,14 +1774,14 @@ on conflict (name) do update
 create table "better_supabase"."periods" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "kind" text not null constraint bsb_periods_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'locked', 'closed')),
+  "status" text not null default 'open' constraint bsb_periods_status_check check ("status" in ('open', 'locked', 'closed')),
   "closed_at" timestamptz,
   "closed_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_periods_check check ("ends_on" >= "starts_on"),
   unique ("org_id", "kind", "starts_on")
 );
 create index "periods_range_idx" on "better_supabase"."periods" ("org_id", "kind", "starts_on", "ends_on");

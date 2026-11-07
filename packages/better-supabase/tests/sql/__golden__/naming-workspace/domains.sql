@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@2 managed
--- @bsb-hash sha256:72e905c526749ce314008760c634c70d0fb425d32b20900dc998f187a778dfea
+-- @bsb-hash sha256:b19c56607be2e5c886d89087c0dc16adbe728d58110e963f4a4ce4b61e22cf30
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,15 +13,15 @@
 create table "better_supabase"."hostnames" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
-  "hostname" text not null check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
-  "kind" text not null default 'custom' check ("kind" in ('custom', 'subdomain')),
+  "hostname" text not null constraint bsb_hostnames_hostname_check check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
+  "kind" text not null default 'custom' constraint bsb_hostnames_kind_check check ("kind" in ('custom', 'subdomain')),
   "verification_token" text not null default replace(gen_random_uuid()::text, '-', ''),
   "verified_at" timestamptz,
   "is_primary" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("workspace_id", "hostname"),
-  check (not "is_primary" or "verified_at" is not null)
+  constraint bsb_hostnames_check check (not "is_primary" or "verified_at" is not null)
 );
 create unique index "hostnames_verified_idx" on "better_supabase"."hostnames" ("hostname") where "verified_at" is not null;
 create unique index "hostnames_primary_idx" on "better_supabase"."hostnames" ("workspace_id") where "is_primary";

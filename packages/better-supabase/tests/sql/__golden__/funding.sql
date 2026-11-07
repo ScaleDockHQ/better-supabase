@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:cdafb6d597c52c3a7d4f947855b7f79bf6ef661f8eefd5954c46ffdf6b4461c8
+-- @bsb-hash sha256:8e0fa6fbc1428caf85a343f5c0273ae9b1f8c2fb9bf04df8ef59bc250e4092f4
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,17 +14,17 @@ create table "better_supabase"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "unit" text not null check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
+  "code" text not null constraint bsb_funding_products_code_check check (length("code") >= 1 and length("code") <= 50),
+  "title" text not null constraint bsb_funding_products_title_check check (length("title") >= 1 and length("title") <= 300),
+  "unit" text not null constraint bsb_funding_products_unit_check check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
   -- The price of one unit, in minor units of currency.
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_funding_products_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_funding_products_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "valid_from" date,
   "valid_until" date,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
+  constraint bsb_funding_products_check check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
   unique ("tenant_id", "id")
 );
 create unique index "funding_products_code_idx" on "better_supabase"."funding_products" ("tenant_id", "code");
@@ -46,17 +46,17 @@ create table "better_supabase"."funding_awards" (
   "funder_id" uuid not null,
   "product_id" uuid not null,
   -- The units awarded per period.
-  "units" numeric not null check ("units" > 0),
-  "period" text not null check ("period" in ('week', 'month', 'total')),
+  "units" numeric not null constraint bsb_funding_awards_units_check check ("units" > 0),
+  "period" text not null constraint bsb_funding_awards_period_check check ("period" in ('week', 'month', 'total')),
   "starts_on" date not null,
   "ends_on" date,
   -- The funder's reference for the award, such as an indication number.
-  "reference" text check ("reference" is null or length("reference") <= 200),
-  "status" text not null default 'active' check ("status" in ('requested', 'active', 'ended', 'canceled')),
+  "reference" text constraint bsb_funding_awards_reference_check check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'active' constraint bsb_funding_awards_status_check check ("status" in ('requested', 'active', 'ended', 'canceled')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_funding_awards_check check ("ends_on" is null or "ends_on" >= "starts_on"),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "better_supabase"."funding_products" ("tenant_id", "id")
 );
@@ -75,26 +75,26 @@ create table "better_supabase"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "funder_id" uuid not null,
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_funding_claims_number_check check (length("number") >= 1 and length("number") <= 100),
   "period_start" date not null,
   "period_end" date not null,
   -- The FundingClaimFormat key that renders the claim, such as iwlz-aw319.
-  "format" text not null check ("format" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
-  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'accepted', 'partially_accepted', 'rejected')),
+  "format" text not null constraint bsb_funding_claims_format_check check ("format" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
+  "status" text not null default 'draft' constraint bsb_funding_claims_status_check check ("status" in ('draft', 'sent', 'accepted', 'partially_accepted', 'rejected')),
   -- The funder's or the channel's reference for the sent claim.
-  "external_ref" text check ("external_ref" is null or length("external_ref") <= 200),
+  "external_ref" text constraint bsb_funding_claims_external_ref_check check ("external_ref" is null or length("external_ref") <= 200),
   "sent_at" timestamptz,
   -- The SHA-256 of the rendered file that was sent, in hex.
-  "payload_sha256" text check ("payload_sha256" is null or "payload_sha256" ~ '^[0-9a-f]{64}$'),
+  "payload_sha256" text constraint bsb_funding_claims_payload_sha256_check check ("payload_sha256" is null or "payload_sha256" ~ '^[0-9a-f]{64}$'),
   -- The funder's response as the format parsed it.
   "response" jsonb,
   "total" bigint not null default 0,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" char(3) not null constraint bsb_funding_claims_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "invoice_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("period_end" >= "period_start"),
+  constraint bsb_funding_claims_check check ("period_end" >= "period_start"),
   unique ("tenant_id", "id")
 );
 create unique index "funding_claims_number_idx" on "better_supabase"."funding_claims" ("tenant_id", "number");
@@ -113,12 +113,12 @@ create table "better_supabase"."funding_claim_lines" (
   "claim_id" uuid not null,
   "award_id" uuid not null,
   "product_id" uuid not null,
-  "units" numeric not null check ("units" > 0),
+  "units" numeric not null constraint bsb_funding_claim_lines_units_check check ("units" > 0),
   -- The units times the product rate, in minor units of the claim currency.
   "amount" bigint not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'accepted', 'rejected')),
+  "status" text not null default 'pending' constraint bsb_funding_claim_lines_status_check check ("status" in ('pending', 'accepted', 'rejected')),
   -- The funder's code for a rejected line.
-  "rejection_code" text check ("rejection_code" is null or length("rejection_code") <= 100),
+  "rejection_code" text constraint bsb_funding_claim_lines_rejection_code_check check ("rejection_code" is null or length("rejection_code") <= 100),
   foreign key ("tenant_id", "claim_id") references "better_supabase"."funding_claims" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "award_id") references "better_supabase"."funding_awards" ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "better_supabase"."funding_products" ("tenant_id", "id")
@@ -139,17 +139,17 @@ create table "better_supabase"."funding_deliveries" (
   "tenant_id" uuid not null,
   "award_id" uuid not null,
   -- Where the delivery came from; source_id is the time entry or booking id.
-  "source_type" text not null default 'manual' check ("source_type" in ('time_entry', 'booking', 'manual')),
-  "source_id" text check ("source_id" is null or length("source_id") <= 200),
+  "source_type" text not null default 'manual' constraint bsb_funding_deliveries_source_type_check check ("source_type" in ('time_entry', 'booking', 'manual')),
+  "source_id" text constraint bsb_funding_deliveries_source_id_check check ("source_id" is null or length("source_id") <= 200),
   "delivered_on" date not null,
-  "units" numeric not null check ("units" > 0),
+  "units" numeric not null constraint bsb_funding_deliveries_units_check check ("units" > 0),
   "performer_id" uuid,
-  "status" text not null default 'registered' check ("status" in ('registered', 'approved', 'claimed', 'rejected')),
+  "status" text not null default 'registered' constraint bsb_funding_deliveries_status_check check ("status" in ('registered', 'approved', 'claimed', 'rejected')),
   -- The claim line that claims it, once a claim gathered it.
   "claim_line_id" uuid references "better_supabase"."funding_claim_lines" ("id") on delete set null,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_funding_deliveries_note_check check ("note" is null or length("note") <= 2000),
   "created_at" timestamptz not null default now(),
-  check ("source_type" = 'manual' or "source_id" is not null),
+  constraint bsb_funding_deliveries_check check ("source_type" = 'manual' or "source_id" is not null),
   foreign key ("tenant_id", "award_id") references "better_supabase"."funding_awards" ("tenant_id", "id") on delete cascade
 );
 create index "funding_deliveries_award_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "award_id", "delivered_on");
@@ -1097,7 +1097,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:cfa5205271836d9b40dc5a526b8854f620fe4e3d90f867518dfe9587bec04a02
+-- @bsb-hash sha256:bbfd28e2b2894d52bffa8abfd73febac672ebaef9b2a3b3edba1ea8940cfdb70
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1110,17 +1110,17 @@ create table "better_supabase"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "unit" text not null check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
+  "code" text not null constraint bsb_funding_products_code_check check (length("code") >= 1 and length("code") <= 50),
+  "title" text not null constraint bsb_funding_products_title_check check (length("title") >= 1 and length("title") <= 300),
+  "unit" text not null constraint bsb_funding_products_unit_check check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
   -- The price of one unit, in minor units of currency.
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_funding_products_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_funding_products_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "valid_from" date,
   "valid_until" date,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
+  constraint bsb_funding_products_check check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
   unique ("tenant_id", "id")
 );
 create unique index "funding_products_code_idx" on "better_supabase"."funding_products" ("tenant_id", "code");
@@ -1142,17 +1142,17 @@ create table "better_supabase"."funding_awards" (
   "funder_id" uuid not null,
   "product_id" uuid not null,
   -- The units awarded per period.
-  "units" numeric not null check ("units" > 0),
-  "period" text not null check ("period" in ('week', 'month', 'total')),
+  "units" numeric not null constraint bsb_funding_awards_units_check check ("units" > 0),
+  "period" text not null constraint bsb_funding_awards_period_check check ("period" in ('week', 'month', 'total')),
   "starts_on" date not null,
   "ends_on" date,
   -- The funder's reference for the award, such as an indication number.
-  "reference" text check ("reference" is null or length("reference") <= 200),
-  "status" text not null default 'active' check ("status" in ('requested', 'active', 'ended', 'canceled')),
+  "reference" text constraint bsb_funding_awards_reference_check check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'active' constraint bsb_funding_awards_status_check check ("status" in ('requested', 'active', 'ended', 'canceled')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_funding_awards_check check ("ends_on" is null or "ends_on" >= "starts_on"),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "better_supabase"."funding_products" ("tenant_id", "id")
 );
@@ -1171,26 +1171,26 @@ create table "better_supabase"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "funder_id" uuid not null,
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_funding_claims_number_check check (length("number") >= 1 and length("number") <= 100),
   "period_start" date not null,
   "period_end" date not null,
   -- The FundingClaimFormat key that renders the claim, such as iwlz-aw319.
-  "format" text not null check ("format" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
-  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'accepted', 'partially_accepted', 'rejected')),
+  "format" text not null constraint bsb_funding_claims_format_check check ("format" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
+  "status" text not null default 'draft' constraint bsb_funding_claims_status_check check ("status" in ('draft', 'sent', 'accepted', 'partially_accepted', 'rejected')),
   -- The funder's or the channel's reference for the sent claim.
-  "external_ref" text check ("external_ref" is null or length("external_ref") <= 200),
+  "external_ref" text constraint bsb_funding_claims_external_ref_check check ("external_ref" is null or length("external_ref") <= 200),
   "sent_at" timestamptz,
   -- The SHA-256 of the rendered file that was sent, in hex.
-  "payload_sha256" text check ("payload_sha256" is null or "payload_sha256" ~ '^[0-9a-f]{64}$'),
+  "payload_sha256" text constraint bsb_funding_claims_payload_sha256_check check ("payload_sha256" is null or "payload_sha256" ~ '^[0-9a-f]{64}$'),
   -- The funder's response as the format parsed it.
   "response" jsonb,
   "total" bigint not null default 0,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" char(3) not null constraint bsb_funding_claims_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "invoice_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("period_end" >= "period_start"),
+  constraint bsb_funding_claims_check check ("period_end" >= "period_start"),
   unique ("tenant_id", "id")
 );
 create unique index "funding_claims_number_idx" on "better_supabase"."funding_claims" ("tenant_id", "number");
@@ -1209,12 +1209,12 @@ create table "better_supabase"."funding_claim_lines" (
   "claim_id" uuid not null,
   "award_id" uuid not null,
   "product_id" uuid not null,
-  "units" numeric not null check ("units" > 0),
+  "units" numeric not null constraint bsb_funding_claim_lines_units_check check ("units" > 0),
   -- The units times the product rate, in minor units of the claim currency.
   "amount" bigint not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'accepted', 'rejected')),
+  "status" text not null default 'pending' constraint bsb_funding_claim_lines_status_check check ("status" in ('pending', 'accepted', 'rejected')),
   -- The funder's code for a rejected line.
-  "rejection_code" text check ("rejection_code" is null or length("rejection_code") <= 100),
+  "rejection_code" text constraint bsb_funding_claim_lines_rejection_code_check check ("rejection_code" is null or length("rejection_code") <= 100),
   foreign key ("tenant_id", "claim_id") references "better_supabase"."funding_claims" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "award_id") references "better_supabase"."funding_awards" ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "better_supabase"."funding_products" ("tenant_id", "id")
@@ -1235,17 +1235,17 @@ create table "better_supabase"."funding_deliveries" (
   "tenant_id" uuid not null,
   "award_id" uuid not null,
   -- Where the delivery came from; source_id is the time entry or booking id.
-  "source_type" text not null default 'manual' check ("source_type" in ('time_entry', 'booking', 'manual')),
-  "source_id" text check ("source_id" is null or length("source_id") <= 200),
+  "source_type" text not null default 'manual' constraint bsb_funding_deliveries_source_type_check check ("source_type" in ('time_entry', 'booking', 'manual')),
+  "source_id" text constraint bsb_funding_deliveries_source_id_check check ("source_id" is null or length("source_id") <= 200),
   "delivered_on" date not null,
-  "units" numeric not null check ("units" > 0),
+  "units" numeric not null constraint bsb_funding_deliveries_units_check check ("units" > 0),
   "performer_id" uuid,
-  "status" text not null default 'registered' check ("status" in ('registered', 'approved', 'claimed', 'rejected')),
+  "status" text not null default 'registered' constraint bsb_funding_deliveries_status_check check ("status" in ('registered', 'approved', 'claimed', 'rejected')),
   -- The claim line that claims it, once a claim gathered it.
   "claim_line_id" uuid references "better_supabase"."funding_claim_lines" ("id") on delete set null,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_funding_deliveries_note_check check ("note" is null or length("note") <= 2000),
   "created_at" timestamptz not null default now(),
-  check ("source_type" = 'manual' or "source_id" is not null),
+  constraint bsb_funding_deliveries_check check ("source_type" = 'manual' or "source_id" is not null),
   foreign key ("tenant_id", "award_id") references "better_supabase"."funding_awards" ("tenant_id", "id") on delete cascade
 );
 create index "funding_deliveries_award_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "award_id", "delivered_on");
@@ -2462,7 +2462,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:e27510237fc8759f1a741ed0ec798daf1b997376b64822930ca6cb5e2653a0f1
+-- @bsb-hash sha256:19f6d2b98de75fc5589afdca531c45f9c2cb1ef2593f4f40761be65bd715d00e
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2480,17 +2480,17 @@ create table "app_private"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "unit" text not null check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
+  "code" text not null constraint bsb_funding_products_code_check check (length("code") >= 1 and length("code") <= 50),
+  "title" text not null constraint bsb_funding_products_title_check check (length("title") >= 1 and length("title") <= 300),
+  "unit" text not null constraint bsb_funding_products_unit_check check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
   -- The price of one unit, in minor units of currency.
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_funding_products_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_funding_products_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "valid_from" date,
   "valid_until" date,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
+  constraint bsb_funding_products_check check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
   unique ("tenant_id", "id")
 );
 create unique index "funding_products_code_idx" on "app_private"."funding_products" ("tenant_id", "code");
@@ -2512,17 +2512,17 @@ create table "app_private"."funding_awards" (
   "funder_id" uuid not null,
   "product_id" uuid not null,
   -- The units awarded per period.
-  "units" numeric not null check ("units" > 0),
-  "period" text not null check ("period" in ('week', 'month', 'total')),
+  "units" numeric not null constraint bsb_funding_awards_units_check check ("units" > 0),
+  "period" text not null constraint bsb_funding_awards_period_check check ("period" in ('week', 'month', 'total')),
   "starts_on" date not null,
   "ends_on" date,
   -- The funder's reference for the award, such as an indication number.
-  "reference" text check ("reference" is null or length("reference") <= 200),
-  "status" text not null default 'active' check ("status" in ('requested', 'active', 'ended', 'canceled')),
+  "reference" text constraint bsb_funding_awards_reference_check check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'active' constraint bsb_funding_awards_status_check check ("status" in ('requested', 'active', 'ended', 'canceled')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_funding_awards_check check ("ends_on" is null or "ends_on" >= "starts_on"),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "app_private"."funding_products" ("tenant_id", "id")
 );
@@ -2541,26 +2541,26 @@ create table "app_private"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "funder_id" uuid not null,
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_funding_claims_number_check check (length("number") >= 1 and length("number") <= 100),
   "period_start" date not null,
   "period_end" date not null,
   -- The FundingClaimFormat key that renders the claim, such as iwlz-aw319.
-  "format" text not null check ("format" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
-  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'accepted', 'partially_accepted', 'rejected')),
+  "format" text not null constraint bsb_funding_claims_format_check check ("format" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
+  "status" text not null default 'draft' constraint bsb_funding_claims_status_check check ("status" in ('draft', 'sent', 'accepted', 'partially_accepted', 'rejected')),
   -- The funder's or the channel's reference for the sent claim.
-  "external_ref" text check ("external_ref" is null or length("external_ref") <= 200),
+  "external_ref" text constraint bsb_funding_claims_external_ref_check check ("external_ref" is null or length("external_ref") <= 200),
   "sent_at" timestamptz,
   -- The SHA-256 of the rendered file that was sent, in hex.
-  "payload_sha256" text check ("payload_sha256" is null or "payload_sha256" ~ '^[0-9a-f]{64}$'),
+  "payload_sha256" text constraint bsb_funding_claims_payload_sha256_check check ("payload_sha256" is null or "payload_sha256" ~ '^[0-9a-f]{64}$'),
   -- The funder's response as the format parsed it.
   "response" jsonb,
   "total" bigint not null default 0,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" char(3) not null constraint bsb_funding_claims_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "invoice_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("period_end" >= "period_start"),
+  constraint bsb_funding_claims_check check ("period_end" >= "period_start"),
   unique ("tenant_id", "id")
 );
 create unique index "funding_claims_number_idx" on "app_private"."funding_claims" ("tenant_id", "number");
@@ -2579,12 +2579,12 @@ create table "app_private"."funding_claim_lines" (
   "claim_id" uuid not null,
   "award_id" uuid not null,
   "product_id" uuid not null,
-  "units" numeric not null check ("units" > 0),
+  "units" numeric not null constraint bsb_funding_claim_lines_units_check check ("units" > 0),
   -- The units times the product rate, in minor units of the claim currency.
   "amount" bigint not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'accepted', 'rejected')),
+  "status" text not null default 'pending' constraint bsb_funding_claim_lines_status_check check ("status" in ('pending', 'accepted', 'rejected')),
   -- The funder's code for a rejected line.
-  "rejection_code" text check ("rejection_code" is null or length("rejection_code") <= 100),
+  "rejection_code" text constraint bsb_funding_claim_lines_rejection_code_check check ("rejection_code" is null or length("rejection_code") <= 100),
   foreign key ("tenant_id", "claim_id") references "app_private"."funding_claims" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "award_id") references "app_private"."funding_awards" ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "app_private"."funding_products" ("tenant_id", "id")
@@ -2605,17 +2605,17 @@ create table "app_private"."funding_deliveries" (
   "tenant_id" uuid not null,
   "award_id" uuid not null,
   -- Where the delivery came from; source_id is the time entry or booking id.
-  "source_type" text not null default 'manual' check ("source_type" in ('time_entry', 'booking', 'manual')),
-  "source_id" text check ("source_id" is null or length("source_id") <= 200),
+  "source_type" text not null default 'manual' constraint bsb_funding_deliveries_source_type_check check ("source_type" in ('time_entry', 'booking', 'manual')),
+  "source_id" text constraint bsb_funding_deliveries_source_id_check check ("source_id" is null or length("source_id") <= 200),
   "delivered_on" date not null,
-  "units" numeric not null check ("units" > 0),
+  "units" numeric not null constraint bsb_funding_deliveries_units_check check ("units" > 0),
   "performer_id" uuid,
-  "status" text not null default 'registered' check ("status" in ('registered', 'approved', 'claimed', 'rejected')),
+  "status" text not null default 'registered' constraint bsb_funding_deliveries_status_check check ("status" in ('registered', 'approved', 'claimed', 'rejected')),
   -- The claim line that claims it, once a claim gathered it.
   "claim_line_id" uuid references "app_private"."funding_claim_lines" ("id") on delete set null,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_funding_deliveries_note_check check ("note" is null or length("note") <= 2000),
   "created_at" timestamptz not null default now(),
-  check ("source_type" = 'manual' or "source_id" is not null),
+  constraint bsb_funding_deliveries_check check ("source_type" = 'manual' or "source_id" is not null),
   foreign key ("tenant_id", "award_id") references "app_private"."funding_awards" ("tenant_id", "id") on delete cascade
 );
 create index "funding_deliveries_award_idx" on "app_private"."funding_deliveries" ("tenant_id", "award_id", "delivered_on");
@@ -3563,7 +3563,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:0cc6c5b5c2bd56085819681e9063f40dbef2ec7f105129267f35df69745db980
+-- @bsb-hash sha256:59cd0322331196cab5c03f52ab8a16487400277428ce1de8e86518c662bd12a6
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3576,17 +3576,17 @@ create table "better_supabase"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "unit" text not null check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
+  "code" text not null constraint bsb_funding_products_code_check check (length("code") >= 1 and length("code") <= 50),
+  "title" text not null constraint bsb_funding_products_title_check check (length("title") >= 1 and length("title") <= 300),
+  "unit" text not null constraint bsb_funding_products_unit_check check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
   -- The price of one unit, in minor units of currency.
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_funding_products_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_funding_products_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "valid_from" date,
   "valid_until" date,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
+  constraint bsb_funding_products_check check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
   unique ("tenant_id", "id")
 );
 create unique index "funding_products_code_idx" on "better_supabase"."funding_products" ("tenant_id", "code");
@@ -3608,17 +3608,17 @@ create table "better_supabase"."funding_awards" (
   "funder_id" uuid not null,
   "product_id" uuid not null,
   -- The units awarded per period.
-  "units" numeric not null check ("units" > 0),
-  "period" text not null check ("period" in ('week', 'month', 'total')),
+  "units" numeric not null constraint bsb_funding_awards_units_check check ("units" > 0),
+  "period" text not null constraint bsb_funding_awards_period_check check ("period" in ('week', 'month', 'total')),
   "starts_on" date not null,
   "ends_on" date,
   -- The funder's reference for the award, such as an indication number.
-  "reference" text check ("reference" is null or length("reference") <= 200),
-  "status" text not null default 'active' check ("status" in ('requested', 'active', 'ended', 'canceled')),
+  "reference" text constraint bsb_funding_awards_reference_check check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'active' constraint bsb_funding_awards_status_check check ("status" in ('requested', 'active', 'ended', 'canceled')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_funding_awards_check check ("ends_on" is null or "ends_on" >= "starts_on"),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "better_supabase"."funding_products" ("tenant_id", "id")
 );
@@ -3637,26 +3637,26 @@ create table "better_supabase"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "funder_id" uuid not null,
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_funding_claims_number_check check (length("number") >= 1 and length("number") <= 100),
   "period_start" date not null,
   "period_end" date not null,
   -- The FundingClaimFormat key that renders the claim, such as iwlz-aw319.
-  "format" text not null check ("format" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
-  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'accepted', 'partially_accepted', 'rejected')),
+  "format" text not null constraint bsb_funding_claims_format_check check ("format" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
+  "status" text not null default 'draft' constraint bsb_funding_claims_status_check check ("status" in ('draft', 'sent', 'accepted', 'partially_accepted', 'rejected')),
   -- The funder's or the channel's reference for the sent claim.
-  "external_ref" text check ("external_ref" is null or length("external_ref") <= 200),
+  "external_ref" text constraint bsb_funding_claims_external_ref_check check ("external_ref" is null or length("external_ref") <= 200),
   "sent_at" timestamptz,
   -- The SHA-256 of the rendered file that was sent, in hex.
-  "payload_sha256" text check ("payload_sha256" is null or "payload_sha256" ~ '^[0-9a-f]{64}$'),
+  "payload_sha256" text constraint bsb_funding_claims_payload_sha256_check check ("payload_sha256" is null or "payload_sha256" ~ '^[0-9a-f]{64}$'),
   -- The funder's response as the format parsed it.
   "response" jsonb,
   "total" bigint not null default 0,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" char(3) not null constraint bsb_funding_claims_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "invoice_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("period_end" >= "period_start"),
+  constraint bsb_funding_claims_check check ("period_end" >= "period_start"),
   unique ("tenant_id", "id")
 );
 create unique index "funding_claims_number_idx" on "better_supabase"."funding_claims" ("tenant_id", "number");
@@ -3675,12 +3675,12 @@ create table "better_supabase"."funding_claim_lines" (
   "claim_id" uuid not null,
   "award_id" uuid not null,
   "product_id" uuid not null,
-  "units" numeric not null check ("units" > 0),
+  "units" numeric not null constraint bsb_funding_claim_lines_units_check check ("units" > 0),
   -- The units times the product rate, in minor units of the claim currency.
   "amount" bigint not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'accepted', 'rejected')),
+  "status" text not null default 'pending' constraint bsb_funding_claim_lines_status_check check ("status" in ('pending', 'accepted', 'rejected')),
   -- The funder's code for a rejected line.
-  "rejection_code" text check ("rejection_code" is null or length("rejection_code") <= 100),
+  "rejection_code" text constraint bsb_funding_claim_lines_rejection_code_check check ("rejection_code" is null or length("rejection_code") <= 100),
   foreign key ("tenant_id", "claim_id") references "better_supabase"."funding_claims" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "award_id") references "better_supabase"."funding_awards" ("tenant_id", "id"),
   foreign key ("tenant_id", "product_id") references "better_supabase"."funding_products" ("tenant_id", "id")
@@ -3701,17 +3701,17 @@ create table "better_supabase"."funding_deliveries" (
   "tenant_id" uuid not null,
   "award_id" uuid not null,
   -- Where the delivery came from; source_id is the time entry or booking id.
-  "source_type" text not null default 'manual' check ("source_type" in ('time_entry', 'booking', 'manual')),
-  "source_id" text check ("source_id" is null or length("source_id") <= 200),
+  "source_type" text not null default 'manual' constraint bsb_funding_deliveries_source_type_check check ("source_type" in ('time_entry', 'booking', 'manual')),
+  "source_id" text constraint bsb_funding_deliveries_source_id_check check ("source_id" is null or length("source_id") <= 200),
   "delivered_on" date not null,
-  "units" numeric not null check ("units" > 0),
+  "units" numeric not null constraint bsb_funding_deliveries_units_check check ("units" > 0),
   "performer_id" uuid,
-  "status" text not null default 'registered' check ("status" in ('registered', 'approved', 'claimed', 'rejected')),
+  "status" text not null default 'registered' constraint bsb_funding_deliveries_status_check check ("status" in ('registered', 'approved', 'claimed', 'rejected')),
   -- The claim line that claims it, once a claim gathered it.
   "claim_line_id" uuid references "better_supabase"."funding_claim_lines" ("id") on delete set null,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_funding_deliveries_note_check check ("note" is null or length("note") <= 2000),
   "created_at" timestamptz not null default now(),
-  check ("source_type" = 'manual' or "source_id" is not null),
+  constraint bsb_funding_deliveries_check check ("source_type" = 'manual' or "source_id" is not null),
   foreign key ("tenant_id", "award_id") references "better_supabase"."funding_awards" ("tenant_id", "id") on delete cascade
 );
 create index "funding_deliveries_award_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "award_id", "delivered_on");
@@ -4804,7 +4804,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:681f142bc63fd00c47d4d3763453c2f596a557527b542d007454b93f2607eeb2
+-- @bsb-hash sha256:0a46ea63d08630d714f020063c09818b474860f1723eefca0aef42015087684b
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4816,11 +4816,11 @@ on conflict (name) do update
 -- better_supabase.funding_products is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."funding_products" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."funding_products" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."funding_products" add column if not exists "code" text check (length("code") >= 1 and length("code") <= 50);
-alter table "better_supabase"."funding_products" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 300);
-alter table "better_supabase"."funding_products" add column if not exists "unit" text check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece'));
-alter table "better_supabase"."funding_products" add column if not exists "rate" bigint check ("rate" >= 0);
-alter table "better_supabase"."funding_products" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."funding_products" add column if not exists "code" text constraint bsb_funding_products_code_check check (length("code") >= 1 and length("code") <= 50);
+alter table "better_supabase"."funding_products" add column if not exists "title" text constraint bsb_funding_products_title_check check (length("title") >= 1 and length("title") <= 300);
+alter table "better_supabase"."funding_products" add column if not exists "unit" text constraint bsb_funding_products_unit_check check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece'));
+alter table "better_supabase"."funding_products" add column if not exists "rate" bigint constraint bsb_funding_products_rate_check check ("rate" >= 0);
+alter table "better_supabase"."funding_products" add column if not exists "currency" char(3) constraint bsb_funding_products_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."funding_products" add column if not exists "valid_from" date;
 alter table "better_supabase"."funding_products" add column if not exists "valid_until" date;
 alter table "better_supabase"."funding_products" add column if not exists "created_at" timestamptz not null default now();
@@ -4841,12 +4841,12 @@ alter table "better_supabase"."funding_awards" add column if not exists "subject
 alter table "better_supabase"."funding_awards" add column if not exists "subject_id" text;
 alter table "better_supabase"."funding_awards" add column if not exists "funder_id" uuid;
 alter table "better_supabase"."funding_awards" add column if not exists "product_id" uuid;
-alter table "better_supabase"."funding_awards" add column if not exists "units" numeric check ("units" > 0);
-alter table "better_supabase"."funding_awards" add column if not exists "period" text check ("period" in ('week', 'month', 'total'));
+alter table "better_supabase"."funding_awards" add column if not exists "units" numeric constraint bsb_funding_awards_units_check check ("units" > 0);
+alter table "better_supabase"."funding_awards" add column if not exists "period" text constraint bsb_funding_awards_period_check check ("period" in ('week', 'month', 'total'));
 alter table "better_supabase"."funding_awards" add column if not exists "starts_on" date;
 alter table "better_supabase"."funding_awards" add column if not exists "ends_on" date;
-alter table "better_supabase"."funding_awards" add column if not exists "reference" text check ("reference" is null or length("reference") <= 200);
-alter table "better_supabase"."funding_awards" add column if not exists "status" text not null default 'active' check ("status" in ('requested', 'active', 'ended', 'canceled'));
+alter table "better_supabase"."funding_awards" add column if not exists "reference" text constraint bsb_funding_awards_reference_check check ("reference" is null or length("reference") <= 200);
+alter table "better_supabase"."funding_awards" add column if not exists "status" text not null default 'active' constraint bsb_funding_awards_status_check check ("status" in ('requested', 'active', 'ended', 'canceled'));
 alter table "better_supabase"."funding_awards" add column if not exists "created_by" uuid;
 alter table "better_supabase"."funding_awards" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."funding_awards" add column if not exists "updated_at" timestamptz not null default now();
@@ -4865,17 +4865,17 @@ create policy bsb_funding_awards_read on "better_supabase"."funding_awards"
 alter table "better_supabase"."funding_claims" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."funding_claims" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."funding_claims" add column if not exists "funder_id" uuid;
-alter table "better_supabase"."funding_claims" add column if not exists "number" text check (length("number") >= 1 and length("number") <= 100);
+alter table "better_supabase"."funding_claims" add column if not exists "number" text constraint bsb_funding_claims_number_check check (length("number") >= 1 and length("number") <= 100);
 alter table "better_supabase"."funding_claims" add column if not exists "period_start" date;
 alter table "better_supabase"."funding_claims" add column if not exists "period_end" date;
-alter table "better_supabase"."funding_claims" add column if not exists "format" text check ("format" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$');
-alter table "better_supabase"."funding_claims" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'accepted', 'partially_accepted', 'rejected'));
-alter table "better_supabase"."funding_claims" add column if not exists "external_ref" text check ("external_ref" is null or length("external_ref") <= 200);
+alter table "better_supabase"."funding_claims" add column if not exists "format" text constraint bsb_funding_claims_format_check check ("format" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$');
+alter table "better_supabase"."funding_claims" add column if not exists "status" text not null default 'draft' constraint bsb_funding_claims_status_check check ("status" in ('draft', 'sent', 'accepted', 'partially_accepted', 'rejected'));
+alter table "better_supabase"."funding_claims" add column if not exists "external_ref" text constraint bsb_funding_claims_external_ref_check check ("external_ref" is null or length("external_ref") <= 200);
 alter table "better_supabase"."funding_claims" add column if not exists "sent_at" timestamptz;
-alter table "better_supabase"."funding_claims" add column if not exists "payload_sha256" text check ("payload_sha256" is null or "payload_sha256" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."funding_claims" add column if not exists "payload_sha256" text constraint bsb_funding_claims_payload_sha256_check check ("payload_sha256" is null or "payload_sha256" ~ '^[0-9a-f]{64}$');
 alter table "better_supabase"."funding_claims" add column if not exists "response" jsonb;
 alter table "better_supabase"."funding_claims" add column if not exists "total" bigint not null default 0;
-alter table "better_supabase"."funding_claims" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."funding_claims" add column if not exists "currency" char(3) constraint bsb_funding_claims_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."funding_claims" add column if not exists "invoice_id" uuid;
 alter table "better_supabase"."funding_claims" add column if not exists "created_by" uuid;
 alter table "better_supabase"."funding_claims" add column if not exists "created_at" timestamptz not null default now();
@@ -4896,10 +4896,10 @@ alter table "better_supabase"."funding_claim_lines" add column if not exists "te
 alter table "better_supabase"."funding_claim_lines" add column if not exists "claim_id" uuid;
 alter table "better_supabase"."funding_claim_lines" add column if not exists "award_id" uuid;
 alter table "better_supabase"."funding_claim_lines" add column if not exists "product_id" uuid;
-alter table "better_supabase"."funding_claim_lines" add column if not exists "units" numeric check ("units" > 0);
+alter table "better_supabase"."funding_claim_lines" add column if not exists "units" numeric constraint bsb_funding_claim_lines_units_check check ("units" > 0);
 alter table "better_supabase"."funding_claim_lines" add column if not exists "amount" bigint;
-alter table "better_supabase"."funding_claim_lines" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'accepted', 'rejected'));
-alter table "better_supabase"."funding_claim_lines" add column if not exists "rejection_code" text check ("rejection_code" is null or length("rejection_code") <= 100);
+alter table "better_supabase"."funding_claim_lines" add column if not exists "status" text not null default 'pending' constraint bsb_funding_claim_lines_status_check check ("status" in ('pending', 'accepted', 'rejected'));
+alter table "better_supabase"."funding_claim_lines" add column if not exists "rejection_code" text constraint bsb_funding_claim_lines_rejection_code_check check ("rejection_code" is null or length("rejection_code") <= 100);
 create index if not exists "funding_claim_lines_claim_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "claim_id");
 create index if not exists "funding_claim_lines_award_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "award_id");
 create index if not exists "funding_claim_lines_product_idx" on "better_supabase"."funding_claim_lines" ("tenant_id", "product_id");
@@ -4914,14 +4914,14 @@ create policy bsb_funding_claim_lines_read on "better_supabase"."funding_claim_l
 alter table "better_supabase"."funding_deliveries" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."funding_deliveries" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."funding_deliveries" add column if not exists "award_id" uuid;
-alter table "better_supabase"."funding_deliveries" add column if not exists "source_type" text not null default 'manual' check ("source_type" in ('time_entry', 'booking', 'manual'));
-alter table "better_supabase"."funding_deliveries" add column if not exists "source_id" text check ("source_id" is null or length("source_id") <= 200);
+alter table "better_supabase"."funding_deliveries" add column if not exists "source_type" text not null default 'manual' constraint bsb_funding_deliveries_source_type_check check ("source_type" in ('time_entry', 'booking', 'manual'));
+alter table "better_supabase"."funding_deliveries" add column if not exists "source_id" text constraint bsb_funding_deliveries_source_id_check check ("source_id" is null or length("source_id") <= 200);
 alter table "better_supabase"."funding_deliveries" add column if not exists "delivered_on" date;
-alter table "better_supabase"."funding_deliveries" add column if not exists "units" numeric check ("units" > 0);
+alter table "better_supabase"."funding_deliveries" add column if not exists "units" numeric constraint bsb_funding_deliveries_units_check check ("units" > 0);
 alter table "better_supabase"."funding_deliveries" add column if not exists "performer_id" uuid;
-alter table "better_supabase"."funding_deliveries" add column if not exists "status" text not null default 'registered' check ("status" in ('registered', 'approved', 'claimed', 'rejected'));
+alter table "better_supabase"."funding_deliveries" add column if not exists "status" text not null default 'registered' constraint bsb_funding_deliveries_status_check check ("status" in ('registered', 'approved', 'claimed', 'rejected'));
 alter table "better_supabase"."funding_deliveries" add column if not exists "claim_line_id" uuid references "better_supabase"."funding_claim_lines" ("id") on delete set null;
-alter table "better_supabase"."funding_deliveries" add column if not exists "note" text check ("note" is null or length("note") <= 2000);
+alter table "better_supabase"."funding_deliveries" add column if not exists "note" text constraint bsb_funding_deliveries_note_check check ("note" is null or length("note") <= 2000);
 alter table "better_supabase"."funding_deliveries" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists "funding_deliveries_award_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "award_id", "delivered_on");
 create index if not exists "funding_deliveries_status_idx" on "better_supabase"."funding_deliveries" ("tenant_id", "status", "delivered_on");
@@ -5867,7 +5867,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:d3bc62f59a09d0e427a50ac924a04a302c8489bdd6d6759781dca08febf9e32f
+-- @bsb-hash sha256:2f59342176bbe03754fb34c0d4506eafba7a0b35c708f429f6de1e3a7778a48c
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5880,17 +5880,17 @@ create table "better_supabase"."funding_products" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- The funder's product code, such as 45A48 for a Wlz product.
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "unit" text not null check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
+  "code" text not null constraint bsb_funding_products_code_check check (length("code") >= 1 and length("code") <= 50),
+  "title" text not null constraint bsb_funding_products_title_check check (length("title") >= 1 and length("title") <= 300),
+  "unit" text not null constraint bsb_funding_products_unit_check check ("unit" in ('minute', 'hour', 'day_part', 'day', 'visit', 'piece')),
   -- The price of one unit, in minor units of currency.
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_funding_products_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_funding_products_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "valid_from" date,
   "valid_until" date,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
+  constraint bsb_funding_products_check check ("valid_until" is null or "valid_from" is null or "valid_until" >= "valid_from"),
   unique ("org_id", "id")
 );
 create unique index "funding_products_code_idx" on "better_supabase"."funding_products" ("org_id", "code");
@@ -5912,17 +5912,17 @@ create table "better_supabase"."funding_awards" (
   "funder_id" uuid not null,
   "product_id" uuid not null,
   -- The units awarded per period.
-  "units" numeric not null check ("units" > 0),
-  "period" text not null check ("period" in ('week', 'month', 'total')),
+  "units" numeric not null constraint bsb_funding_awards_units_check check ("units" > 0),
+  "period" text not null constraint bsb_funding_awards_period_check check ("period" in ('week', 'month', 'total')),
   "starts_on" date not null,
   "ends_on" date,
   -- The funder's reference for the award, such as an indication number.
-  "reference" text check ("reference" is null or length("reference") <= 200),
-  "status" text not null default 'active' check ("status" in ('requested', 'active', 'ended', 'canceled')),
+  "reference" text constraint bsb_funding_awards_reference_check check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'active' constraint bsb_funding_awards_status_check check ("status" in ('requested', 'active', 'ended', 'canceled')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_funding_awards_check check ("ends_on" is null or "ends_on" >= "starts_on"),
   unique ("org_id", "id"),
   foreign key ("org_id", "product_id") references "better_supabase"."funding_products" ("org_id", "id")
 );
@@ -5941,26 +5941,26 @@ create table "better_supabase"."funding_claims" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "funder_id" uuid not null,
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_funding_claims_number_check check (length("number") >= 1 and length("number") <= 100),
   "period_start" date not null,
   "period_end" date not null,
   -- The FundingClaimFormat key that renders the claim, such as iwlz-aw319.
-  "format" text not null check ("format" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
-  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'accepted', 'partially_accepted', 'rejected')),
+  "format" text not null constraint bsb_funding_claims_format_check check ("format" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
+  "status" text not null default 'draft' constraint bsb_funding_claims_status_check check ("status" in ('draft', 'sent', 'accepted', 'partially_accepted', 'rejected')),
   -- The funder's or the channel's reference for the sent claim.
-  "external_ref" text check ("external_ref" is null or length("external_ref") <= 200),
+  "external_ref" text constraint bsb_funding_claims_external_ref_check check ("external_ref" is null or length("external_ref") <= 200),
   "sent_at" timestamptz,
   -- The SHA-256 of the rendered file that was sent, in hex.
-  "payload_sha256" text check ("payload_sha256" is null or "payload_sha256" ~ '^[0-9a-f]{64}$'),
+  "payload_sha256" text constraint bsb_funding_claims_payload_sha256_check check ("payload_sha256" is null or "payload_sha256" ~ '^[0-9a-f]{64}$'),
   -- The funder's response as the format parsed it.
   "response" jsonb,
   "total" bigint not null default 0,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" char(3) not null constraint bsb_funding_claims_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "invoice_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("period_end" >= "period_start"),
+  constraint bsb_funding_claims_check check ("period_end" >= "period_start"),
   unique ("org_id", "id")
 );
 create unique index "funding_claims_number_idx" on "better_supabase"."funding_claims" ("org_id", "number");
@@ -5979,12 +5979,12 @@ create table "better_supabase"."funding_claim_lines" (
   "claim_id" uuid not null,
   "award_id" uuid not null,
   "product_id" uuid not null,
-  "units" numeric not null check ("units" > 0),
+  "units" numeric not null constraint bsb_funding_claim_lines_units_check check ("units" > 0),
   -- The units times the product rate, in minor units of the claim currency.
   "amount" bigint not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'accepted', 'rejected')),
+  "status" text not null default 'pending' constraint bsb_funding_claim_lines_status_check check ("status" in ('pending', 'accepted', 'rejected')),
   -- The funder's code for a rejected line.
-  "rejection_code" text check ("rejection_code" is null or length("rejection_code") <= 100),
+  "rejection_code" text constraint bsb_funding_claim_lines_rejection_code_check check ("rejection_code" is null or length("rejection_code") <= 100),
   foreign key ("org_id", "claim_id") references "better_supabase"."funding_claims" ("org_id", "id") on delete cascade,
   foreign key ("org_id", "award_id") references "better_supabase"."funding_awards" ("org_id", "id"),
   foreign key ("org_id", "product_id") references "better_supabase"."funding_products" ("org_id", "id")
@@ -6005,17 +6005,17 @@ create table "better_supabase"."funding_deliveries" (
   "org_id" uuid not null,
   "award_id" uuid not null,
   -- Where the delivery came from; source_id is the time entry or booking id.
-  "source_type" text not null default 'manual' check ("source_type" in ('time_entry', 'booking', 'manual')),
-  "source_id" text check ("source_id" is null or length("source_id") <= 200),
+  "source_type" text not null default 'manual' constraint bsb_funding_deliveries_source_type_check check ("source_type" in ('time_entry', 'booking', 'manual')),
+  "source_id" text constraint bsb_funding_deliveries_source_id_check check ("source_id" is null or length("source_id") <= 200),
   "delivered_on" date not null,
-  "units" numeric not null check ("units" > 0),
+  "units" numeric not null constraint bsb_funding_deliveries_units_check check ("units" > 0),
   "performer_id" uuid,
-  "status" text not null default 'registered' check ("status" in ('registered', 'approved', 'claimed', 'rejected')),
+  "status" text not null default 'registered' constraint bsb_funding_deliveries_status_check check ("status" in ('registered', 'approved', 'claimed', 'rejected')),
   -- The claim line that claims it, once a claim gathered it.
   "claim_line_id" uuid references "better_supabase"."funding_claim_lines" ("id") on delete set null,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_funding_deliveries_note_check check ("note" is null or length("note") <= 2000),
   "created_at" timestamptz not null default now(),
-  check ("source_type" = 'manual' or "source_id" is not null),
+  constraint bsb_funding_deliveries_check check ("source_type" = 'manual' or "source_id" is not null),
   foreign key ("org_id", "award_id") references "better_supabase"."funding_awards" ("org_id", "id") on delete cascade
 );
 create index "funding_deliveries_award_idx" on "better_supabase"."funding_deliveries" ("org_id", "award_id", "delivered_on");

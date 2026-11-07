@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:1523f566927eb900544e6dd05cc32296a0dd52265edddd5937ee6c6f8f40bb71
+-- @bsb-hash sha256:9cf40b5eab3cb3fa5fc4c4f82422fba292bd39a824923096204e04d636c33bab
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,8 +12,8 @@
 -- hop, the one the API gateway appends. Clients can forge the hops before it.
 create table "better_supabase"."rate_limit_rules" (
   "scope" text not null,
-  "max_requests" integer not null check ("max_requests" > 0),
-  "period" interval not null check ("period" > interval '0'),
+  "max_requests" integer not null constraint bsb_rate_limit_rules_max_requests_check check ("max_requests" > 0),
+  "period" interval not null constraint bsb_rate_limit_rules_period_check check ("period" > interval '0'),
   "key_claim" text not null default 'sub',
   "organization_id" uuid
 );
@@ -441,7 +441,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:1523f566927eb900544e6dd05cc32296a0dd52265edddd5937ee6c6f8f40bb71
+-- @bsb-hash sha256:9cf40b5eab3cb3fa5fc4c4f82422fba292bd39a824923096204e04d636c33bab
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -452,8 +452,8 @@ on conflict (name) do update
 -- hop, the one the API gateway appends. Clients can forge the hops before it.
 create table "better_supabase"."rate_limit_rules" (
   "scope" text not null,
-  "max_requests" integer not null check ("max_requests" > 0),
-  "period" interval not null check ("period" > interval '0'),
+  "max_requests" integer not null constraint bsb_rate_limit_rules_max_requests_check check ("max_requests" > 0),
+  "period" interval not null constraint bsb_rate_limit_rules_period_check check ("period" > interval '0'),
   "key_claim" text not null default 'sub',
   "organization_id" uuid
 );
@@ -881,7 +881,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:afc7516161cafffc195eeafa141ac7b91e9f80cb10bd680963bca54e415bbac2
+-- @bsb-hash sha256:4ce4ee3a7d38415e881f0f4ea82cf3fc37bee88e7d1439cd96d2d3dba5c868e6
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -898,8 +898,8 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- hop, the one the API gateway appends. Clients can forge the hops before it.
 create table "app_private"."rate_limit_rules" (
   "scope" text not null,
-  "max_requests" integer not null check ("max_requests" > 0),
-  "period" interval not null check ("period" > interval '0'),
+  "max_requests" integer not null constraint bsb_rate_limit_rules_max_requests_check check ("max_requests" > 0),
+  "period" interval not null constraint bsb_rate_limit_rules_period_check check ("period" > interval '0'),
   "key_claim" text not null default 'sub',
   "organization_id" uuid
 );
@@ -1327,7 +1327,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:62632241cc0637f13c76b24c92b90432871d3b59ed0d66ddd3d750e453675e0d
+-- @bsb-hash sha256:876c1e653b2aea9361fa82764e8f3303b2d7177f2b0ad3678325bfab5f92945c
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1338,8 +1338,8 @@ on conflict (name) do update
 -- hop, the one the API gateway appends. Clients can forge the hops before it.
 create table "better_supabase"."rate_limit_rules" (
   "scope" text not null,
-  "max_requests" integer not null check ("max_requests" > 0),
-  "period" interval not null check ("period" > interval '0'),
+  "max_requests" integer not null constraint bsb_rate_limit_rules_max_requests_check check ("max_requests" > 0),
+  "period" interval not null constraint bsb_rate_limit_rules_period_check check ("period" > interval '0'),
   "key_claim" text not null default 'sub',
   "organization_id" uuid
 );
@@ -1834,7 +1834,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:45a73800d4c71c06da45804a9ace9ed8509af568fb8d9200de78049f88c41018
+-- @bsb-hash sha256:12e58a3f7c0c4f5360cce8269f7839e3a45b07df6ed3ec00c8e8c0204ed9b09b
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1845,8 +1845,8 @@ on conflict (name) do update
 -- hop, the one the API gateway appends. Clients can forge the hops before it.
 -- better_supabase.rate_limit_rules is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."rate_limit_rules" add column if not exists "scope" text;
-alter table "better_supabase"."rate_limit_rules" add column if not exists "max_requests" integer check ("max_requests" > 0);
-alter table "better_supabase"."rate_limit_rules" add column if not exists "period" interval check ("period" > interval '0');
+alter table "better_supabase"."rate_limit_rules" add column if not exists "max_requests" integer constraint bsb_rate_limit_rules_max_requests_check check ("max_requests" > 0);
+alter table "better_supabase"."rate_limit_rules" add column if not exists "period" interval constraint bsb_rate_limit_rules_period_check check ("period" > interval '0');
 alter table "better_supabase"."rate_limit_rules" add column if not exists "key_claim" text not null default 'sub';
 alter table "better_supabase"."rate_limit_rules" add column if not exists "organization_id" uuid;
 -- Rules from before organization_id are global rules.

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_078_access_requests.sql
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:3dbc37abf638fa65540f8e71dc2bcd6ec2909cc20e4aa134e6f4d24059aa8cf3
+-- @bsb-hash sha256:2e8c94e6438d00a0caeb280d111dab5270d197e86bf68a4a767d9245ea8aea2b
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,10 +10,10 @@ create table "better_supabase"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null check (length("role") >= 1 and length("role") <= 200),
+  "role" text not null constraint bsb_access_requests_role_check check (length("role") >= 1 and length("role") <= 200),
   "previous_role" text,
-  "reason" text check ("reason" is null or length("reason") <= 2000),
-  "duration" interval check ("duration" is null or "duration" > interval '0'),
+  "reason" text constraint bsb_access_requests_reason_check check ("reason" is null or length("reason") <= 2000),
+  "duration" interval constraint bsb_access_requests_duration_check check ("duration" is null or "duration" > interval '0'),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete cascade,
   "granted_at" timestamptz,
   "expires_at" timestamptz,

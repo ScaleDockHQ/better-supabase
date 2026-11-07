@@ -1,6 +1,6 @@
 -- better-supabase module: tax
 -- @bsb-block tax@1 managed
--- @bsb-hash sha256:2e182e91a921a92a4a0844f6db3533bd0210f02db6ed34dc0ac1370cb3745802
+-- @bsb-hash sha256:8a539de7f00ec9b00a95f3571c19052dcdee13d8ba63eebaaf1562888341d2bd
 -- Tax codes per organization and legal entity with a rate history, the tax of a document per code on its date (margin scheme and credit restriction included), invoice tax lines written when an invoice is issued, tax returns with box totals, and the EU sales list per customer VAT number.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18,9 +18,9 @@ create table "better_supabase"."tax_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "type" text not null check ("type" in ('sales', 'purchase', 'exempt', 'zero', 'reverse_charge', 'intra_eu_goods', 'intra_eu_services', 'export', 'margin')),
+  "code" text not null constraint bsb_tax_codes_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_tax_codes_name_check check (length("name") >= 1 and length("name") <= 200),
+  "type" text not null constraint bsb_tax_codes_type_check check ("type" in ('sales', 'purchase', 'exempt', 'zero', 'reverse_charge', 'intra_eu_goods', 'intra_eu_services', 'export', 'margin')),
   "sales_account_id" uuid,
   "purchase_account_id" uuid,
   -- The boxes of a tax return the code's base and tax count toward.
@@ -46,11 +46,11 @@ create table "better_supabase"."tax_rates" (
   "tenant_id" uuid not null,
   "tax_code_id" uuid not null references "better_supabase"."tax_codes" ("id") on delete cascade,
   -- Basis points: 2100 is 21%.
-  "rate_bps" integer not null check ("rate_bps" >= 0 and "rate_bps" <= 100000),
+  "rate_bps" integer not null constraint bsb_tax_rates_rate_bps_check check ("rate_bps" >= 0 and "rate_bps" <= 100000),
   "valid_from" date not null default date '1970-01-01',
   "valid_to" date,
   "created_at" timestamptz not null default now(),
-  check ("valid_to" is null or "valid_to" >= "valid_from")
+  constraint bsb_tax_rates_check check ("valid_to" is null or "valid_to" >= "valid_from")
 );
 create unique index "tax_rates_from_key" on "better_supabase"."tax_rates" ("tax_code_id", "valid_from");
 alter table "better_supabase"."tax_rates" enable row level security;
@@ -95,19 +95,19 @@ create table "better_supabase"."tax_returns" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
-  "period" text not null check (length("period") >= 1 and length("period") <= 50),
+  "period" text not null constraint bsb_tax_returns_period_check check (length("period") >= 1 and length("period") <= 50),
   "period_start" date not null,
   "period_end" date not null,
-  "status" text not null default 'draft' check ("status" in ('draft', 'filed')),
-  "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
-  "boxes" jsonb not null default '{}'::jsonb check (jsonb_typeof("boxes") = 'object'),
+  "status" text not null default 'draft' constraint bsb_tax_returns_status_check check ("status" in ('draft', 'filed')),
+  "currency" char(3) constraint bsb_tax_returns_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "boxes" jsonb not null default '{}'::jsonb constraint bsb_tax_returns_boxes_check check (jsonb_typeof("boxes") = 'object'),
   "prepared_by" uuid,
   "prepared_at" timestamptz not null default now(),
   "filed_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("period_end" >= "period_start"),
-  check (("status" = 'filed') = ("filed_at" is not null))
+  constraint bsb_tax_returns_check check ("period_end" >= "period_start"),
+  constraint bsb_tax_returns_check1 check (("status" = 'filed') = ("filed_at" is not null))
 );
 create unique index "tax_returns_period_key" on "better_supabase"."tax_returns" ("tenant_id", (coalesce("legal_entity_id", '00000000-0000-0000-0000-000000000000'::uuid)), "period_start", "period_end");
 alter table "better_supabase"."tax_returns" enable row level security;
@@ -124,12 +124,12 @@ create table "better_supabase"."eu_sales_list_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "tax_return_id" uuid not null references "better_supabase"."tax_returns" ("id") on delete cascade,
-  "customer_vat_number" text not null check (length("customer_vat_number") >= 4 and length("customer_vat_number") <= 20),
-  "country" char(2) not null check ("country" ~ '^[A-Z]{2}$'),
-  "kind" text not null check ("kind" in ('goods', 'services')),
+  "customer_vat_number" text not null constraint bsb_eu_sales_list_lines_customer_vat_number_check check (length("customer_vat_number") >= 4 and length("customer_vat_number") <= 20),
+  "country" char(2) not null constraint bsb_eu_sales_list_lines_country_check check ("country" ~ '^[A-Z]{2}$'),
+  "kind" text not null constraint bsb_eu_sales_list_lines_kind_check check ("kind" in ('goods', 'services')),
   "amount" bigint not null,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "invoice_count" integer not null check ("invoice_count" > 0)
+  "currency" char(3) not null constraint bsb_eu_sales_list_lines_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "invoice_count" integer not null constraint bsb_eu_sales_list_lines_invoice_count_check check ("invoice_count" > 0)
 );
 create unique index "eu_sales_list_lines_key" on "better_supabase"."eu_sales_list_lines" ("tax_return_id", "customer_vat_number", "kind", "currency");
 alter table "better_supabase"."eu_sales_list_lines" enable row level security;

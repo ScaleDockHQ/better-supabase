@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_hiring.sql
 -- better-supabase module: hiring
 -- @bsb-block hiring@2 managed
--- @bsb-hash sha256:0936bc2be9e819010b611924001b215f9a8ba25a652c34dece5878ae0deb1a87
+-- @bsb-hash sha256:4ef6aeebc172c61ee08c18711f25671c3a4c2057355319523936b62b2cfec069
 -- Jobs and applications on a pipeline per job, candidates from config.subjects, scorecards per stage, interviews, and hire, reject and withdraw events for the app to act on.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,13 +12,13 @@
 create table "better_supabase"."job_openings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "title" text not null constraint bsb_job_openings_title_check check (length("title") >= 1 and length("title") <= 200),
   "team_id" uuid,
   "location" text,
   "employment_type" text,
   "description" text,
   "hiring_manager_user_id" uuid,
-  "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed')),
+  "status" text not null default 'draft' constraint bsb_job_openings_status_check check ("status" in ('draft', 'open', 'closed')),
   "opened_at" timestamptz,
   "closed_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -44,7 +44,7 @@ create table "better_supabase"."applications" (
   "pipeline_id" uuid,
   "stage_id" uuid,
   "stage_entered_at" timestamptz,
-  "state" text not null default 'active' check ("state" in ('active', 'hired', 'rejected', 'withdrawn')),
+  "state" text not null default 'active' constraint bsb_applications_state_check check ("state" in ('active', 'hired', 'rejected', 'withdrawn')),
   "rejection_reason" text,
   "hired_at" timestamptz,
   "rank" text collate "C" not null default 'V',
@@ -68,8 +68,8 @@ create table "better_supabase"."application_scorecards" (
   "application_id" uuid not null references "better_supabase"."applications" ("id") on delete cascade,
   "stage_id" uuid,
   "reviewer_user_id" uuid not null,
-  "rating" smallint not null check ("rating" >= 1 and "rating" <= 4),
-  "recommendation" text not null check ("recommendation" in ('strong_no', 'no', 'yes', 'strong_yes')),
+  "rating" smallint not null constraint bsb_application_scorecards_rating_check check ("rating" >= 1 and "rating" <= 4),
+  "recommendation" text not null constraint bsb_application_scorecards_recommendation_check check ("recommendation" in ('strong_no', 'no', 'yes', 'strong_yes')),
   "notes" text,
   "submitted_at" timestamptz not null default now(),
   unique nulls not distinct ("application_id", "stage_id", "reviewer_user_id")
@@ -94,7 +94,7 @@ create table "better_supabase"."interviews" (
   "interviewer_user_ids" uuid[] not null default '{}',
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_at" > "starts_at")
+  constraint bsb_interviews_check check ("ends_at" > "starts_at")
 );
 create index interviews_application_idx on "better_supabase"."interviews" ("application_id", "starts_at");
 alter table "better_supabase"."interviews" enable row level security;

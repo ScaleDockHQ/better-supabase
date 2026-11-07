@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:6cbb31fc1b79da4a84431cf87f1c493a07ffd9d7e10980c72b0c58ee01ed5fc6
+-- @bsb-hash sha256:ace86238d097b08f3e7b9f4da52d8a06ef66e87f224d92735a623a6074375309
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,7 +9,7 @@
 create table "better_supabase"."calendars" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 120),
+  "name" text not null constraint bsb_calendars_name_check check (length("name") >= 1 and length("name") <= 120),
   "tz" text not null default 'UTC',
   "color" text,
   "owner_type" text,
@@ -36,7 +36,7 @@ create table "better_supabase"."calendar_events" (
   "ends_at" timestamptz not null,
   "all_day" boolean not null default false,
   "tz" text not null default 'UTC',
-  "status" text not null default 'confirmed' check ("status" in ('confirmed', 'tentative', 'cancelled')),
+  "status" text not null default 'confirmed' constraint bsb_calendar_events_status_check check ("status" in ('confirmed', 'tentative', 'cancelled')),
   "rrule" text,
   "exdates" timestamptz[] not null default '{}',
   "recurrence_id" uuid references "better_supabase"."calendar_events" ("id") on delete cascade,
@@ -50,15 +50,15 @@ create table "better_supabase"."calendar_events" (
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_at" >= "starts_at"),
-  check (("recurrence_id" is null) = ("original_start" is null)),
+  constraint bsb_calendar_events_check check ("ends_at" >= "starts_at"),
+  constraint bsb_calendar_events_check1 check (("recurrence_id" is null) = ("original_start" is null)),
   unique nulls not distinct ("calendar_id", "uid", "original_start")
 );
 create index calendar_events_recurrence_idx on "better_supabase"."calendar_events" ("recurrence_id") where "recurrence_id" is not null;
 create index calendar_events_range_idx on "better_supabase"."calendar_events" ("calendar_id", "starts_at");
-alter table "better_supabase"."calendar_events" add constraint "calendar_events_kind_check"
+alter table "better_supabase"."calendar_events" add constraint bsb_calendar_events_kind_check
   check ("kind" in ('event', 'out_of_office', 'focus_time'));
-alter table "better_supabase"."calendar_events" add constraint "calendar_events_transparency_check"
+alter table "better_supabase"."calendar_events" add constraint bsb_calendar_events_transparency_check
   check ("transparency" in ('opaque', 'transparent'));
 alter table "better_supabase"."calendar_events" enable row level security;
 revoke all on "better_supabase"."calendar_events" from public, anon, authenticated;
@@ -75,14 +75,14 @@ create table "better_supabase"."calendar_attendees" (
   "name" text,
   "user_id" uuid,
   "role" text not null default 'required',
-  "response" text not null default 'needs-action' check ("response" in ('needs-action', 'accepted', 'declined', 'tentative')),
+  "response" text not null default 'needs-action' constraint bsb_calendar_attendees_response_check check ("response" in ('needs-action', 'accepted', 'declined', 'tentative')),
   unique ("event_id", "email")
 );
 alter table "better_supabase"."calendar_attendees" enable row level security;
 revoke all on "better_supabase"."calendar_attendees" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_attendees" to authenticated;
 grant all on "better_supabase"."calendar_attendees" to service_role;
-alter table "better_supabase"."calendar_attendees" add constraint "calendar_attendees_role_check"
+alter table "better_supabase"."calendar_attendees" add constraint bsb_calendar_attendees_role_check
   check ("role" in ('chair', 'required', 'optional', 'non-participant'));
 create policy bsb_calendar_attendees_read on "better_supabase"."calendar_attendees"
   for select to authenticated
@@ -108,15 +108,15 @@ alter table "better_supabase"."calendar_event_alarms" enable row level security;
 revoke all on "better_supabase"."calendar_event_alarms" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_event_alarms" to authenticated;
 grant all on "better_supabase"."calendar_event_alarms" to service_role;
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_method_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_method_check
   check ("method" in ('display', 'email', 'audio'));
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_offset_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_offset_check
   check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_trigger_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_trigger_check
   check (("offset_minutes" is null) <> ("trigger_at" is null));
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_related_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_related_check
   check ("related_to" in ('start', 'end'));
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_repeat_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_repeat_check
   check ("repeat_count" >= 0 and ("repeat_count" = 0) = ("repeat_minutes" is null) and coalesce("repeat_minutes", 1) > 0);
 create policy bsb_calendar_event_alarms_read on "better_supabase"."calendar_event_alarms"
   for select to authenticated
@@ -125,11 +125,11 @@ create table "better_supabase"."calendar_working_hours" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
+  "weekday" smallint not null constraint bsb_calendar_working_hours_weekday_check check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   "tz" text not null default 'UTC',
-  check ("ends_at" > "starts_at"),
+  constraint bsb_calendar_working_hours_check check ("ends_at" > "starts_at"),
   unique ("tenant_id", "user_id", "weekday", "starts_at")
 );
 alter table "better_supabase"."calendar_working_hours" enable row level security;
@@ -1808,7 +1808,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:7c60ea947abbaf3c0db706baa39c892ef7a62b7a84c67e1447f89a862c3d561d
+-- @bsb-hash sha256:b688bfe8065ec4d7ae65d2a0111b56425dd18424572ff949d11621f614dd7451
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1816,7 +1816,7 @@ on conflict (name) do update
 create table "better_supabase"."calendars" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 120),
+  "name" text not null constraint bsb_calendars_name_check check (length("name") >= 1 and length("name") <= 120),
   "tz" text not null default 'UTC',
   "color" text,
   "owner_type" text,
@@ -1843,7 +1843,7 @@ create table "better_supabase"."calendar_events" (
   "ends_at" timestamptz not null,
   "all_day" boolean not null default false,
   "tz" text not null default 'UTC',
-  "status" text not null default 'confirmed' check ("status" in ('confirmed', 'tentative', 'cancelled')),
+  "status" text not null default 'confirmed' constraint bsb_calendar_events_status_check check ("status" in ('confirmed', 'tentative', 'cancelled')),
   "rrule" text,
   "exdates" timestamptz[] not null default '{}',
   "recurrence_id" uuid references "better_supabase"."calendar_events" ("id") on delete cascade,
@@ -1857,15 +1857,15 @@ create table "better_supabase"."calendar_events" (
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_at" >= "starts_at"),
-  check (("recurrence_id" is null) = ("original_start" is null)),
+  constraint bsb_calendar_events_check check ("ends_at" >= "starts_at"),
+  constraint bsb_calendar_events_check1 check (("recurrence_id" is null) = ("original_start" is null)),
   unique nulls not distinct ("calendar_id", "uid", "original_start")
 );
 create index calendar_events_recurrence_idx on "better_supabase"."calendar_events" ("recurrence_id") where "recurrence_id" is not null;
 create index calendar_events_range_idx on "better_supabase"."calendar_events" ("calendar_id", "starts_at");
-alter table "better_supabase"."calendar_events" add constraint "calendar_events_kind_check"
+alter table "better_supabase"."calendar_events" add constraint bsb_calendar_events_kind_check
   check ("kind" in ('event', 'out_of_office', 'focus_time'));
-alter table "better_supabase"."calendar_events" add constraint "calendar_events_transparency_check"
+alter table "better_supabase"."calendar_events" add constraint bsb_calendar_events_transparency_check
   check ("transparency" in ('opaque', 'transparent'));
 alter table "better_supabase"."calendar_events" enable row level security;
 revoke all on "better_supabase"."calendar_events" from public, anon, authenticated;
@@ -1882,14 +1882,14 @@ create table "better_supabase"."calendar_attendees" (
   "name" text,
   "user_id" uuid,
   "role" text not null default 'required',
-  "response" text not null default 'needs-action' check ("response" in ('needs-action', 'accepted', 'declined', 'tentative')),
+  "response" text not null default 'needs-action' constraint bsb_calendar_attendees_response_check check ("response" in ('needs-action', 'accepted', 'declined', 'tentative')),
   unique ("event_id", "email")
 );
 alter table "better_supabase"."calendar_attendees" enable row level security;
 revoke all on "better_supabase"."calendar_attendees" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_attendees" to authenticated;
 grant all on "better_supabase"."calendar_attendees" to service_role;
-alter table "better_supabase"."calendar_attendees" add constraint "calendar_attendees_role_check"
+alter table "better_supabase"."calendar_attendees" add constraint bsb_calendar_attendees_role_check
   check ("role" in ('chair', 'required', 'optional', 'non-participant'));
 create policy bsb_calendar_attendees_read on "better_supabase"."calendar_attendees"
   for select to authenticated
@@ -1915,15 +1915,15 @@ alter table "better_supabase"."calendar_event_alarms" enable row level security;
 revoke all on "better_supabase"."calendar_event_alarms" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_event_alarms" to authenticated;
 grant all on "better_supabase"."calendar_event_alarms" to service_role;
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_method_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_method_check
   check ("method" in ('display', 'email', 'audio'));
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_offset_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_offset_check
   check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_trigger_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_trigger_check
   check (("offset_minutes" is null) <> ("trigger_at" is null));
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_related_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_related_check
   check ("related_to" in ('start', 'end'));
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_repeat_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_repeat_check
   check ("repeat_count" >= 0 and ("repeat_count" = 0) = ("repeat_minutes" is null) and coalesce("repeat_minutes", 1) > 0);
 create policy bsb_calendar_event_alarms_read on "better_supabase"."calendar_event_alarms"
   for select to authenticated
@@ -1932,11 +1932,11 @@ create table "better_supabase"."calendar_working_hours" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
+  "weekday" smallint not null constraint bsb_calendar_working_hours_weekday_check check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   "tz" text not null default 'UTC',
-  check ("ends_at" > "starts_at"),
+  constraint bsb_calendar_working_hours_check check ("ends_at" > "starts_at"),
   unique ("tenant_id", "user_id", "weekday", "starts_at")
 );
 alter table "better_supabase"."calendar_working_hours" enable row level security;
@@ -3712,7 +3712,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:700bebd5147749fc32d5eb286283a8394f3284cbb5e17d993f69048e76f55611
+-- @bsb-hash sha256:7baa50e994a9018464eecc8fcfac5e516767b24cce005c3de8f744cd5d265c3a
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3725,7 +3725,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."calendars" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 120),
+  "name" text not null constraint bsb_calendars_name_check check (length("name") >= 1 and length("name") <= 120),
   "tz" text not null default 'UTC',
   "color" text,
   "owner_type" text,
@@ -3752,7 +3752,7 @@ create table "app_private"."calendar_events" (
   "ends_at" timestamptz not null,
   "all_day" boolean not null default false,
   "tz" text not null default 'UTC',
-  "status" text not null default 'confirmed' check ("status" in ('confirmed', 'tentative', 'cancelled')),
+  "status" text not null default 'confirmed' constraint bsb_calendar_events_status_check check ("status" in ('confirmed', 'tentative', 'cancelled')),
   "rrule" text,
   "exdates" timestamptz[] not null default '{}',
   "recurrence_id" uuid references "app_private"."calendar_events" ("id") on delete cascade,
@@ -3766,15 +3766,15 @@ create table "app_private"."calendar_events" (
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_at" >= "starts_at"),
-  check (("recurrence_id" is null) = ("original_start" is null)),
+  constraint bsb_calendar_events_check check ("ends_at" >= "starts_at"),
+  constraint bsb_calendar_events_check1 check (("recurrence_id" is null) = ("original_start" is null)),
   unique nulls not distinct ("calendar_id", "uid", "original_start")
 );
 create index calendar_events_recurrence_idx on "app_private"."calendar_events" ("recurrence_id") where "recurrence_id" is not null;
 create index calendar_events_range_idx on "app_private"."calendar_events" ("calendar_id", "starts_at");
-alter table "app_private"."calendar_events" add constraint "calendar_events_kind_check"
+alter table "app_private"."calendar_events" add constraint bsb_calendar_events_kind_check
   check ("kind" in ('event', 'out_of_office', 'focus_time'));
-alter table "app_private"."calendar_events" add constraint "calendar_events_transparency_check"
+alter table "app_private"."calendar_events" add constraint bsb_calendar_events_transparency_check
   check ("transparency" in ('opaque', 'transparent'));
 alter table "app_private"."calendar_events" enable row level security;
 revoke all on "app_private"."calendar_events" from public, anon, authenticated;
@@ -3791,14 +3791,14 @@ create table "app_private"."calendar_attendees" (
   "name" text,
   "user_id" uuid,
   "role" text not null default 'required',
-  "response" text not null default 'needs-action' check ("response" in ('needs-action', 'accepted', 'declined', 'tentative')),
+  "response" text not null default 'needs-action' constraint bsb_calendar_attendees_response_check check ("response" in ('needs-action', 'accepted', 'declined', 'tentative')),
   unique ("event_id", "email")
 );
 alter table "app_private"."calendar_attendees" enable row level security;
 revoke all on "app_private"."calendar_attendees" from public, anon, authenticated;
 grant select on "app_private"."calendar_attendees" to authenticated;
 grant all on "app_private"."calendar_attendees" to service_role;
-alter table "app_private"."calendar_attendees" add constraint "calendar_attendees_role_check"
+alter table "app_private"."calendar_attendees" add constraint bsb_calendar_attendees_role_check
   check ("role" in ('chair', 'required', 'optional', 'non-participant'));
 create policy bsb_calendar_attendees_read on "app_private"."calendar_attendees"
   for select to authenticated
@@ -3824,15 +3824,15 @@ alter table "app_private"."calendar_event_alarms" enable row level security;
 revoke all on "app_private"."calendar_event_alarms" from public, anon, authenticated;
 grant select on "app_private"."calendar_event_alarms" to authenticated;
 grant all on "app_private"."calendar_event_alarms" to service_role;
-alter table "app_private"."calendar_event_alarms" add constraint "calendar_event_alarms_method_check"
+alter table "app_private"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_method_check
   check ("method" in ('display', 'email', 'audio'));
-alter table "app_private"."calendar_event_alarms" add constraint "calendar_event_alarms_offset_check"
+alter table "app_private"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_offset_check
   check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
-alter table "app_private"."calendar_event_alarms" add constraint "calendar_event_alarms_trigger_check"
+alter table "app_private"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_trigger_check
   check (("offset_minutes" is null) <> ("trigger_at" is null));
-alter table "app_private"."calendar_event_alarms" add constraint "calendar_event_alarms_related_check"
+alter table "app_private"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_related_check
   check ("related_to" in ('start', 'end'));
-alter table "app_private"."calendar_event_alarms" add constraint "calendar_event_alarms_repeat_check"
+alter table "app_private"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_repeat_check
   check ("repeat_count" >= 0 and ("repeat_count" = 0) = ("repeat_minutes" is null) and coalesce("repeat_minutes", 1) > 0);
 create policy bsb_calendar_event_alarms_read on "app_private"."calendar_event_alarms"
   for select to authenticated
@@ -3841,11 +3841,11 @@ create table "app_private"."calendar_working_hours" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
+  "weekday" smallint not null constraint bsb_calendar_working_hours_weekday_check check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   "tz" text not null default 'UTC',
-  check ("ends_at" > "starts_at"),
+  constraint bsb_calendar_working_hours_check check ("ends_at" > "starts_at"),
   unique ("tenant_id", "user_id", "weekday", "starts_at")
 );
 alter table "app_private"."calendar_working_hours" enable row level security;
@@ -5524,7 +5524,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:28702a2d03450fa4001972fa90eb68961bad8a216dbac01a4e72b18c51cd0a3d
+-- @bsb-hash sha256:29d867eb1b14ba0bcfaab53a7a6ca5c49523d061798889a7e6e916020f358201
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5532,7 +5532,7 @@ on conflict (name) do update
 create table "better_supabase"."calendars" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 120),
+  "name" text not null constraint bsb_calendars_name_check check (length("name") >= 1 and length("name") <= 120),
   "tz" text not null default 'UTC',
   "color" text,
   "owner_type" text,
@@ -5559,7 +5559,7 @@ create table "better_supabase"."calendar_events" (
   "ends_at" timestamptz not null,
   "all_day" boolean not null default false,
   "tz" text not null default 'UTC',
-  "status" text not null default 'confirmed' check ("status" in ('confirmed', 'tentative', 'cancelled')),
+  "status" text not null default 'confirmed' constraint bsb_calendar_events_status_check check ("status" in ('confirmed', 'tentative', 'cancelled')),
   "rrule" text,
   "exdates" timestamptz[] not null default '{}',
   "recurrence_id" uuid references "better_supabase"."calendar_events" ("id") on delete cascade,
@@ -5573,15 +5573,15 @@ create table "better_supabase"."calendar_events" (
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_at" >= "starts_at"),
-  check (("recurrence_id" is null) = ("original_start" is null)),
+  constraint bsb_calendar_events_check check ("ends_at" >= "starts_at"),
+  constraint bsb_calendar_events_check1 check (("recurrence_id" is null) = ("original_start" is null)),
   unique nulls not distinct ("calendar_id", "uid", "original_start")
 );
 create index calendar_events_recurrence_idx on "better_supabase"."calendar_events" ("recurrence_id") where "recurrence_id" is not null;
 create index calendar_events_range_idx on "better_supabase"."calendar_events" ("calendar_id", "starts_at");
-alter table "better_supabase"."calendar_events" add constraint "calendar_events_kind_check"
+alter table "better_supabase"."calendar_events" add constraint bsb_calendar_events_kind_check
   check ("kind" in ('event', 'out_of_office', 'focus_time'));
-alter table "better_supabase"."calendar_events" add constraint "calendar_events_transparency_check"
+alter table "better_supabase"."calendar_events" add constraint bsb_calendar_events_transparency_check
   check ("transparency" in ('opaque', 'transparent'));
 alter table "better_supabase"."calendar_events" enable row level security;
 revoke all on "better_supabase"."calendar_events" from public, anon, authenticated;
@@ -5598,14 +5598,14 @@ create table "better_supabase"."calendar_attendees" (
   "name" text,
   "user_id" uuid,
   "role" text not null default 'required',
-  "response" text not null default 'needs-action' check ("response" in ('needs-action', 'accepted', 'declined', 'tentative')),
+  "response" text not null default 'needs-action' constraint bsb_calendar_attendees_response_check check ("response" in ('needs-action', 'accepted', 'declined', 'tentative')),
   unique ("event_id", "email")
 );
 alter table "better_supabase"."calendar_attendees" enable row level security;
 revoke all on "better_supabase"."calendar_attendees" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_attendees" to authenticated;
 grant all on "better_supabase"."calendar_attendees" to service_role;
-alter table "better_supabase"."calendar_attendees" add constraint "calendar_attendees_role_check"
+alter table "better_supabase"."calendar_attendees" add constraint bsb_calendar_attendees_role_check
   check ("role" in ('chair', 'required', 'optional', 'non-participant'));
 create policy bsb_calendar_attendees_read on "better_supabase"."calendar_attendees"
   for select to authenticated
@@ -5631,15 +5631,15 @@ alter table "better_supabase"."calendar_event_alarms" enable row level security;
 revoke all on "better_supabase"."calendar_event_alarms" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_event_alarms" to authenticated;
 grant all on "better_supabase"."calendar_event_alarms" to service_role;
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_method_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_method_check
   check ("method" in ('display', 'email', 'audio'));
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_offset_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_offset_check
   check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_trigger_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_trigger_check
   check (("offset_minutes" is null) <> ("trigger_at" is null));
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_related_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_related_check
   check ("related_to" in ('start', 'end'));
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_repeat_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_repeat_check
   check ("repeat_count" >= 0 and ("repeat_count" = 0) = ("repeat_minutes" is null) and coalesce("repeat_minutes", 1) > 0);
 create policy bsb_calendar_event_alarms_read on "better_supabase"."calendar_event_alarms"
   for select to authenticated
@@ -5648,11 +5648,11 @@ create table "better_supabase"."calendar_working_hours" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
+  "weekday" smallint not null constraint bsb_calendar_working_hours_weekday_check check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   "tz" text not null default 'UTC',
-  check ("ends_at" > "starts_at"),
+  constraint bsb_calendar_working_hours_check check ("ends_at" > "starts_at"),
   unique ("tenant_id", "user_id", "weekday", "starts_at")
 );
 alter table "better_supabase"."calendar_working_hours" enable row level security;
@@ -7503,7 +7503,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:7cf9e9ac283019290795fedb13f9b28aa7c220157ba8c4f41a2d75af0184ec80
+-- @bsb-hash sha256:4528d68ef82fbc42ac0649d3f34ec3ef491140543ce6ca2a3a938c5b508efb6b
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7511,7 +7511,7 @@ on conflict (name) do update
 -- better_supabase.calendars is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."calendars" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."calendars" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."calendars" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 120);
+alter table "better_supabase"."calendars" add column if not exists "name" text constraint bsb_calendars_name_check check (length("name") >= 1 and length("name") <= 120);
 alter table "better_supabase"."calendars" add column if not exists "tz" text not null default 'UTC';
 alter table "better_supabase"."calendars" add column if not exists "color" text;
 alter table "better_supabase"."calendars" add column if not exists "owner_type" text;
@@ -7536,7 +7536,7 @@ alter table "better_supabase"."calendar_events" add column if not exists "starts
 alter table "better_supabase"."calendar_events" add column if not exists "ends_at" timestamptz;
 alter table "better_supabase"."calendar_events" add column if not exists "all_day" boolean not null default false;
 alter table "better_supabase"."calendar_events" add column if not exists "tz" text not null default 'UTC';
-alter table "better_supabase"."calendar_events" add column if not exists "status" text not null default 'confirmed' check ("status" in ('confirmed', 'tentative', 'cancelled'));
+alter table "better_supabase"."calendar_events" add column if not exists "status" text not null default 'confirmed' constraint bsb_calendar_events_status_check check ("status" in ('confirmed', 'tentative', 'cancelled'));
 alter table "better_supabase"."calendar_events" add column if not exists "rrule" text;
 alter table "better_supabase"."calendar_events" add column if not exists "exdates" timestamptz[] not null default '{}';
 alter table "better_supabase"."calendar_events" add column if not exists "recurrence_id" uuid references "better_supabase"."calendar_events" ("id") on delete cascade;
@@ -7569,7 +7569,7 @@ alter table "better_supabase"."calendar_attendees" add column if not exists "ema
 alter table "better_supabase"."calendar_attendees" add column if not exists "name" text;
 alter table "better_supabase"."calendar_attendees" add column if not exists "user_id" uuid;
 alter table "better_supabase"."calendar_attendees" add column if not exists "role" text not null default 'required';
-alter table "better_supabase"."calendar_attendees" add column if not exists "response" text not null default 'needs-action' check ("response" in ('needs-action', 'accepted', 'declined', 'tentative'));
+alter table "better_supabase"."calendar_attendees" add column if not exists "response" text not null default 'needs-action' constraint bsb_calendar_attendees_response_check check ("response" in ('needs-action', 'accepted', 'declined', 'tentative'));
 alter table "better_supabase"."calendar_attendees" enable row level security;
 grant select on "better_supabase"."calendar_attendees" to authenticated;
 grant all on "better_supabase"."calendar_attendees" to service_role;
@@ -7603,7 +7603,7 @@ create policy bsb_calendar_event_alarms_select on "better_supabase"."calendar_ev
 alter table "better_supabase"."calendar_working_hours" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."calendar_working_hours" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."calendar_working_hours" add column if not exists "user_id" uuid;
-alter table "better_supabase"."calendar_working_hours" add column if not exists "weekday" smallint check ("weekday" >= 1 and "weekday" <= 7);
+alter table "better_supabase"."calendar_working_hours" add column if not exists "weekday" smallint constraint bsb_calendar_working_hours_weekday_check check ("weekday" >= 1 and "weekday" <= 7);
 alter table "better_supabase"."calendar_working_hours" add column if not exists "starts_at" time;
 alter table "better_supabase"."calendar_working_hours" add column if not exists "ends_at" time;
 alter table "better_supabase"."calendar_working_hours" add column if not exists "tz" text not null default 'UTC';
@@ -9282,7 +9282,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_072_calendar.sql
 -- better-supabase module: calendar
 -- @bsb-block calendar@1 managed
--- @bsb-hash sha256:177c3bb74dc8ec297d64260ccf8a997e85370119f27a6bd053a93d6489fd4b7b
+-- @bsb-hash sha256:db700d13af2b10fe2084ac47aa5d5c84372c065ffefc0aca7822b83c3e1d8da5
 -- Calendars, events with RFC 5545 recurrence (RRULE, EXDATE and per-occurrence overrides) and attendees, working hours, out-of-office and focus-time blocks, and a free/busy query that counts approved leave. Series expand in TypeScript with the reminders block's expandRule and in SQL for free/busy; a share link serves an iCal feed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9290,7 +9290,7 @@ on conflict (name) do update
 create table "better_supabase"."calendars" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 120),
+  "name" text not null constraint bsb_calendars_name_check check (length("name") >= 1 and length("name") <= 120),
   "tz" text not null default 'UTC',
   "color" text,
   "owner_type" text,
@@ -9317,7 +9317,7 @@ create table "better_supabase"."calendar_events" (
   "ends_at" timestamptz not null,
   "all_day" boolean not null default false,
   "tz" text not null default 'UTC',
-  "status" text not null default 'confirmed' check ("status" in ('confirmed', 'tentative', 'cancelled')),
+  "status" text not null default 'confirmed' constraint bsb_calendar_events_status_check check ("status" in ('confirmed', 'tentative', 'cancelled')),
   "rrule" text,
   "exdates" timestamptz[] not null default '{}',
   "recurrence_id" uuid references "better_supabase"."calendar_events" ("id") on delete cascade,
@@ -9331,15 +9331,15 @@ create table "better_supabase"."calendar_events" (
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_at" >= "starts_at"),
-  check (("recurrence_id" is null) = ("original_start" is null)),
+  constraint bsb_calendar_events_check check ("ends_at" >= "starts_at"),
+  constraint bsb_calendar_events_check1 check (("recurrence_id" is null) = ("original_start" is null)),
   unique nulls not distinct ("calendar_id", "uid", "original_start")
 );
 create index calendar_events_recurrence_idx on "better_supabase"."calendar_events" ("recurrence_id") where "recurrence_id" is not null;
 create index calendar_events_range_idx on "better_supabase"."calendar_events" ("calendar_id", "starts_at");
-alter table "better_supabase"."calendar_events" add constraint "calendar_events_kind_check"
+alter table "better_supabase"."calendar_events" add constraint bsb_calendar_events_kind_check
   check ("kind" in ('event', 'out_of_office', 'focus_time'));
-alter table "better_supabase"."calendar_events" add constraint "calendar_events_transparency_check"
+alter table "better_supabase"."calendar_events" add constraint bsb_calendar_events_transparency_check
   check ("transparency" in ('opaque', 'transparent'));
 alter table "better_supabase"."calendar_events" enable row level security;
 revoke all on "better_supabase"."calendar_events" from public, anon, authenticated;
@@ -9356,14 +9356,14 @@ create table "better_supabase"."calendar_attendees" (
   "name" text,
   "user_id" uuid,
   "role" text not null default 'required',
-  "response" text not null default 'needs-action' check ("response" in ('needs-action', 'accepted', 'declined', 'tentative')),
+  "response" text not null default 'needs-action' constraint bsb_calendar_attendees_response_check check ("response" in ('needs-action', 'accepted', 'declined', 'tentative')),
   unique ("event_id", "email")
 );
 alter table "better_supabase"."calendar_attendees" enable row level security;
 revoke all on "better_supabase"."calendar_attendees" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_attendees" to authenticated;
 grant all on "better_supabase"."calendar_attendees" to service_role;
-alter table "better_supabase"."calendar_attendees" add constraint "calendar_attendees_role_check"
+alter table "better_supabase"."calendar_attendees" add constraint bsb_calendar_attendees_role_check
   check ("role" in ('chair', 'required', 'optional', 'non-participant'));
 create policy bsb_calendar_attendees_read on "better_supabase"."calendar_attendees"
   for select to authenticated
@@ -9389,15 +9389,15 @@ alter table "better_supabase"."calendar_event_alarms" enable row level security;
 revoke all on "better_supabase"."calendar_event_alarms" from public, anon, authenticated;
 grant select on "better_supabase"."calendar_event_alarms" to authenticated;
 grant all on "better_supabase"."calendar_event_alarms" to service_role;
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_method_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_method_check
   check ("method" in ('display', 'email', 'audio'));
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_offset_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_offset_check
   check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_trigger_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_trigger_check
   check (("offset_minutes" is null) <> ("trigger_at" is null));
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_related_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_related_check
   check ("related_to" in ('start', 'end'));
-alter table "better_supabase"."calendar_event_alarms" add constraint "calendar_event_alarms_repeat_check"
+alter table "better_supabase"."calendar_event_alarms" add constraint bsb_calendar_event_alarms_repeat_check
   check ("repeat_count" >= 0 and ("repeat_count" = 0) = ("repeat_minutes" is null) and coalesce("repeat_minutes", 1) > 0);
 create policy bsb_calendar_event_alarms_read on "better_supabase"."calendar_event_alarms"
   for select to authenticated
@@ -9406,11 +9406,11 @@ create table "better_supabase"."calendar_working_hours" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "user_id" uuid not null,
-  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
+  "weekday" smallint not null constraint bsb_calendar_working_hours_weekday_check check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
   "tz" text not null default 'UTC',
-  check ("ends_at" > "starts_at"),
+  constraint bsb_calendar_working_hours_check check ("ends_at" > "starts_at"),
   unique ("org_id", "user_id", "weekday", "starts_at")
 );
 alter table "better_supabase"."calendar_working_hours" enable row level security;

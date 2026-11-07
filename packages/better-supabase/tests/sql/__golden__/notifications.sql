@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:4bb9b65a1c354974f8ed6412891ecab4c7d34a02ccd1ab33ed7c953ac97dd3ad
+-- @bsb-hash sha256:f65c87861fdaff044f5dcc418f06665294538634cb2fd117a4de42898fe58b99
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -32,14 +32,14 @@ do $$
 begin
   if exists (
     select 1 from pg_constraint k, unnest(array['low', 'normal', 'high', 'urgent']::text[]) p
-    where k.conrelid = '"better_supabase"."notification_events"'::regclass and k.conname = 'notification_events_priority_check'
+    where k.conrelid = '"better_supabase"."notification_events"'::regclass and k.conname = 'bsb_notification_events_priority_check'
       and pg_get_constraintdef(k.oid) not like '%' || quote_literal(p) || '%'
   ) then
-    alter table "better_supabase"."notification_events" drop constraint "notification_events_priority_check";
+    alter table "better_supabase"."notification_events" drop constraint bsb_notification_events_priority_check;
   end if;
 end;
 $$;
-alter table "better_supabase"."notification_events" add constraint "notification_events_priority_check"
+alter table "better_supabase"."notification_events" add constraint bsb_notification_events_priority_check
   check ("priority" in ('low', 'normal', 'high', 'urgent'));
 alter table "better_supabase"."notification_events" enable row level security;
 revoke all on "better_supabase"."notification_events" from public, anon, authenticated;
@@ -89,7 +89,7 @@ create table "better_supabase"."notification_deliveries" (
   "recipient_id" uuid not null references "better_supabase"."notification_recipients" ("id") on delete cascade,
   "organization_id" uuid,
   "channel" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
+  "status" text not null default 'pending' constraint bsb_notification_deliveries_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
   "provider" text,
   "provider_message_id" text,
   "error" text,
@@ -122,7 +122,7 @@ create table "better_supabase"."notification_subscriptions" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "subject_type" text not null,
   "subject_id" text not null,
-  "level" text not null default 'participating' check ("level" in ('participating', 'all', 'ignore')),
+  "level" text not null default 'participating' constraint bsb_notification_subscriptions_level_check check ("level" in ('participating', 'all', 'ignore')),
   "created_at" timestamptz not null default now(),
   unique nulls not distinct ("organization_id", "user_id", "subject_type", "subject_id")
 );
@@ -157,7 +157,7 @@ create table "better_supabase"."notification_preferences" (
   "type" text not null,
   "channel" text not null,
   "enabled" boolean not null default true,
-  "cadence" text not null default 'immediate' check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
+  "cadence" text not null default 'immediate' constraint bsb_notification_preferences_cadence_check check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
   "created_at" timestamptz not null default now(),
   unique nulls not distinct ("user_id", "organization_id", "type", "channel")
 );
@@ -186,9 +186,9 @@ create policy "bsb_notification_preferences_own_delete" on "better_supabase"."no
 create table "better_supabase"."notification_suppressions" (
   "id" uuid primary key default gen_random_uuid(),
   "channel" text not null default 'email',
-  "address" text not null check ("address" = lower("address")),
+  "address" text not null constraint bsb_notification_suppressions_address_check check ("address" = lower("address")),
   "user_id" uuid references auth.users (id) on delete cascade,
-  "reason" text not null check ("reason" in ('bounce', 'complaint', 'manual')),
+  "reason" text not null constraint bsb_notification_suppressions_reason_check check ("reason" in ('bounce', 'complaint', 'manual')),
   "provider" text,
   "provider_event_id" text,
   "detail" jsonb not null default '{}',
@@ -204,7 +204,7 @@ create policy bsb_notification_suppressions_read on "better_supabase"."notificat
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
-alter table "better_supabase"."notification_deliveries" add column "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
+alter table "better_supabase"."notification_deliveries" add column "provider_status" text constraint bsb_notification_deliveries_provider_status_check check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
 alter table "better_supabase"."notification_deliveries" add column "provider_status_at" timestamptz;
 alter table "better_supabase"."notification_deliveries" add column "template_key" text;
 create index notification_deliveries_provider_message_idx on "better_supabase"."notification_deliveries" ("provider", "provider_message_id") where "provider_message_id" is not null;
@@ -213,7 +213,7 @@ create table "better_supabase"."notification_delivery_events" (
   "id" uuid primary key default gen_random_uuid(),
   "delivery_id" uuid not null references "better_supabase"."notification_deliveries" ("id") on delete cascade,
   "organization_id" uuid,
-  "kind" text not null check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
+  "kind" text not null constraint bsb_notification_delivery_events_kind_check check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
   "provider" text,
   "provider_event_id" text unique,
   "occurred_at" timestamptz not null default now(),
@@ -241,10 +241,10 @@ create table "better_supabase"."notification_digests" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "organization_id" uuid,
   "channel" text not null,
-  "cadence" text not null check ("cadence" in ('daily', 'weekly')),
+  "cadence" text not null constraint bsb_notification_digests_cadence_check check ("cadence" in ('daily', 'weekly')),
   "items" jsonb not null,
   "item_count" integer not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "status" text not null default 'pending' constraint bsb_notification_digests_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped')),
   "attempts" integer not null default 0,
   "attempted_at" timestamptz,
   "error" text,
@@ -1590,7 +1590,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:0dfc026b98071009e23dc2c1552d1f0db6d7ad72292b96ff699a6459fa1f1e90
+-- @bsb-hash sha256:ea7e07bb0d476344635eb4984d1ee55b509adf942f502d04638258a4430787d5
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1621,14 +1621,14 @@ do $$
 begin
   if exists (
     select 1 from pg_constraint k, unnest(array['low', 'normal', 'high', 'urgent']::text[]) p
-    where k.conrelid = '"better_supabase"."notification_events"'::regclass and k.conname = 'notification_events_priority_check'
+    where k.conrelid = '"better_supabase"."notification_events"'::regclass and k.conname = 'bsb_notification_events_priority_check'
       and pg_get_constraintdef(k.oid) not like '%' || quote_literal(p) || '%'
   ) then
-    alter table "better_supabase"."notification_events" drop constraint "notification_events_priority_check";
+    alter table "better_supabase"."notification_events" drop constraint bsb_notification_events_priority_check;
   end if;
 end;
 $$;
-alter table "better_supabase"."notification_events" add constraint "notification_events_priority_check"
+alter table "better_supabase"."notification_events" add constraint bsb_notification_events_priority_check
   check ("priority" in ('low', 'normal', 'high', 'urgent'));
 alter table "better_supabase"."notification_events" enable row level security;
 revoke all on "better_supabase"."notification_events" from public, anon, authenticated;
@@ -1678,7 +1678,7 @@ create table "better_supabase"."notification_deliveries" (
   "recipient_id" uuid not null references "better_supabase"."notification_recipients" ("id") on delete cascade,
   "organization_id" uuid,
   "channel" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
+  "status" text not null default 'pending' constraint bsb_notification_deliveries_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
   "provider" text,
   "provider_message_id" text,
   "error" text,
@@ -1711,7 +1711,7 @@ create table "better_supabase"."notification_subscriptions" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "subject_type" text not null,
   "subject_id" text not null,
-  "level" text not null default 'participating' check ("level" in ('participating', 'all', 'ignore')),
+  "level" text not null default 'participating' constraint bsb_notification_subscriptions_level_check check ("level" in ('participating', 'all', 'ignore')),
   "created_at" timestamptz not null default now(),
   unique nulls not distinct ("organization_id", "user_id", "subject_type", "subject_id")
 );
@@ -1746,7 +1746,7 @@ create table "better_supabase"."notification_preferences" (
   "type" text not null,
   "channel" text not null,
   "enabled" boolean not null default true,
-  "cadence" text not null default 'immediate' check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
+  "cadence" text not null default 'immediate' constraint bsb_notification_preferences_cadence_check check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
   "created_at" timestamptz not null default now(),
   unique nulls not distinct ("user_id", "organization_id", "type", "channel")
 );
@@ -1775,9 +1775,9 @@ create policy "bsb_notification_preferences_own_delete" on "better_supabase"."no
 create table "better_supabase"."notification_suppressions" (
   "id" uuid primary key default gen_random_uuid(),
   "channel" text not null default 'email',
-  "address" text not null check ("address" = lower("address")),
+  "address" text not null constraint bsb_notification_suppressions_address_check check ("address" = lower("address")),
   "user_id" uuid references auth.users (id) on delete cascade,
-  "reason" text not null check ("reason" in ('bounce', 'complaint', 'manual')),
+  "reason" text not null constraint bsb_notification_suppressions_reason_check check ("reason" in ('bounce', 'complaint', 'manual')),
   "provider" text,
   "provider_event_id" text,
   "detail" jsonb not null default '{}',
@@ -1793,7 +1793,7 @@ create policy bsb_notification_suppressions_read on "better_supabase"."notificat
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
-alter table "better_supabase"."notification_deliveries" add column "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
+alter table "better_supabase"."notification_deliveries" add column "provider_status" text constraint bsb_notification_deliveries_provider_status_check check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
 alter table "better_supabase"."notification_deliveries" add column "provider_status_at" timestamptz;
 alter table "better_supabase"."notification_deliveries" add column "template_key" text;
 create index notification_deliveries_provider_message_idx on "better_supabase"."notification_deliveries" ("provider", "provider_message_id") where "provider_message_id" is not null;
@@ -1802,7 +1802,7 @@ create table "better_supabase"."notification_delivery_events" (
   "id" uuid primary key default gen_random_uuid(),
   "delivery_id" uuid not null references "better_supabase"."notification_deliveries" ("id") on delete cascade,
   "organization_id" uuid,
-  "kind" text not null check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
+  "kind" text not null constraint bsb_notification_delivery_events_kind_check check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
   "provider" text,
   "provider_event_id" text unique,
   "occurred_at" timestamptz not null default now(),
@@ -1830,10 +1830,10 @@ create table "better_supabase"."notification_digests" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "organization_id" uuid,
   "channel" text not null,
-  "cadence" text not null check ("cadence" in ('daily', 'weekly')),
+  "cadence" text not null constraint bsb_notification_digests_cadence_check check ("cadence" in ('daily', 'weekly')),
   "items" jsonb not null,
   "item_count" integer not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "status" text not null default 'pending' constraint bsb_notification_digests_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped')),
   "attempts" integer not null default 0,
   "attempted_at" timestamptz,
   "error" text,
@@ -3257,7 +3257,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:63cb68dc54e210f923c5e2d36d72ecc6b1bcfdba48166ee812eae2b22d640d1c
+-- @bsb-hash sha256:65565de5244226b267870640ce22f63f17e9f09276d7c17e320b7bf1492e220d
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3293,14 +3293,14 @@ do $$
 begin
   if exists (
     select 1 from pg_constraint k, unnest(array['low', 'normal', 'high', 'urgent']::text[]) p
-    where k.conrelid = '"app_private"."notification_events"'::regclass and k.conname = 'notification_events_priority_check'
+    where k.conrelid = '"app_private"."notification_events"'::regclass and k.conname = 'bsb_notification_events_priority_check'
       and pg_get_constraintdef(k.oid) not like '%' || quote_literal(p) || '%'
   ) then
-    alter table "app_private"."notification_events" drop constraint "notification_events_priority_check";
+    alter table "app_private"."notification_events" drop constraint bsb_notification_events_priority_check;
   end if;
 end;
 $$;
-alter table "app_private"."notification_events" add constraint "notification_events_priority_check"
+alter table "app_private"."notification_events" add constraint bsb_notification_events_priority_check
   check ("priority" in ('low', 'normal', 'high', 'urgent'));
 alter table "app_private"."notification_events" enable row level security;
 revoke all on "app_private"."notification_events" from public, anon, authenticated;
@@ -3350,7 +3350,7 @@ create table "app_private"."notification_deliveries" (
   "recipient_id" uuid not null references "app_private"."notification_recipients" ("id") on delete cascade,
   "organization_id" uuid,
   "channel" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
+  "status" text not null default 'pending' constraint bsb_notification_deliveries_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
   "provider" text,
   "provider_message_id" text,
   "error" text,
@@ -3383,7 +3383,7 @@ create table "app_private"."notification_subscriptions" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "subject_type" text not null,
   "subject_id" text not null,
-  "level" text not null default 'participating' check ("level" in ('participating', 'all', 'ignore')),
+  "level" text not null default 'participating' constraint bsb_notification_subscriptions_level_check check ("level" in ('participating', 'all', 'ignore')),
   "created_at" timestamptz not null default now(),
   unique nulls not distinct ("organization_id", "user_id", "subject_type", "subject_id")
 );
@@ -3418,7 +3418,7 @@ create table "app_private"."notification_preferences" (
   "type" text not null,
   "channel" text not null,
   "enabled" boolean not null default true,
-  "cadence" text not null default 'immediate' check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
+  "cadence" text not null default 'immediate' constraint bsb_notification_preferences_cadence_check check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
   "created_at" timestamptz not null default now(),
   unique nulls not distinct ("user_id", "organization_id", "type", "channel")
 );
@@ -3447,9 +3447,9 @@ create policy "bsb_notification_preferences_own_delete" on "app_private"."notifi
 create table "app_private"."notification_suppressions" (
   "id" uuid primary key default gen_random_uuid(),
   "channel" text not null default 'email',
-  "address" text not null check ("address" = lower("address")),
+  "address" text not null constraint bsb_notification_suppressions_address_check check ("address" = lower("address")),
   "user_id" uuid references auth.users (id) on delete cascade,
-  "reason" text not null check ("reason" in ('bounce', 'complaint', 'manual')),
+  "reason" text not null constraint bsb_notification_suppressions_reason_check check ("reason" in ('bounce', 'complaint', 'manual')),
   "provider" text,
   "provider_event_id" text,
   "detail" jsonb not null default '{}',
@@ -3465,7 +3465,7 @@ create policy bsb_notification_suppressions_read on "app_private"."notification_
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
-alter table "app_private"."notification_deliveries" add column "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
+alter table "app_private"."notification_deliveries" add column "provider_status" text constraint bsb_notification_deliveries_provider_status_check check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
 alter table "app_private"."notification_deliveries" add column "provider_status_at" timestamptz;
 alter table "app_private"."notification_deliveries" add column "template_key" text;
 create index notification_deliveries_provider_message_idx on "app_private"."notification_deliveries" ("provider", "provider_message_id") where "provider_message_id" is not null;
@@ -3474,7 +3474,7 @@ create table "app_private"."notification_delivery_events" (
   "id" uuid primary key default gen_random_uuid(),
   "delivery_id" uuid not null references "app_private"."notification_deliveries" ("id") on delete cascade,
   "organization_id" uuid,
-  "kind" text not null check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
+  "kind" text not null constraint bsb_notification_delivery_events_kind_check check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
   "provider" text,
   "provider_event_id" text unique,
   "occurred_at" timestamptz not null default now(),
@@ -3502,10 +3502,10 @@ create table "app_private"."notification_digests" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "organization_id" uuid,
   "channel" text not null,
-  "cadence" text not null check ("cadence" in ('daily', 'weekly')),
+  "cadence" text not null constraint bsb_notification_digests_cadence_check check ("cadence" in ('daily', 'weekly')),
   "items" jsonb not null,
   "item_count" integer not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "status" text not null default 'pending' constraint bsb_notification_digests_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped')),
   "attempts" integer not null default 0,
   "attempted_at" timestamptz,
   "error" text,
@@ -4851,7 +4851,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:bf69a44d9c03a6e325c858c53b7057a756c4d783af25bfbf0f7fa3cf9747ea10
+-- @bsb-hash sha256:7138c4e79fe4a2c9e1c43618e1356fb92aecde261f151d675f9479776a0cbb64
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4882,14 +4882,14 @@ do $$
 begin
   if exists (
     select 1 from pg_constraint k, unnest(array['low', 'normal', 'high', 'urgent']::text[]) p
-    where k.conrelid = '"better_supabase"."notification_events"'::regclass and k.conname = 'notification_events_priority_check'
+    where k.conrelid = '"better_supabase"."notification_events"'::regclass and k.conname = 'bsb_notification_events_priority_check'
       and pg_get_constraintdef(k.oid) not like '%' || quote_literal(p) || '%'
   ) then
-    alter table "better_supabase"."notification_events" drop constraint "notification_events_priority_check";
+    alter table "better_supabase"."notification_events" drop constraint bsb_notification_events_priority_check;
   end if;
 end;
 $$;
-alter table "better_supabase"."notification_events" add constraint "notification_events_priority_check"
+alter table "better_supabase"."notification_events" add constraint bsb_notification_events_priority_check
   check ("priority" in ('low', 'normal', 'high', 'urgent'));
 alter table "better_supabase"."notification_events" enable row level security;
 revoke all on "better_supabase"."notification_events" from public, anon, authenticated;
@@ -4939,7 +4939,7 @@ create table "better_supabase"."notification_deliveries" (
   "recipient_id" uuid not null references "better_supabase"."notification_recipients" ("id") on delete cascade,
   "organization_id" uuid,
   "channel" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
+  "status" text not null default 'pending' constraint bsb_notification_deliveries_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
   "provider" text,
   "provider_message_id" text,
   "error" text,
@@ -4972,7 +4972,7 @@ create table "better_supabase"."notification_subscriptions" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "subject_type" text not null,
   "subject_id" text not null,
-  "level" text not null default 'participating' check ("level" in ('participating', 'all', 'ignore')),
+  "level" text not null default 'participating' constraint bsb_notification_subscriptions_level_check check ("level" in ('participating', 'all', 'ignore')),
   "created_at" timestamptz not null default now(),
   unique nulls not distinct ("organization_id", "user_id", "subject_type", "subject_id")
 );
@@ -5007,7 +5007,7 @@ create table "better_supabase"."notification_preferences" (
   "type" text not null,
   "channel" text not null,
   "enabled" boolean not null default true,
-  "cadence" text not null default 'immediate' check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
+  "cadence" text not null default 'immediate' constraint bsb_notification_preferences_cadence_check check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
   "created_at" timestamptz not null default now(),
   unique nulls not distinct ("user_id", "organization_id", "type", "channel")
 );
@@ -5036,9 +5036,9 @@ create policy "bsb_notification_preferences_own_delete" on "better_supabase"."no
 create table "better_supabase"."notification_suppressions" (
   "id" uuid primary key default gen_random_uuid(),
   "channel" text not null default 'email',
-  "address" text not null check ("address" = lower("address")),
+  "address" text not null constraint bsb_notification_suppressions_address_check check ("address" = lower("address")),
   "user_id" uuid references auth.users (id) on delete cascade,
-  "reason" text not null check ("reason" in ('bounce', 'complaint', 'manual')),
+  "reason" text not null constraint bsb_notification_suppressions_reason_check check ("reason" in ('bounce', 'complaint', 'manual')),
   "provider" text,
   "provider_event_id" text,
   "detail" jsonb not null default '{}',
@@ -5054,7 +5054,7 @@ create policy bsb_notification_suppressions_read on "better_supabase"."notificat
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
-alter table "better_supabase"."notification_deliveries" add column "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
+alter table "better_supabase"."notification_deliveries" add column "provider_status" text constraint bsb_notification_deliveries_provider_status_check check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
 alter table "better_supabase"."notification_deliveries" add column "provider_status_at" timestamptz;
 alter table "better_supabase"."notification_deliveries" add column "template_key" text;
 create index notification_deliveries_provider_message_idx on "better_supabase"."notification_deliveries" ("provider", "provider_message_id") where "provider_message_id" is not null;
@@ -5063,7 +5063,7 @@ create table "better_supabase"."notification_delivery_events" (
   "id" uuid primary key default gen_random_uuid(),
   "delivery_id" uuid not null references "better_supabase"."notification_deliveries" ("id") on delete cascade,
   "organization_id" uuid,
-  "kind" text not null check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
+  "kind" text not null constraint bsb_notification_delivery_events_kind_check check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
   "provider" text,
   "provider_event_id" text unique,
   "occurred_at" timestamptz not null default now(),
@@ -5091,10 +5091,10 @@ create table "better_supabase"."notification_digests" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "organization_id" uuid,
   "channel" text not null,
-  "cadence" text not null check ("cadence" in ('daily', 'weekly')),
+  "cadence" text not null constraint bsb_notification_digests_cadence_check check ("cadence" in ('daily', 'weekly')),
   "items" jsonb not null,
   "item_count" integer not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "status" text not null default 'pending' constraint bsb_notification_digests_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped')),
   "attempts" integer not null default 0,
   "attempted_at" timestamptz,
   "error" text,
@@ -6728,7 +6728,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:ab6d488c9498bffef2a0dac004714651be1ab60601d63b407add930f0871fb67
+-- @bsb-hash sha256:6e16bf1a15a466701e6f459577326d0581ffc9d0afc0b09de6b4f7a3e37f8db2
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6810,7 +6810,7 @@ alter table "better_supabase"."notification_deliveries" add column if not exists
 alter table "better_supabase"."notification_deliveries" add column if not exists "recipient_id" uuid references "better_supabase"."notification_recipients" ("id") on delete cascade;
 alter table "better_supabase"."notification_deliveries" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."notification_deliveries" add column if not exists "channel" text;
-alter table "better_supabase"."notification_deliveries" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested'));
+alter table "better_supabase"."notification_deliveries" add column if not exists "status" text not null default 'pending' constraint bsb_notification_deliveries_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested'));
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider" text;
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider_message_id" text;
 alter table "better_supabase"."notification_deliveries" add column if not exists "error" text;
@@ -6840,7 +6840,7 @@ alter table "better_supabase"."notification_subscriptions" add column if not exi
 alter table "better_supabase"."notification_subscriptions" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."notification_subscriptions" add column if not exists "subject_type" text;
 alter table "better_supabase"."notification_subscriptions" add column if not exists "subject_id" text;
-alter table "better_supabase"."notification_subscriptions" add column if not exists "level" text not null default 'participating' check ("level" in ('participating', 'all', 'ignore'));
+alter table "better_supabase"."notification_subscriptions" add column if not exists "level" text not null default 'participating' constraint bsb_notification_subscriptions_level_check check ("level" in ('participating', 'all', 'ignore'));
 alter table "better_supabase"."notification_subscriptions" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists notification_subscriptions_user_idx on "better_supabase"."notification_subscriptions" ("user_id");
 create index if not exists notification_subscriptions_subject_idx on "better_supabase"."notification_subscriptions" ("organization_id", "subject_type", "subject_id");
@@ -6872,7 +6872,7 @@ alter table "better_supabase"."notification_preferences" add column if not exist
 alter table "better_supabase"."notification_preferences" add column if not exists "type" text;
 alter table "better_supabase"."notification_preferences" add column if not exists "channel" text;
 alter table "better_supabase"."notification_preferences" add column if not exists "enabled" boolean not null default true;
-alter table "better_supabase"."notification_preferences" add column if not exists "cadence" text not null default 'immediate' check ("cadence" in ('immediate', 'daily', 'weekly', 'off'));
+alter table "better_supabase"."notification_preferences" add column if not exists "cadence" text not null default 'immediate' constraint bsb_notification_preferences_cadence_check check ("cadence" in ('immediate', 'daily', 'weekly', 'off'));
 alter table "better_supabase"."notification_preferences" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."notification_preferences" add column if not exists "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."notification_preferences"
@@ -6898,9 +6898,9 @@ create policy "bsb_notification_preferences_own_delete" on "better_supabase"."no
 create table "better_supabase"."notification_suppressions" (
   "id" uuid primary key default gen_random_uuid(),
   "channel" text not null default 'email',
-  "address" text not null check ("address" = lower("address")),
+  "address" text not null constraint bsb_notification_suppressions_address_check check ("address" = lower("address")),
   "user_id" uuid references auth.users (id) on delete cascade,
-  "reason" text not null check ("reason" in ('bounce', 'complaint', 'manual')),
+  "reason" text not null constraint bsb_notification_suppressions_reason_check check ("reason" in ('bounce', 'complaint', 'manual')),
   "provider" text,
   "provider_event_id" text,
   "detail" jsonb not null default '{}',
@@ -6916,7 +6916,7 @@ create policy bsb_notification_suppressions_read on "better_supabase"."notificat
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
-alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
+alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status" text constraint bsb_notification_deliveries_provider_status_check check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider_status_at" timestamptz;
 alter table "better_supabase"."notification_deliveries" add column if not exists "template_key" text;
 create index if not exists notification_deliveries_provider_message_idx on "better_supabase"."notification_deliveries" ("provider", "provider_message_id") where "provider_message_id" is not null;
@@ -6925,7 +6925,7 @@ create table "better_supabase"."notification_delivery_events" (
   "id" uuid primary key default gen_random_uuid(),
   "delivery_id" uuid not null references "better_supabase"."notification_deliveries" ("id") on delete cascade,
   "organization_id" uuid,
-  "kind" text not null check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
+  "kind" text not null constraint bsb_notification_delivery_events_kind_check check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
   "provider" text,
   "provider_event_id" text unique,
   "occurred_at" timestamptz not null default now(),
@@ -6953,10 +6953,10 @@ create table "better_supabase"."notification_digests" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "organization_id" uuid,
   "channel" text not null,
-  "cadence" text not null check ("cadence" in ('daily', 'weekly')),
+  "cadence" text not null constraint bsb_notification_digests_cadence_check check ("cadence" in ('daily', 'weekly')),
   "items" jsonb not null,
   "item_count" integer not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "status" text not null default 'pending' constraint bsb_notification_digests_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped')),
   "attempts" integer not null default 0,
   "attempted_at" timestamptz,
   "error" text,
@@ -8302,7 +8302,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:a257a73d53264ddbe857f07b3846a4090241f42746b7699df4aa95e02c4a4b3b
+-- @bsb-hash sha256:5d1d83195dfe920f13111d3002b2898c474340bc0ab28eb55645629242f7b15c
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8333,14 +8333,14 @@ do $$
 begin
   if exists (
     select 1 from pg_constraint k, unnest(array['low', 'normal', 'high', 'urgent']::text[]) p
-    where k.conrelid = '"better_supabase"."notification_events"'::regclass and k.conname = 'notification_events_priority_check'
+    where k.conrelid = '"better_supabase"."notification_events"'::regclass and k.conname = 'bsb_notification_events_priority_check'
       and pg_get_constraintdef(k.oid) not like '%' || quote_literal(p) || '%'
   ) then
-    alter table "better_supabase"."notification_events" drop constraint "notification_events_priority_check";
+    alter table "better_supabase"."notification_events" drop constraint bsb_notification_events_priority_check;
   end if;
 end;
 $$;
-alter table "better_supabase"."notification_events" add constraint "notification_events_priority_check"
+alter table "better_supabase"."notification_events" add constraint bsb_notification_events_priority_check
   check ("priority" in ('low', 'normal', 'high', 'urgent'));
 alter table "better_supabase"."notification_events" enable row level security;
 revoke all on "better_supabase"."notification_events" from public, anon, authenticated;
@@ -8390,7 +8390,7 @@ create table "better_supabase"."notification_deliveries" (
   "recipient_id" uuid not null references "better_supabase"."notification_recipients" ("id") on delete cascade,
   "org_id" uuid,
   "channel" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
+  "status" text not null default 'pending' constraint bsb_notification_deliveries_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
   "provider" text,
   "provider_message_id" text,
   "error" text,
@@ -8423,7 +8423,7 @@ create table "better_supabase"."notification_subscriptions" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "subject_type" text not null,
   "subject_id" text not null,
-  "level" text not null default 'participating' check ("level" in ('participating', 'all', 'ignore')),
+  "level" text not null default 'participating' constraint bsb_notification_subscriptions_level_check check ("level" in ('participating', 'all', 'ignore')),
   "created_at" timestamptz not null default now(),
   unique nulls not distinct ("org_id", "user_id", "subject_type", "subject_id")
 );
@@ -8458,7 +8458,7 @@ create table "better_supabase"."notification_preferences" (
   "type" text not null,
   "channel" text not null,
   "enabled" boolean not null default true,
-  "cadence" text not null default 'immediate' check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
+  "cadence" text not null default 'immediate' constraint bsb_notification_preferences_cadence_check check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
   "created_at" timestamptz not null default now(),
   unique nulls not distinct ("user_id", "org_id", "type", "channel")
 );
@@ -8487,9 +8487,9 @@ create policy "bsb_notification_preferences_own_delete" on "better_supabase"."no
 create table "better_supabase"."notification_suppressions" (
   "id" uuid primary key default gen_random_uuid(),
   "channel" text not null default 'email',
-  "address" text not null check ("address" = lower("address")),
+  "address" text not null constraint bsb_notification_suppressions_address_check check ("address" = lower("address")),
   "user_id" uuid references auth.users (id) on delete cascade,
-  "reason" text not null check ("reason" in ('bounce', 'complaint', 'manual')),
+  "reason" text not null constraint bsb_notification_suppressions_reason_check check ("reason" in ('bounce', 'complaint', 'manual')),
   "provider" text,
   "provider_event_id" text,
   "detail" jsonb not null default '{}',
@@ -8505,7 +8505,7 @@ create policy bsb_notification_suppressions_read on "better_supabase"."notificat
   for select to authenticated
   using ("user_id" = (select auth.uid()));
 
-alter table "better_supabase"."notification_deliveries" add column "provider_status" text check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
+alter table "better_supabase"."notification_deliveries" add column "provider_status" text constraint bsb_notification_deliveries_provider_status_check check ("provider_status" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained'));
 alter table "better_supabase"."notification_deliveries" add column "provider_status_at" timestamptz;
 alter table "better_supabase"."notification_deliveries" add column "template_key" text;
 create index notification_deliveries_provider_message_idx on "better_supabase"."notification_deliveries" ("provider", "provider_message_id") where "provider_message_id" is not null;
@@ -8514,7 +8514,7 @@ create table "better_supabase"."notification_delivery_events" (
   "id" uuid primary key default gen_random_uuid(),
   "delivery_id" uuid not null references "better_supabase"."notification_deliveries" ("id") on delete cascade,
   "org_id" uuid,
-  "kind" text not null check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
+  "kind" text not null constraint bsb_notification_delivery_events_kind_check check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
   "provider" text,
   "provider_event_id" text unique,
   "occurred_at" timestamptz not null default now(),
@@ -8542,10 +8542,10 @@ create table "better_supabase"."notification_digests" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "org_id" uuid,
   "channel" text not null,
-  "cadence" text not null check ("cadence" in ('daily', 'weekly')),
+  "cadence" text not null constraint bsb_notification_digests_cadence_check check ("cadence" in ('daily', 'weekly')),
   "items" jsonb not null,
   "item_count" integer not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'sent', 'failed', 'skipped')),
+  "status" text not null default 'pending' constraint bsb_notification_digests_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped')),
   "attempts" integer not null default 0,
   "attempted_at" timestamptz,
   "error" text,

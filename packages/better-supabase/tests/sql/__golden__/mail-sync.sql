@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:4833b75b5d119bf0e7089d54ab07ea006462cd0bab9c9fb58c1ab9a725918871
+-- @bsb-hash sha256:d4c4119018ed35df92f4a76615092f8f03d0773a30f564be1c310c0b6cfea877
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,11 +12,11 @@ create table "better_supabase"."mail_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "provider" text not null check ("provider" ~ '^[a-z][a-z0-9-]{0,39}$'),
-  "address" text not null check ("address" = lower("address") and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
-  "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object'),
-  "share" text not null default 'records' check ("share" in ('records', 'private')),
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'error', 'disconnected')),
+  "provider" text not null constraint bsb_mail_accounts_provider_check check ("provider" ~ '^[a-z][a-z0-9-]{0,39}$'),
+  "address" text not null constraint bsb_mail_accounts_address_check check ("address" = lower("address") and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "credential_ref" jsonb not null constraint bsb_mail_accounts_credential_ref_check check (jsonb_typeof("credential_ref") = 'object'),
+  "share" text not null default 'records' constraint bsb_mail_accounts_share_check check ("share" in ('records', 'private')),
+  "status" text not null default 'active' constraint bsb_mail_accounts_status_check check ("status" in ('active', 'paused', 'error', 'disconnected')),
   "sync_cursor" text,
   "last_synced_at" timestamptz,
   "last_error" text,
@@ -57,7 +57,7 @@ create table "better_supabase"."mail_messages" (
   "thread_id" uuid not null references "better_supabase"."mail_threads" ("id") on delete cascade,
   "external_id" text not null,
   "rfc_message_id" text,
-  "direction" text not null check ("direction" in ('inbound', 'outbound')),
+  "direction" text not null constraint bsb_mail_messages_direction_check check ("direction" in ('inbound', 'outbound')),
   "from_address" text,
   "from_name" text,
   "to_addresses" text[] not null default '{}',
@@ -68,7 +68,7 @@ create table "better_supabase"."mail_messages" (
   "body_html" text,
   "sent_at" timestamptz not null,
   "template_version_id" uuid,
-  "tracking_hash" text check ("tracking_hash" ~ '^[0-9a-f]{64}$'),
+  "tracking_hash" text constraint bsb_mail_messages_tracking_hash_check check ("tracking_hash" ~ '^[0-9a-f]{64}$'),
   "opened_at" timestamptz,
   "open_count" integer not null default 0,
   "clicked_at" timestamptz,
@@ -87,8 +87,8 @@ grant all on "better_supabase"."mail_messages" to service_role;
 create table "better_supabase"."mail_tracked_links" (
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."mail_messages" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 0),
-  "url" text not null check ("url" ~* '^https?://' and length("url") <= 2048),
+  "position" integer not null constraint bsb_mail_tracked_links_position_check check ("position" >= 0),
+  "url" text not null constraint bsb_mail_tracked_links_url_check check ("url" ~* '^https?://' and length("url") <= 2048),
   "click_count" integer not null default 0,
   "created_at" timestamptz not null default now(),
   primary key ("message_id", "position")
@@ -101,9 +101,9 @@ create table "better_supabase"."mail_tracking_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."mail_messages" ("id") on delete cascade,
-  "kind" text not null check ("kind" in ('open', 'click')),
+  "kind" text not null constraint bsb_mail_tracking_events_kind_check check ("kind" in ('open', 'click')),
   "position" integer,
-  "user_agent" text check (length("user_agent") <= 300),
+  "user_agent" text constraint bsb_mail_tracking_events_user_agent_check check (length("user_agent") <= 300),
   "occurred_at" timestamptz not null default now()
 );
 create index mail_tracking_events_message_idx on "better_supabase"."mail_tracking_events" ("message_id", "occurred_at");
@@ -116,7 +116,7 @@ create table "better_supabase"."mail_thread_subjects" (
   "thread_id" uuid not null references "better_supabase"."mail_threads" ("id") on delete cascade,
   "subject_type" text not null,
   "subject_id" text not null,
-  "source" text not null default 'match' check ("source" in ('match', 'manual')),
+  "source" text not null default 'match' constraint bsb_mail_thread_subjects_source_check check ("source" in ('match', 'manual')),
   "created_at" timestamptz not null default now(),
   primary key ("thread_id", "subject_type", "subject_id")
 );
@@ -893,7 +893,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:1902a7fda55c3a49c1ebb2bcae16d8496de2695ac0a39f89d9269785d5dbd921
+-- @bsb-hash sha256:df4d92217556e77d69209f086210e328e73ad1b9baa2eebf42b46f8a685cc90d
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -904,11 +904,11 @@ create table "better_supabase"."mail_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "provider" text not null check ("provider" ~ '^[a-z][a-z0-9-]{0,39}$'),
-  "address" text not null check ("address" = lower("address") and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
-  "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object'),
-  "share" text not null default 'records' check ("share" in ('records', 'private')),
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'error', 'disconnected')),
+  "provider" text not null constraint bsb_mail_accounts_provider_check check ("provider" ~ '^[a-z][a-z0-9-]{0,39}$'),
+  "address" text not null constraint bsb_mail_accounts_address_check check ("address" = lower("address") and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "credential_ref" jsonb not null constraint bsb_mail_accounts_credential_ref_check check (jsonb_typeof("credential_ref") = 'object'),
+  "share" text not null default 'records' constraint bsb_mail_accounts_share_check check ("share" in ('records', 'private')),
+  "status" text not null default 'active' constraint bsb_mail_accounts_status_check check ("status" in ('active', 'paused', 'error', 'disconnected')),
   "sync_cursor" text,
   "last_synced_at" timestamptz,
   "last_error" text,
@@ -949,7 +949,7 @@ create table "better_supabase"."mail_messages" (
   "thread_id" uuid not null references "better_supabase"."mail_threads" ("id") on delete cascade,
   "external_id" text not null,
   "rfc_message_id" text,
-  "direction" text not null check ("direction" in ('inbound', 'outbound')),
+  "direction" text not null constraint bsb_mail_messages_direction_check check ("direction" in ('inbound', 'outbound')),
   "from_address" text,
   "from_name" text,
   "to_addresses" text[] not null default '{}',
@@ -960,7 +960,7 @@ create table "better_supabase"."mail_messages" (
   "body_html" text,
   "sent_at" timestamptz not null,
   "template_version_id" uuid,
-  "tracking_hash" text check ("tracking_hash" ~ '^[0-9a-f]{64}$'),
+  "tracking_hash" text constraint bsb_mail_messages_tracking_hash_check check ("tracking_hash" ~ '^[0-9a-f]{64}$'),
   "opened_at" timestamptz,
   "open_count" integer not null default 0,
   "clicked_at" timestamptz,
@@ -979,8 +979,8 @@ grant all on "better_supabase"."mail_messages" to service_role;
 create table "better_supabase"."mail_tracked_links" (
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."mail_messages" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 0),
-  "url" text not null check ("url" ~* '^https?://' and length("url") <= 2048),
+  "position" integer not null constraint bsb_mail_tracked_links_position_check check ("position" >= 0),
+  "url" text not null constraint bsb_mail_tracked_links_url_check check ("url" ~* '^https?://' and length("url") <= 2048),
   "click_count" integer not null default 0,
   "created_at" timestamptz not null default now(),
   primary key ("message_id", "position")
@@ -993,9 +993,9 @@ create table "better_supabase"."mail_tracking_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."mail_messages" ("id") on delete cascade,
-  "kind" text not null check ("kind" in ('open', 'click')),
+  "kind" text not null constraint bsb_mail_tracking_events_kind_check check ("kind" in ('open', 'click')),
   "position" integer,
-  "user_agent" text check (length("user_agent") <= 300),
+  "user_agent" text constraint bsb_mail_tracking_events_user_agent_check check (length("user_agent") <= 300),
   "occurred_at" timestamptz not null default now()
 );
 create index mail_tracking_events_message_idx on "better_supabase"."mail_tracking_events" ("message_id", "occurred_at");
@@ -1008,7 +1008,7 @@ create table "better_supabase"."mail_thread_subjects" (
   "thread_id" uuid not null references "better_supabase"."mail_threads" ("id") on delete cascade,
   "subject_type" text not null,
   "subject_id" text not null,
-  "source" text not null default 'match' check ("source" in ('match', 'manual')),
+  "source" text not null default 'match' constraint bsb_mail_thread_subjects_source_check check ("source" in ('match', 'manual')),
   "created_at" timestamptz not null default now(),
   primary key ("thread_id", "subject_type", "subject_id")
 );
@@ -1896,7 +1896,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:17934cb51d506349fb82d009c7fcb5d514362c415b6c652cdd87aa197292ff72
+-- @bsb-hash sha256:d08a2db8da3690bce96704dd1e740737309ff3e058119bd3ac480db60ab6bba4
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1912,11 +1912,11 @@ create table "app_private"."mail_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "provider" text not null check ("provider" ~ '^[a-z][a-z0-9-]{0,39}$'),
-  "address" text not null check ("address" = lower("address") and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
-  "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object'),
-  "share" text not null default 'records' check ("share" in ('records', 'private')),
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'error', 'disconnected')),
+  "provider" text not null constraint bsb_mail_accounts_provider_check check ("provider" ~ '^[a-z][a-z0-9-]{0,39}$'),
+  "address" text not null constraint bsb_mail_accounts_address_check check ("address" = lower("address") and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "credential_ref" jsonb not null constraint bsb_mail_accounts_credential_ref_check check (jsonb_typeof("credential_ref") = 'object'),
+  "share" text not null default 'records' constraint bsb_mail_accounts_share_check check ("share" in ('records', 'private')),
+  "status" text not null default 'active' constraint bsb_mail_accounts_status_check check ("status" in ('active', 'paused', 'error', 'disconnected')),
   "sync_cursor" text,
   "last_synced_at" timestamptz,
   "last_error" text,
@@ -1957,7 +1957,7 @@ create table "app_private"."mail_messages" (
   "thread_id" uuid not null references "app_private"."mail_threads" ("id") on delete cascade,
   "external_id" text not null,
   "rfc_message_id" text,
-  "direction" text not null check ("direction" in ('inbound', 'outbound')),
+  "direction" text not null constraint bsb_mail_messages_direction_check check ("direction" in ('inbound', 'outbound')),
   "from_address" text,
   "from_name" text,
   "to_addresses" text[] not null default '{}',
@@ -1968,7 +1968,7 @@ create table "app_private"."mail_messages" (
   "body_html" text,
   "sent_at" timestamptz not null,
   "template_version_id" uuid,
-  "tracking_hash" text check ("tracking_hash" ~ '^[0-9a-f]{64}$'),
+  "tracking_hash" text constraint bsb_mail_messages_tracking_hash_check check ("tracking_hash" ~ '^[0-9a-f]{64}$'),
   "opened_at" timestamptz,
   "open_count" integer not null default 0,
   "clicked_at" timestamptz,
@@ -1987,8 +1987,8 @@ grant all on "app_private"."mail_messages" to service_role;
 create table "app_private"."mail_tracked_links" (
   "tenant_id" uuid not null,
   "message_id" uuid not null references "app_private"."mail_messages" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 0),
-  "url" text not null check ("url" ~* '^https?://' and length("url") <= 2048),
+  "position" integer not null constraint bsb_mail_tracked_links_position_check check ("position" >= 0),
+  "url" text not null constraint bsb_mail_tracked_links_url_check check ("url" ~* '^https?://' and length("url") <= 2048),
   "click_count" integer not null default 0,
   "created_at" timestamptz not null default now(),
   primary key ("message_id", "position")
@@ -2001,9 +2001,9 @@ create table "app_private"."mail_tracking_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "message_id" uuid not null references "app_private"."mail_messages" ("id") on delete cascade,
-  "kind" text not null check ("kind" in ('open', 'click')),
+  "kind" text not null constraint bsb_mail_tracking_events_kind_check check ("kind" in ('open', 'click')),
   "position" integer,
-  "user_agent" text check (length("user_agent") <= 300),
+  "user_agent" text constraint bsb_mail_tracking_events_user_agent_check check (length("user_agent") <= 300),
   "occurred_at" timestamptz not null default now()
 );
 create index mail_tracking_events_message_idx on "app_private"."mail_tracking_events" ("message_id", "occurred_at");
@@ -2016,7 +2016,7 @@ create table "app_private"."mail_thread_subjects" (
   "thread_id" uuid not null references "app_private"."mail_threads" ("id") on delete cascade,
   "subject_type" text not null,
   "subject_id" text not null,
-  "source" text not null default 'match' check ("source" in ('match', 'manual')),
+  "source" text not null default 'match' constraint bsb_mail_thread_subjects_source_check check ("source" in ('match', 'manual')),
   "created_at" timestamptz not null default now(),
   primary key ("thread_id", "subject_type", "subject_id")
 );
@@ -2793,7 +2793,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:b2eeb3af298bc773397b7b98cad62d6c30cbd79a0c453a8bc34c1886566d4525
+-- @bsb-hash sha256:15556e0c5e0b20852e70b83740331e262849c283ab89862f6881e248a3a4b5e6
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2804,11 +2804,11 @@ create table "better_supabase"."mail_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "provider" text not null check ("provider" ~ '^[a-z][a-z0-9-]{0,39}$'),
-  "address" text not null check ("address" = lower("address") and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
-  "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object'),
-  "share" text not null default 'records' check ("share" in ('records', 'private')),
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'error', 'disconnected')),
+  "provider" text not null constraint bsb_mail_accounts_provider_check check ("provider" ~ '^[a-z][a-z0-9-]{0,39}$'),
+  "address" text not null constraint bsb_mail_accounts_address_check check ("address" = lower("address") and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "credential_ref" jsonb not null constraint bsb_mail_accounts_credential_ref_check check (jsonb_typeof("credential_ref") = 'object'),
+  "share" text not null default 'records' constraint bsb_mail_accounts_share_check check ("share" in ('records', 'private')),
+  "status" text not null default 'active' constraint bsb_mail_accounts_status_check check ("status" in ('active', 'paused', 'error', 'disconnected')),
   "sync_cursor" text,
   "last_synced_at" timestamptz,
   "last_error" text,
@@ -2849,7 +2849,7 @@ create table "better_supabase"."mail_messages" (
   "thread_id" uuid not null references "better_supabase"."mail_threads" ("id") on delete cascade,
   "external_id" text not null,
   "rfc_message_id" text,
-  "direction" text not null check ("direction" in ('inbound', 'outbound')),
+  "direction" text not null constraint bsb_mail_messages_direction_check check ("direction" in ('inbound', 'outbound')),
   "from_address" text,
   "from_name" text,
   "to_addresses" text[] not null default '{}',
@@ -2860,7 +2860,7 @@ create table "better_supabase"."mail_messages" (
   "body_html" text,
   "sent_at" timestamptz not null,
   "template_version_id" uuid,
-  "tracking_hash" text check ("tracking_hash" ~ '^[0-9a-f]{64}$'),
+  "tracking_hash" text constraint bsb_mail_messages_tracking_hash_check check ("tracking_hash" ~ '^[0-9a-f]{64}$'),
   "opened_at" timestamptz,
   "open_count" integer not null default 0,
   "clicked_at" timestamptz,
@@ -2879,8 +2879,8 @@ grant all on "better_supabase"."mail_messages" to service_role;
 create table "better_supabase"."mail_tracked_links" (
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."mail_messages" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 0),
-  "url" text not null check ("url" ~* '^https?://' and length("url") <= 2048),
+  "position" integer not null constraint bsb_mail_tracked_links_position_check check ("position" >= 0),
+  "url" text not null constraint bsb_mail_tracked_links_url_check check ("url" ~* '^https?://' and length("url") <= 2048),
   "click_count" integer not null default 0,
   "created_at" timestamptz not null default now(),
   primary key ("message_id", "position")
@@ -2893,9 +2893,9 @@ create table "better_supabase"."mail_tracking_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."mail_messages" ("id") on delete cascade,
-  "kind" text not null check ("kind" in ('open', 'click')),
+  "kind" text not null constraint bsb_mail_tracking_events_kind_check check ("kind" in ('open', 'click')),
   "position" integer,
-  "user_agent" text check (length("user_agent") <= 300),
+  "user_agent" text constraint bsb_mail_tracking_events_user_agent_check check (length("user_agent") <= 300),
   "occurred_at" timestamptz not null default now()
 );
 create index mail_tracking_events_message_idx on "better_supabase"."mail_tracking_events" ("message_id", "occurred_at");
@@ -2908,7 +2908,7 @@ create table "better_supabase"."mail_thread_subjects" (
   "thread_id" uuid not null references "better_supabase"."mail_threads" ("id") on delete cascade,
   "subject_type" text not null,
   "subject_id" text not null,
-  "source" text not null default 'match' check ("source" in ('match', 'manual')),
+  "source" text not null default 'match' constraint bsb_mail_thread_subjects_source_check check ("source" in ('match', 'manual')),
   "created_at" timestamptz not null default now(),
   primary key ("thread_id", "subject_type", "subject_id")
 );
@@ -3850,7 +3850,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:ce99156a8e7641aba1dff9da24c5e1cd90897560e08aa8149ac79c82c3612c0d
+-- @bsb-hash sha256:b7eb27ade715feaec78569f56badfa92dc3b79c0cde7c6380db4c63e3231259b
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3861,11 +3861,11 @@ on conflict (name) do update
 alter table "better_supabase"."mail_accounts" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."mail_accounts" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."mail_accounts" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."mail_accounts" add column if not exists "provider" text check ("provider" ~ '^[a-z][a-z0-9-]{0,39}$');
-alter table "better_supabase"."mail_accounts" add column if not exists "address" text check ("address" = lower("address") and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$');
-alter table "better_supabase"."mail_accounts" add column if not exists "credential_ref" jsonb check (jsonb_typeof("credential_ref") = 'object');
-alter table "better_supabase"."mail_accounts" add column if not exists "share" text not null default 'records' check ("share" in ('records', 'private'));
-alter table "better_supabase"."mail_accounts" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'paused', 'error', 'disconnected'));
+alter table "better_supabase"."mail_accounts" add column if not exists "provider" text constraint bsb_mail_accounts_provider_check check ("provider" ~ '^[a-z][a-z0-9-]{0,39}$');
+alter table "better_supabase"."mail_accounts" add column if not exists "address" text constraint bsb_mail_accounts_address_check check ("address" = lower("address") and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$');
+alter table "better_supabase"."mail_accounts" add column if not exists "credential_ref" jsonb constraint bsb_mail_accounts_credential_ref_check check (jsonb_typeof("credential_ref") = 'object');
+alter table "better_supabase"."mail_accounts" add column if not exists "share" text not null default 'records' constraint bsb_mail_accounts_share_check check ("share" in ('records', 'private'));
+alter table "better_supabase"."mail_accounts" add column if not exists "status" text not null default 'active' constraint bsb_mail_accounts_status_check check ("status" in ('active', 'paused', 'error', 'disconnected'));
 alter table "better_supabase"."mail_accounts" add column if not exists "sync_cursor" text;
 alter table "better_supabase"."mail_accounts" add column if not exists "last_synced_at" timestamptz;
 alter table "better_supabase"."mail_accounts" add column if not exists "last_error" text;
@@ -3902,7 +3902,7 @@ alter table "better_supabase"."mail_messages" add column if not exists "account_
 alter table "better_supabase"."mail_messages" add column if not exists "thread_id" uuid references "better_supabase"."mail_threads" ("id") on delete cascade;
 alter table "better_supabase"."mail_messages" add column if not exists "external_id" text;
 alter table "better_supabase"."mail_messages" add column if not exists "rfc_message_id" text;
-alter table "better_supabase"."mail_messages" add column if not exists "direction" text check ("direction" in ('inbound', 'outbound'));
+alter table "better_supabase"."mail_messages" add column if not exists "direction" text constraint bsb_mail_messages_direction_check check ("direction" in ('inbound', 'outbound'));
 alter table "better_supabase"."mail_messages" add column if not exists "from_address" text;
 alter table "better_supabase"."mail_messages" add column if not exists "from_name" text;
 alter table "better_supabase"."mail_messages" add column if not exists "to_addresses" text[] not null default '{}';
@@ -3913,7 +3913,7 @@ alter table "better_supabase"."mail_messages" add column if not exists "body_tex
 alter table "better_supabase"."mail_messages" add column if not exists "body_html" text;
 alter table "better_supabase"."mail_messages" add column if not exists "sent_at" timestamptz;
 alter table "better_supabase"."mail_messages" add column if not exists "template_version_id" uuid;
-alter table "better_supabase"."mail_messages" add column if not exists "tracking_hash" text check ("tracking_hash" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."mail_messages" add column if not exists "tracking_hash" text constraint bsb_mail_messages_tracking_hash_check check ("tracking_hash" ~ '^[0-9a-f]{64}$');
 alter table "better_supabase"."mail_messages" add column if not exists "opened_at" timestamptz;
 alter table "better_supabase"."mail_messages" add column if not exists "open_count" integer not null default 0;
 alter table "better_supabase"."mail_messages" add column if not exists "clicked_at" timestamptz;
@@ -3929,8 +3929,8 @@ grant all on "better_supabase"."mail_messages" to service_role;
 -- better_supabase.mail_tracked_links is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."mail_tracked_links" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."mail_tracked_links" add column if not exists "message_id" uuid references "better_supabase"."mail_messages" ("id") on delete cascade;
-alter table "better_supabase"."mail_tracked_links" add column if not exists "position" integer check ("position" >= 0);
-alter table "better_supabase"."mail_tracked_links" add column if not exists "url" text check ("url" ~* '^https?://' and length("url") <= 2048);
+alter table "better_supabase"."mail_tracked_links" add column if not exists "position" integer constraint bsb_mail_tracked_links_position_check check ("position" >= 0);
+alter table "better_supabase"."mail_tracked_links" add column if not exists "url" text constraint bsb_mail_tracked_links_url_check check ("url" ~* '^https?://' and length("url") <= 2048);
 alter table "better_supabase"."mail_tracked_links" add column if not exists "click_count" integer not null default 0;
 alter table "better_supabase"."mail_tracked_links" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."mail_tracked_links" enable row level security;
@@ -3940,9 +3940,9 @@ grant all on "better_supabase"."mail_tracked_links" to service_role;
 alter table "better_supabase"."mail_tracking_events" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."mail_tracking_events" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."mail_tracking_events" add column if not exists "message_id" uuid references "better_supabase"."mail_messages" ("id") on delete cascade;
-alter table "better_supabase"."mail_tracking_events" add column if not exists "kind" text check ("kind" in ('open', 'click'));
+alter table "better_supabase"."mail_tracking_events" add column if not exists "kind" text constraint bsb_mail_tracking_events_kind_check check ("kind" in ('open', 'click'));
 alter table "better_supabase"."mail_tracking_events" add column if not exists "position" integer;
-alter table "better_supabase"."mail_tracking_events" add column if not exists "user_agent" text check (length("user_agent") <= 300);
+alter table "better_supabase"."mail_tracking_events" add column if not exists "user_agent" text constraint bsb_mail_tracking_events_user_agent_check check (length("user_agent") <= 300);
 alter table "better_supabase"."mail_tracking_events" add column if not exists "occurred_at" timestamptz not null default now();
 create index if not exists mail_tracking_events_message_idx on "better_supabase"."mail_tracking_events" ("message_id", "occurred_at");
 alter table "better_supabase"."mail_tracking_events" enable row level security;
@@ -3953,7 +3953,7 @@ alter table "better_supabase"."mail_thread_subjects" add column if not exists "t
 alter table "better_supabase"."mail_thread_subjects" add column if not exists "thread_id" uuid references "better_supabase"."mail_threads" ("id") on delete cascade;
 alter table "better_supabase"."mail_thread_subjects" add column if not exists "subject_type" text;
 alter table "better_supabase"."mail_thread_subjects" add column if not exists "subject_id" text;
-alter table "better_supabase"."mail_thread_subjects" add column if not exists "source" text not null default 'match' check ("source" in ('match', 'manual'));
+alter table "better_supabase"."mail_thread_subjects" add column if not exists "source" text not null default 'match' constraint bsb_mail_thread_subjects_source_check check ("source" in ('match', 'manual'));
 alter table "better_supabase"."mail_thread_subjects" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_mail_thread_subjects_subject_key" on "better_supabase"."mail_thread_subjects" ("thread_id", "subject_type", "subject_id");
 create index if not exists mail_thread_subjects_subject_idx on "better_supabase"."mail_thread_subjects" ("subject_type", "subject_id");
@@ -4728,7 +4728,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_132_mail_sync.sql
 -- better-supabase module: mail-sync
 -- @bsb-block mail-sync@2 managed
--- @bsb-hash sha256:37330de7aa9903dbb7665f01e923bf34fe78127a8a099200321887e1234c89ae
+-- @bsb-hash sha256:d700b73ae270fe9fcdc033169be9f736fb988815815afb0ccaf691cd86ca6d78
 -- Gmail, Outlook and other mailboxes synced per member through their own OAuth grant: threads and messages linked to the people and companies they involve, logged as email engagements, and a record of the mail members send, with opens and clicks per message and per template version.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4739,11 +4739,11 @@ create table "better_supabase"."mail_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "provider" text not null check ("provider" ~ '^[a-z][a-z0-9-]{0,39}$'),
-  "address" text not null check ("address" = lower("address") and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
-  "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object'),
-  "share" text not null default 'records' check ("share" in ('records', 'private')),
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'error', 'disconnected')),
+  "provider" text not null constraint bsb_mail_accounts_provider_check check ("provider" ~ '^[a-z][a-z0-9-]{0,39}$'),
+  "address" text not null constraint bsb_mail_accounts_address_check check ("address" = lower("address") and "address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "credential_ref" jsonb not null constraint bsb_mail_accounts_credential_ref_check check (jsonb_typeof("credential_ref") = 'object'),
+  "share" text not null default 'records' constraint bsb_mail_accounts_share_check check ("share" in ('records', 'private')),
+  "status" text not null default 'active' constraint bsb_mail_accounts_status_check check ("status" in ('active', 'paused', 'error', 'disconnected')),
   "sync_cursor" text,
   "last_synced_at" timestamptz,
   "last_error" text,
@@ -4784,7 +4784,7 @@ create table "better_supabase"."mail_messages" (
   "thread_id" uuid not null references "better_supabase"."mail_threads" ("id") on delete cascade,
   "external_id" text not null,
   "rfc_message_id" text,
-  "direction" text not null check ("direction" in ('inbound', 'outbound')),
+  "direction" text not null constraint bsb_mail_messages_direction_check check ("direction" in ('inbound', 'outbound')),
   "from_address" text,
   "from_name" text,
   "to_addresses" text[] not null default '{}',
@@ -4795,7 +4795,7 @@ create table "better_supabase"."mail_messages" (
   "body_html" text,
   "sent_at" timestamptz not null,
   "template_version_id" uuid,
-  "tracking_hash" text check ("tracking_hash" ~ '^[0-9a-f]{64}$'),
+  "tracking_hash" text constraint bsb_mail_messages_tracking_hash_check check ("tracking_hash" ~ '^[0-9a-f]{64}$'),
   "opened_at" timestamptz,
   "open_count" integer not null default 0,
   "clicked_at" timestamptz,
@@ -4814,8 +4814,8 @@ grant all on "better_supabase"."mail_messages" to service_role;
 create table "better_supabase"."mail_tracked_links" (
   "org_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."mail_messages" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 0),
-  "url" text not null check ("url" ~* '^https?://' and length("url") <= 2048),
+  "position" integer not null constraint bsb_mail_tracked_links_position_check check ("position" >= 0),
+  "url" text not null constraint bsb_mail_tracked_links_url_check check ("url" ~* '^https?://' and length("url") <= 2048),
   "click_count" integer not null default 0,
   "created_at" timestamptz not null default now(),
   primary key ("message_id", "position")
@@ -4828,9 +4828,9 @@ create table "better_supabase"."mail_tracking_events" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."mail_messages" ("id") on delete cascade,
-  "kind" text not null check ("kind" in ('open', 'click')),
+  "kind" text not null constraint bsb_mail_tracking_events_kind_check check ("kind" in ('open', 'click')),
   "position" integer,
-  "user_agent" text check (length("user_agent") <= 300),
+  "user_agent" text constraint bsb_mail_tracking_events_user_agent_check check (length("user_agent") <= 300),
   "occurred_at" timestamptz not null default now()
 );
 create index mail_tracking_events_message_idx on "better_supabase"."mail_tracking_events" ("message_id", "occurred_at");
@@ -4843,7 +4843,7 @@ create table "better_supabase"."mail_thread_subjects" (
   "thread_id" uuid not null references "better_supabase"."mail_threads" ("id") on delete cascade,
   "subject_type" text not null,
   "subject_id" text not null,
-  "source" text not null default 'match' check ("source" in ('match', 'manual')),
+  "source" text not null default 'match' constraint bsb_mail_thread_subjects_source_check check ("source" in ('match', 'manual')),
   "created_at" timestamptz not null default now(),
   primary key ("thread_id", "subject_type", "subject_id")
 );

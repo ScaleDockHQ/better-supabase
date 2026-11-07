@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_120_leases.sql
 -- better-supabase module: leases
 -- @bsb-block leases@3 managed
--- @bsb-hash sha256:ae25c537f7383aa5a9ead7b8e0bbf340524282ba41be1f0b3aad6ca6a0080df7
+-- @bsb-hash sha256:f261fd484dc4186fb0ca5c5ec2898e27f0979a11fe8f5aa41ef31115fc59551b
 -- Leases of units (assets) to parties with rent in bigint minor units and a frequency, rent charges posted on the ledger once per period, deposits held through ledger holds, renewals and terminations. Maintenance requests are a tasks instance on the unit.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16,26 +16,26 @@ create table "better_supabase"."leases" (
   -- The party renting the unit: a registered subject such as a contact.
   "party_type" text not null,
   "party_id" text not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "status" text not null default 'draft' check ("status" in ('draft', 'active', 'ended', 'terminated')),
+  "title" text not null constraint bsb_leases_title_check check (length("title") >= 1 and length("title") <= 200),
+  "status" text not null default 'draft' constraint bsb_leases_status_check check ("status" in ('draft', 'active', 'ended', 'terminated')),
   "starts_on" date not null,
   -- Null runs the lease until it is terminated.
   "ends_on" date,
   -- Minor units of currency per period (ADR 0037).
-  "rent" bigint not null check ("rent" > 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "frequency" text not null default 'monthly' check ("frequency" in ('weekly', 'monthly', 'quarterly', 'yearly')),
-  "deposit" bigint not null default 0 check ("deposit" >= 0),
+  "rent" bigint not null constraint bsb_leases_rent_check check ("rent" > 0),
+  "currency" char(3) not null constraint bsb_leases_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "frequency" text not null default 'monthly' constraint bsb_leases_frequency_check check ("frequency" in ('weekly', 'monthly', 'quarterly', 'yearly')),
+  "deposit" bigint not null default 0 constraint bsb_leases_deposit_check check ("deposit" >= 0),
   -- The ledger hold that keeps the deposit aside while the lease runs.
   "deposit_hold_id" uuid,
   "renewed_at" timestamptz,
   "terminated_on" date,
-  "termination_reason" text check ("termination_reason" is null or length("termination_reason") <= 2000),
+  "termination_reason" text constraint bsb_leases_termination_reason_check check ("termination_reason" is null or length("termination_reason") <= 2000),
   "metadata" jsonb not null default '{}'::jsonb,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" > "starts_on")
+  constraint bsb_leases_check check ("ends_on" is null or "ends_on" > "starts_on")
 );
 create index "leases_tenant_idx" on "better_supabase"."leases" ("tenant_id", "status", "starts_on" desc);
 create index "leases_unit_idx" on "better_supabase"."leases" ("unit_id");
@@ -56,12 +56,12 @@ create table "better_supabase"."lease_charges" (
   "lease_id" uuid not null references "better_supabase"."leases" ("id") on delete restrict,
   "period_start" date not null,
   "period_end" date not null,
-  "amount" bigint not null check ("amount" > 0),
+  "amount" bigint not null constraint bsb_lease_charges_amount_check check ("amount" > 0),
   "currency" char(3) not null,
   "transaction_id" uuid not null,
   "created_at" timestamptz not null default now(),
   unique ("lease_id", "period_start"),
-  check ("period_end" > "period_start")
+  constraint bsb_lease_charges_check check ("period_end" > "period_start")
 );
 create index "lease_charges_tenant_idx" on "better_supabase"."lease_charges" ("tenant_id", "period_start" desc);
 create index "lease_charges_transaction_idx" on "better_supabase"."lease_charges" ("transaction_id");

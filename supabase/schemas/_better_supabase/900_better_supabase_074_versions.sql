@@ -1,6 +1,6 @@
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:3f304fe98fdd64c72021ca5493e533ab77cc1c16b2e852f372116a49af401a16
+-- @bsb-hash sha256:520594190b6a56544e01fcef19cfce82e481879441b43c56b4e84e6ebc3ace29
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,19 +10,19 @@ create table "better_supabase"."versions" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "number" integer not null check ("number" > 0),
-  "label" text check (length("label") >= 1 and length("label") <= 120),
+  "number" integer not null constraint bsb_versions_number_check check ("number" > 0),
+  "label" text constraint bsb_versions_label_check check (length("label") >= 1 and length("label") <= 120),
   "content" jsonb,
   "storage_path" text,
   "content_hash" text not null,
-  "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$'),
-  "hash_version" smallint not null default 1 check ("hash_version" in (1, 2)),
-  "source" text not null default 'manual' check ("source" in ('manual', 'auto', 'restore')),
+  "file_hash" text constraint bsb_versions_file_hash_check check ("file_hash" ~ '^[0-9a-f]{64}$'),
+  "hash_version" smallint not null default 1 constraint bsb_versions_hash_version_check check ("hash_version" in (1, 2)),
+  "source" text not null default 'manual' constraint bsb_versions_source_check check ("source" in ('manual', 'auto', 'restore')),
   "frozen" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "number"),
-  check ("content" is not null or "storage_path" is not null)
+  constraint bsb_versions_check check ("content" is not null or "storage_path" is not null)
 );
 -- A hash_version 1 version hashes its content and storage path; version 2
 -- hashes its content and the SHA-256 of the file's bytes (file_hash).

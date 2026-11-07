@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:0019980f2d4acaeea95460600256a9127c08077f9f62e63abf45d680296bdca6
+-- @bsb-hash sha256:f8d0693f585e8b3d96db73e0c1fcaf3f7e1e14992b2b808e25512cdac2eaaee9
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,7 +14,7 @@ create table better_supabase.webhook_inbox (
   payload jsonb not null,
   headers jsonb not null default '{}',
   status text not null default 'pending'
-    check (status in ('pending', 'processing', 'processed', 'dead')),
+    constraint bsb_webhook_inbox_status_check check (status in ('pending', 'processing', 'processed', 'dead')),
   attempts integer not null default 0,
   max_attempts integer not null default 8,
   available_at timestamptz not null default now(),

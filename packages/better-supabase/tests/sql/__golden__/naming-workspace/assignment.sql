@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_134_assignment.sql
 -- better-supabase module: assignment
 -- @bsb-block assignment@1 managed
--- @bsb-hash sha256:508ca74b36b07b320ac66e28687f08431c8cf3da607d234af199b043c17a490c
+-- @bsb-hash sha256:97d30bc54d3c49676baf8e5b74fadc6d0ba52b0e7411b1871b049805aa8aa855
 -- Queues of members that pick an owner for new leads, deals or tickets: round robin or weighted, within a territory written as rule conditions, with a log of every pick.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,10 +11,10 @@
 create table "better_supabase"."assignment_queues" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "strategy" text not null default 'round_robin' check ("strategy" in ('round_robin', 'weighted')),
-  "conditions" jsonb check ("conditions" is null or jsonb_typeof("conditions") = 'object'),
+  "name" text not null constraint bsb_assignment_queues_name_check check (length("name") >= 1 and length("name") <= 200),
+  "subject_type" text not null constraint bsb_assignment_queues_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "strategy" text not null default 'round_robin' constraint bsb_assignment_queues_strategy_check check ("strategy" in ('round_robin', 'weighted')),
+  "conditions" jsonb constraint bsb_assignment_queues_conditions_check check ("conditions" is null or jsonb_typeof("conditions") = 'object'),
   "rank" integer not null default 0,
   "enabled" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -30,7 +30,7 @@ create table "better_supabase"."assignment_queue_members" (
   "queue_id" uuid not null references "better_supabase"."assignment_queues" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "weight" integer not null default 1 check ("weight" >= 1 and "weight" <= 100),
+  "weight" integer not null default 1 constraint bsb_assignment_queue_members_weight_check check ("weight" >= 1 and "weight" <= 100),
   "active" boolean not null default true,
   "credit" bigint not null default 0,
   "assigned_count" integer not null default 0,

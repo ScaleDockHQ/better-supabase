@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:7d1fa3223a25607020648d55ed572c9fea85b95efc314b87852ca606c35973b5
+-- @bsb-hash sha256:3029e0ea83094683baeddbcb1ae67d0ce3b1eeebc3ee1121a317b2a107725ded
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,16 +13,16 @@
 -- updates directly.
 create table "better_supabase"."identity_links" (
   "id" uuid primary key default gen_random_uuid(),
-  "kind" text not null check ("kind" in ('email', 'chat')),
-  "provider" text check (length("provider") >= 1 and length("provider") <= 100),
-  "value" text not null check (length("value") >= 1 and length("value") <= 500),
-  "workspace" text check (length("workspace") >= 1 and length("workspace") <= 200),
+  "kind" text not null constraint bsb_identity_links_kind_check check ("kind" in ('email', 'chat')),
+  "provider" text constraint bsb_identity_links_provider_check check (length("provider") >= 1 and length("provider") <= 100),
+  "value" text not null constraint bsb_identity_links_value_check check (length("value") >= 1 and length("value") <= 500),
+  "workspace" text constraint bsb_identity_links_workspace_check check (length("workspace") >= 1 and length("workspace") <= 200),
   "user_id" uuid references auth.users (id) on delete cascade,
   "contact_id" uuid,
-  "source" text not null check ("source" in ('link', 'verified_email')),
+  "source" text not null constraint bsb_identity_links_source_check check ("source" in ('link', 'verified_email')),
   "created_at" timestamptz not null default now(),
-  constraint identity_links_one_target check (num_nonnulls("user_id", "contact_id") = 1),
-  constraint identity_links_email_lower check ("kind" <> 'email' or "value" = lower("value")),
+  constraint bsb_identity_links_one_target check (num_nonnulls("user_id", "contact_id") = 1),
+  constraint bsb_identity_links_email_lower check ("kind" <> 'email' or "value" = lower("value")),
   constraint identity_links_identity_key unique nulls not distinct ("kind", "provider", "value", "workspace")
 );
 create index identity_links_user_idx on "better_supabase"."identity_links" ("user_id");
@@ -42,8 +42,8 @@ create policy bsb_identity_links_own_delete on "better_supabase"."identity_links
 create table "better_supabase"."identity_link_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "kind" text not null check ("kind" in ('email', 'chat')),
-  "provider" text check (length("provider") >= 1 and length("provider") <= 100),
+  "kind" text not null constraint bsb_identity_link_codes_kind_check check ("kind" in ('email', 'chat')),
+  "provider" text constraint bsb_identity_link_codes_provider_check check (length("provider") >= 1 and length("provider") <= 100),
   "code_hash" text not null unique,
   "expires_at" timestamptz not null,
   "used_at" timestamptz,
@@ -280,7 +280,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:7d1fa3223a25607020648d55ed572c9fea85b95efc314b87852ca606c35973b5
+-- @bsb-hash sha256:3029e0ea83094683baeddbcb1ae67d0ce3b1eeebc3ee1121a317b2a107725ded
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -292,16 +292,16 @@ on conflict (name) do update
 -- updates directly.
 create table "better_supabase"."identity_links" (
   "id" uuid primary key default gen_random_uuid(),
-  "kind" text not null check ("kind" in ('email', 'chat')),
-  "provider" text check (length("provider") >= 1 and length("provider") <= 100),
-  "value" text not null check (length("value") >= 1 and length("value") <= 500),
-  "workspace" text check (length("workspace") >= 1 and length("workspace") <= 200),
+  "kind" text not null constraint bsb_identity_links_kind_check check ("kind" in ('email', 'chat')),
+  "provider" text constraint bsb_identity_links_provider_check check (length("provider") >= 1 and length("provider") <= 100),
+  "value" text not null constraint bsb_identity_links_value_check check (length("value") >= 1 and length("value") <= 500),
+  "workspace" text constraint bsb_identity_links_workspace_check check (length("workspace") >= 1 and length("workspace") <= 200),
   "user_id" uuid references auth.users (id) on delete cascade,
   "contact_id" uuid,
-  "source" text not null check ("source" in ('link', 'verified_email')),
+  "source" text not null constraint bsb_identity_links_source_check check ("source" in ('link', 'verified_email')),
   "created_at" timestamptz not null default now(),
-  constraint identity_links_one_target check (num_nonnulls("user_id", "contact_id") = 1),
-  constraint identity_links_email_lower check ("kind" <> 'email' or "value" = lower("value")),
+  constraint bsb_identity_links_one_target check (num_nonnulls("user_id", "contact_id") = 1),
+  constraint bsb_identity_links_email_lower check ("kind" <> 'email' or "value" = lower("value")),
   constraint identity_links_identity_key unique nulls not distinct ("kind", "provider", "value", "workspace")
 );
 create index identity_links_user_idx on "better_supabase"."identity_links" ("user_id");
@@ -321,8 +321,8 @@ create policy bsb_identity_links_own_delete on "better_supabase"."identity_links
 create table "better_supabase"."identity_link_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "kind" text not null check ("kind" in ('email', 'chat')),
-  "provider" text check (length("provider") >= 1 and length("provider") <= 100),
+  "kind" text not null constraint bsb_identity_link_codes_kind_check check ("kind" in ('email', 'chat')),
+  "provider" text constraint bsb_identity_link_codes_provider_check check (length("provider") >= 1 and length("provider") <= 100),
   "code_hash" text not null unique,
   "expires_at" timestamptz not null,
   "used_at" timestamptz,
@@ -559,7 +559,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:cf055e90061369812dda11f7be6be55e3a4f390a58eba80851178b8fe9e6a732
+-- @bsb-hash sha256:c3ef7174781a340ac9e1ccccd5afa4cb2c3626d7ce3ff4691505a71c9ad21477
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -576,16 +576,16 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- updates directly.
 create table "app_private"."identity_links" (
   "id" uuid primary key default gen_random_uuid(),
-  "kind" text not null check ("kind" in ('email', 'chat')),
-  "provider" text check (length("provider") >= 1 and length("provider") <= 100),
-  "value" text not null check (length("value") >= 1 and length("value") <= 500),
-  "workspace" text check (length("workspace") >= 1 and length("workspace") <= 200),
+  "kind" text not null constraint bsb_identity_links_kind_check check ("kind" in ('email', 'chat')),
+  "provider" text constraint bsb_identity_links_provider_check check (length("provider") >= 1 and length("provider") <= 100),
+  "value" text not null constraint bsb_identity_links_value_check check (length("value") >= 1 and length("value") <= 500),
+  "workspace" text constraint bsb_identity_links_workspace_check check (length("workspace") >= 1 and length("workspace") <= 200),
   "user_id" uuid references auth.users (id) on delete cascade,
   "contact_id" uuid,
-  "source" text not null check ("source" in ('link', 'verified_email')),
+  "source" text not null constraint bsb_identity_links_source_check check ("source" in ('link', 'verified_email')),
   "created_at" timestamptz not null default now(),
-  constraint identity_links_one_target check (num_nonnulls("user_id", "contact_id") = 1),
-  constraint identity_links_email_lower check ("kind" <> 'email' or "value" = lower("value")),
+  constraint bsb_identity_links_one_target check (num_nonnulls("user_id", "contact_id") = 1),
+  constraint bsb_identity_links_email_lower check ("kind" <> 'email' or "value" = lower("value")),
   constraint identity_links_identity_key unique nulls not distinct ("kind", "provider", "value", "workspace")
 );
 create index identity_links_user_idx on "app_private"."identity_links" ("user_id");
@@ -605,8 +605,8 @@ create policy bsb_identity_links_own_delete on "app_private"."identity_links"
 create table "app_private"."identity_link_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "kind" text not null check ("kind" in ('email', 'chat')),
-  "provider" text check (length("provider") >= 1 and length("provider") <= 100),
+  "kind" text not null constraint bsb_identity_link_codes_kind_check check ("kind" in ('email', 'chat')),
+  "provider" text constraint bsb_identity_link_codes_provider_check check (length("provider") >= 1 and length("provider") <= 100),
   "code_hash" text not null unique,
   "expires_at" timestamptz not null,
   "used_at" timestamptz,
@@ -843,7 +843,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:99b782a2902396fc4aafd3bb764525f0d0e6ee6b60672f8eefdf87dfc242ec2c
+-- @bsb-hash sha256:e0be43c38fadae60790715be9e3809cf9445eed7cfe63af5f06ee43f9e3e6e97
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -855,16 +855,16 @@ on conflict (name) do update
 -- updates directly.
 create table "better_supabase"."identity_links" (
   "id" uuid primary key default gen_random_uuid(),
-  "kind" text not null check ("kind" in ('email', 'chat')),
-  "provider" text check (length("provider") >= 1 and length("provider") <= 100),
-  "value" text not null check (length("value") >= 1 and length("value") <= 500),
-  "workspace" text check (length("workspace") >= 1 and length("workspace") <= 200),
+  "kind" text not null constraint bsb_identity_links_kind_check check ("kind" in ('email', 'chat')),
+  "provider" text constraint bsb_identity_links_provider_check check (length("provider") >= 1 and length("provider") <= 100),
+  "value" text not null constraint bsb_identity_links_value_check check (length("value") >= 1 and length("value") <= 500),
+  "workspace" text constraint bsb_identity_links_workspace_check check (length("workspace") >= 1 and length("workspace") <= 200),
   "user_id" uuid references auth.users (id) on delete cascade,
   "contact_id" uuid,
-  "source" text not null check ("source" in ('link', 'verified_email')),
+  "source" text not null constraint bsb_identity_links_source_check check ("source" in ('link', 'verified_email')),
   "created_at" timestamptz not null default now(),
-  constraint identity_links_one_target check (num_nonnulls("user_id", "contact_id") = 1),
-  constraint identity_links_email_lower check ("kind" <> 'email' or "value" = lower("value")),
+  constraint bsb_identity_links_one_target check (num_nonnulls("user_id", "contact_id") = 1),
+  constraint bsb_identity_links_email_lower check ("kind" <> 'email' or "value" = lower("value")),
   constraint identity_links_identity_key unique nulls not distinct ("kind", "provider", "value", "workspace")
 );
 create index identity_links_user_idx on "better_supabase"."identity_links" ("user_id");
@@ -884,8 +884,8 @@ create policy bsb_identity_links_own_delete on "better_supabase"."identity_links
 create table "better_supabase"."identity_link_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "kind" text not null check ("kind" in ('email', 'chat')),
-  "provider" text check (length("provider") >= 1 and length("provider") <= 100),
+  "kind" text not null constraint bsb_identity_link_codes_kind_check check ("kind" in ('email', 'chat')),
+  "provider" text constraint bsb_identity_link_codes_provider_check check (length("provider") >= 1 and length("provider") <= 100),
   "code_hash" text not null unique,
   "expires_at" timestamptz not null,
   "used_at" timestamptz,
@@ -1191,7 +1191,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_089_identities.sql
 -- better-supabase module: identities
 -- @bsb-block identities@1 managed
--- @bsb-hash sha256:e5bbd4242ba480c90c18b2a4cfc1232b4eef3f8836066feb120cee5d11f7c924
+-- @bsb-hash sha256:8fe53c15cdd88a0e4088d5a022085b0216df150a525f39e82f54ea3ff56974ea
 -- Links an email address or a chat user to an app user or a contact. Rows come only from a one-time code the signed-in user issues and the service redeems, or from a confirmed address in auth.users.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1203,13 +1203,13 @@ on conflict (name) do update
 -- updates directly.
 -- better_supabase.identity_links is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."identity_links" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."identity_links" add column if not exists "kind" text check ("kind" in ('email', 'chat'));
-alter table "better_supabase"."identity_links" add column if not exists "provider" text check (length("provider") >= 1 and length("provider") <= 100);
-alter table "better_supabase"."identity_links" add column if not exists "value" text check (length("value") >= 1 and length("value") <= 500);
-alter table "better_supabase"."identity_links" add column if not exists "workspace" text check (length("workspace") >= 1 and length("workspace") <= 200);
+alter table "better_supabase"."identity_links" add column if not exists "kind" text constraint bsb_identity_links_kind_check check ("kind" in ('email', 'chat'));
+alter table "better_supabase"."identity_links" add column if not exists "provider" text constraint bsb_identity_links_provider_check check (length("provider") >= 1 and length("provider") <= 100);
+alter table "better_supabase"."identity_links" add column if not exists "value" text constraint bsb_identity_links_value_check check (length("value") >= 1 and length("value") <= 500);
+alter table "better_supabase"."identity_links" add column if not exists "workspace" text constraint bsb_identity_links_workspace_check check (length("workspace") >= 1 and length("workspace") <= 200);
 alter table "better_supabase"."identity_links" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."identity_links" add column if not exists "contact_id" uuid;
-alter table "better_supabase"."identity_links" add column if not exists "source" text check ("source" in ('link', 'verified_email'));
+alter table "better_supabase"."identity_links" add column if not exists "source" text constraint bsb_identity_links_source_check check ("source" in ('link', 'verified_email'));
 alter table "better_supabase"."identity_links" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists identity_links_user_idx on "better_supabase"."identity_links" ("user_id");
 create index if not exists identity_links_contact_idx on "better_supabase"."identity_links" ("contact_id");
@@ -1228,8 +1228,8 @@ create policy bsb_identity_links_delete on "better_supabase"."identity_links"
 -- better_supabase.identity_link_codes is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."identity_link_codes" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."identity_link_codes" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."identity_link_codes" add column if not exists "kind" text check ("kind" in ('email', 'chat'));
-alter table "better_supabase"."identity_link_codes" add column if not exists "provider" text check (length("provider") >= 1 and length("provider") <= 100);
+alter table "better_supabase"."identity_link_codes" add column if not exists "kind" text constraint bsb_identity_link_codes_kind_check check ("kind" in ('email', 'chat'));
+alter table "better_supabase"."identity_link_codes" add column if not exists "provider" text constraint bsb_identity_link_codes_provider_check check (length("provider") >= 1 and length("provider") <= 100);
 alter table "better_supabase"."identity_link_codes" add column if not exists "code_hash" text;
 alter table "better_supabase"."identity_link_codes" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."identity_link_codes" add column if not exists "used_at" timestamptz;

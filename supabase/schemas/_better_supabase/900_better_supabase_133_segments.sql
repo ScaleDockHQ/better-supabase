@@ -1,6 +1,6 @@
 -- better-supabase module: segments
 -- @bsb-block segments@1 managed
--- @bsb-hash sha256:e04b200fc2d4293fe950ed37ad1fdf2fc143b20f43966b2ecc6925a7d1014328
+-- @bsb-hash sha256:a5122dc9f502a88094603464527f8f631baf8756c714a483ecb9708bc5b2271f
 -- Saved filters over a subject type, such as companies in a region or deals over a size: the matching records materialized as members, refreshed on demand or from a cron, with an event when a record enters or leaves.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,10 +10,10 @@
 create table "better_supabase"."segments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text check (length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "conditions" jsonb not null check (jsonb_typeof("conditions") = 'object'),
+  "name" text not null constraint bsb_segments_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_segments_description_check check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_segments_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "conditions" jsonb not null constraint bsb_segments_conditions_check check (jsonb_typeof("conditions") = 'object'),
   "member_count" integer not null default 0,
   "refreshed_at" timestamptz,
   "created_by" uuid references auth.users (id) on delete set null,

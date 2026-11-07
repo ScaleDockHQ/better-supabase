@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:a38617d154848569c778da627f96c6b626fcfdff456ff47eab78aa6a1817c284
+-- @bsb-hash sha256:40cb983151ecde4a5d0c7ab417598d2425ec83db1a18305898d225e70fe47f9b
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,11 +13,11 @@ create table "better_supabase"."signature_requests" (
   "subject_id" text not null,
   "version_id" uuid not null references "better_supabase"."versions" ("id") on delete restrict,
   "content_hash" text not null,
-  "signers" uuid[] not null check (cardinality("signers") >= 1 and cardinality("signers") <= 20 and array_position("signers", null) is null),
-  "sign_order" text not null default 'parallel' check ("sign_order" in ('parallel', 'sequential')),
-  "status" text not null default 'pending' check ("status" in ('pending', 'completed', 'declined', 'cancelled')),
+  "signers" uuid[] not null constraint bsb_signature_requests_signers_check check (cardinality("signers") >= 1 and cardinality("signers") <= 20 and array_position("signers", null) is null),
+  "sign_order" text not null default 'parallel' constraint bsb_signature_requests_sign_order_check check ("sign_order" in ('parallel', 'sequential')),
+  "status" text not null default 'pending' constraint bsb_signature_requests_status_check check ("status" in ('pending', 'completed', 'declined', 'cancelled')),
   "approval_request_id" uuid,
-  "message" text check ("message" is null or length("message") <= 2000),
+  "message" text constraint bsb_signature_requests_message_check check ("message" is null or length("message") <= 2000),
   "meaning" text,
   "requested_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -41,15 +41,15 @@ create table "better_supabase"."signatures" (
   "request_id" uuid not null references "better_supabase"."signature_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "signer" uuid not null,
-  "method" text not null check ("method" in ('drawn', 'typed', 'click')),
-  "typed_name" text check ("typed_name" is null or length("typed_name") >= 1 and length("typed_name") <= 200),
+  "method" text not null constraint bsb_signatures_method_check check ("method" in ('drawn', 'typed', 'click')),
+  "typed_name" text constraint bsb_signatures_typed_name_check check ("typed_name" is null or length("typed_name") >= 1 and length("typed_name") <= 200),
   "image_attachment_id" uuid,
   "signed_hash" text not null,
-  "ip" text check ("ip" is null or length("ip") <= 64),
-  "user_agent" text check ("user_agent" is null or length("user_agent") <= 512),
+  "ip" text constraint bsb_signatures_ip_check check ("ip" is null or length("ip") <= 64),
+  "user_agent" text constraint bsb_signatures_user_agent_check check ("user_agent" is null or length("user_agent") <= 512),
   "signed_at" timestamptz not null,
-  check ("method" <> 'typed' or "typed_name" is not null),
-  check ("method" <> 'drawn' or "image_attachment_id" is not null),
+  constraint bsb_signatures_check check ("method" <> 'typed' or "typed_name" is not null),
+  constraint bsb_signatures_check1 check ("method" <> 'drawn' or "image_attachment_id" is not null),
   unique ("request_id", "signer")
 );
 alter table "better_supabase"."signatures" enable row level security;

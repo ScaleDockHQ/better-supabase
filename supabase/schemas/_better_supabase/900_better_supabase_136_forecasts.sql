@@ -1,6 +1,6 @@
 -- better-supabase module: forecasts
 -- @bsb-block forecasts@1 managed
--- @bsb-hash sha256:27f37dae07725b62d9c60bc386e8187baceaf32e04ef41897a4e553eaab614ac
+-- @bsb-hash sha256:aa173995b81de78e4397a31f121cde7682d0a21c741ce78d0747f308dfb7e727
 -- Snapshots of the deals forecast call over time: the totals by category and every deal they counted, a list per period, and what changed between two snapshots (added, removed, won, lost, moved).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,13 +13,13 @@ create table "better_supabase"."forecast_snapshots" (
   "pipeline_id" uuid references "better_supabase"."pipelines" ("id") on delete cascade,
   "period_start" date not null,
   "period_end" date not null,
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
-  "target" bigint check ("target" >= 0),
-  "totals" jsonb not null check (jsonb_typeof("totals") = 'object'),
+  "currency" text not null constraint bsb_forecast_snapshots_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "target" bigint constraint bsb_forecast_snapshots_target_check check ("target" >= 0),
+  "totals" jsonb not null constraint bsb_forecast_snapshots_totals_check check (jsonb_typeof("totals") = 'object'),
   "deal_count" integer not null default 0,
   "taken_by" uuid references auth.users (id) on delete set null,
   "taken_at" timestamptz not null default clock_timestamp(),
-  check ("period_end" >= "period_start")
+  constraint bsb_forecast_snapshots_check check ("period_end" >= "period_start")
 );
 create index forecast_snapshots_period_idx on "better_supabase"."forecast_snapshots" ("tenant_id", "period_start", "period_end", "taken_at" desc);
 create index forecast_snapshots_pipeline_idx on "better_supabase"."forecast_snapshots" ("pipeline_id") where "pipeline_id" is not null;

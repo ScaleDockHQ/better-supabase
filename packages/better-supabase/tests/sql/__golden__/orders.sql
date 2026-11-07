@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:ac84e71ebc6ee2d6613b5bba46e4c721553f5cad4580cbb5263297ad4f8e88e9
+-- @bsb-hash sha256:0053ec1768902e5cacd463124f99c92db2d1da7ad0e3063687f450a7b7d343da
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,13 +12,13 @@
 create table "better_supabase"."order_shipping_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_order_shipping_rates_name_check check (length("name") >= 1 and length("name") <= 200),
   "countries" text[] not null default '{}',
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "kind" text not null default 'flat' check ("kind" in ('flat', 'weight')),
-  "amount" bigint not null default 0 check ("amount" >= 0),
-  "amount_per_kg" bigint not null default 0 check ("amount_per_kg" >= 0),
-  "free_over" bigint check ("free_over" >= 0),
+  "currency" char(3) not null constraint bsb_order_shipping_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "kind" text not null default 'flat' constraint bsb_order_shipping_rates_kind_check check ("kind" in ('flat', 'weight')),
+  "amount" bigint not null default 0 constraint bsb_order_shipping_rates_amount_check check ("amount" >= 0),
+  "amount_per_kg" bigint not null default 0 constraint bsb_order_shipping_rates_amount_per_kg_check check ("amount_per_kg" >= 0),
+  "free_over" bigint constraint bsb_order_shipping_rates_free_over_check check ("free_over" >= 0),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -36,12 +36,12 @@ create table "better_supabase"."carts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" char(3) not null constraint bsb_carts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "price_list_id" uuid references "better_supabase"."catalog_price_lists" ("id") on delete set null,
-  "status" text not null default 'open' check ("status" in ('open', 'converted', 'abandoned')),
-  "email" text check (length("email") <= 320),
-  "shipping_address" jsonb check (jsonb_typeof("shipping_address") = 'object'),
-  "billing_address" jsonb check (jsonb_typeof("billing_address") = 'object'),
+  "status" text not null default 'open' constraint bsb_carts_status_check check ("status" in ('open', 'converted', 'abandoned')),
+  "email" text constraint bsb_carts_email_check check (length("email") <= 320),
+  "shipping_address" jsonb constraint bsb_carts_shipping_address_check check (jsonb_typeof("shipping_address") = 'object'),
+  "billing_address" jsonb constraint bsb_carts_billing_address_check check (jsonb_typeof("billing_address") = 'object'),
   "shipping_rate_id" uuid references "better_supabase"."order_shipping_rates" ("id") on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -64,8 +64,8 @@ create table "better_supabase"."cart_lines" (
   "tenant_id" uuid not null,
   "cart_id" uuid not null references "better_supabase"."carts" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" >= 1 and "quantity" <= 10000),
-  "unit_amount" bigint check ("unit_amount" >= 0),
+  "quantity" integer not null constraint bsb_cart_lines_quantity_check check ("quantity" >= 1 and "quantity" <= 10000),
+  "unit_amount" bigint constraint bsb_cart_lines_unit_amount_check check ("unit_amount" >= 0),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("cart_id", "variant_id")
@@ -88,14 +88,14 @@ create table "better_supabase"."orders" (
   "customer_id" uuid references auth.users (id) on delete set null,
   "email" text,
   "status" text not null default 'pending_payment',
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "subtotal" bigint not null default 0 check ("subtotal" >= 0),
-  "discount_total" bigint not null default 0 check ("discount_total" >= 0),
-  "shipping_total" bigint not null default 0 check ("shipping_total" >= 0),
-  "tax_total" bigint not null default 0 check ("tax_total" >= 0),
-  "total" bigint not null default 0 check ("total" >= 0),
-  "paid_total" bigint not null default 0 check ("paid_total" >= 0),
-  "refunded_total" bigint not null default 0 check ("refunded_total" >= 0),
+  "currency" char(3) not null constraint bsb_orders_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "subtotal" bigint not null default 0 constraint bsb_orders_subtotal_check check ("subtotal" >= 0),
+  "discount_total" bigint not null default 0 constraint bsb_orders_discount_total_check check ("discount_total" >= 0),
+  "shipping_total" bigint not null default 0 constraint bsb_orders_shipping_total_check check ("shipping_total" >= 0),
+  "tax_total" bigint not null default 0 constraint bsb_orders_tax_total_check check ("tax_total" >= 0),
+  "total" bigint not null default 0 constraint bsb_orders_total_check check ("total" >= 0),
+  "paid_total" bigint not null default 0 constraint bsb_orders_paid_total_check check ("paid_total" >= 0),
+  "refunded_total" bigint not null default 0 constraint bsb_orders_refunded_total_check check ("refunded_total" >= 0),
   "tax_inclusive" boolean not null default false,
   "shipping_address" jsonb,
   "billing_address" jsonb,
@@ -112,11 +112,11 @@ create table "better_supabase"."orders" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancel_reason" text,
-  "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "origin_id" text check (length("origin_id") >= 1 and length("origin_id") <= 200),
+  "origin_type" text constraint bsb_orders_origin_type_check check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "origin_id" text constraint bsb_orders_origin_id_check check (length("origin_id") >= 1 and length("origin_id") <= 200),
   "buyer" jsonb,
   "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
-  "variant_label" text check (length("variant_label") <= 200),
+  "variant_label" text constraint bsb_orders_variant_label_check check (length("variant_label") <= 200),
   "is_selected" boolean not null default true,
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
@@ -144,24 +144,24 @@ create table "better_supabase"."order_lines" (
   "product_id" uuid,
   "sku" text not null,
   "title" text not null,
-  "quantity" integer not null check ("quantity" > 0),
-  "unit_amount" bigint not null default 0 check ("unit_amount" >= 0),
-  "subtotal" bigint not null default 0 check ("subtotal" >= 0),
-  "discount" bigint not null default 0 check ("discount" >= 0),
-  "tax" bigint not null default 0 check ("tax" >= 0),
-  "total" bigint not null default 0 check ("total" >= 0),
+  "quantity" integer not null constraint bsb_order_lines_quantity_check check ("quantity" > 0),
+  "unit_amount" bigint not null default 0 constraint bsb_order_lines_unit_amount_check check ("unit_amount" >= 0),
+  "subtotal" bigint not null default 0 constraint bsb_order_lines_subtotal_check check ("subtotal" >= 0),
+  "discount" bigint not null default 0 constraint bsb_order_lines_discount_check check ("discount" >= 0),
+  "tax" bigint not null default 0 constraint bsb_order_lines_tax_check check ("tax" >= 0),
+  "total" bigint not null default 0 constraint bsb_order_lines_total_check check ("total" >= 0),
   "requires_shipping" boolean not null default true,
   "location_id" uuid,
   "reservation_id" uuid,
   "tax_code_id" uuid,
-  "unit_cost" bigint check ("unit_cost" >= 0),
-  "cost_source" text check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
+  "unit_cost" bigint constraint bsb_order_lines_unit_cost_check check ("unit_cost" >= 0),
+  "cost_source" text constraint bsb_order_lines_cost_source_check check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
   "bin_id" uuid,
-  "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
+  "billing_party" text not null default 'customer' constraint bsb_order_lines_billing_party_check check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
-  "quantity_returned" integer not null default 0 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
+  "quantity_fulfilled" integer not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
+  "quantity_returned" integer not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
 create index order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
@@ -180,11 +180,11 @@ create table "better_supabase"."order_payments" (
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
   "provider" text not null,
   "reference" text not null,
-  "status" text not null check ("status" in ('requires_action', 'processing', 'authorized', 'succeeded', 'failed', 'canceled')),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "amount" bigint not null default 0 check ("amount" >= 0),
-  "captured" bigint not null default 0 check ("captured" >= 0),
-  "refunded" bigint not null default 0 check ("refunded" >= 0),
+  "status" text not null constraint bsb_order_payments_status_check check ("status" in ('requires_action', 'processing', 'authorized', 'succeeded', 'failed', 'canceled')),
+  "currency" char(3) not null constraint bsb_order_payments_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint not null default 0 constraint bsb_order_payments_amount_check check ("amount" >= 0),
+  "captured" bigint not null default 0 constraint bsb_order_payments_captured_check check ("captured" >= 0),
+  "refunded" bigint not null default 0 constraint bsb_order_payments_refunded_check check ("refunded" >= 0),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("provider", "reference")
@@ -203,10 +203,10 @@ create table "better_supabase"."order_fulfillments" (
   "tenant_id" uuid not null,
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
   "location_id" uuid,
-  "status" text not null default 'pending' check ("status" in ('pending', 'shipped', 'delivered', 'cancelled')),
+  "status" text not null default 'pending' constraint bsb_order_fulfillments_status_check check ("status" in ('pending', 'shipped', 'delivered', 'cancelled')),
   "carrier" text,
   "tracking_number" text,
-  "tracking_url" text check ("tracking_url" ~ '^https://'),
+  "tracking_url" text constraint bsb_order_fulfillments_tracking_url_check check ("tracking_url" ~ '^https://'),
   "created_at" timestamptz not null default now(),
   "shipped_at" timestamptz,
   "delivered_at" timestamptz
@@ -224,8 +224,8 @@ create table "better_supabase"."order_fulfillment_lines" (
   "tenant_id" uuid not null,
   "fulfillment_id" uuid not null references "better_supabase"."order_fulfillments" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" > 0),
-  "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object'),
+  "quantity" integer not null constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0),
+  "detail" jsonb constraint bsb_order_fulfillment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
   primary key ("fulfillment_id", "order_line_id")
 );
 create index "order_fulfillment_lines_line_idx" on "better_supabase"."order_fulfillment_lines" ("order_line_id");
@@ -241,8 +241,8 @@ create table "better_supabase"."order_returns" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
-  "status" text not null default 'requested' check ("status" in ('requested', 'received', 'rejected')),
-  "reason" text check (length("reason") <= 2000),
+  "status" text not null default 'requested' constraint bsb_order_returns_status_check check ("status" in ('requested', 'received', 'rejected')),
+  "reason" text constraint bsb_order_returns_reason_check check (length("reason") <= 2000),
   "requested_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   "received_at" timestamptz
@@ -260,7 +260,7 @@ create table "better_supabase"."order_return_lines" (
   "tenant_id" uuid not null,
   "return_id" uuid not null references "better_supabase"."order_returns" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" > 0),
+  "quantity" integer not null constraint bsb_order_return_lines_quantity_check check ("quantity" > 0),
   primary key ("return_id", "order_line_id")
 );
 create index order_return_lines_line_idx on "better_supabase"."order_return_lines" ("order_line_id");
@@ -278,10 +278,10 @@ create table "better_supabase"."order_refunds" (
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
   "payment_id" uuid not null references "better_supabase"."order_payments" ("id") on delete cascade,
   "return_id" uuid references "better_supabase"."order_returns" ("id") on delete set null,
-  "amount" bigint not null check ("amount" > 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'succeeded', 'failed')),
-  "reason" text check (length("reason") <= 2000),
+  "amount" bigint not null constraint bsb_order_refunds_amount_check check ("amount" > 0),
+  "currency" char(3) not null constraint bsb_order_refunds_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "status" text not null default 'pending' constraint bsb_order_refunds_status_check check ("status" in ('pending', 'succeeded', 'failed')),
+  "reason" text constraint bsb_order_refunds_reason_check check (length("reason") <= 2000),
   "provider_reference" text,
   "created_at" timestamptz not null default now(),
   "completed_at" timestamptz
@@ -2419,7 +2419,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:a482096ea5155851e4661ecc64feae2cc8354cdb3d9141ad281c9020d0a7e59c
+-- @bsb-hash sha256:7754880fa30be358188d976e4a61224c5484e992bd5d109f77fcadb13831bfd5
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2430,13 +2430,13 @@ on conflict (name) do update
 create table "better_supabase"."order_shipping_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_order_shipping_rates_name_check check (length("name") >= 1 and length("name") <= 200),
   "countries" text[] not null default '{}',
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "kind" text not null default 'flat' check ("kind" in ('flat', 'weight')),
-  "amount" bigint not null default 0 check ("amount" >= 0),
-  "amount_per_kg" bigint not null default 0 check ("amount_per_kg" >= 0),
-  "free_over" bigint check ("free_over" >= 0),
+  "currency" char(3) not null constraint bsb_order_shipping_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "kind" text not null default 'flat' constraint bsb_order_shipping_rates_kind_check check ("kind" in ('flat', 'weight')),
+  "amount" bigint not null default 0 constraint bsb_order_shipping_rates_amount_check check ("amount" >= 0),
+  "amount_per_kg" bigint not null default 0 constraint bsb_order_shipping_rates_amount_per_kg_check check ("amount_per_kg" >= 0),
+  "free_over" bigint constraint bsb_order_shipping_rates_free_over_check check ("free_over" >= 0),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -2454,12 +2454,12 @@ create table "better_supabase"."carts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" char(3) not null constraint bsb_carts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "price_list_id" uuid references "better_supabase"."catalog_price_lists" ("id") on delete set null,
-  "status" text not null default 'open' check ("status" in ('open', 'converted', 'abandoned')),
-  "email" text check (length("email") <= 320),
-  "shipping_address" jsonb check (jsonb_typeof("shipping_address") = 'object'),
-  "billing_address" jsonb check (jsonb_typeof("billing_address") = 'object'),
+  "status" text not null default 'open' constraint bsb_carts_status_check check ("status" in ('open', 'converted', 'abandoned')),
+  "email" text constraint bsb_carts_email_check check (length("email") <= 320),
+  "shipping_address" jsonb constraint bsb_carts_shipping_address_check check (jsonb_typeof("shipping_address") = 'object'),
+  "billing_address" jsonb constraint bsb_carts_billing_address_check check (jsonb_typeof("billing_address") = 'object'),
   "shipping_rate_id" uuid references "better_supabase"."order_shipping_rates" ("id") on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -2482,8 +2482,8 @@ create table "better_supabase"."cart_lines" (
   "tenant_id" uuid not null,
   "cart_id" uuid not null references "better_supabase"."carts" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" >= 1 and "quantity" <= 10000),
-  "unit_amount" bigint check ("unit_amount" >= 0),
+  "quantity" integer not null constraint bsb_cart_lines_quantity_check check ("quantity" >= 1 and "quantity" <= 10000),
+  "unit_amount" bigint constraint bsb_cart_lines_unit_amount_check check ("unit_amount" >= 0),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("cart_id", "variant_id")
@@ -2506,14 +2506,14 @@ create table "better_supabase"."orders" (
   "customer_id" uuid references auth.users (id) on delete set null,
   "email" text,
   "status" text not null default 'pending_payment',
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "subtotal" bigint not null default 0 check ("subtotal" >= 0),
-  "discount_total" bigint not null default 0 check ("discount_total" >= 0),
-  "shipping_total" bigint not null default 0 check ("shipping_total" >= 0),
-  "tax_total" bigint not null default 0 check ("tax_total" >= 0),
-  "total" bigint not null default 0 check ("total" >= 0),
-  "paid_total" bigint not null default 0 check ("paid_total" >= 0),
-  "refunded_total" bigint not null default 0 check ("refunded_total" >= 0),
+  "currency" char(3) not null constraint bsb_orders_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "subtotal" bigint not null default 0 constraint bsb_orders_subtotal_check check ("subtotal" >= 0),
+  "discount_total" bigint not null default 0 constraint bsb_orders_discount_total_check check ("discount_total" >= 0),
+  "shipping_total" bigint not null default 0 constraint bsb_orders_shipping_total_check check ("shipping_total" >= 0),
+  "tax_total" bigint not null default 0 constraint bsb_orders_tax_total_check check ("tax_total" >= 0),
+  "total" bigint not null default 0 constraint bsb_orders_total_check check ("total" >= 0),
+  "paid_total" bigint not null default 0 constraint bsb_orders_paid_total_check check ("paid_total" >= 0),
+  "refunded_total" bigint not null default 0 constraint bsb_orders_refunded_total_check check ("refunded_total" >= 0),
   "tax_inclusive" boolean not null default false,
   "shipping_address" jsonb,
   "billing_address" jsonb,
@@ -2530,11 +2530,11 @@ create table "better_supabase"."orders" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancel_reason" text,
-  "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "origin_id" text check (length("origin_id") >= 1 and length("origin_id") <= 200),
+  "origin_type" text constraint bsb_orders_origin_type_check check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "origin_id" text constraint bsb_orders_origin_id_check check (length("origin_id") >= 1 and length("origin_id") <= 200),
   "buyer" jsonb,
   "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
-  "variant_label" text check (length("variant_label") <= 200),
+  "variant_label" text constraint bsb_orders_variant_label_check check (length("variant_label") <= 200),
   "is_selected" boolean not null default true,
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
@@ -2562,24 +2562,24 @@ create table "better_supabase"."order_lines" (
   "product_id" uuid,
   "sku" text not null,
   "title" text not null,
-  "quantity" integer not null check ("quantity" > 0),
-  "unit_amount" bigint not null default 0 check ("unit_amount" >= 0),
-  "subtotal" bigint not null default 0 check ("subtotal" >= 0),
-  "discount" bigint not null default 0 check ("discount" >= 0),
-  "tax" bigint not null default 0 check ("tax" >= 0),
-  "total" bigint not null default 0 check ("total" >= 0),
+  "quantity" integer not null constraint bsb_order_lines_quantity_check check ("quantity" > 0),
+  "unit_amount" bigint not null default 0 constraint bsb_order_lines_unit_amount_check check ("unit_amount" >= 0),
+  "subtotal" bigint not null default 0 constraint bsb_order_lines_subtotal_check check ("subtotal" >= 0),
+  "discount" bigint not null default 0 constraint bsb_order_lines_discount_check check ("discount" >= 0),
+  "tax" bigint not null default 0 constraint bsb_order_lines_tax_check check ("tax" >= 0),
+  "total" bigint not null default 0 constraint bsb_order_lines_total_check check ("total" >= 0),
   "requires_shipping" boolean not null default true,
   "location_id" uuid,
   "reservation_id" uuid,
   "tax_code_id" uuid,
-  "unit_cost" bigint check ("unit_cost" >= 0),
-  "cost_source" text check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
+  "unit_cost" bigint constraint bsb_order_lines_unit_cost_check check ("unit_cost" >= 0),
+  "cost_source" text constraint bsb_order_lines_cost_source_check check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
   "bin_id" uuid,
-  "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
+  "billing_party" text not null default 'customer' constraint bsb_order_lines_billing_party_check check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
-  "quantity_returned" integer not null default 0 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
+  "quantity_fulfilled" integer not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
+  "quantity_returned" integer not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
 create index order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
@@ -2598,11 +2598,11 @@ create table "better_supabase"."order_payments" (
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
   "provider" text not null,
   "reference" text not null,
-  "status" text not null check ("status" in ('requires_action', 'processing', 'authorized', 'succeeded', 'failed', 'canceled')),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "amount" bigint not null default 0 check ("amount" >= 0),
-  "captured" bigint not null default 0 check ("captured" >= 0),
-  "refunded" bigint not null default 0 check ("refunded" >= 0),
+  "status" text not null constraint bsb_order_payments_status_check check ("status" in ('requires_action', 'processing', 'authorized', 'succeeded', 'failed', 'canceled')),
+  "currency" char(3) not null constraint bsb_order_payments_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint not null default 0 constraint bsb_order_payments_amount_check check ("amount" >= 0),
+  "captured" bigint not null default 0 constraint bsb_order_payments_captured_check check ("captured" >= 0),
+  "refunded" bigint not null default 0 constraint bsb_order_payments_refunded_check check ("refunded" >= 0),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("provider", "reference")
@@ -2621,10 +2621,10 @@ create table "better_supabase"."order_fulfillments" (
   "tenant_id" uuid not null,
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
   "location_id" uuid,
-  "status" text not null default 'pending' check ("status" in ('pending', 'shipped', 'delivered', 'cancelled')),
+  "status" text not null default 'pending' constraint bsb_order_fulfillments_status_check check ("status" in ('pending', 'shipped', 'delivered', 'cancelled')),
   "carrier" text,
   "tracking_number" text,
-  "tracking_url" text check ("tracking_url" ~ '^https://'),
+  "tracking_url" text constraint bsb_order_fulfillments_tracking_url_check check ("tracking_url" ~ '^https://'),
   "created_at" timestamptz not null default now(),
   "shipped_at" timestamptz,
   "delivered_at" timestamptz
@@ -2642,8 +2642,8 @@ create table "better_supabase"."order_fulfillment_lines" (
   "tenant_id" uuid not null,
   "fulfillment_id" uuid not null references "better_supabase"."order_fulfillments" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" > 0),
-  "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object'),
+  "quantity" integer not null constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0),
+  "detail" jsonb constraint bsb_order_fulfillment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
   primary key ("fulfillment_id", "order_line_id")
 );
 create index "order_fulfillment_lines_line_idx" on "better_supabase"."order_fulfillment_lines" ("order_line_id");
@@ -2659,8 +2659,8 @@ create table "better_supabase"."order_returns" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
-  "status" text not null default 'requested' check ("status" in ('requested', 'received', 'rejected')),
-  "reason" text check (length("reason") <= 2000),
+  "status" text not null default 'requested' constraint bsb_order_returns_status_check check ("status" in ('requested', 'received', 'rejected')),
+  "reason" text constraint bsb_order_returns_reason_check check (length("reason") <= 2000),
   "requested_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   "received_at" timestamptz
@@ -2678,7 +2678,7 @@ create table "better_supabase"."order_return_lines" (
   "tenant_id" uuid not null,
   "return_id" uuid not null references "better_supabase"."order_returns" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" > 0),
+  "quantity" integer not null constraint bsb_order_return_lines_quantity_check check ("quantity" > 0),
   primary key ("return_id", "order_line_id")
 );
 create index order_return_lines_line_idx on "better_supabase"."order_return_lines" ("order_line_id");
@@ -2696,10 +2696,10 @@ create table "better_supabase"."order_refunds" (
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
   "payment_id" uuid not null references "better_supabase"."order_payments" ("id") on delete cascade,
   "return_id" uuid references "better_supabase"."order_returns" ("id") on delete set null,
-  "amount" bigint not null check ("amount" > 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'succeeded', 'failed')),
-  "reason" text check (length("reason") <= 2000),
+  "amount" bigint not null constraint bsb_order_refunds_amount_check check ("amount" > 0),
+  "currency" char(3) not null constraint bsb_order_refunds_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "status" text not null default 'pending' constraint bsb_order_refunds_status_check check ("status" in ('pending', 'succeeded', 'failed')),
+  "reason" text constraint bsb_order_refunds_reason_check check (length("reason") <= 2000),
   "provider_reference" text,
   "created_at" timestamptz not null default now(),
   "completed_at" timestamptz
@@ -5068,7 +5068,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:36a961550d10f611f14d323bc22a729b458bb98297fe5b4ce04f20b4be5e574e
+-- @bsb-hash sha256:c636bdf2dcf2119b829cf0d591fb02c7151fb75871e5135056b43b96f49cb0d6
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5084,13 +5084,13 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."order_shipping_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_order_shipping_rates_name_check check (length("name") >= 1 and length("name") <= 200),
   "countries" text[] not null default '{}',
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "kind" text not null default 'flat' check ("kind" in ('flat', 'weight')),
-  "amount" bigint not null default 0 check ("amount" >= 0),
-  "amount_per_kg" bigint not null default 0 check ("amount_per_kg" >= 0),
-  "free_over" bigint check ("free_over" >= 0),
+  "currency" char(3) not null constraint bsb_order_shipping_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "kind" text not null default 'flat' constraint bsb_order_shipping_rates_kind_check check ("kind" in ('flat', 'weight')),
+  "amount" bigint not null default 0 constraint bsb_order_shipping_rates_amount_check check ("amount" >= 0),
+  "amount_per_kg" bigint not null default 0 constraint bsb_order_shipping_rates_amount_per_kg_check check ("amount_per_kg" >= 0),
+  "free_over" bigint constraint bsb_order_shipping_rates_free_over_check check ("free_over" >= 0),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -5108,12 +5108,12 @@ create table "app_private"."carts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" char(3) not null constraint bsb_carts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "price_list_id" uuid references "better_supabase"."catalog_price_lists" ("id") on delete set null,
-  "status" text not null default 'open' check ("status" in ('open', 'converted', 'abandoned')),
-  "email" text check (length("email") <= 320),
-  "shipping_address" jsonb check (jsonb_typeof("shipping_address") = 'object'),
-  "billing_address" jsonb check (jsonb_typeof("billing_address") = 'object'),
+  "status" text not null default 'open' constraint bsb_carts_status_check check ("status" in ('open', 'converted', 'abandoned')),
+  "email" text constraint bsb_carts_email_check check (length("email") <= 320),
+  "shipping_address" jsonb constraint bsb_carts_shipping_address_check check (jsonb_typeof("shipping_address") = 'object'),
+  "billing_address" jsonb constraint bsb_carts_billing_address_check check (jsonb_typeof("billing_address") = 'object'),
   "shipping_rate_id" uuid references "app_private"."order_shipping_rates" ("id") on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -5136,8 +5136,8 @@ create table "app_private"."cart_lines" (
   "tenant_id" uuid not null,
   "cart_id" uuid not null references "app_private"."carts" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" >= 1 and "quantity" <= 10000),
-  "unit_amount" bigint check ("unit_amount" >= 0),
+  "quantity" integer not null constraint bsb_cart_lines_quantity_check check ("quantity" >= 1 and "quantity" <= 10000),
+  "unit_amount" bigint constraint bsb_cart_lines_unit_amount_check check ("unit_amount" >= 0),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("cart_id", "variant_id")
@@ -5160,14 +5160,14 @@ create table "app_private"."orders" (
   "customer_id" uuid references auth.users (id) on delete set null,
   "email" text,
   "status" text not null default 'pending_payment',
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "subtotal" bigint not null default 0 check ("subtotal" >= 0),
-  "discount_total" bigint not null default 0 check ("discount_total" >= 0),
-  "shipping_total" bigint not null default 0 check ("shipping_total" >= 0),
-  "tax_total" bigint not null default 0 check ("tax_total" >= 0),
-  "total" bigint not null default 0 check ("total" >= 0),
-  "paid_total" bigint not null default 0 check ("paid_total" >= 0),
-  "refunded_total" bigint not null default 0 check ("refunded_total" >= 0),
+  "currency" char(3) not null constraint bsb_orders_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "subtotal" bigint not null default 0 constraint bsb_orders_subtotal_check check ("subtotal" >= 0),
+  "discount_total" bigint not null default 0 constraint bsb_orders_discount_total_check check ("discount_total" >= 0),
+  "shipping_total" bigint not null default 0 constraint bsb_orders_shipping_total_check check ("shipping_total" >= 0),
+  "tax_total" bigint not null default 0 constraint bsb_orders_tax_total_check check ("tax_total" >= 0),
+  "total" bigint not null default 0 constraint bsb_orders_total_check check ("total" >= 0),
+  "paid_total" bigint not null default 0 constraint bsb_orders_paid_total_check check ("paid_total" >= 0),
+  "refunded_total" bigint not null default 0 constraint bsb_orders_refunded_total_check check ("refunded_total" >= 0),
   "tax_inclusive" boolean not null default false,
   "shipping_address" jsonb,
   "billing_address" jsonb,
@@ -5184,11 +5184,11 @@ create table "app_private"."orders" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancel_reason" text,
-  "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "origin_id" text check (length("origin_id") >= 1 and length("origin_id") <= 200),
+  "origin_type" text constraint bsb_orders_origin_type_check check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "origin_id" text constraint bsb_orders_origin_id_check check (length("origin_id") >= 1 and length("origin_id") <= 200),
   "buyer" jsonb,
   "variant_of" uuid references "app_private"."orders" ("id") on delete set null,
-  "variant_label" text check (length("variant_label") <= 200),
+  "variant_label" text constraint bsb_orders_variant_label_check check (length("variant_label") <= 200),
   "is_selected" boolean not null default true,
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
@@ -5216,24 +5216,24 @@ create table "app_private"."order_lines" (
   "product_id" uuid,
   "sku" text not null,
   "title" text not null,
-  "quantity" integer not null check ("quantity" > 0),
-  "unit_amount" bigint not null default 0 check ("unit_amount" >= 0),
-  "subtotal" bigint not null default 0 check ("subtotal" >= 0),
-  "discount" bigint not null default 0 check ("discount" >= 0),
-  "tax" bigint not null default 0 check ("tax" >= 0),
-  "total" bigint not null default 0 check ("total" >= 0),
+  "quantity" integer not null constraint bsb_order_lines_quantity_check check ("quantity" > 0),
+  "unit_amount" bigint not null default 0 constraint bsb_order_lines_unit_amount_check check ("unit_amount" >= 0),
+  "subtotal" bigint not null default 0 constraint bsb_order_lines_subtotal_check check ("subtotal" >= 0),
+  "discount" bigint not null default 0 constraint bsb_order_lines_discount_check check ("discount" >= 0),
+  "tax" bigint not null default 0 constraint bsb_order_lines_tax_check check ("tax" >= 0),
+  "total" bigint not null default 0 constraint bsb_order_lines_total_check check ("total" >= 0),
   "requires_shipping" boolean not null default true,
   "location_id" uuid,
   "reservation_id" uuid,
   "tax_code_id" uuid,
-  "unit_cost" bigint check ("unit_cost" >= 0),
-  "cost_source" text check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
+  "unit_cost" bigint constraint bsb_order_lines_unit_cost_check check ("unit_cost" >= 0),
+  "cost_source" text constraint bsb_order_lines_cost_source_check check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
   "bin_id" uuid,
-  "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
+  "billing_party" text not null default 'customer' constraint bsb_order_lines_billing_party_check check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
-  "quantity_returned" integer not null default 0 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
+  "quantity_fulfilled" integer not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
+  "quantity_returned" integer not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
 create index order_lines_order_idx on "app_private"."order_lines" ("order_id");
@@ -5252,11 +5252,11 @@ create table "app_private"."order_payments" (
   "order_id" uuid not null references "app_private"."orders" ("id") on delete cascade,
   "provider" text not null,
   "reference" text not null,
-  "status" text not null check ("status" in ('requires_action', 'processing', 'authorized', 'succeeded', 'failed', 'canceled')),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "amount" bigint not null default 0 check ("amount" >= 0),
-  "captured" bigint not null default 0 check ("captured" >= 0),
-  "refunded" bigint not null default 0 check ("refunded" >= 0),
+  "status" text not null constraint bsb_order_payments_status_check check ("status" in ('requires_action', 'processing', 'authorized', 'succeeded', 'failed', 'canceled')),
+  "currency" char(3) not null constraint bsb_order_payments_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint not null default 0 constraint bsb_order_payments_amount_check check ("amount" >= 0),
+  "captured" bigint not null default 0 constraint bsb_order_payments_captured_check check ("captured" >= 0),
+  "refunded" bigint not null default 0 constraint bsb_order_payments_refunded_check check ("refunded" >= 0),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("provider", "reference")
@@ -5275,10 +5275,10 @@ create table "app_private"."order_fulfillments" (
   "tenant_id" uuid not null,
   "order_id" uuid not null references "app_private"."orders" ("id") on delete cascade,
   "location_id" uuid,
-  "status" text not null default 'pending' check ("status" in ('pending', 'shipped', 'delivered', 'cancelled')),
+  "status" text not null default 'pending' constraint bsb_order_fulfillments_status_check check ("status" in ('pending', 'shipped', 'delivered', 'cancelled')),
   "carrier" text,
   "tracking_number" text,
-  "tracking_url" text check ("tracking_url" ~ '^https://'),
+  "tracking_url" text constraint bsb_order_fulfillments_tracking_url_check check ("tracking_url" ~ '^https://'),
   "created_at" timestamptz not null default now(),
   "shipped_at" timestamptz,
   "delivered_at" timestamptz
@@ -5296,8 +5296,8 @@ create table "app_private"."order_fulfillment_lines" (
   "tenant_id" uuid not null,
   "fulfillment_id" uuid not null references "app_private"."order_fulfillments" ("id") on delete cascade,
   "order_line_id" uuid not null references "app_private"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" > 0),
-  "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object'),
+  "quantity" integer not null constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0),
+  "detail" jsonb constraint bsb_order_fulfillment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
   primary key ("fulfillment_id", "order_line_id")
 );
 create index "order_fulfillment_lines_line_idx" on "app_private"."order_fulfillment_lines" ("order_line_id");
@@ -5313,8 +5313,8 @@ create table "app_private"."order_returns" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null references "app_private"."orders" ("id") on delete cascade,
-  "status" text not null default 'requested' check ("status" in ('requested', 'received', 'rejected')),
-  "reason" text check (length("reason") <= 2000),
+  "status" text not null default 'requested' constraint bsb_order_returns_status_check check ("status" in ('requested', 'received', 'rejected')),
+  "reason" text constraint bsb_order_returns_reason_check check (length("reason") <= 2000),
   "requested_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   "received_at" timestamptz
@@ -5332,7 +5332,7 @@ create table "app_private"."order_return_lines" (
   "tenant_id" uuid not null,
   "return_id" uuid not null references "app_private"."order_returns" ("id") on delete cascade,
   "order_line_id" uuid not null references "app_private"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" > 0),
+  "quantity" integer not null constraint bsb_order_return_lines_quantity_check check ("quantity" > 0),
   primary key ("return_id", "order_line_id")
 );
 create index order_return_lines_line_idx on "app_private"."order_return_lines" ("order_line_id");
@@ -5350,10 +5350,10 @@ create table "app_private"."order_refunds" (
   "order_id" uuid not null references "app_private"."orders" ("id") on delete cascade,
   "payment_id" uuid not null references "app_private"."order_payments" ("id") on delete cascade,
   "return_id" uuid references "app_private"."order_returns" ("id") on delete set null,
-  "amount" bigint not null check ("amount" > 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'succeeded', 'failed')),
-  "reason" text check (length("reason") <= 2000),
+  "amount" bigint not null constraint bsb_order_refunds_amount_check check ("amount" > 0),
+  "currency" char(3) not null constraint bsb_order_refunds_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "status" text not null default 'pending' constraint bsb_order_refunds_status_check check ("status" in ('pending', 'succeeded', 'failed')),
+  "reason" text constraint bsb_order_refunds_reason_check check (length("reason") <= 2000),
   "provider_reference" text,
   "created_at" timestamptz not null default now(),
   "completed_at" timestamptz
@@ -7491,7 +7491,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:a2d5446642db126957bf5a342c392cb162a3bbd52216a1370363599559139cd2
+-- @bsb-hash sha256:f38d90cf875b1176069dc8cf1983b15bb636d88191cdc6d647c9d7debe83e35c
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7502,13 +7502,13 @@ on conflict (name) do update
 create table "better_supabase"."order_shipping_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_order_shipping_rates_name_check check (length("name") >= 1 and length("name") <= 200),
   "countries" text[] not null default '{}',
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "kind" text not null default 'flat' check ("kind" in ('flat', 'weight')),
-  "amount" bigint not null default 0 check ("amount" >= 0),
-  "amount_per_kg" bigint not null default 0 check ("amount_per_kg" >= 0),
-  "free_over" bigint check ("free_over" >= 0),
+  "currency" char(3) not null constraint bsb_order_shipping_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "kind" text not null default 'flat' constraint bsb_order_shipping_rates_kind_check check ("kind" in ('flat', 'weight')),
+  "amount" bigint not null default 0 constraint bsb_order_shipping_rates_amount_check check ("amount" >= 0),
+  "amount_per_kg" bigint not null default 0 constraint bsb_order_shipping_rates_amount_per_kg_check check ("amount_per_kg" >= 0),
+  "free_over" bigint constraint bsb_order_shipping_rates_free_over_check check ("free_over" >= 0),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -7526,12 +7526,12 @@ create table "better_supabase"."carts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" char(3) not null constraint bsb_carts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "price_list_id" uuid references "better_supabase"."catalog_price_lists" ("id") on delete set null,
-  "status" text not null default 'open' check ("status" in ('open', 'converted', 'abandoned')),
-  "email" text check (length("email") <= 320),
-  "shipping_address" jsonb check (jsonb_typeof("shipping_address") = 'object'),
-  "billing_address" jsonb check (jsonb_typeof("billing_address") = 'object'),
+  "status" text not null default 'open' constraint bsb_carts_status_check check ("status" in ('open', 'converted', 'abandoned')),
+  "email" text constraint bsb_carts_email_check check (length("email") <= 320),
+  "shipping_address" jsonb constraint bsb_carts_shipping_address_check check (jsonb_typeof("shipping_address") = 'object'),
+  "billing_address" jsonb constraint bsb_carts_billing_address_check check (jsonb_typeof("billing_address") = 'object'),
   "shipping_rate_id" uuid references "better_supabase"."order_shipping_rates" ("id") on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -7554,8 +7554,8 @@ create table "better_supabase"."cart_lines" (
   "tenant_id" uuid not null,
   "cart_id" uuid not null references "better_supabase"."carts" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" >= 1 and "quantity" <= 10000),
-  "unit_amount" bigint check ("unit_amount" >= 0),
+  "quantity" integer not null constraint bsb_cart_lines_quantity_check check ("quantity" >= 1 and "quantity" <= 10000),
+  "unit_amount" bigint constraint bsb_cart_lines_unit_amount_check check ("unit_amount" >= 0),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("cart_id", "variant_id")
@@ -7578,14 +7578,14 @@ create table "better_supabase"."orders" (
   "customer_id" uuid references auth.users (id) on delete set null,
   "email" text,
   "status" text not null default 'pending_payment',
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "subtotal" bigint not null default 0 check ("subtotal" >= 0),
-  "discount_total" bigint not null default 0 check ("discount_total" >= 0),
-  "shipping_total" bigint not null default 0 check ("shipping_total" >= 0),
-  "tax_total" bigint not null default 0 check ("tax_total" >= 0),
-  "total" bigint not null default 0 check ("total" >= 0),
-  "paid_total" bigint not null default 0 check ("paid_total" >= 0),
-  "refunded_total" bigint not null default 0 check ("refunded_total" >= 0),
+  "currency" char(3) not null constraint bsb_orders_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "subtotal" bigint not null default 0 constraint bsb_orders_subtotal_check check ("subtotal" >= 0),
+  "discount_total" bigint not null default 0 constraint bsb_orders_discount_total_check check ("discount_total" >= 0),
+  "shipping_total" bigint not null default 0 constraint bsb_orders_shipping_total_check check ("shipping_total" >= 0),
+  "tax_total" bigint not null default 0 constraint bsb_orders_tax_total_check check ("tax_total" >= 0),
+  "total" bigint not null default 0 constraint bsb_orders_total_check check ("total" >= 0),
+  "paid_total" bigint not null default 0 constraint bsb_orders_paid_total_check check ("paid_total" >= 0),
+  "refunded_total" bigint not null default 0 constraint bsb_orders_refunded_total_check check ("refunded_total" >= 0),
   "tax_inclusive" boolean not null default false,
   "shipping_address" jsonb,
   "billing_address" jsonb,
@@ -7602,11 +7602,11 @@ create table "better_supabase"."orders" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancel_reason" text,
-  "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "origin_id" text check (length("origin_id") >= 1 and length("origin_id") <= 200),
+  "origin_type" text constraint bsb_orders_origin_type_check check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "origin_id" text constraint bsb_orders_origin_id_check check (length("origin_id") >= 1 and length("origin_id") <= 200),
   "buyer" jsonb,
   "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
-  "variant_label" text check (length("variant_label") <= 200),
+  "variant_label" text constraint bsb_orders_variant_label_check check (length("variant_label") <= 200),
   "is_selected" boolean not null default true,
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
@@ -7634,24 +7634,24 @@ create table "better_supabase"."order_lines" (
   "product_id" uuid,
   "sku" text not null,
   "title" text not null,
-  "quantity" integer not null check ("quantity" > 0),
-  "unit_amount" bigint not null default 0 check ("unit_amount" >= 0),
-  "subtotal" bigint not null default 0 check ("subtotal" >= 0),
-  "discount" bigint not null default 0 check ("discount" >= 0),
-  "tax" bigint not null default 0 check ("tax" >= 0),
-  "total" bigint not null default 0 check ("total" >= 0),
+  "quantity" integer not null constraint bsb_order_lines_quantity_check check ("quantity" > 0),
+  "unit_amount" bigint not null default 0 constraint bsb_order_lines_unit_amount_check check ("unit_amount" >= 0),
+  "subtotal" bigint not null default 0 constraint bsb_order_lines_subtotal_check check ("subtotal" >= 0),
+  "discount" bigint not null default 0 constraint bsb_order_lines_discount_check check ("discount" >= 0),
+  "tax" bigint not null default 0 constraint bsb_order_lines_tax_check check ("tax" >= 0),
+  "total" bigint not null default 0 constraint bsb_order_lines_total_check check ("total" >= 0),
   "requires_shipping" boolean not null default true,
   "location_id" uuid,
   "reservation_id" uuid,
   "tax_code_id" uuid,
-  "unit_cost" bigint check ("unit_cost" >= 0),
-  "cost_source" text check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
+  "unit_cost" bigint constraint bsb_order_lines_unit_cost_check check ("unit_cost" >= 0),
+  "cost_source" text constraint bsb_order_lines_cost_source_check check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
   "bin_id" uuid,
-  "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
+  "billing_party" text not null default 'customer' constraint bsb_order_lines_billing_party_check check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
-  "quantity_returned" integer not null default 0 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
+  "quantity_fulfilled" integer not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
+  "quantity_returned" integer not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
 create index order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
@@ -7670,11 +7670,11 @@ create table "better_supabase"."order_payments" (
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
   "provider" text not null,
   "reference" text not null,
-  "status" text not null check ("status" in ('requires_action', 'processing', 'authorized', 'succeeded', 'failed', 'canceled')),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "amount" bigint not null default 0 check ("amount" >= 0),
-  "captured" bigint not null default 0 check ("captured" >= 0),
-  "refunded" bigint not null default 0 check ("refunded" >= 0),
+  "status" text not null constraint bsb_order_payments_status_check check ("status" in ('requires_action', 'processing', 'authorized', 'succeeded', 'failed', 'canceled')),
+  "currency" char(3) not null constraint bsb_order_payments_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint not null default 0 constraint bsb_order_payments_amount_check check ("amount" >= 0),
+  "captured" bigint not null default 0 constraint bsb_order_payments_captured_check check ("captured" >= 0),
+  "refunded" bigint not null default 0 constraint bsb_order_payments_refunded_check check ("refunded" >= 0),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("provider", "reference")
@@ -7693,10 +7693,10 @@ create table "better_supabase"."order_fulfillments" (
   "tenant_id" uuid not null,
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
   "location_id" uuid,
-  "status" text not null default 'pending' check ("status" in ('pending', 'shipped', 'delivered', 'cancelled')),
+  "status" text not null default 'pending' constraint bsb_order_fulfillments_status_check check ("status" in ('pending', 'shipped', 'delivered', 'cancelled')),
   "carrier" text,
   "tracking_number" text,
-  "tracking_url" text check ("tracking_url" ~ '^https://'),
+  "tracking_url" text constraint bsb_order_fulfillments_tracking_url_check check ("tracking_url" ~ '^https://'),
   "created_at" timestamptz not null default now(),
   "shipped_at" timestamptz,
   "delivered_at" timestamptz
@@ -7714,8 +7714,8 @@ create table "better_supabase"."order_fulfillment_lines" (
   "tenant_id" uuid not null,
   "fulfillment_id" uuid not null references "better_supabase"."order_fulfillments" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" > 0),
-  "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object'),
+  "quantity" integer not null constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0),
+  "detail" jsonb constraint bsb_order_fulfillment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
   primary key ("fulfillment_id", "order_line_id")
 );
 create index "order_fulfillment_lines_line_idx" on "better_supabase"."order_fulfillment_lines" ("order_line_id");
@@ -7731,8 +7731,8 @@ create table "better_supabase"."order_returns" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
-  "status" text not null default 'requested' check ("status" in ('requested', 'received', 'rejected')),
-  "reason" text check (length("reason") <= 2000),
+  "status" text not null default 'requested' constraint bsb_order_returns_status_check check ("status" in ('requested', 'received', 'rejected')),
+  "reason" text constraint bsb_order_returns_reason_check check (length("reason") <= 2000),
   "requested_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   "received_at" timestamptz
@@ -7750,7 +7750,7 @@ create table "better_supabase"."order_return_lines" (
   "tenant_id" uuid not null,
   "return_id" uuid not null references "better_supabase"."order_returns" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" > 0),
+  "quantity" integer not null constraint bsb_order_return_lines_quantity_check check ("quantity" > 0),
   primary key ("return_id", "order_line_id")
 );
 create index order_return_lines_line_idx on "better_supabase"."order_return_lines" ("order_line_id");
@@ -7768,10 +7768,10 @@ create table "better_supabase"."order_refunds" (
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
   "payment_id" uuid not null references "better_supabase"."order_payments" ("id") on delete cascade,
   "return_id" uuid references "better_supabase"."order_returns" ("id") on delete set null,
-  "amount" bigint not null check ("amount" > 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'succeeded', 'failed')),
-  "reason" text check (length("reason") <= 2000),
+  "amount" bigint not null constraint bsb_order_refunds_amount_check check ("amount" > 0),
+  "currency" char(3) not null constraint bsb_order_refunds_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "status" text not null default 'pending' constraint bsb_order_refunds_status_check check ("status" in ('pending', 'succeeded', 'failed')),
+  "reason" text constraint bsb_order_refunds_reason_check check (length("reason") <= 2000),
   "provider_reference" text,
   "created_at" timestamptz not null default now(),
   "completed_at" timestamptz
@@ -10214,7 +10214,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:1d7ea7931db2c94830f357cd98c6b645457a30f131263aea0e36294ec7a41045
+-- @bsb-hash sha256:6ac0c1240839227379c8a767e4b21eb6fbba3003af3599dd6ede26f0a9e7c05b
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10225,13 +10225,13 @@ on conflict (name) do update
 -- better_supabase.order_shipping_rates is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."order_shipping_rates" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."order_shipping_rates" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."order_shipping_rates" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."order_shipping_rates" add column if not exists "name" text constraint bsb_order_shipping_rates_name_check check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."order_shipping_rates" add column if not exists "countries" text[] not null default '{}';
-alter table "better_supabase"."order_shipping_rates" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."order_shipping_rates" add column if not exists "kind" text not null default 'flat' check ("kind" in ('flat', 'weight'));
-alter table "better_supabase"."order_shipping_rates" add column if not exists "amount" bigint not null default 0 check ("amount" >= 0);
-alter table "better_supabase"."order_shipping_rates" add column if not exists "amount_per_kg" bigint not null default 0 check ("amount_per_kg" >= 0);
-alter table "better_supabase"."order_shipping_rates" add column if not exists "free_over" bigint check ("free_over" >= 0);
+alter table "better_supabase"."order_shipping_rates" add column if not exists "currency" char(3) constraint bsb_order_shipping_rates_currency_check check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."order_shipping_rates" add column if not exists "kind" text not null default 'flat' constraint bsb_order_shipping_rates_kind_check check ("kind" in ('flat', 'weight'));
+alter table "better_supabase"."order_shipping_rates" add column if not exists "amount" bigint not null default 0 constraint bsb_order_shipping_rates_amount_check check ("amount" >= 0);
+alter table "better_supabase"."order_shipping_rates" add column if not exists "amount_per_kg" bigint not null default 0 constraint bsb_order_shipping_rates_amount_per_kg_check check ("amount_per_kg" >= 0);
+alter table "better_supabase"."order_shipping_rates" add column if not exists "free_over" bigint constraint bsb_order_shipping_rates_free_over_check check ("free_over" >= 0);
 alter table "better_supabase"."order_shipping_rates" add column if not exists "active" boolean not null default true;
 alter table "better_supabase"."order_shipping_rates" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."order_shipping_rates" add column if not exists "updated_at" timestamptz not null default now();
@@ -10247,12 +10247,12 @@ create policy bsb_order_shipping_rates_select on "better_supabase"."order_shippi
 alter table "better_supabase"."carts" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."carts" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."carts" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."carts" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."carts" add column if not exists "currency" char(3) constraint bsb_carts_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."carts" add column if not exists "price_list_id" uuid references "better_supabase"."catalog_price_lists" ("id") on delete set null;
-alter table "better_supabase"."carts" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'converted', 'abandoned'));
-alter table "better_supabase"."carts" add column if not exists "email" text check (length("email") <= 320);
-alter table "better_supabase"."carts" add column if not exists "shipping_address" jsonb check (jsonb_typeof("shipping_address") = 'object');
-alter table "better_supabase"."carts" add column if not exists "billing_address" jsonb check (jsonb_typeof("billing_address") = 'object');
+alter table "better_supabase"."carts" add column if not exists "status" text not null default 'open' constraint bsb_carts_status_check check ("status" in ('open', 'converted', 'abandoned'));
+alter table "better_supabase"."carts" add column if not exists "email" text constraint bsb_carts_email_check check (length("email") <= 320);
+alter table "better_supabase"."carts" add column if not exists "shipping_address" jsonb constraint bsb_carts_shipping_address_check check (jsonb_typeof("shipping_address") = 'object');
+alter table "better_supabase"."carts" add column if not exists "billing_address" jsonb constraint bsb_carts_billing_address_check check (jsonb_typeof("billing_address") = 'object');
 alter table "better_supabase"."carts" add column if not exists "shipping_rate_id" uuid references "better_supabase"."order_shipping_rates" ("id") on delete set null;
 alter table "better_supabase"."carts" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."carts" add column if not exists "updated_at" timestamptz not null default now();
@@ -10273,8 +10273,8 @@ alter table "better_supabase"."cart_lines" add column if not exists "id" uuid de
 alter table "better_supabase"."cart_lines" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."cart_lines" add column if not exists "cart_id" uuid references "better_supabase"."carts" ("id") on delete cascade;
 alter table "better_supabase"."cart_lines" add column if not exists "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade;
-alter table "better_supabase"."cart_lines" add column if not exists "quantity" integer check ("quantity" >= 1 and "quantity" <= 10000);
-alter table "better_supabase"."cart_lines" add column if not exists "unit_amount" bigint check ("unit_amount" >= 0);
+alter table "better_supabase"."cart_lines" add column if not exists "quantity" integer constraint bsb_cart_lines_quantity_check check ("quantity" >= 1 and "quantity" <= 10000);
+alter table "better_supabase"."cart_lines" add column if not exists "unit_amount" bigint constraint bsb_cart_lines_unit_amount_check check ("unit_amount" >= 0);
 alter table "better_supabase"."cart_lines" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."cart_lines" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "cart_lines_cart_id_variant_id_key" on "better_supabase"."cart_lines" ("cart_id", "variant_id");
@@ -10295,14 +10295,14 @@ alter table "better_supabase"."orders" add column if not exists "cart_id" uuid r
 alter table "better_supabase"."orders" add column if not exists "customer_id" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."orders" add column if not exists "email" text;
 alter table "better_supabase"."orders" add column if not exists "status" text not null default 'pending_payment';
-alter table "better_supabase"."orders" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."orders" add column if not exists "subtotal" bigint not null default 0 check ("subtotal" >= 0);
-alter table "better_supabase"."orders" add column if not exists "discount_total" bigint not null default 0 check ("discount_total" >= 0);
-alter table "better_supabase"."orders" add column if not exists "shipping_total" bigint not null default 0 check ("shipping_total" >= 0);
-alter table "better_supabase"."orders" add column if not exists "tax_total" bigint not null default 0 check ("tax_total" >= 0);
-alter table "better_supabase"."orders" add column if not exists "total" bigint not null default 0 check ("total" >= 0);
-alter table "better_supabase"."orders" add column if not exists "paid_total" bigint not null default 0 check ("paid_total" >= 0);
-alter table "better_supabase"."orders" add column if not exists "refunded_total" bigint not null default 0 check ("refunded_total" >= 0);
+alter table "better_supabase"."orders" add column if not exists "currency" char(3) constraint bsb_orders_currency_check check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."orders" add column if not exists "subtotal" bigint not null default 0 constraint bsb_orders_subtotal_check check ("subtotal" >= 0);
+alter table "better_supabase"."orders" add column if not exists "discount_total" bigint not null default 0 constraint bsb_orders_discount_total_check check ("discount_total" >= 0);
+alter table "better_supabase"."orders" add column if not exists "shipping_total" bigint not null default 0 constraint bsb_orders_shipping_total_check check ("shipping_total" >= 0);
+alter table "better_supabase"."orders" add column if not exists "tax_total" bigint not null default 0 constraint bsb_orders_tax_total_check check ("tax_total" >= 0);
+alter table "better_supabase"."orders" add column if not exists "total" bigint not null default 0 constraint bsb_orders_total_check check ("total" >= 0);
+alter table "better_supabase"."orders" add column if not exists "paid_total" bigint not null default 0 constraint bsb_orders_paid_total_check check ("paid_total" >= 0);
+alter table "better_supabase"."orders" add column if not exists "refunded_total" bigint not null default 0 constraint bsb_orders_refunded_total_check check ("refunded_total" >= 0);
 alter table "better_supabase"."orders" add column if not exists "tax_inclusive" boolean not null default false;
 alter table "better_supabase"."orders" add column if not exists "shipping_address" jsonb;
 alter table "better_supabase"."orders" add column if not exists "billing_address" jsonb;
@@ -10319,11 +10319,11 @@ alter table "better_supabase"."orders" add column if not exists "fulfilled_at" t
 alter table "better_supabase"."orders" add column if not exists "completed_at" timestamptz;
 alter table "better_supabase"."orders" add column if not exists "cancelled_at" timestamptz;
 alter table "better_supabase"."orders" add column if not exists "cancel_reason" text;
-alter table "better_supabase"."orders" add column if not exists "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."orders" add column if not exists "origin_id" text check (length("origin_id") >= 1 and length("origin_id") <= 200);
+alter table "better_supabase"."orders" add column if not exists "origin_type" text constraint bsb_orders_origin_type_check check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."orders" add column if not exists "origin_id" text constraint bsb_orders_origin_id_check check (length("origin_id") >= 1 and length("origin_id") <= 200);
 alter table "better_supabase"."orders" add column if not exists "buyer" jsonb;
 alter table "better_supabase"."orders" add column if not exists "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null;
-alter table "better_supabase"."orders" add column if not exists "variant_label" text check (length("variant_label") <= 200);
+alter table "better_supabase"."orders" add column if not exists "variant_label" text constraint bsb_orders_variant_label_check check (length("variant_label") <= 200);
 alter table "better_supabase"."orders" add column if not exists "is_selected" boolean not null default true;
 alter table "better_supabase"."orders" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists orders_status_idx on "better_supabase"."orders" ("tenant_id", "status", "placed_at");
@@ -10347,24 +10347,24 @@ alter table "better_supabase"."order_lines" add column if not exists "variant_id
 alter table "better_supabase"."order_lines" add column if not exists "product_id" uuid;
 alter table "better_supabase"."order_lines" add column if not exists "sku" text;
 alter table "better_supabase"."order_lines" add column if not exists "title" text;
-alter table "better_supabase"."order_lines" add column if not exists "quantity" integer check ("quantity" > 0);
-alter table "better_supabase"."order_lines" add column if not exists "unit_amount" bigint not null default 0 check ("unit_amount" >= 0);
-alter table "better_supabase"."order_lines" add column if not exists "subtotal" bigint not null default 0 check ("subtotal" >= 0);
-alter table "better_supabase"."order_lines" add column if not exists "discount" bigint not null default 0 check ("discount" >= 0);
-alter table "better_supabase"."order_lines" add column if not exists "tax" bigint not null default 0 check ("tax" >= 0);
-alter table "better_supabase"."order_lines" add column if not exists "total" bigint not null default 0 check ("total" >= 0);
+alter table "better_supabase"."order_lines" add column if not exists "quantity" integer constraint bsb_order_lines_quantity_check check ("quantity" > 0);
+alter table "better_supabase"."order_lines" add column if not exists "unit_amount" bigint not null default 0 constraint bsb_order_lines_unit_amount_check check ("unit_amount" >= 0);
+alter table "better_supabase"."order_lines" add column if not exists "subtotal" bigint not null default 0 constraint bsb_order_lines_subtotal_check check ("subtotal" >= 0);
+alter table "better_supabase"."order_lines" add column if not exists "discount" bigint not null default 0 constraint bsb_order_lines_discount_check check ("discount" >= 0);
+alter table "better_supabase"."order_lines" add column if not exists "tax" bigint not null default 0 constraint bsb_order_lines_tax_check check ("tax" >= 0);
+alter table "better_supabase"."order_lines" add column if not exists "total" bigint not null default 0 constraint bsb_order_lines_total_check check ("total" >= 0);
 alter table "better_supabase"."order_lines" add column if not exists "requires_shipping" boolean not null default true;
 alter table "better_supabase"."order_lines" add column if not exists "location_id" uuid;
 alter table "better_supabase"."order_lines" add column if not exists "reservation_id" uuid;
 alter table "better_supabase"."order_lines" add column if not exists "tax_code_id" uuid;
-alter table "better_supabase"."order_lines" add column if not exists "unit_cost" bigint check ("unit_cost" >= 0);
-alter table "better_supabase"."order_lines" add column if not exists "cost_source" text check ("cost_source" in ('catalog', 'average', 'manual', 'imported'));
+alter table "better_supabase"."order_lines" add column if not exists "unit_cost" bigint constraint bsb_order_lines_unit_cost_check check ("unit_cost" >= 0);
+alter table "better_supabase"."order_lines" add column if not exists "cost_source" text constraint bsb_order_lines_cost_source_check check ("cost_source" in ('catalog', 'average', 'manual', 'imported'));
 alter table "better_supabase"."order_lines" add column if not exists "bin_id" uuid;
-alter table "better_supabase"."order_lines" add column if not exists "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account'));
+alter table "better_supabase"."order_lines" add column if not exists "billing_party" text not null default 'customer' constraint bsb_order_lines_billing_party_check check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account'));
 alter table "better_supabase"."order_lines" add column if not exists "billing_party_id" text;
 alter table "better_supabase"."order_lines" add column if not exists "billing_account_id" uuid;
-alter table "better_supabase"."order_lines" add column if not exists "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity");
-alter table "better_supabase"."order_lines" add column if not exists "quantity_returned" integer not null default 0 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity");
+alter table "better_supabase"."order_lines" add column if not exists "quantity_fulfilled" integer not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity");
+alter table "better_supabase"."order_lines" add column if not exists "quantity_returned" integer not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity");
 alter table "better_supabase"."order_lines" add column if not exists "backordered" boolean not null default false;
 create index if not exists order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
 create index if not exists order_lines_variant_idx on "better_supabase"."order_lines" ("variant_id");
@@ -10381,11 +10381,11 @@ alter table "better_supabase"."order_payments" add column if not exists "tenant_
 alter table "better_supabase"."order_payments" add column if not exists "order_id" uuid references "better_supabase"."orders" ("id") on delete cascade;
 alter table "better_supabase"."order_payments" add column if not exists "provider" text;
 alter table "better_supabase"."order_payments" add column if not exists "reference" text;
-alter table "better_supabase"."order_payments" add column if not exists "status" text check ("status" in ('requires_action', 'processing', 'authorized', 'succeeded', 'failed', 'canceled'));
-alter table "better_supabase"."order_payments" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."order_payments" add column if not exists "amount" bigint not null default 0 check ("amount" >= 0);
-alter table "better_supabase"."order_payments" add column if not exists "captured" bigint not null default 0 check ("captured" >= 0);
-alter table "better_supabase"."order_payments" add column if not exists "refunded" bigint not null default 0 check ("refunded" >= 0);
+alter table "better_supabase"."order_payments" add column if not exists "status" text constraint bsb_order_payments_status_check check ("status" in ('requires_action', 'processing', 'authorized', 'succeeded', 'failed', 'canceled'));
+alter table "better_supabase"."order_payments" add column if not exists "currency" char(3) constraint bsb_order_payments_currency_check check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."order_payments" add column if not exists "amount" bigint not null default 0 constraint bsb_order_payments_amount_check check ("amount" >= 0);
+alter table "better_supabase"."order_payments" add column if not exists "captured" bigint not null default 0 constraint bsb_order_payments_captured_check check ("captured" >= 0);
+alter table "better_supabase"."order_payments" add column if not exists "refunded" bigint not null default 0 constraint bsb_order_payments_refunded_check check ("refunded" >= 0);
 alter table "better_supabase"."order_payments" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."order_payments" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "order_payments_provider_reference_key" on "better_supabase"."order_payments" ("provider", "reference");
@@ -10402,10 +10402,10 @@ alter table "better_supabase"."order_fulfillments" add column if not exists "id"
 alter table "better_supabase"."order_fulfillments" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."order_fulfillments" add column if not exists "order_id" uuid references "better_supabase"."orders" ("id") on delete cascade;
 alter table "better_supabase"."order_fulfillments" add column if not exists "location_id" uuid;
-alter table "better_supabase"."order_fulfillments" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'shipped', 'delivered', 'cancelled'));
+alter table "better_supabase"."order_fulfillments" add column if not exists "status" text not null default 'pending' constraint bsb_order_fulfillments_status_check check ("status" in ('pending', 'shipped', 'delivered', 'cancelled'));
 alter table "better_supabase"."order_fulfillments" add column if not exists "carrier" text;
 alter table "better_supabase"."order_fulfillments" add column if not exists "tracking_number" text;
-alter table "better_supabase"."order_fulfillments" add column if not exists "tracking_url" text check ("tracking_url" ~ '^https://');
+alter table "better_supabase"."order_fulfillments" add column if not exists "tracking_url" text constraint bsb_order_fulfillments_tracking_url_check check ("tracking_url" ~ '^https://');
 alter table "better_supabase"."order_fulfillments" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."order_fulfillments" add column if not exists "shipped_at" timestamptz;
 alter table "better_supabase"."order_fulfillments" add column if not exists "delivered_at" timestamptz;
@@ -10421,8 +10421,8 @@ create policy bsb_order_fulfillments_select on "better_supabase"."order_fulfillm
 alter table "better_supabase"."order_fulfillment_lines" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."order_fulfillment_lines" add column if not exists "fulfillment_id" uuid references "better_supabase"."order_fulfillments" ("id") on delete cascade;
 alter table "better_supabase"."order_fulfillment_lines" add column if not exists "order_line_id" uuid references "better_supabase"."order_lines" ("id") on delete cascade;
-alter table "better_supabase"."order_fulfillment_lines" add column if not exists "quantity" integer check ("quantity" > 0);
-alter table "better_supabase"."order_fulfillment_lines" add column if not exists "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object');
+alter table "better_supabase"."order_fulfillment_lines" add column if not exists "quantity" integer constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0);
+alter table "better_supabase"."order_fulfillment_lines" add column if not exists "detail" jsonb constraint bsb_order_fulfillment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object');
 create unique index if not exists "order_fulfillment_lines_fulfillment_id_order_line_id_key" on "better_supabase"."order_fulfillment_lines" ("fulfillment_id", "order_line_id");
 create index if not exists "order_fulfillment_lines_line_idx" on "better_supabase"."order_fulfillment_lines" ("order_line_id");
 alter table "better_supabase"."order_fulfillment_lines" enable row level security;
@@ -10436,8 +10436,8 @@ create policy bsb_order_fulfillment_lines_select on "better_supabase"."order_ful
 alter table "better_supabase"."order_returns" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."order_returns" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."order_returns" add column if not exists "order_id" uuid references "better_supabase"."orders" ("id") on delete cascade;
-alter table "better_supabase"."order_returns" add column if not exists "status" text not null default 'requested' check ("status" in ('requested', 'received', 'rejected'));
-alter table "better_supabase"."order_returns" add column if not exists "reason" text check (length("reason") <= 2000);
+alter table "better_supabase"."order_returns" add column if not exists "status" text not null default 'requested' constraint bsb_order_returns_status_check check ("status" in ('requested', 'received', 'rejected'));
+alter table "better_supabase"."order_returns" add column if not exists "reason" text constraint bsb_order_returns_reason_check check (length("reason") <= 2000);
 alter table "better_supabase"."order_returns" add column if not exists "requested_by" uuid default auth.uid();
 alter table "better_supabase"."order_returns" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."order_returns" add column if not exists "received_at" timestamptz;
@@ -10453,7 +10453,7 @@ create policy bsb_order_returns_select on "better_supabase"."order_returns"
 alter table "better_supabase"."order_return_lines" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."order_return_lines" add column if not exists "return_id" uuid references "better_supabase"."order_returns" ("id") on delete cascade;
 alter table "better_supabase"."order_return_lines" add column if not exists "order_line_id" uuid references "better_supabase"."order_lines" ("id") on delete cascade;
-alter table "better_supabase"."order_return_lines" add column if not exists "quantity" integer check ("quantity" > 0);
+alter table "better_supabase"."order_return_lines" add column if not exists "quantity" integer constraint bsb_order_return_lines_quantity_check check ("quantity" > 0);
 create unique index if not exists "order_return_lines_return_id_order_line_id_key" on "better_supabase"."order_return_lines" ("return_id", "order_line_id");
 create index if not exists order_return_lines_line_idx on "better_supabase"."order_return_lines" ("order_line_id");
 alter table "better_supabase"."order_return_lines" enable row level security;
@@ -10469,10 +10469,10 @@ alter table "better_supabase"."order_refunds" add column if not exists "tenant_i
 alter table "better_supabase"."order_refunds" add column if not exists "order_id" uuid references "better_supabase"."orders" ("id") on delete cascade;
 alter table "better_supabase"."order_refunds" add column if not exists "payment_id" uuid references "better_supabase"."order_payments" ("id") on delete cascade;
 alter table "better_supabase"."order_refunds" add column if not exists "return_id" uuid references "better_supabase"."order_returns" ("id") on delete set null;
-alter table "better_supabase"."order_refunds" add column if not exists "amount" bigint check ("amount" > 0);
-alter table "better_supabase"."order_refunds" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."order_refunds" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'succeeded', 'failed'));
-alter table "better_supabase"."order_refunds" add column if not exists "reason" text check (length("reason") <= 2000);
+alter table "better_supabase"."order_refunds" add column if not exists "amount" bigint constraint bsb_order_refunds_amount_check check ("amount" > 0);
+alter table "better_supabase"."order_refunds" add column if not exists "currency" char(3) constraint bsb_order_refunds_currency_check check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."order_refunds" add column if not exists "status" text not null default 'pending' constraint bsb_order_refunds_status_check check ("status" in ('pending', 'succeeded', 'failed'));
+alter table "better_supabase"."order_refunds" add column if not exists "reason" text constraint bsb_order_refunds_reason_check check (length("reason") <= 2000);
 alter table "better_supabase"."order_refunds" add column if not exists "provider_reference" text;
 alter table "better_supabase"."order_refunds" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."order_refunds" add column if not exists "completed_at" timestamptz;
@@ -12608,7 +12608,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_084_orders.sql
 -- better-supabase module: orders
 -- @bsb-block orders@4 managed
--- @bsb-hash sha256:384e0ef5614ace2863e13d2c641061358b0f16bd9cc6c1717de2bb9c1461441b
+-- @bsb-hash sha256:6cab949af093ff3637db635680bcc0a06afd73ec444c553d68604066fdf75a88
 -- Carts on anonymous or signed-in users, checkout priced from the catalog, confirmed orders from lines or an accepted quote with stock allocations, gapless order and invoice numbers, payments, fulfillments, returns and refunds, with an optional kitchen display. With invoices, a paid order gets an issued, paid invoice.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12619,13 +12619,13 @@ on conflict (name) do update
 create table "better_supabase"."order_shipping_rates" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_order_shipping_rates_name_check check (length("name") >= 1 and length("name") <= 200),
   "countries" text[] not null default '{}',
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "kind" text not null default 'flat' check ("kind" in ('flat', 'weight')),
-  "amount" bigint not null default 0 check ("amount" >= 0),
-  "amount_per_kg" bigint not null default 0 check ("amount_per_kg" >= 0),
-  "free_over" bigint check ("free_over" >= 0),
+  "currency" char(3) not null constraint bsb_order_shipping_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "kind" text not null default 'flat' constraint bsb_order_shipping_rates_kind_check check ("kind" in ('flat', 'weight')),
+  "amount" bigint not null default 0 constraint bsb_order_shipping_rates_amount_check check ("amount" >= 0),
+  "amount_per_kg" bigint not null default 0 constraint bsb_order_shipping_rates_amount_per_kg_check check ("amount_per_kg" >= 0),
+  "free_over" bigint constraint bsb_order_shipping_rates_free_over_check check ("free_over" >= 0),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -12643,12 +12643,12 @@ create table "better_supabase"."carts" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" char(3) not null constraint bsb_carts_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "price_list_id" uuid references "better_supabase"."catalog_price_lists" ("id") on delete set null,
-  "status" text not null default 'open' check ("status" in ('open', 'converted', 'abandoned')),
-  "email" text check (length("email") <= 320),
-  "shipping_address" jsonb check (jsonb_typeof("shipping_address") = 'object'),
-  "billing_address" jsonb check (jsonb_typeof("billing_address") = 'object'),
+  "status" text not null default 'open' constraint bsb_carts_status_check check ("status" in ('open', 'converted', 'abandoned')),
+  "email" text constraint bsb_carts_email_check check (length("email") <= 320),
+  "shipping_address" jsonb constraint bsb_carts_shipping_address_check check (jsonb_typeof("shipping_address") = 'object'),
+  "billing_address" jsonb constraint bsb_carts_billing_address_check check (jsonb_typeof("billing_address") = 'object'),
   "shipping_rate_id" uuid references "better_supabase"."order_shipping_rates" ("id") on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -12671,8 +12671,8 @@ create table "better_supabase"."cart_lines" (
   "org_id" uuid not null,
   "cart_id" uuid not null references "better_supabase"."carts" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" >= 1 and "quantity" <= 10000),
-  "unit_amount" bigint check ("unit_amount" >= 0),
+  "quantity" integer not null constraint bsb_cart_lines_quantity_check check ("quantity" >= 1 and "quantity" <= 10000),
+  "unit_amount" bigint constraint bsb_cart_lines_unit_amount_check check ("unit_amount" >= 0),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("cart_id", "variant_id")
@@ -12695,14 +12695,14 @@ create table "better_supabase"."orders" (
   "customer_id" uuid references auth.users (id) on delete set null,
   "email" text,
   "status" text not null default 'pending_payment',
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "subtotal" bigint not null default 0 check ("subtotal" >= 0),
-  "discount_total" bigint not null default 0 check ("discount_total" >= 0),
-  "shipping_total" bigint not null default 0 check ("shipping_total" >= 0),
-  "tax_total" bigint not null default 0 check ("tax_total" >= 0),
-  "total" bigint not null default 0 check ("total" >= 0),
-  "paid_total" bigint not null default 0 check ("paid_total" >= 0),
-  "refunded_total" bigint not null default 0 check ("refunded_total" >= 0),
+  "currency" char(3) not null constraint bsb_orders_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "subtotal" bigint not null default 0 constraint bsb_orders_subtotal_check check ("subtotal" >= 0),
+  "discount_total" bigint not null default 0 constraint bsb_orders_discount_total_check check ("discount_total" >= 0),
+  "shipping_total" bigint not null default 0 constraint bsb_orders_shipping_total_check check ("shipping_total" >= 0),
+  "tax_total" bigint not null default 0 constraint bsb_orders_tax_total_check check ("tax_total" >= 0),
+  "total" bigint not null default 0 constraint bsb_orders_total_check check ("total" >= 0),
+  "paid_total" bigint not null default 0 constraint bsb_orders_paid_total_check check ("paid_total" >= 0),
+  "refunded_total" bigint not null default 0 constraint bsb_orders_refunded_total_check check ("refunded_total" >= 0),
   "tax_inclusive" boolean not null default false,
   "shipping_address" jsonb,
   "billing_address" jsonb,
@@ -12719,11 +12719,11 @@ create table "better_supabase"."orders" (
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancel_reason" text,
-  "origin_type" text check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "origin_id" text check (length("origin_id") >= 1 and length("origin_id") <= 200),
+  "origin_type" text constraint bsb_orders_origin_type_check check ("origin_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "origin_id" text constraint bsb_orders_origin_id_check check (length("origin_id") >= 1 and length("origin_id") <= 200),
   "buyer" jsonb,
   "variant_of" uuid references "better_supabase"."orders" ("id") on delete set null,
-  "variant_label" text check (length("variant_label") <= 200),
+  "variant_label" text constraint bsb_orders_variant_label_check check (length("variant_label") <= 200),
   "is_selected" boolean not null default true,
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "number"),
@@ -12751,24 +12751,24 @@ create table "better_supabase"."order_lines" (
   "product_id" uuid,
   "sku" text not null,
   "title" text not null,
-  "quantity" integer not null check ("quantity" > 0),
-  "unit_amount" bigint not null default 0 check ("unit_amount" >= 0),
-  "subtotal" bigint not null default 0 check ("subtotal" >= 0),
-  "discount" bigint not null default 0 check ("discount" >= 0),
-  "tax" bigint not null default 0 check ("tax" >= 0),
-  "total" bigint not null default 0 check ("total" >= 0),
+  "quantity" integer not null constraint bsb_order_lines_quantity_check check ("quantity" > 0),
+  "unit_amount" bigint not null default 0 constraint bsb_order_lines_unit_amount_check check ("unit_amount" >= 0),
+  "subtotal" bigint not null default 0 constraint bsb_order_lines_subtotal_check check ("subtotal" >= 0),
+  "discount" bigint not null default 0 constraint bsb_order_lines_discount_check check ("discount" >= 0),
+  "tax" bigint not null default 0 constraint bsb_order_lines_tax_check check ("tax" >= 0),
+  "total" bigint not null default 0 constraint bsb_order_lines_total_check check ("total" >= 0),
   "requires_shipping" boolean not null default true,
   "location_id" uuid,
   "reservation_id" uuid,
   "tax_code_id" uuid,
-  "unit_cost" bigint check ("unit_cost" >= 0),
-  "cost_source" text check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
+  "unit_cost" bigint constraint bsb_order_lines_unit_cost_check check ("unit_cost" >= 0),
+  "cost_source" text constraint bsb_order_lines_cost_source_check check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
   "bin_id" uuid,
-  "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
+  "billing_party" text not null default 'customer' constraint bsb_order_lines_billing_party_check check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "quantity_fulfilled" integer not null default 0 check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
-  "quantity_returned" integer not null default 0 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
+  "quantity_fulfilled" integer not null default 0 constraint bsb_order_lines_check check ("quantity_fulfilled" >= 0 and "quantity_fulfilled" <= "quantity"),
+  "quantity_returned" integer not null default 0 constraint bsb_order_lines_check1 check ("quantity_returned" >= 0 and "quantity_returned" <= "quantity"),
   "backordered" boolean not null default false
 );
 create index order_lines_order_idx on "better_supabase"."order_lines" ("order_id");
@@ -12787,11 +12787,11 @@ create table "better_supabase"."order_payments" (
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
   "provider" text not null,
   "reference" text not null,
-  "status" text not null check ("status" in ('requires_action', 'processing', 'authorized', 'succeeded', 'failed', 'canceled')),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "amount" bigint not null default 0 check ("amount" >= 0),
-  "captured" bigint not null default 0 check ("captured" >= 0),
-  "refunded" bigint not null default 0 check ("refunded" >= 0),
+  "status" text not null constraint bsb_order_payments_status_check check ("status" in ('requires_action', 'processing', 'authorized', 'succeeded', 'failed', 'canceled')),
+  "currency" char(3) not null constraint bsb_order_payments_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint not null default 0 constraint bsb_order_payments_amount_check check ("amount" >= 0),
+  "captured" bigint not null default 0 constraint bsb_order_payments_captured_check check ("captured" >= 0),
+  "refunded" bigint not null default 0 constraint bsb_order_payments_refunded_check check ("refunded" >= 0),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("provider", "reference")
@@ -12810,10 +12810,10 @@ create table "better_supabase"."order_fulfillments" (
   "org_id" uuid not null,
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
   "location_id" uuid,
-  "status" text not null default 'pending' check ("status" in ('pending', 'shipped', 'delivered', 'cancelled')),
+  "status" text not null default 'pending' constraint bsb_order_fulfillments_status_check check ("status" in ('pending', 'shipped', 'delivered', 'cancelled')),
   "carrier" text,
   "tracking_number" text,
-  "tracking_url" text check ("tracking_url" ~ '^https://'),
+  "tracking_url" text constraint bsb_order_fulfillments_tracking_url_check check ("tracking_url" ~ '^https://'),
   "created_at" timestamptz not null default now(),
   "shipped_at" timestamptz,
   "delivered_at" timestamptz
@@ -12831,8 +12831,8 @@ create table "better_supabase"."order_fulfillment_lines" (
   "org_id" uuid not null,
   "fulfillment_id" uuid not null references "better_supabase"."order_fulfillments" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" > 0),
-  "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object'),
+  "quantity" integer not null constraint bsb_order_fulfillment_lines_quantity_check check ("quantity" > 0),
+  "detail" jsonb constraint bsb_order_fulfillment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
   primary key ("fulfillment_id", "order_line_id")
 );
 create index "order_fulfillment_lines_line_idx" on "better_supabase"."order_fulfillment_lines" ("order_line_id");
@@ -12848,8 +12848,8 @@ create table "better_supabase"."order_returns" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
-  "status" text not null default 'requested' check ("status" in ('requested', 'received', 'rejected')),
-  "reason" text check (length("reason") <= 2000),
+  "status" text not null default 'requested' constraint bsb_order_returns_status_check check ("status" in ('requested', 'received', 'rejected')),
+  "reason" text constraint bsb_order_returns_reason_check check (length("reason") <= 2000),
   "requested_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   "received_at" timestamptz
@@ -12867,7 +12867,7 @@ create table "better_supabase"."order_return_lines" (
   "org_id" uuid not null,
   "return_id" uuid not null references "better_supabase"."order_returns" ("id") on delete cascade,
   "order_line_id" uuid not null references "better_supabase"."order_lines" ("id") on delete cascade,
-  "quantity" integer not null check ("quantity" > 0),
+  "quantity" integer not null constraint bsb_order_return_lines_quantity_check check ("quantity" > 0),
   primary key ("return_id", "order_line_id")
 );
 create index order_return_lines_line_idx on "better_supabase"."order_return_lines" ("order_line_id");
@@ -12885,10 +12885,10 @@ create table "better_supabase"."order_refunds" (
   "order_id" uuid not null references "better_supabase"."orders" ("id") on delete cascade,
   "payment_id" uuid not null references "better_supabase"."order_payments" ("id") on delete cascade,
   "return_id" uuid references "better_supabase"."order_returns" ("id") on delete set null,
-  "amount" bigint not null check ("amount" > 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'succeeded', 'failed')),
-  "reason" text check (length("reason") <= 2000),
+  "amount" bigint not null constraint bsb_order_refunds_amount_check check ("amount" > 0),
+  "currency" char(3) not null constraint bsb_order_refunds_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "status" text not null default 'pending' constraint bsb_order_refunds_status_check check ("status" in ('pending', 'succeeded', 'failed')),
+  "reason" text constraint bsb_order_refunds_reason_check check (length("reason") <= 2000),
   "provider_reference" text,
   "created_at" timestamptz not null default now(),
   "completed_at" timestamptz

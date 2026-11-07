@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_102_employees.sql
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:2a8199b47769e5df2a4cfe94725a53d7ba676a972a4f651ffac6d9c8d7243a7a
+-- @bsb-hash sha256:107152c0e6c016656316f05f5cefa736d227c8f2eb669196aa055d274f790eb8
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,13 +14,13 @@ create table "better_supabase"."employees" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete set null,
-  "name" text not null check (length(trim("name")) between 1 and 200),
-  "email" text check ("email" is null or length("email") <= 320),
-  "job_title" text check ("job_title" is null or length("job_title") <= 200),
+  "name" text not null constraint bsb_employees_name_check check (length(trim("name")) between 1 and 200),
+  "email" text constraint bsb_employees_email_check check ("email" is null or length("email") <= 320),
+  "job_title" text constraint bsb_employees_job_title_check check ("job_title" is null or length("job_title") <= 200),
   "team_id" uuid,
   "manager_id" uuid references "better_supabase"."employees" ("id") on delete set null,
   "employment_type" text not null default 'employee',
-  "status" text not null default 'preboarding' check ("status" in ('preboarding', 'active', 'on_leave', 'offboarded')),
+  "status" text not null default 'preboarding' constraint bsb_employees_status_check check ("status" in ('preboarding', 'active', 'on_leave', 'offboarded')),
   "start_date" date,
   "end_date" date,
   "offboard_reason" text,
@@ -29,9 +29,9 @@ create table "better_supabase"."employees" (
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("manager_id" is null or "manager_id" <> "id"),
-  check ("end_date" is null or "start_date" is null or "end_date" >= "start_date"),
-  check (("origin_type" is null) = ("origin_id" is null))
+  constraint bsb_employees_check check ("manager_id" is null or "manager_id" <> "id"),
+  constraint bsb_employees_check1 check ("end_date" is null or "start_date" is null or "end_date" >= "start_date"),
+  constraint bsb_employees_check2 check (("origin_type" is null) = ("origin_id" is null))
 );
 create unique index employees_user_idx on "better_supabase"."employees" ("tenant_id", "user_id") where "user_id" is not null;
 create index employees_account_idx on "better_supabase"."employees" ("user_id") where "user_id" is not null;
@@ -52,13 +52,13 @@ create table "better_supabase"."employee_private_details" (
   "employee_id" uuid primary key references "better_supabase"."employees" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid,
-  "national_id" text check ("national_id" is null or length("national_id") <= 64),
-  "iban" text check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{8,30}$'),
+  "national_id" text constraint bsb_employee_private_details_national_id_check check ("national_id" is null or length("national_id") <= 64),
+  "iban" text constraint bsb_employee_private_details_iban_check check ("iban" is null or "iban" ~ '^[A-Z]{2}[0-9]{2}[A-Z0-9]{8,30}$'),
   "birth_date" date,
-  "personal_email" text check ("personal_email" is null or length("personal_email") <= 320),
-  "phone" text check ("phone" is null or length("phone") <= 40),
-  "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object'),
-  "emergency_contacts" jsonb not null default '[]' check (jsonb_typeof("emergency_contacts") = 'array'),
+  "personal_email" text constraint bsb_employee_private_details_personal_email_check check ("personal_email" is null or length("personal_email") <= 320),
+  "phone" text constraint bsb_employee_private_details_phone_check check ("phone" is null or length("phone") <= 40),
+  "address" jsonb constraint bsb_employee_private_details_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
+  "emergency_contacts" jsonb not null default '[]' constraint bsb_employee_private_details_emergency_contacts_check check (jsonb_typeof("emergency_contacts") = 'array'),
   "offboarded_at" timestamptz,
   "anonymized_at" timestamptz,
   "updated_at" timestamptz not null default now(),
@@ -81,15 +81,15 @@ create table "better_supabase"."employee_contracts" (
   "employee_id" uuid not null references "better_supabase"."employees" ("id") on delete cascade,
   "starts_on" date not null,
   "ends_on" date,
-  "hours_per_week" numeric(5, 2) check ("hours_per_week" is null or ("hours_per_week" > 0 and "hours_per_week" <= 168)),
-  "salary" bigint check ("salary" is null or "salary" >= 0),
-  "currency" text check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
-  "salary_period" text check ("salary_period" is null or "salary_period" in ('hour', 'week', 'month', 'year')),
+  "hours_per_week" numeric(5, 2) constraint bsb_employee_contracts_hours_per_week_check check ("hours_per_week" is null or ("hours_per_week" > 0 and "hours_per_week" <= 168)),
+  "salary" bigint constraint bsb_employee_contracts_salary_check check ("salary" is null or "salary" >= 0),
+  "currency" text constraint bsb_employee_contracts_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "salary_period" text constraint bsb_employee_contracts_salary_period_check check ("salary_period" is null or "salary_period" in ('hour', 'week', 'month', 'year')),
   "note" text,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
-  check (("salary" is null) = ("currency" is null))
+  constraint bsb_employee_contracts_check check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_employee_contracts_check1 check (("salary" is null) = ("currency" is null))
 );
 create index employee_contracts_employee_idx on "better_supabase"."employee_contracts" ("employee_id", "starts_on" desc);
 alter table "better_supabase"."employee_contracts" enable row level security;

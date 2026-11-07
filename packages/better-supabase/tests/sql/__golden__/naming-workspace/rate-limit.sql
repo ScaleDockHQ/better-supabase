@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:ce8469d2e459c4619f20c1888c069e8ae75edc4e917daf8bb54799ec47e21e22
+-- @bsb-hash sha256:136b5da4d223f5ac220fb381c7e190f4f5fa70051c5c7e70e17379386ade0ca1
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,8 +12,8 @@
 -- hop, the one the API gateway appends. Clients can forge the hops before it.
 create table "better_supabase"."rate_limit_rules" (
   "scope" text not null,
-  "max_requests" integer not null check ("max_requests" > 0),
-  "period" interval not null check ("period" > interval '0'),
+  "max_requests" integer not null constraint bsb_rate_limit_rules_max_requests_check check ("max_requests" > 0),
+  "period" interval not null constraint bsb_rate_limit_rules_period_check check ("period" > interval '0'),
   "key_claim" text not null default 'sub',
   "workspace_id" uuid
 );

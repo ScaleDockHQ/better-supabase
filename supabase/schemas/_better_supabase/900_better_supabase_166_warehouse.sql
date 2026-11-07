@@ -1,6 +1,6 @@
 -- better-supabase module: warehouse
 -- @bsb-block warehouse@1 managed
--- @bsb-hash sha256:b9b16d72cf9bb1f69ee98a1b1a7ede83163e99338ba6d2511a2d77f00ab9bf4d
+-- @bsb-hash sha256:ccead8e01a52dd1477dbda6f5a2e911db20dc82793f637ebe8676fc9d1171856
 -- Warehouse work over inventory: pick waves and pick lists made from stock allocations, picking tasks as work items, confirmed bins, lots and serials, and cycle count plans that hold large variances for review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,9 +15,9 @@
 create table "better_supabase"."pick_waves" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_pick_waves_name_check check (length("name") >= 1 and length("name") <= 200),
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
-  "status" text not null default 'draft' check ("status" in ('draft', 'released', 'completed', 'cancelled')),
+  "status" text not null default 'draft' constraint bsb_pick_waves_status_check check ("status" in ('draft', 'released', 'completed', 'cancelled')),
   "released_at" timestamptz,
   "completed_at" timestamptz,
   "created_by" uuid,
@@ -40,9 +40,9 @@ create table "better_supabase"."pick_lists" (
   "tenant_id" uuid not null,
   "wave_id" uuid,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
-  "document_type" text not null check ("document_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "document_id" text not null check (length("document_id") >= 1 and length("document_id") <= 200),
-  "status" text not null default 'open' check ("status" in ('open', 'picked', 'cancelled')),
+  "document_type" text not null constraint bsb_pick_lists_document_type_check check ("document_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "document_id" text not null constraint bsb_pick_lists_document_id_check check (length("document_id") >= 1 and length("document_id") <= 200),
+  "status" text not null default 'open' constraint bsb_pick_lists_status_check check ("status" in ('open', 'picked', 'cancelled')),
   "assignee_id" uuid,
   -- The tasks block's work item for the picker, when it is installed.
   "task_id" uuid,
@@ -51,7 +51,7 @@ create table "better_supabase"."pick_lists" (
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "wave_id") references "better_supabase"."pick_waves" ("tenant_id", "id") on delete cascade,
-  check (("status" = 'picked') = ("picked_at" is not null))
+  constraint bsb_pick_lists_check check (("status" = 'picked') = ("picked_at" is not null))
 );
 create index "pick_lists_wave_idx" on "better_supabase"."pick_lists" ("tenant_id", "wave_id");
 create index "pick_lists_document_idx" on "better_supabase"."pick_lists" ("tenant_id", "document_type", "document_id");
@@ -76,10 +76,10 @@ create table "better_supabase"."pick_lines" (
   "bin_id" uuid,
   "lot_id" uuid,
   "serials" text[],
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
-  "route_position" integer check ("route_position" > 0),
-  "picked" numeric(20, 6) not null default 0 check ("picked" >= 0 and "picked" <= "quantity"),
-  "status" text not null default 'open' check ("status" in ('open', 'picked', 'short', 'cancelled')),
+  "quantity" numeric(20, 6) not null constraint bsb_pick_lines_quantity_check check ("quantity" > 0),
+  "route_position" integer constraint bsb_pick_lines_route_position_check check ("route_position" > 0),
+  "picked" numeric(20, 6) not null default 0 constraint bsb_pick_lines_check check ("picked" >= 0 and "picked" <= "quantity"),
+  "status" text not null default 'open' constraint bsb_pick_lines_status_check check ("status" in ('open', 'picked', 'short', 'cancelled')),
   "picked_at" timestamptz,
   "picked_by" uuid,
   foreign key ("tenant_id", "pick_list_id") references "better_supabase"."pick_lists" ("tenant_id", "id") on delete cascade
@@ -103,11 +103,11 @@ create policy bsb_pick_lines_read on "better_supabase"."pick_lines"
 create table "better_supabase"."count_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_count_plans_name_check check (length("name") >= 1 and length("name") <= 200),
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
-  "every_days" integer not null check ("every_days" >= 1 and "every_days" <= 3660),
+  "every_days" integer not null constraint bsb_count_plans_every_days_check check ("every_days" >= 1 and "every_days" <= 3660),
   "variant_ids" uuid[],
-  "variance_limit_pct" numeric(6, 2) not null default 5 check ("variance_limit_pct" >= 0),
+  "variance_limit_pct" numeric(6, 2) not null default 5 constraint bsb_count_plans_variance_limit_pct_check check ("variance_limit_pct" >= 0),
   "next_run_on" date not null default current_date,
   "last_run_at" timestamptz,
   "last_count_id" uuid,
@@ -133,8 +133,8 @@ create table "better_supabase"."putaway_rules" (
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "bin_id" uuid not null references "better_supabase"."stock_bins" ("id") on delete cascade,
   "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete cascade,
-  "priority" integer not null default 100 check ("priority" >= 0 and "priority" <= 10000),
-  "max_quantity" numeric(20, 6) check ("max_quantity" > 0),
+  "priority" integer not null default 100 constraint bsb_putaway_rules_priority_check check ("priority" >= 0 and "priority" <= 10000),
+  "max_quantity" numeric(20, 6) constraint bsb_putaway_rules_max_quantity_check check ("max_quantity" > 0),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
@@ -157,8 +157,8 @@ create table "better_supabase"."bin_slots" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "bin_id" uuid not null unique references "better_supabase"."stock_bins" ("id") on delete cascade,
-  "walk_rank" integer not null default 0 check ("walk_rank" >= 0 and "walk_rank" <= 100000),
-  "capacity" numeric(20, 6) check ("capacity" > 0),
+  "walk_rank" integer not null default 0 constraint bsb_bin_slots_walk_rank_check check ("walk_rank" >= 0 and "walk_rank" <= 100000),
+  "capacity" numeric(20, 6) constraint bsb_bin_slots_capacity_check check ("capacity" > 0),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );
@@ -176,7 +176,7 @@ create table "better_supabase"."variant_sizes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "variant_id" uuid not null unique references "better_supabase"."product_variants" ("id") on delete cascade,
-  "size" numeric(20, 6) not null check ("size" > 0),
+  "size" numeric(20, 6) not null constraint bsb_variant_sizes_size_check check ("size" > 0),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
 );

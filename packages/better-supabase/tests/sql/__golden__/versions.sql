@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:c67c0a117e3fc156166c8944b82a13a90828b82fb221c8fc5f1a4274890907f4
+-- @bsb-hash sha256:5b40b35e0a33325dc25fc8f03daddf98dd68403dd72094c2c584357f4d8ed24c
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,19 +11,19 @@ create table "better_supabase"."versions" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "number" integer not null check ("number" > 0),
-  "label" text check (length("label") >= 1 and length("label") <= 120),
+  "number" integer not null constraint bsb_versions_number_check check ("number" > 0),
+  "label" text constraint bsb_versions_label_check check (length("label") >= 1 and length("label") <= 120),
   "content" jsonb,
   "storage_path" text,
   "content_hash" text not null,
-  "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$'),
-  "hash_version" smallint not null default 1 check ("hash_version" in (1, 2)),
-  "source" text not null default 'manual' check ("source" in ('manual', 'auto', 'restore')),
+  "file_hash" text constraint bsb_versions_file_hash_check check ("file_hash" ~ '^[0-9a-f]{64}$'),
+  "hash_version" smallint not null default 1 constraint bsb_versions_hash_version_check check ("hash_version" in (1, 2)),
+  "source" text not null default 'manual' constraint bsb_versions_source_check check ("source" in ('manual', 'auto', 'restore')),
   "frozen" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "number"),
-  check ("content" is not null or "storage_path" is not null)
+  constraint bsb_versions_check check ("content" is not null or "storage_path" is not null)
 );
 -- A hash_version 1 version hashes its content and storage path; version 2
 -- hashes its content and the SHA-256 of the file's bytes (file_hash).
@@ -421,7 +421,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:9324835f630d7c03cfc7424ff6451187be3491cefc2d6525cf43ef143aceeb31
+-- @bsb-hash sha256:b382756bb2cef2a22f2a159a5b08d552f0aedf40037396c379eabae9bcf2abc5
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -431,19 +431,19 @@ create table "better_supabase"."versions" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "number" integer not null check ("number" > 0),
-  "label" text check (length("label") >= 1 and length("label") <= 120),
+  "number" integer not null constraint bsb_versions_number_check check ("number" > 0),
+  "label" text constraint bsb_versions_label_check check (length("label") >= 1 and length("label") <= 120),
   "content" jsonb,
   "storage_path" text,
   "content_hash" text not null,
-  "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$'),
-  "hash_version" smallint not null default 1 check ("hash_version" in (1, 2)),
-  "source" text not null default 'manual' check ("source" in ('manual', 'auto', 'restore')),
+  "file_hash" text constraint bsb_versions_file_hash_check check ("file_hash" ~ '^[0-9a-f]{64}$'),
+  "hash_version" smallint not null default 1 constraint bsb_versions_hash_version_check check ("hash_version" in (1, 2)),
+  "source" text not null default 'manual' constraint bsb_versions_source_check check ("source" in ('manual', 'auto', 'restore')),
   "frozen" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "number"),
-  check ("content" is not null or "storage_path" is not null)
+  constraint bsb_versions_check check ("content" is not null or "storage_path" is not null)
 );
 -- A hash_version 1 version hashes its content and storage path; version 2
 -- hashes its content and the SHA-256 of the file's bytes (file_hash).
@@ -899,7 +899,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:fc96d7afb300fc6f68884f8fd15c24038ce55672dfb9b695809e44d6841c8209
+-- @bsb-hash sha256:0b44ce0d92e8fbf567f9adcb66e25102b86e4529705e4113e88cd55a6a272746
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -914,19 +914,19 @@ create table "app_private"."versions" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "number" integer not null check ("number" > 0),
-  "label" text check (length("label") >= 1 and length("label") <= 120),
+  "number" integer not null constraint bsb_versions_number_check check ("number" > 0),
+  "label" text constraint bsb_versions_label_check check (length("label") >= 1 and length("label") <= 120),
   "content" jsonb,
   "storage_path" text,
   "content_hash" text not null,
-  "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$'),
-  "hash_version" smallint not null default 1 check ("hash_version" in (1, 2)),
-  "source" text not null default 'manual' check ("source" in ('manual', 'auto', 'restore')),
+  "file_hash" text constraint bsb_versions_file_hash_check check ("file_hash" ~ '^[0-9a-f]{64}$'),
+  "hash_version" smallint not null default 1 constraint bsb_versions_hash_version_check check ("hash_version" in (1, 2)),
+  "source" text not null default 'manual' constraint bsb_versions_source_check check ("source" in ('manual', 'auto', 'restore')),
   "frozen" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "number"),
-  check ("content" is not null or "storage_path" is not null)
+  constraint bsb_versions_check check ("content" is not null or "storage_path" is not null)
 );
 -- A hash_version 1 version hashes its content and storage path; version 2
 -- hashes its content and the SHA-256 of the file's bytes (file_hash).
@@ -1324,7 +1324,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:0fd8e68bdc52c843819625e7a045226297d6bc534cc94f273ff8bda549d185bb
+-- @bsb-hash sha256:adc08cde638ecbfb4d7115d7bc6f11a002b87ca7de9e6ea591d4edc80756acbe
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1334,19 +1334,19 @@ create table "better_supabase"."versions" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "number" integer not null check ("number" > 0),
-  "label" text check (length("label") >= 1 and length("label") <= 120),
+  "number" integer not null constraint bsb_versions_number_check check ("number" > 0),
+  "label" text constraint bsb_versions_label_check check (length("label") >= 1 and length("label") <= 120),
   "content" jsonb,
   "storage_path" text,
   "content_hash" text not null,
-  "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$'),
-  "hash_version" smallint not null default 1 check ("hash_version" in (1, 2)),
-  "source" text not null default 'manual' check ("source" in ('manual', 'auto', 'restore')),
+  "file_hash" text constraint bsb_versions_file_hash_check check ("file_hash" ~ '^[0-9a-f]{64}$'),
+  "hash_version" smallint not null default 1 constraint bsb_versions_hash_version_check check ("hash_version" in (1, 2)),
+  "source" text not null default 'manual' constraint bsb_versions_source_check check ("source" in ('manual', 'auto', 'restore')),
   "frozen" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "number"),
-  check ("content" is not null or "storage_path" is not null)
+  constraint bsb_versions_check check ("content" is not null or "storage_path" is not null)
 );
 -- A hash_version 1 version hashes its content and storage path; version 2
 -- hashes its content and the SHA-256 of the file's bytes (file_hash).
@@ -1813,7 +1813,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:375bea475685136c608a2001ac5034a8fd47f3c75ca76d7c49e40ebba1db0875
+-- @bsb-hash sha256:30512f9374c067bb52d1a33e3a8e852f571c0dd1bc50b6dc480092f4fdcabc27
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1823,21 +1823,21 @@ alter table "better_supabase"."versions" add column if not exists "id" uuid defa
 alter table "better_supabase"."versions" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."versions" add column if not exists "subject_type" text;
 alter table "better_supabase"."versions" add column if not exists "subject_id" text;
-alter table "better_supabase"."versions" add column if not exists "number" integer check ("number" > 0);
-alter table "better_supabase"."versions" add column if not exists "label" text check (length("label") >= 1 and length("label") <= 120);
+alter table "better_supabase"."versions" add column if not exists "number" integer constraint bsb_versions_number_check check ("number" > 0);
+alter table "better_supabase"."versions" add column if not exists "label" text constraint bsb_versions_label_check check (length("label") >= 1 and length("label") <= 120);
 alter table "better_supabase"."versions" add column if not exists "content" jsonb;
 alter table "better_supabase"."versions" add column if not exists "storage_path" text;
 alter table "better_supabase"."versions" add column if not exists "content_hash" text;
-alter table "better_supabase"."versions" add column if not exists "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$');
-alter table "better_supabase"."versions" add column if not exists "hash_version" smallint not null default 1 check ("hash_version" in (1, 2));
-alter table "better_supabase"."versions" add column if not exists "source" text not null default 'manual' check ("source" in ('manual', 'auto', 'restore'));
+alter table "better_supabase"."versions" add column if not exists "file_hash" text constraint bsb_versions_file_hash_check check ("file_hash" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."versions" add column if not exists "hash_version" smallint not null default 1 constraint bsb_versions_hash_version_check check ("hash_version" in (1, 2));
+alter table "better_supabase"."versions" add column if not exists "source" text not null default 'manual' constraint bsb_versions_source_check check ("source" in ('manual', 'auto', 'restore'));
 alter table "better_supabase"."versions" add column if not exists "frozen" boolean not null default false;
 alter table "better_supabase"."versions" add column if not exists "created_by" uuid;
 alter table "better_supabase"."versions" add column if not exists "created_at" timestamptz not null default now();
 -- A hash_version 1 version hashes its content and storage path; version 2
 -- hashes its content and the SHA-256 of the file's bytes (file_hash).
-alter table "better_supabase"."versions" add column if not exists "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$');
-alter table "better_supabase"."versions" add column if not exists "hash_version" smallint not null default 1 check ("hash_version" in (1, 2));
+alter table "better_supabase"."versions" add column if not exists "file_hash" text constraint bsb_versions_file_hash_check1 check ("file_hash" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."versions" add column if not exists "hash_version" smallint not null default 1 constraint bsb_versions_hash_version_check1 check ("hash_version" in (1, 2));
 create index if not exists "versions_tenant_idx" on "better_supabase"."versions" ("tenant_id");
 alter table "better_supabase"."versions" enable row level security;
 grant select on "better_supabase"."versions" to authenticated;
@@ -2230,7 +2230,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_074_versions.sql
 -- better-supabase module: versions
 -- @bsb-block versions@2 managed
--- @bsb-hash sha256:f540a327eaf6663775a0453b7166075f30556604a92b7d953e7593934ae717d2
+-- @bsb-hash sha256:e88d8de3750e01b27c5ba8f36a57d754514c09b3ef9f87cca645ee084b1715b2
 -- Numbered snapshots of a subject's content: manual, debounced auto and frozen snapshots, restore through columns or an apply function, and retention.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2240,19 +2240,19 @@ create table "better_supabase"."versions" (
   "org_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "number" integer not null check ("number" > 0),
-  "label" text check (length("label") >= 1 and length("label") <= 120),
+  "number" integer not null constraint bsb_versions_number_check check ("number" > 0),
+  "label" text constraint bsb_versions_label_check check (length("label") >= 1 and length("label") <= 120),
   "content" jsonb,
   "storage_path" text,
   "content_hash" text not null,
-  "file_hash" text check ("file_hash" ~ '^[0-9a-f]{64}$'),
-  "hash_version" smallint not null default 1 check ("hash_version" in (1, 2)),
-  "source" text not null default 'manual' check ("source" in ('manual', 'auto', 'restore')),
+  "file_hash" text constraint bsb_versions_file_hash_check check ("file_hash" ~ '^[0-9a-f]{64}$'),
+  "hash_version" smallint not null default 1 constraint bsb_versions_hash_version_check check ("hash_version" in (1, 2)),
+  "source" text not null default 'manual' constraint bsb_versions_source_check check ("source" in ('manual', 'auto', 'restore')),
   "frozen" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "number"),
-  check ("content" is not null or "storage_path" is not null)
+  constraint bsb_versions_check check ("content" is not null or "storage_path" is not null)
 );
 -- A hash_version 1 version hashes its content and storage path; version 2
 -- hashes its content and the SHA-256 of the file's bytes (file_hash).

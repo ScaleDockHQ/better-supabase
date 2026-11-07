@@ -1,6 +1,6 @@
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:d35ef2068f8ad8d8b7665fd1fba31e0b7f6712f107b98392801739c9069fcf00
+-- @bsb-hash sha256:5b995d3aaffe61e3c6594b41ab315b4b52a9bf807c7be8b85f2d295e4f931625
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -523,7 +523,7 @@ create table "better_supabase"."job_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
-  "state" text not null default 'held' check ("state" in ('held', 'completed')),
+  "state" text not null default 'held' constraint bsb_job_leases_state_check check ("state" in ('held', 'completed')),
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );

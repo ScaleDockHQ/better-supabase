@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:5f8691ec306e0824d87be6f88f4b5cd36b8565ca744a6aac945d92767bc09a41
+-- @bsb-hash sha256:689dfe9df31e82e9581e3641c3c035e30e15be7429511fb28c3adc7a19fb28f8
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -20,12 +20,12 @@
 create table "better_supabase"."inboxes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "channel" text not null default 'in_app' check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other')),
+  "name" text not null constraint bsb_inboxes_name_check check (length("name") >= 1 and length("name") <= 200),
+  "channel" text not null default 'in_app' constraint bsb_inboxes_channel_check check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other')),
   "channel_address" text,
   "installation_id" uuid,
-  "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused')),
-  "settings" jsonb not null default '{}'::jsonb check (jsonb_typeof("settings") = 'object'),
+  "bot_mode" text not null default 'human' constraint bsb_inboxes_bot_mode_check check ("bot_mode" in ('bot', 'human', 'paused')),
+  "settings" jsonb not null default '{}'::jsonb constraint bsb_inboxes_settings_check check (jsonb_typeof("settings") = 'object'),
   "created_at" timestamptz not null default now(),
   "archived_at" timestamptz
 );
@@ -46,7 +46,7 @@ create policy bsb_inboxes_staff_read on "better_supabase"."inboxes"
 create table "better_supabase"."inbox_members" (
   "inbox_id" uuid not null references "better_supabase"."inboxes" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "role" text not null default 'agent' check ("role" in ('agent', 'lead')),
+  "role" text not null default 'agent' constraint bsb_inbox_members_role_check check ("role" in ('agent', 'lead')),
   "created_at" timestamptz not null default now(),
   primary key ("inbox_id", "user_id")
 );
@@ -71,12 +71,12 @@ create table "better_supabase"."inbox_conversations" (
   "tenant_id" uuid not null,
   "inbox_id" uuid not null references "better_supabase"."inboxes" ("id") on delete cascade,
   "contact_id" uuid not null,
-  "subject" text check (length("subject") <= 500),
-  "status" text not null default 'open' check ("status" in ('open', 'pending', 'snoozed', 'resolved')),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "subject" text constraint bsb_inbox_conversations_subject_check check (length("subject") <= 500),
+  "status" text not null default 'open' constraint bsb_inbox_conversations_status_check check ("status" in ('open', 'pending', 'snoozed', 'resolved')),
+  "priority" text not null default 'normal' constraint bsb_inbox_conversations_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
   "assignee_id" uuid references auth.users (id) on delete set null,
   "team_id" uuid,
-  "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused')),
+  "bot_mode" text not null default 'human' constraint bsb_inbox_conversations_bot_mode_check check ("bot_mode" in ('bot', 'human', 'paused')),
   "thread_id" text,
   "snoozed_until" timestamptz,
   "last_message_at" timestamptz not null default now(),
@@ -108,7 +108,7 @@ create table "better_supabase"."inbox_conversation_events" (
   "id" bigint generated always as identity primary key,
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
-  "type" text not null check ("type" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "type" text not null constraint bsb_inbox_conversation_events_type_check check ("type" ~ '^[a-z][a-z0-9_]{0,40}$'),
   "actor_id" uuid references auth.users (id) on delete set null,
   "data" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default clock_timestamp()
@@ -127,9 +127,9 @@ create table "better_supabase"."inbox_message_details" (
   "message_id" uuid primary key,
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
-  "direction" text not null check ("direction" in ('inbound', 'outbound')),
-  "author_type" text not null check ("author_type" in ('contact', 'agent', 'bot', 'system')),
-  "format" text not null default 'text' check ("format" in ('text', 'markdown')),
+  "direction" text not null constraint bsb_inbox_message_details_direction_check check ("direction" in ('inbound', 'outbound')),
+  "author_type" text not null constraint bsb_inbox_message_details_author_type_check check ("author_type" in ('contact', 'agent', 'bot', 'system')),
+  "format" text not null default 'text' constraint bsb_inbox_message_details_format_check check ("format" in ('text', 'markdown')),
   "external_id" text,
   "reply_to" uuid,
   "metadata" jsonb not null default '{}'::jsonb
@@ -152,7 +152,7 @@ create table "better_supabase"."inbox_message_deliveries" (
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."inbox_message_details" ("message_id") on delete cascade,
   "channel" text not null,
-  "status" text not null default 'queued' check ("status" in ('queued', 'sent', 'delivered', 'read', 'failed')),
+  "status" text not null default 'queued' constraint bsb_inbox_message_deliveries_status_check check ("status" in ('queued', 'sent', 'delivered', 'read', 'failed')),
   "external_id" text,
   "error" text,
   "attempts" integer not null default 0,
@@ -183,12 +183,12 @@ create policy bsb_inbox_message_deliveries_staff_read on "better_supabase"."inbo
 create table "better_supabase"."inbox_inbound_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "adapter" text not null check (length("adapter") >= 1 and length("adapter") <= 100),
+  "adapter" text not null constraint bsb_inbox_inbound_events_adapter_check check (length("adapter") >= 1 and length("adapter") <= 100),
   "external_id" text,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete set null,
   "headers" jsonb not null default '{}'::jsonb,
   "body" text not null,
-  "status" text not null default 'received' check ("status" in ('received', 'processing', 'processed', 'ignored', 'failed')),
+  "status" text not null default 'received' constraint bsb_inbox_inbound_events_status_check check ("status" in ('received', 'processing', 'processed', 'ignored', 'failed')),
   "error" text,
   "attempts" integer not null default 0,
   "available_at" timestamptz not null default now(),
@@ -209,11 +209,11 @@ create table "better_supabase"."inbox_message_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_inbox_message_templates_name_check check (length("name") >= 1 and length("name") <= 200),
   "channel" text not null,
   "language" text not null default 'en',
   "body" text not null,
-  "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array'),
+  "variables" jsonb not null default '[]'::jsonb constraint bsb_inbox_message_templates_variables_check check (jsonb_typeof("variables") = 'array'),
   "external_id" text,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "name", "language")
@@ -239,7 +239,7 @@ create table "better_supabase"."scheduled_inbox_messages" (
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
   "author_id" uuid not null references auth.users (id) on delete cascade,
-  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
+  "input" jsonb not null constraint bsb_scheduled_inbox_messages_input_check check (jsonb_typeof("input") = 'object'),
   "scheduled_for" timestamptz not null,
   "created_at" timestamptz not null default now()
 );
@@ -266,13 +266,13 @@ create table "better_supabase"."inbox_drafts" (
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
   "author_id" uuid references auth.users (id) on delete cascade,
-  "source" text not null default 'user' check ("source" in ('user', 'ai')),
-  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
-  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'discarded')),
+  "source" text not null default 'user' constraint bsb_inbox_drafts_source_check check ("source" in ('user', 'ai')),
+  "input" jsonb not null constraint bsb_inbox_drafts_input_check check (jsonb_typeof("input") = 'object'),
+  "status" text not null default 'draft' constraint bsb_inbox_drafts_status_check check ("status" in ('draft', 'sent', 'discarded')),
   "metadata" jsonb not null default '{}'::jsonb,
   "updated_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
-  constraint inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
+  constraint bsb_inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
 );
 create unique index inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
 create index inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
@@ -2380,7 +2380,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:3b7444d7354b04fcba54464dd8e87b095c1800fe57ff8560579f4d44ea819671
+-- @bsb-hash sha256:5d0cf7b36316be2fe8efa3919635856b64cf90cc4e0e9c7398763156d4ffa7da
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2399,12 +2399,12 @@ on conflict (name) do update
 create table "better_supabase"."inboxes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "channel" text not null default 'in_app' check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other')),
+  "name" text not null constraint bsb_inboxes_name_check check (length("name") >= 1 and length("name") <= 200),
+  "channel" text not null default 'in_app' constraint bsb_inboxes_channel_check check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other')),
   "channel_address" text,
   "installation_id" uuid,
-  "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused')),
-  "settings" jsonb not null default '{}'::jsonb check (jsonb_typeof("settings") = 'object'),
+  "bot_mode" text not null default 'human' constraint bsb_inboxes_bot_mode_check check ("bot_mode" in ('bot', 'human', 'paused')),
+  "settings" jsonb not null default '{}'::jsonb constraint bsb_inboxes_settings_check check (jsonb_typeof("settings") = 'object'),
   "created_at" timestamptz not null default now(),
   "archived_at" timestamptz
 );
@@ -2425,7 +2425,7 @@ create policy bsb_inboxes_staff_read on "better_supabase"."inboxes"
 create table "better_supabase"."inbox_members" (
   "inbox_id" uuid not null references "better_supabase"."inboxes" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "role" text not null default 'agent' check ("role" in ('agent', 'lead')),
+  "role" text not null default 'agent' constraint bsb_inbox_members_role_check check ("role" in ('agent', 'lead')),
   "created_at" timestamptz not null default now(),
   primary key ("inbox_id", "user_id")
 );
@@ -2450,12 +2450,12 @@ create table "better_supabase"."inbox_conversations" (
   "tenant_id" uuid not null,
   "inbox_id" uuid not null references "better_supabase"."inboxes" ("id") on delete cascade,
   "contact_id" uuid not null,
-  "subject" text check (length("subject") <= 500),
-  "status" text not null default 'open' check ("status" in ('open', 'pending', 'snoozed', 'resolved')),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "subject" text constraint bsb_inbox_conversations_subject_check check (length("subject") <= 500),
+  "status" text not null default 'open' constraint bsb_inbox_conversations_status_check check ("status" in ('open', 'pending', 'snoozed', 'resolved')),
+  "priority" text not null default 'normal' constraint bsb_inbox_conversations_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
   "assignee_id" uuid references auth.users (id) on delete set null,
   "team_id" uuid,
-  "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused')),
+  "bot_mode" text not null default 'human' constraint bsb_inbox_conversations_bot_mode_check check ("bot_mode" in ('bot', 'human', 'paused')),
   "thread_id" text,
   "snoozed_until" timestamptz,
   "last_message_at" timestamptz not null default now(),
@@ -2487,7 +2487,7 @@ create table "better_supabase"."inbox_conversation_events" (
   "id" bigint generated always as identity primary key,
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
-  "type" text not null check ("type" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "type" text not null constraint bsb_inbox_conversation_events_type_check check ("type" ~ '^[a-z][a-z0-9_]{0,40}$'),
   "actor_id" uuid references auth.users (id) on delete set null,
   "data" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default clock_timestamp()
@@ -2506,9 +2506,9 @@ create table "better_supabase"."inbox_message_details" (
   "message_id" uuid primary key,
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
-  "direction" text not null check ("direction" in ('inbound', 'outbound')),
-  "author_type" text not null check ("author_type" in ('contact', 'agent', 'bot', 'system')),
-  "format" text not null default 'text' check ("format" in ('text', 'markdown')),
+  "direction" text not null constraint bsb_inbox_message_details_direction_check check ("direction" in ('inbound', 'outbound')),
+  "author_type" text not null constraint bsb_inbox_message_details_author_type_check check ("author_type" in ('contact', 'agent', 'bot', 'system')),
+  "format" text not null default 'text' constraint bsb_inbox_message_details_format_check check ("format" in ('text', 'markdown')),
   "external_id" text,
   "reply_to" uuid,
   "metadata" jsonb not null default '{}'::jsonb
@@ -2531,7 +2531,7 @@ create table "better_supabase"."inbox_message_deliveries" (
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."inbox_message_details" ("message_id") on delete cascade,
   "channel" text not null,
-  "status" text not null default 'queued' check ("status" in ('queued', 'sent', 'delivered', 'read', 'failed')),
+  "status" text not null default 'queued' constraint bsb_inbox_message_deliveries_status_check check ("status" in ('queued', 'sent', 'delivered', 'read', 'failed')),
   "external_id" text,
   "error" text,
   "attempts" integer not null default 0,
@@ -2562,12 +2562,12 @@ create policy bsb_inbox_message_deliveries_staff_read on "better_supabase"."inbo
 create table "better_supabase"."inbox_inbound_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "adapter" text not null check (length("adapter") >= 1 and length("adapter") <= 100),
+  "adapter" text not null constraint bsb_inbox_inbound_events_adapter_check check (length("adapter") >= 1 and length("adapter") <= 100),
   "external_id" text,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete set null,
   "headers" jsonb not null default '{}'::jsonb,
   "body" text not null,
-  "status" text not null default 'received' check ("status" in ('received', 'processing', 'processed', 'ignored', 'failed')),
+  "status" text not null default 'received' constraint bsb_inbox_inbound_events_status_check check ("status" in ('received', 'processing', 'processed', 'ignored', 'failed')),
   "error" text,
   "attempts" integer not null default 0,
   "available_at" timestamptz not null default now(),
@@ -2588,11 +2588,11 @@ create table "better_supabase"."inbox_message_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_inbox_message_templates_name_check check (length("name") >= 1 and length("name") <= 200),
   "channel" text not null,
   "language" text not null default 'en',
   "body" text not null,
-  "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array'),
+  "variables" jsonb not null default '[]'::jsonb constraint bsb_inbox_message_templates_variables_check check (jsonb_typeof("variables") = 'array'),
   "external_id" text,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "name", "language")
@@ -2618,7 +2618,7 @@ create table "better_supabase"."scheduled_inbox_messages" (
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
   "author_id" uuid not null references auth.users (id) on delete cascade,
-  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
+  "input" jsonb not null constraint bsb_scheduled_inbox_messages_input_check check (jsonb_typeof("input") = 'object'),
   "scheduled_for" timestamptz not null,
   "created_at" timestamptz not null default now()
 );
@@ -2645,13 +2645,13 @@ create table "better_supabase"."inbox_drafts" (
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
   "author_id" uuid references auth.users (id) on delete cascade,
-  "source" text not null default 'user' check ("source" in ('user', 'ai')),
-  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
-  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'discarded')),
+  "source" text not null default 'user' constraint bsb_inbox_drafts_source_check check ("source" in ('user', 'ai')),
+  "input" jsonb not null constraint bsb_inbox_drafts_input_check check (jsonb_typeof("input") = 'object'),
+  "status" text not null default 'draft' constraint bsb_inbox_drafts_status_check check ("status" in ('draft', 'sent', 'discarded')),
   "metadata" jsonb not null default '{}'::jsonb,
   "updated_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
-  constraint inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
+  constraint bsb_inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
 );
 create unique index inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
 create index inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
@@ -4898,7 +4898,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:886620cbbd9e6efbf89dbf0a27e8257cd7c710c3a7469e87554a8743eedd9456
+-- @bsb-hash sha256:c99db62870d8687e46a100f14a0b259b7a354cad17b32b5e8125ec127b41c9f0
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4922,12 +4922,12 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."inboxes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "channel" text not null default 'in_app' check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other')),
+  "name" text not null constraint bsb_inboxes_name_check check (length("name") >= 1 and length("name") <= 200),
+  "channel" text not null default 'in_app' constraint bsb_inboxes_channel_check check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other')),
   "channel_address" text,
   "installation_id" uuid,
-  "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused')),
-  "settings" jsonb not null default '{}'::jsonb check (jsonb_typeof("settings") = 'object'),
+  "bot_mode" text not null default 'human' constraint bsb_inboxes_bot_mode_check check ("bot_mode" in ('bot', 'human', 'paused')),
+  "settings" jsonb not null default '{}'::jsonb constraint bsb_inboxes_settings_check check (jsonb_typeof("settings") = 'object'),
   "created_at" timestamptz not null default now(),
   "archived_at" timestamptz
 );
@@ -4948,7 +4948,7 @@ create policy bsb_inboxes_staff_read on "app_private"."inboxes"
 create table "app_private"."inbox_members" (
   "inbox_id" uuid not null references "app_private"."inboxes" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "role" text not null default 'agent' check ("role" in ('agent', 'lead')),
+  "role" text not null default 'agent' constraint bsb_inbox_members_role_check check ("role" in ('agent', 'lead')),
   "created_at" timestamptz not null default now(),
   primary key ("inbox_id", "user_id")
 );
@@ -4973,12 +4973,12 @@ create table "app_private"."inbox_conversations" (
   "tenant_id" uuid not null,
   "inbox_id" uuid not null references "app_private"."inboxes" ("id") on delete cascade,
   "contact_id" uuid not null,
-  "subject" text check (length("subject") <= 500),
-  "status" text not null default 'open' check ("status" in ('open', 'pending', 'snoozed', 'resolved')),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "subject" text constraint bsb_inbox_conversations_subject_check check (length("subject") <= 500),
+  "status" text not null default 'open' constraint bsb_inbox_conversations_status_check check ("status" in ('open', 'pending', 'snoozed', 'resolved')),
+  "priority" text not null default 'normal' constraint bsb_inbox_conversations_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
   "assignee_id" uuid references auth.users (id) on delete set null,
   "team_id" uuid,
-  "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused')),
+  "bot_mode" text not null default 'human' constraint bsb_inbox_conversations_bot_mode_check check ("bot_mode" in ('bot', 'human', 'paused')),
   "thread_id" text,
   "snoozed_until" timestamptz,
   "last_message_at" timestamptz not null default now(),
@@ -5010,7 +5010,7 @@ create table "app_private"."inbox_conversation_events" (
   "id" bigint generated always as identity primary key,
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "app_private"."inbox_conversations" ("id") on delete cascade,
-  "type" text not null check ("type" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "type" text not null constraint bsb_inbox_conversation_events_type_check check ("type" ~ '^[a-z][a-z0-9_]{0,40}$'),
   "actor_id" uuid references auth.users (id) on delete set null,
   "data" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default clock_timestamp()
@@ -5029,9 +5029,9 @@ create table "app_private"."inbox_message_details" (
   "message_id" uuid primary key,
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "app_private"."inbox_conversations" ("id") on delete cascade,
-  "direction" text not null check ("direction" in ('inbound', 'outbound')),
-  "author_type" text not null check ("author_type" in ('contact', 'agent', 'bot', 'system')),
-  "format" text not null default 'text' check ("format" in ('text', 'markdown')),
+  "direction" text not null constraint bsb_inbox_message_details_direction_check check ("direction" in ('inbound', 'outbound')),
+  "author_type" text not null constraint bsb_inbox_message_details_author_type_check check ("author_type" in ('contact', 'agent', 'bot', 'system')),
+  "format" text not null default 'text' constraint bsb_inbox_message_details_format_check check ("format" in ('text', 'markdown')),
   "external_id" text,
   "reply_to" uuid,
   "metadata" jsonb not null default '{}'::jsonb
@@ -5054,7 +5054,7 @@ create table "app_private"."inbox_message_deliveries" (
   "tenant_id" uuid not null,
   "message_id" uuid not null references "app_private"."inbox_message_details" ("message_id") on delete cascade,
   "channel" text not null,
-  "status" text not null default 'queued' check ("status" in ('queued', 'sent', 'delivered', 'read', 'failed')),
+  "status" text not null default 'queued' constraint bsb_inbox_message_deliveries_status_check check ("status" in ('queued', 'sent', 'delivered', 'read', 'failed')),
   "external_id" text,
   "error" text,
   "attempts" integer not null default 0,
@@ -5085,12 +5085,12 @@ create policy bsb_inbox_message_deliveries_staff_read on "app_private"."inbox_me
 create table "app_private"."inbox_inbound_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "adapter" text not null check (length("adapter") >= 1 and length("adapter") <= 100),
+  "adapter" text not null constraint bsb_inbox_inbound_events_adapter_check check (length("adapter") >= 1 and length("adapter") <= 100),
   "external_id" text,
   "inbox_id" uuid references "app_private"."inboxes" ("id") on delete set null,
   "headers" jsonb not null default '{}'::jsonb,
   "body" text not null,
-  "status" text not null default 'received' check ("status" in ('received', 'processing', 'processed', 'ignored', 'failed')),
+  "status" text not null default 'received' constraint bsb_inbox_inbound_events_status_check check ("status" in ('received', 'processing', 'processed', 'ignored', 'failed')),
   "error" text,
   "attempts" integer not null default 0,
   "available_at" timestamptz not null default now(),
@@ -5111,11 +5111,11 @@ create table "app_private"."inbox_message_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "inbox_id" uuid references "app_private"."inboxes" ("id") on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_inbox_message_templates_name_check check (length("name") >= 1 and length("name") <= 200),
   "channel" text not null,
   "language" text not null default 'en',
   "body" text not null,
-  "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array'),
+  "variables" jsonb not null default '[]'::jsonb constraint bsb_inbox_message_templates_variables_check check (jsonb_typeof("variables") = 'array'),
   "external_id" text,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "name", "language")
@@ -5141,7 +5141,7 @@ create table "app_private"."scheduled_inbox_messages" (
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "app_private"."inbox_conversations" ("id") on delete cascade,
   "author_id" uuid not null references auth.users (id) on delete cascade,
-  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
+  "input" jsonb not null constraint bsb_scheduled_inbox_messages_input_check check (jsonb_typeof("input") = 'object'),
   "scheduled_for" timestamptz not null,
   "created_at" timestamptz not null default now()
 );
@@ -5168,13 +5168,13 @@ create table "app_private"."inbox_drafts" (
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "app_private"."inbox_conversations" ("id") on delete cascade,
   "author_id" uuid references auth.users (id) on delete cascade,
-  "source" text not null default 'user' check ("source" in ('user', 'ai')),
-  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
-  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'discarded')),
+  "source" text not null default 'user' constraint bsb_inbox_drafts_source_check check ("source" in ('user', 'ai')),
+  "input" jsonb not null constraint bsb_inbox_drafts_input_check check (jsonb_typeof("input") = 'object'),
+  "status" text not null default 'draft' constraint bsb_inbox_drafts_status_check check ("status" in ('draft', 'sent', 'discarded')),
   "metadata" jsonb not null default '{}'::jsonb,
   "updated_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
-  constraint inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
+  constraint bsb_inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
 );
 create unique index inbox_drafts_open_key on "app_private"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
 create index inbox_drafts_conversation_idx on "app_private"."inbox_drafts" ("conversation_id");
@@ -7282,7 +7282,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:378bafd3773cfde4c8f916b589a4e2eaa587c025df205a843a01565eeab6d0c9
+-- @bsb-hash sha256:8bc1a849d583a15be6ac7afc3427f8604fd0a245a238196a3a308d36f633bbf3
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7301,12 +7301,12 @@ on conflict (name) do update
 create table "better_supabase"."inboxes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "channel" text not null default 'in_app' check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other')),
+  "name" text not null constraint bsb_inboxes_name_check check (length("name") >= 1 and length("name") <= 200),
+  "channel" text not null default 'in_app' constraint bsb_inboxes_channel_check check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other')),
   "channel_address" text,
   "installation_id" uuid,
-  "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused')),
-  "settings" jsonb not null default '{}'::jsonb check (jsonb_typeof("settings") = 'object'),
+  "bot_mode" text not null default 'human' constraint bsb_inboxes_bot_mode_check check ("bot_mode" in ('bot', 'human', 'paused')),
+  "settings" jsonb not null default '{}'::jsonb constraint bsb_inboxes_settings_check check (jsonb_typeof("settings") = 'object'),
   "created_at" timestamptz not null default now(),
   "archived_at" timestamptz
 );
@@ -7327,7 +7327,7 @@ create policy bsb_inboxes_staff_read on "better_supabase"."inboxes"
 create table "better_supabase"."inbox_members" (
   "inbox_id" uuid not null references "better_supabase"."inboxes" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "role" text not null default 'agent' check ("role" in ('agent', 'lead')),
+  "role" text not null default 'agent' constraint bsb_inbox_members_role_check check ("role" in ('agent', 'lead')),
   "created_at" timestamptz not null default now(),
   primary key ("inbox_id", "user_id")
 );
@@ -7352,12 +7352,12 @@ create table "better_supabase"."inbox_conversations" (
   "tenant_id" uuid not null,
   "inbox_id" uuid not null references "better_supabase"."inboxes" ("id") on delete cascade,
   "contact_id" uuid not null,
-  "subject" text check (length("subject") <= 500),
-  "status" text not null default 'open' check ("status" in ('open', 'pending', 'snoozed', 'resolved')),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "subject" text constraint bsb_inbox_conversations_subject_check check (length("subject") <= 500),
+  "status" text not null default 'open' constraint bsb_inbox_conversations_status_check check ("status" in ('open', 'pending', 'snoozed', 'resolved')),
+  "priority" text not null default 'normal' constraint bsb_inbox_conversations_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
   "assignee_id" uuid references auth.users (id) on delete set null,
   "team_id" uuid,
-  "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused')),
+  "bot_mode" text not null default 'human' constraint bsb_inbox_conversations_bot_mode_check check ("bot_mode" in ('bot', 'human', 'paused')),
   "thread_id" text,
   "snoozed_until" timestamptz,
   "last_message_at" timestamptz not null default now(),
@@ -7389,7 +7389,7 @@ create table "better_supabase"."inbox_conversation_events" (
   "id" bigint generated always as identity primary key,
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
-  "type" text not null check ("type" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "type" text not null constraint bsb_inbox_conversation_events_type_check check ("type" ~ '^[a-z][a-z0-9_]{0,40}$'),
   "actor_id" uuid references auth.users (id) on delete set null,
   "data" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default clock_timestamp()
@@ -7408,9 +7408,9 @@ create table "better_supabase"."inbox_message_details" (
   "message_id" uuid primary key,
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
-  "direction" text not null check ("direction" in ('inbound', 'outbound')),
-  "author_type" text not null check ("author_type" in ('contact', 'agent', 'bot', 'system')),
-  "format" text not null default 'text' check ("format" in ('text', 'markdown')),
+  "direction" text not null constraint bsb_inbox_message_details_direction_check check ("direction" in ('inbound', 'outbound')),
+  "author_type" text not null constraint bsb_inbox_message_details_author_type_check check ("author_type" in ('contact', 'agent', 'bot', 'system')),
+  "format" text not null default 'text' constraint bsb_inbox_message_details_format_check check ("format" in ('text', 'markdown')),
   "external_id" text,
   "reply_to" uuid,
   "metadata" jsonb not null default '{}'::jsonb
@@ -7433,7 +7433,7 @@ create table "better_supabase"."inbox_message_deliveries" (
   "tenant_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."inbox_message_details" ("message_id") on delete cascade,
   "channel" text not null,
-  "status" text not null default 'queued' check ("status" in ('queued', 'sent', 'delivered', 'read', 'failed')),
+  "status" text not null default 'queued' constraint bsb_inbox_message_deliveries_status_check check ("status" in ('queued', 'sent', 'delivered', 'read', 'failed')),
   "external_id" text,
   "error" text,
   "attempts" integer not null default 0,
@@ -7464,12 +7464,12 @@ create policy bsb_inbox_message_deliveries_staff_read on "better_supabase"."inbo
 create table "better_supabase"."inbox_inbound_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "adapter" text not null check (length("adapter") >= 1 and length("adapter") <= 100),
+  "adapter" text not null constraint bsb_inbox_inbound_events_adapter_check check (length("adapter") >= 1 and length("adapter") <= 100),
   "external_id" text,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete set null,
   "headers" jsonb not null default '{}'::jsonb,
   "body" text not null,
-  "status" text not null default 'received' check ("status" in ('received', 'processing', 'processed', 'ignored', 'failed')),
+  "status" text not null default 'received' constraint bsb_inbox_inbound_events_status_check check ("status" in ('received', 'processing', 'processed', 'ignored', 'failed')),
   "error" text,
   "attempts" integer not null default 0,
   "available_at" timestamptz not null default now(),
@@ -7490,11 +7490,11 @@ create table "better_supabase"."inbox_message_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_inbox_message_templates_name_check check (length("name") >= 1 and length("name") <= 200),
   "channel" text not null,
   "language" text not null default 'en',
   "body" text not null,
-  "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array'),
+  "variables" jsonb not null default '[]'::jsonb constraint bsb_inbox_message_templates_variables_check check (jsonb_typeof("variables") = 'array'),
   "external_id" text,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "name", "language")
@@ -7520,7 +7520,7 @@ create table "better_supabase"."scheduled_inbox_messages" (
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
   "author_id" uuid not null references auth.users (id) on delete cascade,
-  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
+  "input" jsonb not null constraint bsb_scheduled_inbox_messages_input_check check (jsonb_typeof("input") = 'object'),
   "scheduled_for" timestamptz not null,
   "created_at" timestamptz not null default now()
 );
@@ -7547,13 +7547,13 @@ create table "better_supabase"."inbox_drafts" (
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
   "author_id" uuid references auth.users (id) on delete cascade,
-  "source" text not null default 'user' check ("source" in ('user', 'ai')),
-  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
-  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'discarded')),
+  "source" text not null default 'user' constraint bsb_inbox_drafts_source_check check ("source" in ('user', 'ai')),
+  "input" jsonb not null constraint bsb_inbox_drafts_input_check check (jsonb_typeof("input") = 'object'),
+  "status" text not null default 'draft' constraint bsb_inbox_drafts_status_check check ("status" in ('draft', 'sent', 'discarded')),
   "metadata" jsonb not null default '{}'::jsonb,
   "updated_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
-  constraint inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
+  constraint bsb_inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
 );
 create unique index inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
 create index inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");
@@ -10083,7 +10083,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:91ae927046eeb3ac5d8319db994cb8e6b91b15f1119150c995cabc835ef3cd37
+-- @bsb-hash sha256:14c3e08b5bec56a8f21d50860c99ad510ad6db8d6a94e89cef00d401bf569b4e
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10102,12 +10102,12 @@ on conflict (name) do update
 -- better_supabase.inboxes is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."inboxes" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."inboxes" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."inboxes" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."inboxes" add column if not exists "channel" text not null default 'in_app' check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other'));
+alter table "better_supabase"."inboxes" add column if not exists "name" text constraint bsb_inboxes_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."inboxes" add column if not exists "channel" text not null default 'in_app' constraint bsb_inboxes_channel_check check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other'));
 alter table "better_supabase"."inboxes" add column if not exists "channel_address" text;
 alter table "better_supabase"."inboxes" add column if not exists "installation_id" uuid;
-alter table "better_supabase"."inboxes" add column if not exists "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused'));
-alter table "better_supabase"."inboxes" add column if not exists "settings" jsonb not null default '{}'::jsonb check (jsonb_typeof("settings") = 'object');
+alter table "better_supabase"."inboxes" add column if not exists "bot_mode" text not null default 'human' constraint bsb_inboxes_bot_mode_check check ("bot_mode" in ('bot', 'human', 'paused'));
+alter table "better_supabase"."inboxes" add column if not exists "settings" jsonb not null default '{}'::jsonb constraint bsb_inboxes_settings_check check (jsonb_typeof("settings") = 'object');
 alter table "better_supabase"."inboxes" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."inboxes" add column if not exists "archived_at" timestamptz;
 create index if not exists inboxes_tenant_idx on "better_supabase"."inboxes" ("tenant_id");
@@ -10126,7 +10126,7 @@ create policy bsb_inboxes_select on "better_supabase"."inboxes"
 -- better_supabase.inbox_members is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."inbox_members" add column if not exists "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete cascade;
 alter table "better_supabase"."inbox_members" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."inbox_members" add column if not exists "role" text not null default 'agent' check ("role" in ('agent', 'lead'));
+alter table "better_supabase"."inbox_members" add column if not exists "role" text not null default 'agent' constraint bsb_inbox_members_role_check check ("role" in ('agent', 'lead'));
 alter table "better_supabase"."inbox_members" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_inbox_members_user_key" on "better_supabase"."inbox_members" ("inbox_id", "user_id");
 create index if not exists inbox_members_user_idx on "better_supabase"."inbox_members" ("user_id");
@@ -10149,12 +10149,12 @@ alter table "better_supabase"."inbox_conversations" add column if not exists "id
 alter table "better_supabase"."inbox_conversations" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."inbox_conversations" add column if not exists "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete cascade;
 alter table "better_supabase"."inbox_conversations" add column if not exists "contact_id" uuid;
-alter table "better_supabase"."inbox_conversations" add column if not exists "subject" text check (length("subject") <= 500);
-alter table "better_supabase"."inbox_conversations" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'pending', 'snoozed', 'resolved'));
-alter table "better_supabase"."inbox_conversations" add column if not exists "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent'));
+alter table "better_supabase"."inbox_conversations" add column if not exists "subject" text constraint bsb_inbox_conversations_subject_check check (length("subject") <= 500);
+alter table "better_supabase"."inbox_conversations" add column if not exists "status" text not null default 'open' constraint bsb_inbox_conversations_status_check check ("status" in ('open', 'pending', 'snoozed', 'resolved'));
+alter table "better_supabase"."inbox_conversations" add column if not exists "priority" text not null default 'normal' constraint bsb_inbox_conversations_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent'));
 alter table "better_supabase"."inbox_conversations" add column if not exists "assignee_id" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."inbox_conversations" add column if not exists "team_id" uuid;
-alter table "better_supabase"."inbox_conversations" add column if not exists "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused'));
+alter table "better_supabase"."inbox_conversations" add column if not exists "bot_mode" text not null default 'human' constraint bsb_inbox_conversations_bot_mode_check check ("bot_mode" in ('bot', 'human', 'paused'));
 alter table "better_supabase"."inbox_conversations" add column if not exists "thread_id" text;
 alter table "better_supabase"."inbox_conversations" add column if not exists "snoozed_until" timestamptz;
 alter table "better_supabase"."inbox_conversations" add column if not exists "last_message_at" timestamptz not null default now();
@@ -10184,7 +10184,7 @@ grant all on "better_supabase"."inbox_conversations" to service_role;
 alter table "better_supabase"."inbox_conversation_events" add column if not exists "id" bigint generated always as identity;
 alter table "better_supabase"."inbox_conversation_events" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."inbox_conversation_events" add column if not exists "conversation_id" uuid references "better_supabase"."inbox_conversations" ("id") on delete cascade;
-alter table "better_supabase"."inbox_conversation_events" add column if not exists "type" text check ("type" ~ '^[a-z][a-z0-9_]{0,40}$');
+alter table "better_supabase"."inbox_conversation_events" add column if not exists "type" text constraint bsb_inbox_conversation_events_type_check check ("type" ~ '^[a-z][a-z0-9_]{0,40}$');
 alter table "better_supabase"."inbox_conversation_events" add column if not exists "actor_id" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."inbox_conversation_events" add column if not exists "data" jsonb not null default '{}'::jsonb;
 alter table "better_supabase"."inbox_conversation_events" add column if not exists "created_at" timestamptz not null default clock_timestamp();
@@ -10201,9 +10201,9 @@ create policy bsb_inbox_conversation_events_select on "better_supabase"."inbox_c
 alter table "better_supabase"."inbox_message_details" add column if not exists "message_id" uuid;
 alter table "better_supabase"."inbox_message_details" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."inbox_message_details" add column if not exists "conversation_id" uuid references "better_supabase"."inbox_conversations" ("id") on delete cascade;
-alter table "better_supabase"."inbox_message_details" add column if not exists "direction" text check ("direction" in ('inbound', 'outbound'));
-alter table "better_supabase"."inbox_message_details" add column if not exists "author_type" text check ("author_type" in ('contact', 'agent', 'bot', 'system'));
-alter table "better_supabase"."inbox_message_details" add column if not exists "format" text not null default 'text' check ("format" in ('text', 'markdown'));
+alter table "better_supabase"."inbox_message_details" add column if not exists "direction" text constraint bsb_inbox_message_details_direction_check check ("direction" in ('inbound', 'outbound'));
+alter table "better_supabase"."inbox_message_details" add column if not exists "author_type" text constraint bsb_inbox_message_details_author_type_check check ("author_type" in ('contact', 'agent', 'bot', 'system'));
+alter table "better_supabase"."inbox_message_details" add column if not exists "format" text not null default 'text' constraint bsb_inbox_message_details_format_check check ("format" in ('text', 'markdown'));
 alter table "better_supabase"."inbox_message_details" add column if not exists "external_id" text;
 alter table "better_supabase"."inbox_message_details" add column if not exists "reply_to" uuid;
 alter table "better_supabase"."inbox_message_details" add column if not exists "metadata" jsonb not null default '{}'::jsonb;
@@ -10224,7 +10224,7 @@ alter table "better_supabase"."inbox_message_deliveries" add column if not exist
 alter table "better_supabase"."inbox_message_deliveries" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."inbox_message_deliveries" add column if not exists "message_id" uuid references "better_supabase"."inbox_message_details" ("message_id") on delete cascade;
 alter table "better_supabase"."inbox_message_deliveries" add column if not exists "channel" text;
-alter table "better_supabase"."inbox_message_deliveries" add column if not exists "status" text not null default 'queued' check ("status" in ('queued', 'sent', 'delivered', 'read', 'failed'));
+alter table "better_supabase"."inbox_message_deliveries" add column if not exists "status" text not null default 'queued' constraint bsb_inbox_message_deliveries_status_check check ("status" in ('queued', 'sent', 'delivered', 'read', 'failed'));
 alter table "better_supabase"."inbox_message_deliveries" add column if not exists "external_id" text;
 alter table "better_supabase"."inbox_message_deliveries" add column if not exists "error" text;
 alter table "better_supabase"."inbox_message_deliveries" add column if not exists "attempts" integer not null default 0;
@@ -10253,12 +10253,12 @@ create policy bsb_inbox_message_deliveries_select on "better_supabase"."inbox_me
 -- better_supabase.inbox_inbound_events is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."inbox_inbound_events" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."inbox_inbound_events" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."inbox_inbound_events" add column if not exists "adapter" text check (length("adapter") >= 1 and length("adapter") <= 100);
+alter table "better_supabase"."inbox_inbound_events" add column if not exists "adapter" text constraint bsb_inbox_inbound_events_adapter_check check (length("adapter") >= 1 and length("adapter") <= 100);
 alter table "better_supabase"."inbox_inbound_events" add column if not exists "external_id" text;
 alter table "better_supabase"."inbox_inbound_events" add column if not exists "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete set null;
 alter table "better_supabase"."inbox_inbound_events" add column if not exists "headers" jsonb not null default '{}'::jsonb;
 alter table "better_supabase"."inbox_inbound_events" add column if not exists "body" text;
-alter table "better_supabase"."inbox_inbound_events" add column if not exists "status" text not null default 'received' check ("status" in ('received', 'processing', 'processed', 'ignored', 'failed'));
+alter table "better_supabase"."inbox_inbound_events" add column if not exists "status" text not null default 'received' constraint bsb_inbox_inbound_events_status_check check ("status" in ('received', 'processing', 'processed', 'ignored', 'failed'));
 alter table "better_supabase"."inbox_inbound_events" add column if not exists "error" text;
 alter table "better_supabase"."inbox_inbound_events" add column if not exists "attempts" integer not null default 0;
 alter table "better_supabase"."inbox_inbound_events" add column if not exists "available_at" timestamptz not null default now();
@@ -10277,11 +10277,11 @@ grant all on "better_supabase"."inbox_inbound_events" to service_role;
 alter table "better_supabase"."inbox_message_templates" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."inbox_message_templates" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."inbox_message_templates" add column if not exists "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete cascade;
-alter table "better_supabase"."inbox_message_templates" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."inbox_message_templates" add column if not exists "name" text constraint bsb_inbox_message_templates_name_check check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."inbox_message_templates" add column if not exists "channel" text;
 alter table "better_supabase"."inbox_message_templates" add column if not exists "language" text not null default 'en';
 alter table "better_supabase"."inbox_message_templates" add column if not exists "body" text;
-alter table "better_supabase"."inbox_message_templates" add column if not exists "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array');
+alter table "better_supabase"."inbox_message_templates" add column if not exists "variables" jsonb not null default '[]'::jsonb constraint bsb_inbox_message_templates_variables_check check (jsonb_typeof("variables") = 'array');
 alter table "better_supabase"."inbox_message_templates" add column if not exists "external_id" text;
 alter table "better_supabase"."inbox_message_templates" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_inbox_message_templates_name_key" on "better_supabase"."inbox_message_templates" ("tenant_id", "channel", "name", "language");
@@ -10305,7 +10305,7 @@ alter table "better_supabase"."scheduled_inbox_messages" add column if not exist
 alter table "better_supabase"."scheduled_inbox_messages" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."scheduled_inbox_messages" add column if not exists "conversation_id" uuid references "better_supabase"."inbox_conversations" ("id") on delete cascade;
 alter table "better_supabase"."scheduled_inbox_messages" add column if not exists "author_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."scheduled_inbox_messages" add column if not exists "input" jsonb check (jsonb_typeof("input") = 'object');
+alter table "better_supabase"."scheduled_inbox_messages" add column if not exists "input" jsonb constraint bsb_scheduled_inbox_messages_input_check check (jsonb_typeof("input") = 'object');
 alter table "better_supabase"."scheduled_inbox_messages" add column if not exists "scheduled_for" timestamptz;
 alter table "better_supabase"."scheduled_inbox_messages" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists scheduled_inbox_messages_due_idx on "better_supabase"."scheduled_inbox_messages" ("scheduled_for");
@@ -10330,9 +10330,9 @@ alter table "better_supabase"."inbox_drafts" add column if not exists "id" uuid 
 alter table "better_supabase"."inbox_drafts" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."inbox_drafts" add column if not exists "conversation_id" uuid references "better_supabase"."inbox_conversations" ("id") on delete cascade;
 alter table "better_supabase"."inbox_drafts" add column if not exists "author_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."inbox_drafts" add column if not exists "source" text not null default 'user' check ("source" in ('user', 'ai'));
-alter table "better_supabase"."inbox_drafts" add column if not exists "input" jsonb check (jsonb_typeof("input") = 'object');
-alter table "better_supabase"."inbox_drafts" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'discarded'));
+alter table "better_supabase"."inbox_drafts" add column if not exists "source" text not null default 'user' constraint bsb_inbox_drafts_source_check check ("source" in ('user', 'ai'));
+alter table "better_supabase"."inbox_drafts" add column if not exists "input" jsonb constraint bsb_inbox_drafts_input_check check (jsonb_typeof("input") = 'object');
+alter table "better_supabase"."inbox_drafts" add column if not exists "status" text not null default 'draft' constraint bsb_inbox_drafts_status_check check ("status" in ('draft', 'sent', 'discarded'));
 alter table "better_supabase"."inbox_drafts" add column if not exists "metadata" jsonb not null default '{}'::jsonb;
 alter table "better_supabase"."inbox_drafts" add column if not exists "updated_at" timestamptz not null default now();
 alter table "better_supabase"."inbox_drafts" add column if not exists "created_at" timestamptz not null default now();
@@ -12447,7 +12447,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:cae7f7494c70b334288464859effc237bb9cecb099923c39250baaf9856c79db
+-- @bsb-hash sha256:c408615047f22551ded7baaf529a6d88572d510d6e8e745c71ff22dd77d2c8ce
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12466,12 +12466,12 @@ on conflict (name) do update
 create table "better_supabase"."inboxes" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "channel" text not null default 'in_app' check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other')),
+  "name" text not null constraint bsb_inboxes_name_check check (length("name") >= 1 and length("name") <= 200),
+  "channel" text not null default 'in_app' constraint bsb_inboxes_channel_check check ("channel" in ('in_app', 'email', 'slack', 'teams', 'discord', 'telegram', 'whatsapp', 'messenger', 'instagram', 'sms', 'github', 'linear', 'other')),
   "channel_address" text,
   "installation_id" uuid,
-  "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused')),
-  "settings" jsonb not null default '{}'::jsonb check (jsonb_typeof("settings") = 'object'),
+  "bot_mode" text not null default 'human' constraint bsb_inboxes_bot_mode_check check ("bot_mode" in ('bot', 'human', 'paused')),
+  "settings" jsonb not null default '{}'::jsonb constraint bsb_inboxes_settings_check check (jsonb_typeof("settings") = 'object'),
   "created_at" timestamptz not null default now(),
   "archived_at" timestamptz
 );
@@ -12492,7 +12492,7 @@ create policy bsb_inboxes_staff_read on "better_supabase"."inboxes"
 create table "better_supabase"."inbox_members" (
   "inbox_id" uuid not null references "better_supabase"."inboxes" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "role" text not null default 'agent' check ("role" in ('agent', 'lead')),
+  "role" text not null default 'agent' constraint bsb_inbox_members_role_check check ("role" in ('agent', 'lead')),
   "created_at" timestamptz not null default now(),
   primary key ("inbox_id", "user_id")
 );
@@ -12517,12 +12517,12 @@ create table "better_supabase"."inbox_conversations" (
   "org_id" uuid not null,
   "inbox_id" uuid not null references "better_supabase"."inboxes" ("id") on delete cascade,
   "contact_id" uuid not null,
-  "subject" text check (length("subject") <= 500),
-  "status" text not null default 'open' check ("status" in ('open', 'pending', 'snoozed', 'resolved')),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "subject" text constraint bsb_inbox_conversations_subject_check check (length("subject") <= 500),
+  "status" text not null default 'open' constraint bsb_inbox_conversations_status_check check ("status" in ('open', 'pending', 'snoozed', 'resolved')),
+  "priority" text not null default 'normal' constraint bsb_inbox_conversations_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
   "assignee_id" uuid references auth.users (id) on delete set null,
   "team_id" uuid,
-  "bot_mode" text not null default 'human' check ("bot_mode" in ('bot', 'human', 'paused')),
+  "bot_mode" text not null default 'human' constraint bsb_inbox_conversations_bot_mode_check check ("bot_mode" in ('bot', 'human', 'paused')),
   "thread_id" text,
   "snoozed_until" timestamptz,
   "last_message_at" timestamptz not null default now(),
@@ -12554,7 +12554,7 @@ create table "better_supabase"."inbox_conversation_events" (
   "id" bigint generated always as identity primary key,
   "org_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
-  "type" text not null check ("type" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "type" text not null constraint bsb_inbox_conversation_events_type_check check ("type" ~ '^[a-z][a-z0-9_]{0,40}$'),
   "actor_id" uuid references auth.users (id) on delete set null,
   "data" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default clock_timestamp()
@@ -12573,9 +12573,9 @@ create table "better_supabase"."inbox_message_details" (
   "message_id" uuid primary key,
   "org_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
-  "direction" text not null check ("direction" in ('inbound', 'outbound')),
-  "author_type" text not null check ("author_type" in ('contact', 'agent', 'bot', 'system')),
-  "format" text not null default 'text' check ("format" in ('text', 'markdown')),
+  "direction" text not null constraint bsb_inbox_message_details_direction_check check ("direction" in ('inbound', 'outbound')),
+  "author_type" text not null constraint bsb_inbox_message_details_author_type_check check ("author_type" in ('contact', 'agent', 'bot', 'system')),
+  "format" text not null default 'text' constraint bsb_inbox_message_details_format_check check ("format" in ('text', 'markdown')),
   "external_id" text,
   "reply_to" uuid,
   "metadata" jsonb not null default '{}'::jsonb
@@ -12598,7 +12598,7 @@ create table "better_supabase"."inbox_message_deliveries" (
   "org_id" uuid not null,
   "message_id" uuid not null references "better_supabase"."inbox_message_details" ("message_id") on delete cascade,
   "channel" text not null,
-  "status" text not null default 'queued' check ("status" in ('queued', 'sent', 'delivered', 'read', 'failed')),
+  "status" text not null default 'queued' constraint bsb_inbox_message_deliveries_status_check check ("status" in ('queued', 'sent', 'delivered', 'read', 'failed')),
   "external_id" text,
   "error" text,
   "attempts" integer not null default 0,
@@ -12629,12 +12629,12 @@ create policy bsb_inbox_message_deliveries_staff_read on "better_supabase"."inbo
 create table "better_supabase"."inbox_inbound_events" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
-  "adapter" text not null check (length("adapter") >= 1 and length("adapter") <= 100),
+  "adapter" text not null constraint bsb_inbox_inbound_events_adapter_check check (length("adapter") >= 1 and length("adapter") <= 100),
   "external_id" text,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete set null,
   "headers" jsonb not null default '{}'::jsonb,
   "body" text not null,
-  "status" text not null default 'received' check ("status" in ('received', 'processing', 'processed', 'ignored', 'failed')),
+  "status" text not null default 'received' constraint bsb_inbox_inbound_events_status_check check ("status" in ('received', 'processing', 'processed', 'ignored', 'failed')),
   "error" text,
   "attempts" integer not null default 0,
   "available_at" timestamptz not null default now(),
@@ -12655,11 +12655,11 @@ create table "better_supabase"."inbox_message_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "inbox_id" uuid references "better_supabase"."inboxes" ("id") on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_inbox_message_templates_name_check check (length("name") >= 1 and length("name") <= 200),
   "channel" text not null,
   "language" text not null default 'en',
   "body" text not null,
-  "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array'),
+  "variables" jsonb not null default '[]'::jsonb constraint bsb_inbox_message_templates_variables_check check (jsonb_typeof("variables") = 'array'),
   "external_id" text,
   "created_at" timestamptz not null default now(),
   unique ("org_id", "channel", "name", "language")
@@ -12685,7 +12685,7 @@ create table "better_supabase"."scheduled_inbox_messages" (
   "org_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
   "author_id" uuid not null references auth.users (id) on delete cascade,
-  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
+  "input" jsonb not null constraint bsb_scheduled_inbox_messages_input_check check (jsonb_typeof("input") = 'object'),
   "scheduled_for" timestamptz not null,
   "created_at" timestamptz not null default now()
 );
@@ -12712,13 +12712,13 @@ create table "better_supabase"."inbox_drafts" (
   "org_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."inbox_conversations" ("id") on delete cascade,
   "author_id" uuid references auth.users (id) on delete cascade,
-  "source" text not null default 'user' check ("source" in ('user', 'ai')),
-  "input" jsonb not null check (jsonb_typeof("input") = 'object'),
-  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'discarded')),
+  "source" text not null default 'user' constraint bsb_inbox_drafts_source_check check ("source" in ('user', 'ai')),
+  "input" jsonb not null constraint bsb_inbox_drafts_input_check check (jsonb_typeof("input") = 'object'),
+  "status" text not null default 'draft' constraint bsb_inbox_drafts_status_check check ("status" in ('draft', 'sent', 'discarded')),
   "metadata" jsonb not null default '{}'::jsonb,
   "updated_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
-  constraint inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
+  constraint bsb_inbox_drafts_author_check check ("source" = 'ai' or "author_id" is not null)
 );
 create unique index inbox_drafts_open_key on "better_supabase"."inbox_drafts" ("conversation_id", "author_id") where "source" = 'user' and "status" = 'draft';
 create index inbox_drafts_conversation_idx on "better_supabase"."inbox_drafts" ("conversation_id");

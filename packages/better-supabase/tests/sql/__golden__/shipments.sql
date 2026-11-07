@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:b93e97ef2306cb69c3581acdf960fad480b39033f2743c0bfb92da01fa6815ab
+-- @bsb-hash sha256:86405f50163043b3fd81641a470e0dec5541bcae977cbdcdc4b0e72bba740f11
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,32 +14,32 @@
 create table "better_supabase"."shipments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "reference" text not null check (length("reference") >= 1 and length("reference") <= 100),
-  "status" text not null default 'draft' check ("status" in ('draft', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'cancelled')),
-  "from_address" jsonb not null check (jsonb_typeof("from_address") = 'object' and coalesce("from_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("from_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("from_address" ->> 'city', ''))) >= 1 and length("from_address"::text) <= 4000),
-  "to_address" jsonb not null check (jsonb_typeof("to_address") = 'object' and coalesce("to_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("to_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("to_address" ->> 'city', ''))) >= 1 and length("to_address"::text) <= 4000),
+  "reference" text not null constraint bsb_shipments_reference_check check (length("reference") >= 1 and length("reference") <= 100),
+  "status" text not null default 'draft' constraint bsb_shipments_status_check check ("status" in ('draft', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'cancelled')),
+  "from_address" jsonb not null constraint bsb_shipments_from_address_check check (jsonb_typeof("from_address") = 'object' and coalesce("from_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("from_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("from_address" ->> 'city', ''))) >= 1 and length("from_address"::text) <= 4000),
+  "to_address" jsonb not null constraint bsb_shipments_to_address_check check (jsonb_typeof("to_address") = 'object' and coalesce("to_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("to_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("to_address" ->> 'city', ''))) >= 1 and length("to_address"::text) <= 4000),
   "direction" text not null default 'outbound' constraint bsb_shipments_direction check ("direction" in ('outbound', 'inbound')),
   "from_location_id" uuid,
-  "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
-  "carrier" text check ("carrier" is null or length("carrier") >= 1 and length("carrier") <= 100),
-  "service" text check ("service" is null or length("service") >= 1 and length("service") <= 100),
-  "tracking_number" text check ("tracking_number" is null or length("tracking_number") >= 1 and length("tracking_number") <= 100),
-  "tracking_url" text check ("tracking_url" is null or "tracking_url" ~ '^https://' and length("tracking_url") <= 2000),
-  "label_id" text check ("label_id" is null or length("label_id") >= 1 and length("label_id") <= 200),
-  "label_url" text check ("label_url" is null or "label_url" ~ '^https://' and length("label_url") <= 2000),
-  "label_format" text check ("label_format" is null or "label_format" in ('pdf', 'png', 'zpl')),
-  "label_cost" bigint check ("label_cost" is null or "label_cost" >= 0),
-  "currency" text check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "subject_type" text constraint bsb_shipments_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_shipments_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
+  "carrier" text constraint bsb_shipments_carrier_check check ("carrier" is null or length("carrier") >= 1 and length("carrier") <= 100),
+  "service" text constraint bsb_shipments_service_check check ("service" is null or length("service") >= 1 and length("service") <= 100),
+  "tracking_number" text constraint bsb_shipments_tracking_number_check check ("tracking_number" is null or length("tracking_number") >= 1 and length("tracking_number") <= 100),
+  "tracking_url" text constraint bsb_shipments_tracking_url_check check ("tracking_url" is null or "tracking_url" ~ '^https://' and length("tracking_url") <= 2000),
+  "label_id" text constraint bsb_shipments_label_id_check check ("label_id" is null or length("label_id") >= 1 and length("label_id") <= 200),
+  "label_url" text constraint bsb_shipments_label_url_check check ("label_url" is null or "label_url" ~ '^https://' and length("label_url") <= 2000),
+  "label_format" text constraint bsb_shipments_label_format_check check ("label_format" is null or "label_format" in ('pdf', 'png', 'zpl')),
+  "label_cost" bigint constraint bsb_shipments_label_cost_check check ("label_cost" is null or "label_cost" >= 0),
+  "currency" text constraint bsb_shipments_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "labeled_at" timestamptz,
   "delivered_at" timestamptz,
   "cancelled_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check (("label_cost" is null) = ("currency" is null)),
-  check ("status" in ('draft', 'cancelled') or ("carrier" is not null and "tracking_number" is not null))
+  constraint bsb_shipments_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_shipments_check1 check (("label_cost" is null) = ("currency" is null)),
+  constraint bsb_shipments_check2 check ("status" in ('draft', 'cancelled') or ("carrier" is not null and "tracking_number" is not null))
 );
 create index "shipments_tenant_idx" on "better_supabase"."shipments" ("tenant_id", "created_at" desc);
 create index "shipments_status_idx" on "better_supabase"."shipments" ("tenant_id", "status");
@@ -57,12 +57,12 @@ create table "better_supabase"."shipment_packages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
-  "weight_grams" integer not null check ("weight_grams" > 0),
-  "length_mm" integer check ("length_mm" is null or "length_mm" > 0),
-  "width_mm" integer check ("width_mm" is null or "width_mm" > 0),
-  "height_mm" integer check ("height_mm" is null or "height_mm" > 0),
-  "reference" text check ("reference" is null or length("reference") <= 100),
+  "position" integer not null constraint bsb_shipment_packages_position_check check ("position" >= 1),
+  "weight_grams" integer not null constraint bsb_shipment_packages_weight_grams_check check ("weight_grams" > 0),
+  "length_mm" integer constraint bsb_shipment_packages_length_mm_check check ("length_mm" is null or "length_mm" > 0),
+  "width_mm" integer constraint bsb_shipment_packages_width_mm_check check ("width_mm" is null or "width_mm" > 0),
+  "height_mm" integer constraint bsb_shipment_packages_height_mm_check check ("height_mm" is null or "height_mm" > 0),
+  "reference" text constraint bsb_shipment_packages_reference_check check ("reference" is null or length("reference") <= 100),
   unique ("shipment_id", "position")
 );
 alter table "better_supabase"."shipment_packages" enable row level security;
@@ -83,12 +83,12 @@ create table "better_supabase"."shipment_tracking_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
-  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
-  "status" text not null check ("status" in ('label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned')),
+  "external_id" text not null constraint bsb_shipment_tracking_events_external_id_check check (length("external_id") >= 1 and length("external_id") <= 200),
+  "status" text not null constraint bsb_shipment_tracking_events_status_check check ("status" in ('label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned')),
   "occurred_at" timestamptz not null,
-  "description" text check ("description" is null or length("description") <= 1000),
-  "location" text check ("location" is null or length("location") <= 200),
-  "source" text not null check ("source" in ('carrier', 'webhook', 'manual')),
+  "description" text constraint bsb_shipment_tracking_events_description_check check ("description" is null or length("description") <= 1000),
+  "location" text constraint bsb_shipment_tracking_events_location_check check ("location" is null or length("location") <= 200),
+  "source" text not null constraint bsb_shipment_tracking_events_source_check check ("source" in ('carrier', 'webhook', 'manual')),
   "created_at" timestamptz not null default now(),
   unique ("shipment_id", "external_id")
 );
@@ -121,18 +121,18 @@ create table "better_supabase"."shipment_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
-  "direction" text not null default 'outbound' check ("direction" in ('outbound', 'return')),
+  "position" integer not null constraint bsb_shipment_lines_position_check check ("position" >= 1),
+  "direction" text not null default 'outbound' constraint bsb_shipment_lines_direction_check check ("direction" in ('outbound', 'return')),
   "variant_id" uuid not null,
   "location_id" uuid not null,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_shipment_lines_quantity_check check ("quantity" > 0),
   "allocation_id" uuid,
-  "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object'),
-  "disposition" text check ("disposition" is null or "disposition" in ('restock', 'hold', 'scrap')),
+  "detail" jsonb constraint bsb_shipment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
+  "disposition" text constraint bsb_shipment_lines_disposition_check check ("disposition" is null or "disposition" in ('restock', 'hold', 'scrap')),
   "movement_id" uuid,
   "moved_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check (("direction" = 'return') = ("disposition" is not null)),
+  constraint bsb_shipment_lines_check check (("direction" = 'return') = ("disposition" is not null)),
   unique ("shipment_id", "position")
 );
 create index "shipment_lines_variant_idx" on "better_supabase"."shipment_lines" ("variant_id", "location_id");
@@ -735,7 +735,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:d0c986f35f272f93b3ec6cedbd56a56a9e319261803ffb1f4edd75be5c604f8a
+-- @bsb-hash sha256:dcc6ac2026424ec146322cd13a9790fb9345584bcff152b61c92ce304836853f
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -748,32 +748,32 @@ on conflict (name) do update
 create table "better_supabase"."shipments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "reference" text not null check (length("reference") >= 1 and length("reference") <= 100),
-  "status" text not null default 'draft' check ("status" in ('draft', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'cancelled')),
-  "from_address" jsonb not null check (jsonb_typeof("from_address") = 'object' and coalesce("from_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("from_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("from_address" ->> 'city', ''))) >= 1 and length("from_address"::text) <= 4000),
-  "to_address" jsonb not null check (jsonb_typeof("to_address") = 'object' and coalesce("to_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("to_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("to_address" ->> 'city', ''))) >= 1 and length("to_address"::text) <= 4000),
+  "reference" text not null constraint bsb_shipments_reference_check check (length("reference") >= 1 and length("reference") <= 100),
+  "status" text not null default 'draft' constraint bsb_shipments_status_check check ("status" in ('draft', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'cancelled')),
+  "from_address" jsonb not null constraint bsb_shipments_from_address_check check (jsonb_typeof("from_address") = 'object' and coalesce("from_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("from_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("from_address" ->> 'city', ''))) >= 1 and length("from_address"::text) <= 4000),
+  "to_address" jsonb not null constraint bsb_shipments_to_address_check check (jsonb_typeof("to_address") = 'object' and coalesce("to_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("to_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("to_address" ->> 'city', ''))) >= 1 and length("to_address"::text) <= 4000),
   "direction" text not null default 'outbound' constraint bsb_shipments_direction check ("direction" in ('outbound', 'inbound')),
   "from_location_id" uuid,
-  "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
-  "carrier" text check ("carrier" is null or length("carrier") >= 1 and length("carrier") <= 100),
-  "service" text check ("service" is null or length("service") >= 1 and length("service") <= 100),
-  "tracking_number" text check ("tracking_number" is null or length("tracking_number") >= 1 and length("tracking_number") <= 100),
-  "tracking_url" text check ("tracking_url" is null or "tracking_url" ~ '^https://' and length("tracking_url") <= 2000),
-  "label_id" text check ("label_id" is null or length("label_id") >= 1 and length("label_id") <= 200),
-  "label_url" text check ("label_url" is null or "label_url" ~ '^https://' and length("label_url") <= 2000),
-  "label_format" text check ("label_format" is null or "label_format" in ('pdf', 'png', 'zpl')),
-  "label_cost" bigint check ("label_cost" is null or "label_cost" >= 0),
-  "currency" text check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "subject_type" text constraint bsb_shipments_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_shipments_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
+  "carrier" text constraint bsb_shipments_carrier_check check ("carrier" is null or length("carrier") >= 1 and length("carrier") <= 100),
+  "service" text constraint bsb_shipments_service_check check ("service" is null or length("service") >= 1 and length("service") <= 100),
+  "tracking_number" text constraint bsb_shipments_tracking_number_check check ("tracking_number" is null or length("tracking_number") >= 1 and length("tracking_number") <= 100),
+  "tracking_url" text constraint bsb_shipments_tracking_url_check check ("tracking_url" is null or "tracking_url" ~ '^https://' and length("tracking_url") <= 2000),
+  "label_id" text constraint bsb_shipments_label_id_check check ("label_id" is null or length("label_id") >= 1 and length("label_id") <= 200),
+  "label_url" text constraint bsb_shipments_label_url_check check ("label_url" is null or "label_url" ~ '^https://' and length("label_url") <= 2000),
+  "label_format" text constraint bsb_shipments_label_format_check check ("label_format" is null or "label_format" in ('pdf', 'png', 'zpl')),
+  "label_cost" bigint constraint bsb_shipments_label_cost_check check ("label_cost" is null or "label_cost" >= 0),
+  "currency" text constraint bsb_shipments_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "labeled_at" timestamptz,
   "delivered_at" timestamptz,
   "cancelled_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check (("label_cost" is null) = ("currency" is null)),
-  check ("status" in ('draft', 'cancelled') or ("carrier" is not null and "tracking_number" is not null))
+  constraint bsb_shipments_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_shipments_check1 check (("label_cost" is null) = ("currency" is null)),
+  constraint bsb_shipments_check2 check ("status" in ('draft', 'cancelled') or ("carrier" is not null and "tracking_number" is not null))
 );
 create index "shipments_tenant_idx" on "better_supabase"."shipments" ("tenant_id", "created_at" desc);
 create index "shipments_status_idx" on "better_supabase"."shipments" ("tenant_id", "status");
@@ -791,12 +791,12 @@ create table "better_supabase"."shipment_packages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
-  "weight_grams" integer not null check ("weight_grams" > 0),
-  "length_mm" integer check ("length_mm" is null or "length_mm" > 0),
-  "width_mm" integer check ("width_mm" is null or "width_mm" > 0),
-  "height_mm" integer check ("height_mm" is null or "height_mm" > 0),
-  "reference" text check ("reference" is null or length("reference") <= 100),
+  "position" integer not null constraint bsb_shipment_packages_position_check check ("position" >= 1),
+  "weight_grams" integer not null constraint bsb_shipment_packages_weight_grams_check check ("weight_grams" > 0),
+  "length_mm" integer constraint bsb_shipment_packages_length_mm_check check ("length_mm" is null or "length_mm" > 0),
+  "width_mm" integer constraint bsb_shipment_packages_width_mm_check check ("width_mm" is null or "width_mm" > 0),
+  "height_mm" integer constraint bsb_shipment_packages_height_mm_check check ("height_mm" is null or "height_mm" > 0),
+  "reference" text constraint bsb_shipment_packages_reference_check check ("reference" is null or length("reference") <= 100),
   unique ("shipment_id", "position")
 );
 alter table "better_supabase"."shipment_packages" enable row level security;
@@ -817,12 +817,12 @@ create table "better_supabase"."shipment_tracking_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
-  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
-  "status" text not null check ("status" in ('label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned')),
+  "external_id" text not null constraint bsb_shipment_tracking_events_external_id_check check (length("external_id") >= 1 and length("external_id") <= 200),
+  "status" text not null constraint bsb_shipment_tracking_events_status_check check ("status" in ('label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned')),
   "occurred_at" timestamptz not null,
-  "description" text check ("description" is null or length("description") <= 1000),
-  "location" text check ("location" is null or length("location") <= 200),
-  "source" text not null check ("source" in ('carrier', 'webhook', 'manual')),
+  "description" text constraint bsb_shipment_tracking_events_description_check check ("description" is null or length("description") <= 1000),
+  "location" text constraint bsb_shipment_tracking_events_location_check check ("location" is null or length("location") <= 200),
+  "source" text not null constraint bsb_shipment_tracking_events_source_check check ("source" in ('carrier', 'webhook', 'manual')),
   "created_at" timestamptz not null default now(),
   unique ("shipment_id", "external_id")
 );
@@ -866,18 +866,18 @@ create table "better_supabase"."shipment_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
-  "direction" text not null default 'outbound' check ("direction" in ('outbound', 'return')),
+  "position" integer not null constraint bsb_shipment_lines_position_check check ("position" >= 1),
+  "direction" text not null default 'outbound' constraint bsb_shipment_lines_direction_check check ("direction" in ('outbound', 'return')),
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete restrict,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete restrict,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_shipment_lines_quantity_check check ("quantity" > 0),
   "allocation_id" uuid references "better_supabase"."stock_allocations" ("id") on delete set null,
-  "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object'),
-  "disposition" text check ("disposition" is null or "disposition" in ('restock', 'hold', 'scrap')),
+  "detail" jsonb constraint bsb_shipment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
+  "disposition" text constraint bsb_shipment_lines_disposition_check check ("disposition" is null or "disposition" in ('restock', 'hold', 'scrap')),
   "movement_id" uuid,
   "moved_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check (("direction" = 'return') = ("disposition" is not null)),
+  constraint bsb_shipment_lines_check check (("direction" = 'return') = ("disposition" is not null)),
   unique ("shipment_id", "position")
 );
 create index "shipment_lines_variant_idx" on "better_supabase"."shipment_lines" ("variant_id", "location_id");
@@ -899,18 +899,18 @@ create policy bsb_shipment_lines_read on "better_supabase"."shipment_lines"
 create table "better_supabase"."intrastat_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "period" date not null check ("period" = date_trunc('month', "period")::date),
-  "flow" text not null check ("flow" in ('arrival', 'dispatch')),
-  "source" text not null default 'shipment' check ("source" in ('shipment', 'receipt', 'manual')),
+  "period" date not null constraint bsb_intrastat_lines_period_check check ("period" = date_trunc('month', "period")::date),
+  "flow" text not null constraint bsb_intrastat_lines_flow_check check ("flow" in ('arrival', 'dispatch')),
+  "source" text not null default 'shipment' constraint bsb_intrastat_lines_source_check check ("source" in ('shipment', 'receipt', 'manual')),
   "shipment_line_id" uuid unique references "better_supabase"."shipment_lines" ("id") on delete cascade,
   "receipt_line_id" uuid unique references "better_supabase"."inventory_receipt_lines" ("id") on delete cascade,
   "variant_id" uuid references "better_supabase"."product_variants" ("id") on delete set null,
-  "trade_code" text check ("trade_code" is null or "trade_code" ~ '^[0-9]{4,10}$'),
-  "country" char(2) check ("country" is null or "country" ~ '^[A-Z]{2}$'),
-  "net_mass_kg" numeric(20, 3) check ("net_mass_kg" is null or "net_mass_kg" >= 0),
-  "quantity" numeric(20, 6) check ("quantity" is null or "quantity" > 0),
-  "value" bigint check ("value" is null or "value" >= 0),
-  "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "trade_code" text constraint bsb_intrastat_lines_trade_code_check check ("trade_code" is null or "trade_code" ~ '^[0-9]{4,10}$'),
+  "country" char(2) constraint bsb_intrastat_lines_country_check check ("country" is null or "country" ~ '^[A-Z]{2}$'),
+  "net_mass_kg" numeric(20, 3) constraint bsb_intrastat_lines_net_mass_kg_check check ("net_mass_kg" is null or "net_mass_kg" >= 0),
+  "quantity" numeric(20, 6) constraint bsb_intrastat_lines_quantity_check check ("quantity" is null or "quantity" > 0),
+  "value" bigint constraint bsb_intrastat_lines_value_check check ("value" is null or "value" >= 0),
+  "currency" char(3) constraint bsb_intrastat_lines_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -1955,7 +1955,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:972e44a2b9f6b33a95ecc39062bb1b9b925cce86195e609e4124ea7317daeb14
+-- @bsb-hash sha256:af3795b7a097913ba19c74e867f013c152048bfb7da9e9e6db120ad13de4762a
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1973,32 +1973,32 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."shipments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "reference" text not null check (length("reference") >= 1 and length("reference") <= 100),
-  "status" text not null default 'draft' check ("status" in ('draft', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'cancelled')),
-  "from_address" jsonb not null check (jsonb_typeof("from_address") = 'object' and coalesce("from_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("from_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("from_address" ->> 'city', ''))) >= 1 and length("from_address"::text) <= 4000),
-  "to_address" jsonb not null check (jsonb_typeof("to_address") = 'object' and coalesce("to_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("to_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("to_address" ->> 'city', ''))) >= 1 and length("to_address"::text) <= 4000),
+  "reference" text not null constraint bsb_shipments_reference_check check (length("reference") >= 1 and length("reference") <= 100),
+  "status" text not null default 'draft' constraint bsb_shipments_status_check check ("status" in ('draft', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'cancelled')),
+  "from_address" jsonb not null constraint bsb_shipments_from_address_check check (jsonb_typeof("from_address") = 'object' and coalesce("from_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("from_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("from_address" ->> 'city', ''))) >= 1 and length("from_address"::text) <= 4000),
+  "to_address" jsonb not null constraint bsb_shipments_to_address_check check (jsonb_typeof("to_address") = 'object' and coalesce("to_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("to_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("to_address" ->> 'city', ''))) >= 1 and length("to_address"::text) <= 4000),
   "direction" text not null default 'outbound' constraint bsb_shipments_direction check ("direction" in ('outbound', 'inbound')),
   "from_location_id" uuid,
-  "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
-  "carrier" text check ("carrier" is null or length("carrier") >= 1 and length("carrier") <= 100),
-  "service" text check ("service" is null or length("service") >= 1 and length("service") <= 100),
-  "tracking_number" text check ("tracking_number" is null or length("tracking_number") >= 1 and length("tracking_number") <= 100),
-  "tracking_url" text check ("tracking_url" is null or "tracking_url" ~ '^https://' and length("tracking_url") <= 2000),
-  "label_id" text check ("label_id" is null or length("label_id") >= 1 and length("label_id") <= 200),
-  "label_url" text check ("label_url" is null or "label_url" ~ '^https://' and length("label_url") <= 2000),
-  "label_format" text check ("label_format" is null or "label_format" in ('pdf', 'png', 'zpl')),
-  "label_cost" bigint check ("label_cost" is null or "label_cost" >= 0),
-  "currency" text check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "subject_type" text constraint bsb_shipments_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_shipments_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
+  "carrier" text constraint bsb_shipments_carrier_check check ("carrier" is null or length("carrier") >= 1 and length("carrier") <= 100),
+  "service" text constraint bsb_shipments_service_check check ("service" is null or length("service") >= 1 and length("service") <= 100),
+  "tracking_number" text constraint bsb_shipments_tracking_number_check check ("tracking_number" is null or length("tracking_number") >= 1 and length("tracking_number") <= 100),
+  "tracking_url" text constraint bsb_shipments_tracking_url_check check ("tracking_url" is null or "tracking_url" ~ '^https://' and length("tracking_url") <= 2000),
+  "label_id" text constraint bsb_shipments_label_id_check check ("label_id" is null or length("label_id") >= 1 and length("label_id") <= 200),
+  "label_url" text constraint bsb_shipments_label_url_check check ("label_url" is null or "label_url" ~ '^https://' and length("label_url") <= 2000),
+  "label_format" text constraint bsb_shipments_label_format_check check ("label_format" is null or "label_format" in ('pdf', 'png', 'zpl')),
+  "label_cost" bigint constraint bsb_shipments_label_cost_check check ("label_cost" is null or "label_cost" >= 0),
+  "currency" text constraint bsb_shipments_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "labeled_at" timestamptz,
   "delivered_at" timestamptz,
   "cancelled_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check (("label_cost" is null) = ("currency" is null)),
-  check ("status" in ('draft', 'cancelled') or ("carrier" is not null and "tracking_number" is not null))
+  constraint bsb_shipments_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_shipments_check1 check (("label_cost" is null) = ("currency" is null)),
+  constraint bsb_shipments_check2 check ("status" in ('draft', 'cancelled') or ("carrier" is not null and "tracking_number" is not null))
 );
 create index "shipments_tenant_idx" on "app_private"."shipments" ("tenant_id", "created_at" desc);
 create index "shipments_status_idx" on "app_private"."shipments" ("tenant_id", "status");
@@ -2016,12 +2016,12 @@ create table "app_private"."shipment_packages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "app_private"."shipments" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
-  "weight_grams" integer not null check ("weight_grams" > 0),
-  "length_mm" integer check ("length_mm" is null or "length_mm" > 0),
-  "width_mm" integer check ("width_mm" is null or "width_mm" > 0),
-  "height_mm" integer check ("height_mm" is null or "height_mm" > 0),
-  "reference" text check ("reference" is null or length("reference") <= 100),
+  "position" integer not null constraint bsb_shipment_packages_position_check check ("position" >= 1),
+  "weight_grams" integer not null constraint bsb_shipment_packages_weight_grams_check check ("weight_grams" > 0),
+  "length_mm" integer constraint bsb_shipment_packages_length_mm_check check ("length_mm" is null or "length_mm" > 0),
+  "width_mm" integer constraint bsb_shipment_packages_width_mm_check check ("width_mm" is null or "width_mm" > 0),
+  "height_mm" integer constraint bsb_shipment_packages_height_mm_check check ("height_mm" is null or "height_mm" > 0),
+  "reference" text constraint bsb_shipment_packages_reference_check check ("reference" is null or length("reference") <= 100),
   unique ("shipment_id", "position")
 );
 alter table "app_private"."shipment_packages" enable row level security;
@@ -2042,12 +2042,12 @@ create table "app_private"."shipment_tracking_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "app_private"."shipments" ("id") on delete cascade,
-  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
-  "status" text not null check ("status" in ('label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned')),
+  "external_id" text not null constraint bsb_shipment_tracking_events_external_id_check check (length("external_id") >= 1 and length("external_id") <= 200),
+  "status" text not null constraint bsb_shipment_tracking_events_status_check check ("status" in ('label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned')),
   "occurred_at" timestamptz not null,
-  "description" text check ("description" is null or length("description") <= 1000),
-  "location" text check ("location" is null or length("location") <= 200),
-  "source" text not null check ("source" in ('carrier', 'webhook', 'manual')),
+  "description" text constraint bsb_shipment_tracking_events_description_check check ("description" is null or length("description") <= 1000),
+  "location" text constraint bsb_shipment_tracking_events_location_check check ("location" is null or length("location") <= 200),
+  "source" text not null constraint bsb_shipment_tracking_events_source_check check ("source" in ('carrier', 'webhook', 'manual')),
   "created_at" timestamptz not null default now(),
   unique ("shipment_id", "external_id")
 );
@@ -2080,18 +2080,18 @@ create table "app_private"."shipment_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "app_private"."shipments" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
-  "direction" text not null default 'outbound' check ("direction" in ('outbound', 'return')),
+  "position" integer not null constraint bsb_shipment_lines_position_check check ("position" >= 1),
+  "direction" text not null default 'outbound' constraint bsb_shipment_lines_direction_check check ("direction" in ('outbound', 'return')),
   "variant_id" uuid not null,
   "location_id" uuid not null,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_shipment_lines_quantity_check check ("quantity" > 0),
   "allocation_id" uuid,
-  "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object'),
-  "disposition" text check ("disposition" is null or "disposition" in ('restock', 'hold', 'scrap')),
+  "detail" jsonb constraint bsb_shipment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
+  "disposition" text constraint bsb_shipment_lines_disposition_check check ("disposition" is null or "disposition" in ('restock', 'hold', 'scrap')),
   "movement_id" uuid,
   "moved_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check (("direction" = 'return') = ("disposition" is not null)),
+  constraint bsb_shipment_lines_check check (("direction" = 'return') = ("disposition" is not null)),
   unique ("shipment_id", "position")
 );
 create index "shipment_lines_variant_idx" on "app_private"."shipment_lines" ("variant_id", "location_id");
@@ -2694,7 +2694,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:3cd29bd397101a6b41e8b6c2fc4ca9c18a466e990ff408284fd13eda93e566ac
+-- @bsb-hash sha256:471a6d6686f799a4d6d30796cd57ec8529d79b3b73964437abfc22341f3c1e18
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2707,32 +2707,32 @@ on conflict (name) do update
 create table "better_supabase"."shipments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "reference" text not null check (length("reference") >= 1 and length("reference") <= 100),
-  "status" text not null default 'draft' check ("status" in ('draft', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'cancelled')),
-  "from_address" jsonb not null check (jsonb_typeof("from_address") = 'object' and coalesce("from_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("from_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("from_address" ->> 'city', ''))) >= 1 and length("from_address"::text) <= 4000),
-  "to_address" jsonb not null check (jsonb_typeof("to_address") = 'object' and coalesce("to_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("to_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("to_address" ->> 'city', ''))) >= 1 and length("to_address"::text) <= 4000),
+  "reference" text not null constraint bsb_shipments_reference_check check (length("reference") >= 1 and length("reference") <= 100),
+  "status" text not null default 'draft' constraint bsb_shipments_status_check check ("status" in ('draft', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'cancelled')),
+  "from_address" jsonb not null constraint bsb_shipments_from_address_check check (jsonb_typeof("from_address") = 'object' and coalesce("from_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("from_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("from_address" ->> 'city', ''))) >= 1 and length("from_address"::text) <= 4000),
+  "to_address" jsonb not null constraint bsb_shipments_to_address_check check (jsonb_typeof("to_address") = 'object' and coalesce("to_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("to_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("to_address" ->> 'city', ''))) >= 1 and length("to_address"::text) <= 4000),
   "direction" text not null default 'outbound' constraint bsb_shipments_direction check ("direction" in ('outbound', 'inbound')),
   "from_location_id" uuid,
-  "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
-  "carrier" text check ("carrier" is null or length("carrier") >= 1 and length("carrier") <= 100),
-  "service" text check ("service" is null or length("service") >= 1 and length("service") <= 100),
-  "tracking_number" text check ("tracking_number" is null or length("tracking_number") >= 1 and length("tracking_number") <= 100),
-  "tracking_url" text check ("tracking_url" is null or "tracking_url" ~ '^https://' and length("tracking_url") <= 2000),
-  "label_id" text check ("label_id" is null or length("label_id") >= 1 and length("label_id") <= 200),
-  "label_url" text check ("label_url" is null or "label_url" ~ '^https://' and length("label_url") <= 2000),
-  "label_format" text check ("label_format" is null or "label_format" in ('pdf', 'png', 'zpl')),
-  "label_cost" bigint check ("label_cost" is null or "label_cost" >= 0),
-  "currency" text check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "subject_type" text constraint bsb_shipments_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_shipments_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
+  "carrier" text constraint bsb_shipments_carrier_check check ("carrier" is null or length("carrier") >= 1 and length("carrier") <= 100),
+  "service" text constraint bsb_shipments_service_check check ("service" is null or length("service") >= 1 and length("service") <= 100),
+  "tracking_number" text constraint bsb_shipments_tracking_number_check check ("tracking_number" is null or length("tracking_number") >= 1 and length("tracking_number") <= 100),
+  "tracking_url" text constraint bsb_shipments_tracking_url_check check ("tracking_url" is null or "tracking_url" ~ '^https://' and length("tracking_url") <= 2000),
+  "label_id" text constraint bsb_shipments_label_id_check check ("label_id" is null or length("label_id") >= 1 and length("label_id") <= 200),
+  "label_url" text constraint bsb_shipments_label_url_check check ("label_url" is null or "label_url" ~ '^https://' and length("label_url") <= 2000),
+  "label_format" text constraint bsb_shipments_label_format_check check ("label_format" is null or "label_format" in ('pdf', 'png', 'zpl')),
+  "label_cost" bigint constraint bsb_shipments_label_cost_check check ("label_cost" is null or "label_cost" >= 0),
+  "currency" text constraint bsb_shipments_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "labeled_at" timestamptz,
   "delivered_at" timestamptz,
   "cancelled_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check (("label_cost" is null) = ("currency" is null)),
-  check ("status" in ('draft', 'cancelled') or ("carrier" is not null and "tracking_number" is not null))
+  constraint bsb_shipments_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_shipments_check1 check (("label_cost" is null) = ("currency" is null)),
+  constraint bsb_shipments_check2 check ("status" in ('draft', 'cancelled') or ("carrier" is not null and "tracking_number" is not null))
 );
 create index "shipments_tenant_idx" on "better_supabase"."shipments" ("tenant_id", "created_at" desc);
 create index "shipments_status_idx" on "better_supabase"."shipments" ("tenant_id", "status");
@@ -2750,12 +2750,12 @@ create table "better_supabase"."shipment_packages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
-  "weight_grams" integer not null check ("weight_grams" > 0),
-  "length_mm" integer check ("length_mm" is null or "length_mm" > 0),
-  "width_mm" integer check ("width_mm" is null or "width_mm" > 0),
-  "height_mm" integer check ("height_mm" is null or "height_mm" > 0),
-  "reference" text check ("reference" is null or length("reference") <= 100),
+  "position" integer not null constraint bsb_shipment_packages_position_check check ("position" >= 1),
+  "weight_grams" integer not null constraint bsb_shipment_packages_weight_grams_check check ("weight_grams" > 0),
+  "length_mm" integer constraint bsb_shipment_packages_length_mm_check check ("length_mm" is null or "length_mm" > 0),
+  "width_mm" integer constraint bsb_shipment_packages_width_mm_check check ("width_mm" is null or "width_mm" > 0),
+  "height_mm" integer constraint bsb_shipment_packages_height_mm_check check ("height_mm" is null or "height_mm" > 0),
+  "reference" text constraint bsb_shipment_packages_reference_check check ("reference" is null or length("reference") <= 100),
   unique ("shipment_id", "position")
 );
 alter table "better_supabase"."shipment_packages" enable row level security;
@@ -2776,12 +2776,12 @@ create table "better_supabase"."shipment_tracking_events" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
-  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
-  "status" text not null check ("status" in ('label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned')),
+  "external_id" text not null constraint bsb_shipment_tracking_events_external_id_check check (length("external_id") >= 1 and length("external_id") <= 200),
+  "status" text not null constraint bsb_shipment_tracking_events_status_check check ("status" in ('label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned')),
   "occurred_at" timestamptz not null,
-  "description" text check ("description" is null or length("description") <= 1000),
-  "location" text check ("location" is null or length("location") <= 200),
-  "source" text not null check ("source" in ('carrier', 'webhook', 'manual')),
+  "description" text constraint bsb_shipment_tracking_events_description_check check ("description" is null or length("description") <= 1000),
+  "location" text constraint bsb_shipment_tracking_events_location_check check ("location" is null or length("location") <= 200),
+  "source" text not null constraint bsb_shipment_tracking_events_source_check check ("source" in ('carrier', 'webhook', 'manual')),
   "created_at" timestamptz not null default now(),
   unique ("shipment_id", "external_id")
 );
@@ -2814,18 +2814,18 @@ create table "better_supabase"."shipment_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
-  "direction" text not null default 'outbound' check ("direction" in ('outbound', 'return')),
+  "position" integer not null constraint bsb_shipment_lines_position_check check ("position" >= 1),
+  "direction" text not null default 'outbound' constraint bsb_shipment_lines_direction_check check ("direction" in ('outbound', 'return')),
   "variant_id" uuid not null,
   "location_id" uuid not null,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_shipment_lines_quantity_check check ("quantity" > 0),
   "allocation_id" uuid,
-  "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object'),
-  "disposition" text check ("disposition" is null or "disposition" in ('restock', 'hold', 'scrap')),
+  "detail" jsonb constraint bsb_shipment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
+  "disposition" text constraint bsb_shipment_lines_disposition_check check ("disposition" is null or "disposition" in ('restock', 'hold', 'scrap')),
   "movement_id" uuid,
   "moved_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check (("direction" = 'return') = ("disposition" is not null)),
+  constraint bsb_shipment_lines_check check (("direction" = 'return') = ("disposition" is not null)),
   unique ("shipment_id", "position")
 );
 create index "shipment_lines_variant_idx" on "better_supabase"."shipment_lines" ("variant_id", "location_id");
@@ -3543,7 +3543,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:b4158803a70fa1f3d2a9401c47f0542e755ba54293f4e9cf01de9a336646c8b2
+-- @bsb-hash sha256:aacf3e4fbd797c36e5bc4bd343740d13e3d9c412f6e206f24c4043ff73c21957
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3556,23 +3556,23 @@ on conflict (name) do update
 -- better_supabase.shipments is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."shipments" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."shipments" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."shipments" add column if not exists "reference" text check (length("reference") >= 1 and length("reference") <= 100);
-alter table "better_supabase"."shipments" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'cancelled'));
-alter table "better_supabase"."shipments" add column if not exists "from_address" jsonb check (jsonb_typeof("from_address") = 'object' and coalesce("from_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("from_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("from_address" ->> 'city', ''))) >= 1 and length("from_address"::text) <= 4000);
-alter table "better_supabase"."shipments" add column if not exists "to_address" jsonb check (jsonb_typeof("to_address") = 'object' and coalesce("to_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("to_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("to_address" ->> 'city', ''))) >= 1 and length("to_address"::text) <= 4000);
+alter table "better_supabase"."shipments" add column if not exists "reference" text constraint bsb_shipments_reference_check check (length("reference") >= 1 and length("reference") <= 100);
+alter table "better_supabase"."shipments" add column if not exists "status" text not null default 'draft' constraint bsb_shipments_status_check check ("status" in ('draft', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'cancelled'));
+alter table "better_supabase"."shipments" add column if not exists "from_address" jsonb constraint bsb_shipments_from_address_check check (jsonb_typeof("from_address") = 'object' and coalesce("from_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("from_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("from_address" ->> 'city', ''))) >= 1 and length("from_address"::text) <= 4000);
+alter table "better_supabase"."shipments" add column if not exists "to_address" jsonb constraint bsb_shipments_to_address_check check (jsonb_typeof("to_address") = 'object' and coalesce("to_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("to_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("to_address" ->> 'city', ''))) >= 1 and length("to_address"::text) <= 4000);
 alter table "better_supabase"."shipments" add column if not exists "direction" text not null default 'outbound' constraint bsb_shipments_direction check ("direction" in ('outbound', 'inbound'));
 alter table "better_supabase"."shipments" add column if not exists "from_location_id" uuid;
-alter table "better_supabase"."shipments" add column if not exists "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."shipments" add column if not exists "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200);
-alter table "better_supabase"."shipments" add column if not exists "carrier" text check ("carrier" is null or length("carrier") >= 1 and length("carrier") <= 100);
-alter table "better_supabase"."shipments" add column if not exists "service" text check ("service" is null or length("service") >= 1 and length("service") <= 100);
-alter table "better_supabase"."shipments" add column if not exists "tracking_number" text check ("tracking_number" is null or length("tracking_number") >= 1 and length("tracking_number") <= 100);
-alter table "better_supabase"."shipments" add column if not exists "tracking_url" text check ("tracking_url" is null or "tracking_url" ~ '^https://' and length("tracking_url") <= 2000);
-alter table "better_supabase"."shipments" add column if not exists "label_id" text check ("label_id" is null or length("label_id") >= 1 and length("label_id") <= 200);
-alter table "better_supabase"."shipments" add column if not exists "label_url" text check ("label_url" is null or "label_url" ~ '^https://' and length("label_url") <= 2000);
-alter table "better_supabase"."shipments" add column if not exists "label_format" text check ("label_format" is null or "label_format" in ('pdf', 'png', 'zpl'));
-alter table "better_supabase"."shipments" add column if not exists "label_cost" bigint check ("label_cost" is null or "label_cost" >= 0);
-alter table "better_supabase"."shipments" add column if not exists "currency" text check ("currency" is null or "currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."shipments" add column if not exists "subject_type" text constraint bsb_shipments_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."shipments" add column if not exists "subject_id" text constraint bsb_shipments_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."shipments" add column if not exists "carrier" text constraint bsb_shipments_carrier_check check ("carrier" is null or length("carrier") >= 1 and length("carrier") <= 100);
+alter table "better_supabase"."shipments" add column if not exists "service" text constraint bsb_shipments_service_check check ("service" is null or length("service") >= 1 and length("service") <= 100);
+alter table "better_supabase"."shipments" add column if not exists "tracking_number" text constraint bsb_shipments_tracking_number_check check ("tracking_number" is null or length("tracking_number") >= 1 and length("tracking_number") <= 100);
+alter table "better_supabase"."shipments" add column if not exists "tracking_url" text constraint bsb_shipments_tracking_url_check check ("tracking_url" is null or "tracking_url" ~ '^https://' and length("tracking_url") <= 2000);
+alter table "better_supabase"."shipments" add column if not exists "label_id" text constraint bsb_shipments_label_id_check check ("label_id" is null or length("label_id") >= 1 and length("label_id") <= 200);
+alter table "better_supabase"."shipments" add column if not exists "label_url" text constraint bsb_shipments_label_url_check check ("label_url" is null or "label_url" ~ '^https://' and length("label_url") <= 2000);
+alter table "better_supabase"."shipments" add column if not exists "label_format" text constraint bsb_shipments_label_format_check check ("label_format" is null or "label_format" in ('pdf', 'png', 'zpl'));
+alter table "better_supabase"."shipments" add column if not exists "label_cost" bigint constraint bsb_shipments_label_cost_check check ("label_cost" is null or "label_cost" >= 0);
+alter table "better_supabase"."shipments" add column if not exists "currency" text constraint bsb_shipments_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."shipments" add column if not exists "labeled_at" timestamptz;
 alter table "better_supabase"."shipments" add column if not exists "delivered_at" timestamptz;
 alter table "better_supabase"."shipments" add column if not exists "cancelled_at" timestamptz;
@@ -3594,12 +3594,12 @@ create policy bsb_shipments_select on "better_supabase"."shipments"
 alter table "better_supabase"."shipment_packages" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."shipment_packages" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."shipment_packages" add column if not exists "shipment_id" uuid references "better_supabase"."shipments" ("id") on delete cascade;
-alter table "better_supabase"."shipment_packages" add column if not exists "position" integer check ("position" >= 1);
-alter table "better_supabase"."shipment_packages" add column if not exists "weight_grams" integer check ("weight_grams" > 0);
-alter table "better_supabase"."shipment_packages" add column if not exists "length_mm" integer check ("length_mm" is null or "length_mm" > 0);
-alter table "better_supabase"."shipment_packages" add column if not exists "width_mm" integer check ("width_mm" is null or "width_mm" > 0);
-alter table "better_supabase"."shipment_packages" add column if not exists "height_mm" integer check ("height_mm" is null or "height_mm" > 0);
-alter table "better_supabase"."shipment_packages" add column if not exists "reference" text check ("reference" is null or length("reference") <= 100);
+alter table "better_supabase"."shipment_packages" add column if not exists "position" integer constraint bsb_shipment_packages_position_check check ("position" >= 1);
+alter table "better_supabase"."shipment_packages" add column if not exists "weight_grams" integer constraint bsb_shipment_packages_weight_grams_check check ("weight_grams" > 0);
+alter table "better_supabase"."shipment_packages" add column if not exists "length_mm" integer constraint bsb_shipment_packages_length_mm_check check ("length_mm" is null or "length_mm" > 0);
+alter table "better_supabase"."shipment_packages" add column if not exists "width_mm" integer constraint bsb_shipment_packages_width_mm_check check ("width_mm" is null or "width_mm" > 0);
+alter table "better_supabase"."shipment_packages" add column if not exists "height_mm" integer constraint bsb_shipment_packages_height_mm_check check ("height_mm" is null or "height_mm" > 0);
+alter table "better_supabase"."shipment_packages" add column if not exists "reference" text constraint bsb_shipment_packages_reference_check check ("reference" is null or length("reference") <= 100);
 alter table "better_supabase"."shipment_packages" enable row level security;
 grant select on "better_supabase"."shipment_packages" to authenticated;
 grant all on "better_supabase"."shipment_packages" to service_role;
@@ -3617,12 +3617,12 @@ alter table "better_supabase"."shipments" add column if not exists "proof_record
 alter table "better_supabase"."shipment_tracking_events" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."shipment_tracking_events" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."shipment_tracking_events" add column if not exists "shipment_id" uuid references "better_supabase"."shipments" ("id") on delete cascade;
-alter table "better_supabase"."shipment_tracking_events" add column if not exists "external_id" text check (length("external_id") >= 1 and length("external_id") <= 200);
-alter table "better_supabase"."shipment_tracking_events" add column if not exists "status" text check ("status" in ('label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned'));
+alter table "better_supabase"."shipment_tracking_events" add column if not exists "external_id" text constraint bsb_shipment_tracking_events_external_id_check check (length("external_id") >= 1 and length("external_id") <= 200);
+alter table "better_supabase"."shipment_tracking_events" add column if not exists "status" text constraint bsb_shipment_tracking_events_status_check check ("status" in ('label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned'));
 alter table "better_supabase"."shipment_tracking_events" add column if not exists "occurred_at" timestamptz;
-alter table "better_supabase"."shipment_tracking_events" add column if not exists "description" text check ("description" is null or length("description") <= 1000);
-alter table "better_supabase"."shipment_tracking_events" add column if not exists "location" text check ("location" is null or length("location") <= 200);
-alter table "better_supabase"."shipment_tracking_events" add column if not exists "source" text check ("source" in ('carrier', 'webhook', 'manual'));
+alter table "better_supabase"."shipment_tracking_events" add column if not exists "description" text constraint bsb_shipment_tracking_events_description_check check ("description" is null or length("description") <= 1000);
+alter table "better_supabase"."shipment_tracking_events" add column if not exists "location" text constraint bsb_shipment_tracking_events_location_check check ("location" is null or length("location") <= 200);
+alter table "better_supabase"."shipment_tracking_events" add column if not exists "source" text constraint bsb_shipment_tracking_events_source_check check ("source" in ('carrier', 'webhook', 'manual'));
 alter table "better_supabase"."shipment_tracking_events" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "shipment_tracking_events_shipment_id_external_id_key" on "better_supabase"."shipment_tracking_events" ("shipment_id", "external_id");
 create index if not exists "shipment_tracking_events_timeline_idx" on "better_supabase"."shipment_tracking_events" ("shipment_id", "occurred_at");
@@ -3653,14 +3653,14 @@ create trigger "bsb_shipment_events_append_only" before update or delete on "bet
 alter table "better_supabase"."shipment_lines" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."shipment_lines" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."shipment_lines" add column if not exists "shipment_id" uuid references "better_supabase"."shipments" ("id") on delete cascade;
-alter table "better_supabase"."shipment_lines" add column if not exists "position" integer check ("position" >= 1);
-alter table "better_supabase"."shipment_lines" add column if not exists "direction" text not null default 'outbound' check ("direction" in ('outbound', 'return'));
+alter table "better_supabase"."shipment_lines" add column if not exists "position" integer constraint bsb_shipment_lines_position_check check ("position" >= 1);
+alter table "better_supabase"."shipment_lines" add column if not exists "direction" text not null default 'outbound' constraint bsb_shipment_lines_direction_check check ("direction" in ('outbound', 'return'));
 alter table "better_supabase"."shipment_lines" add column if not exists "variant_id" uuid;
 alter table "better_supabase"."shipment_lines" add column if not exists "location_id" uuid;
-alter table "better_supabase"."shipment_lines" add column if not exists "quantity" numeric(20, 6) check ("quantity" > 0);
+alter table "better_supabase"."shipment_lines" add column if not exists "quantity" numeric(20, 6) constraint bsb_shipment_lines_quantity_check check ("quantity" > 0);
 alter table "better_supabase"."shipment_lines" add column if not exists "allocation_id" uuid;
-alter table "better_supabase"."shipment_lines" add column if not exists "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object');
-alter table "better_supabase"."shipment_lines" add column if not exists "disposition" text check ("disposition" is null or "disposition" in ('restock', 'hold', 'scrap'));
+alter table "better_supabase"."shipment_lines" add column if not exists "detail" jsonb constraint bsb_shipment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object');
+alter table "better_supabase"."shipment_lines" add column if not exists "disposition" text constraint bsb_shipment_lines_disposition_check check ("disposition" is null or "disposition" in ('restock', 'hold', 'scrap'));
 alter table "better_supabase"."shipment_lines" add column if not exists "movement_id" uuid;
 alter table "better_supabase"."shipment_lines" add column if not exists "moved_at" timestamptz;
 alter table "better_supabase"."shipment_lines" add column if not exists "created_at" timestamptz not null default now();
@@ -4263,7 +4263,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_124_shipments.sql
 -- better-supabase module: shipments
 -- @bsb-block shipments@4 managed
--- @bsb-hash sha256:8a03891382db873661d262996fe912ec2ff60ab84f60604880cd3234f7e965b6
+-- @bsb-hash sha256:7675519c491f6b0acd627335b2c5dc58f7b1ebb8b6363a5725fec2b172098c5a
 -- Shipments with packages and addresses, labels bought through a versioned carrier interface, and a tracking timeline fed by polling or verified carrier webhooks, with the shipment's status taken from its latest tracking event.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4276,32 +4276,32 @@ on conflict (name) do update
 create table "better_supabase"."shipments" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "reference" text not null check (length("reference") >= 1 and length("reference") <= 100),
-  "status" text not null default 'draft' check ("status" in ('draft', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'cancelled')),
-  "from_address" jsonb not null check (jsonb_typeof("from_address") = 'object' and coalesce("from_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("from_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("from_address" ->> 'city', ''))) >= 1 and length("from_address"::text) <= 4000),
-  "to_address" jsonb not null check (jsonb_typeof("to_address") = 'object' and coalesce("to_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("to_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("to_address" ->> 'city', ''))) >= 1 and length("to_address"::text) <= 4000),
+  "reference" text not null constraint bsb_shipments_reference_check check (length("reference") >= 1 and length("reference") <= 100),
+  "status" text not null default 'draft' constraint bsb_shipments_status_check check ("status" in ('draft', 'label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned', 'cancelled')),
+  "from_address" jsonb not null constraint bsb_shipments_from_address_check check (jsonb_typeof("from_address") = 'object' and coalesce("from_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("from_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("from_address" ->> 'city', ''))) >= 1 and length("from_address"::text) <= 4000),
+  "to_address" jsonb not null constraint bsb_shipments_to_address_check check (jsonb_typeof("to_address") = 'object' and coalesce("to_address" ->> 'country', '') ~ '^[A-Z]{2}$' and length(btrim(coalesce("to_address" ->> 'line1', ''))) >= 1 and length(btrim(coalesce("to_address" ->> 'city', ''))) >= 1 and length("to_address"::text) <= 4000),
   "direction" text not null default 'outbound' constraint bsb_shipments_direction check ("direction" in ('outbound', 'inbound')),
   "from_location_id" uuid,
-  "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
-  "carrier" text check ("carrier" is null or length("carrier") >= 1 and length("carrier") <= 100),
-  "service" text check ("service" is null or length("service") >= 1 and length("service") <= 100),
-  "tracking_number" text check ("tracking_number" is null or length("tracking_number") >= 1 and length("tracking_number") <= 100),
-  "tracking_url" text check ("tracking_url" is null or "tracking_url" ~ '^https://' and length("tracking_url") <= 2000),
-  "label_id" text check ("label_id" is null or length("label_id") >= 1 and length("label_id") <= 200),
-  "label_url" text check ("label_url" is null or "label_url" ~ '^https://' and length("label_url") <= 2000),
-  "label_format" text check ("label_format" is null or "label_format" in ('pdf', 'png', 'zpl')),
-  "label_cost" bigint check ("label_cost" is null or "label_cost" >= 0),
-  "currency" text check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "subject_type" text constraint bsb_shipments_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_shipments_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
+  "carrier" text constraint bsb_shipments_carrier_check check ("carrier" is null or length("carrier") >= 1 and length("carrier") <= 100),
+  "service" text constraint bsb_shipments_service_check check ("service" is null or length("service") >= 1 and length("service") <= 100),
+  "tracking_number" text constraint bsb_shipments_tracking_number_check check ("tracking_number" is null or length("tracking_number") >= 1 and length("tracking_number") <= 100),
+  "tracking_url" text constraint bsb_shipments_tracking_url_check check ("tracking_url" is null or "tracking_url" ~ '^https://' and length("tracking_url") <= 2000),
+  "label_id" text constraint bsb_shipments_label_id_check check ("label_id" is null or length("label_id") >= 1 and length("label_id") <= 200),
+  "label_url" text constraint bsb_shipments_label_url_check check ("label_url" is null or "label_url" ~ '^https://' and length("label_url") <= 2000),
+  "label_format" text constraint bsb_shipments_label_format_check check ("label_format" is null or "label_format" in ('pdf', 'png', 'zpl')),
+  "label_cost" bigint constraint bsb_shipments_label_cost_check check ("label_cost" is null or "label_cost" >= 0),
+  "currency" text constraint bsb_shipments_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "labeled_at" timestamptz,
   "delivered_at" timestamptz,
   "cancelled_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check (("label_cost" is null) = ("currency" is null)),
-  check ("status" in ('draft', 'cancelled') or ("carrier" is not null and "tracking_number" is not null))
+  constraint bsb_shipments_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_shipments_check1 check (("label_cost" is null) = ("currency" is null)),
+  constraint bsb_shipments_check2 check ("status" in ('draft', 'cancelled') or ("carrier" is not null and "tracking_number" is not null))
 );
 create index "shipments_tenant_idx" on "better_supabase"."shipments" ("org_id", "created_at" desc);
 create index "shipments_status_idx" on "better_supabase"."shipments" ("org_id", "status");
@@ -4319,12 +4319,12 @@ create table "better_supabase"."shipment_packages" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
-  "weight_grams" integer not null check ("weight_grams" > 0),
-  "length_mm" integer check ("length_mm" is null or "length_mm" > 0),
-  "width_mm" integer check ("width_mm" is null or "width_mm" > 0),
-  "height_mm" integer check ("height_mm" is null or "height_mm" > 0),
-  "reference" text check ("reference" is null or length("reference") <= 100),
+  "position" integer not null constraint bsb_shipment_packages_position_check check ("position" >= 1),
+  "weight_grams" integer not null constraint bsb_shipment_packages_weight_grams_check check ("weight_grams" > 0),
+  "length_mm" integer constraint bsb_shipment_packages_length_mm_check check ("length_mm" is null or "length_mm" > 0),
+  "width_mm" integer constraint bsb_shipment_packages_width_mm_check check ("width_mm" is null or "width_mm" > 0),
+  "height_mm" integer constraint bsb_shipment_packages_height_mm_check check ("height_mm" is null or "height_mm" > 0),
+  "reference" text constraint bsb_shipment_packages_reference_check check ("reference" is null or length("reference") <= 100),
   unique ("shipment_id", "position")
 );
 alter table "better_supabase"."shipment_packages" enable row level security;
@@ -4345,12 +4345,12 @@ create table "better_supabase"."shipment_tracking_events" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
-  "external_id" text not null check (length("external_id") >= 1 and length("external_id") <= 200),
-  "status" text not null check ("status" in ('label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned')),
+  "external_id" text not null constraint bsb_shipment_tracking_events_external_id_check check (length("external_id") >= 1 and length("external_id") <= 200),
+  "status" text not null constraint bsb_shipment_tracking_events_status_check check ("status" in ('label_created', 'in_transit', 'out_for_delivery', 'delivered', 'exception', 'returned')),
   "occurred_at" timestamptz not null,
-  "description" text check ("description" is null or length("description") <= 1000),
-  "location" text check ("location" is null or length("location") <= 200),
-  "source" text not null check ("source" in ('carrier', 'webhook', 'manual')),
+  "description" text constraint bsb_shipment_tracking_events_description_check check ("description" is null or length("description") <= 1000),
+  "location" text constraint bsb_shipment_tracking_events_location_check check ("location" is null or length("location") <= 200),
+  "source" text not null constraint bsb_shipment_tracking_events_source_check check ("source" in ('carrier', 'webhook', 'manual')),
   "created_at" timestamptz not null default now(),
   unique ("shipment_id", "external_id")
 );
@@ -4383,18 +4383,18 @@ create table "better_supabase"."shipment_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "shipment_id" uuid not null references "better_supabase"."shipments" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
-  "direction" text not null default 'outbound' check ("direction" in ('outbound', 'return')),
+  "position" integer not null constraint bsb_shipment_lines_position_check check ("position" >= 1),
+  "direction" text not null default 'outbound' constraint bsb_shipment_lines_direction_check check ("direction" in ('outbound', 'return')),
   "variant_id" uuid not null,
   "location_id" uuid not null,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_shipment_lines_quantity_check check ("quantity" > 0),
   "allocation_id" uuid,
-  "detail" jsonb check ("detail" is null or jsonb_typeof("detail") = 'object'),
-  "disposition" text check ("disposition" is null or "disposition" in ('restock', 'hold', 'scrap')),
+  "detail" jsonb constraint bsb_shipment_lines_detail_check check ("detail" is null or jsonb_typeof("detail") = 'object'),
+  "disposition" text constraint bsb_shipment_lines_disposition_check check ("disposition" is null or "disposition" in ('restock', 'hold', 'scrap')),
   "movement_id" uuid,
   "moved_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check (("direction" = 'return') = ("disposition" is not null)),
+  constraint bsb_shipment_lines_check check (("direction" = 'return') = ("disposition" is not null)),
   unique ("shipment_id", "position")
 );
 create index "shipment_lines_variant_idx" on "better_supabase"."shipment_lines" ("variant_id", "location_id");

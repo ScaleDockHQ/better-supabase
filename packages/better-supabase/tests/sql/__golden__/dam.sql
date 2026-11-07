@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:133ad6d5a85f292f713a1a6dcd38bd197928a3e5580d0052ec2255c167d85904
+-- @bsb-hash sha256:ab3e591353f2a6fada34d30fb3e648629417a7505e685795c8b1bdb04d84e97a
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,14 +15,14 @@ create table "better_supabase"."dam_renditions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'failed')),
-  "format" text check ("format" is null or length("format") <= 20),
-  "width" integer check ("width" is null or "width" > 0),
-  "height" integer check ("height" is null or "height" > 0),
-  "size_bytes" bigint check ("size_bytes" is null or "size_bytes" >= 0),
-  "path" text check ("path" is null or length("path") <= 1000),
-  "error" text check ("error" is null or length("error") <= 500),
+  "kind" text not null constraint bsb_dam_renditions_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "status" text not null default 'ready' constraint bsb_dam_renditions_status_check check ("status" in ('pending', 'ready', 'failed')),
+  "format" text constraint bsb_dam_renditions_format_check check ("format" is null or length("format") <= 20),
+  "width" integer constraint bsb_dam_renditions_width_check check ("width" is null or "width" > 0),
+  "height" integer constraint bsb_dam_renditions_height_check check ("height" is null or "height" > 0),
+  "size_bytes" bigint constraint bsb_dam_renditions_size_bytes_check check ("size_bytes" is null or "size_bytes" >= 0),
+  "path" text constraint bsb_dam_renditions_path_check check ("path" is null or length("path") <= 1000),
+  "error" text constraint bsb_dam_renditions_error_check check ("error" is null or length("error") <= 500),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "node_id", "kind")
@@ -41,18 +41,18 @@ create table "better_supabase"."dam_usage_rights" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
-  "licensee" text not null check (length("licensee") >= 1 and length("licensee") <= 200),
-  "territory" text check ("territory" is null or length("territory") >= 1 and length("territory") <= 100),
-  "channel" text check ("channel" is null or length("channel") >= 1 and length("channel") <= 100),
+  "licensee" text not null constraint bsb_dam_usage_rights_licensee_check check (length("licensee") >= 1 and length("licensee") <= 200),
+  "territory" text constraint bsb_dam_usage_rights_territory_check check ("territory" is null or length("territory") >= 1 and length("territory") <= 100),
+  "channel" text constraint bsb_dam_usage_rights_channel_check check ("channel" is null or length("channel") >= 1 and length("channel") <= 100),
   "starts_on" date not null default current_date,
   "expires_on" date,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_dam_usage_rights_note_check check ("note" is null or length("note") <= 2000),
   "revoked_at" timestamptz,
   -- The expiry date the reminder last went out for.
   "reminded_for" date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("expires_on" is null or "expires_on" >= "starts_on")
+  constraint bsb_dam_usage_rights_check check ("expires_on" is null or "expires_on" >= "starts_on")
 );
 create index "dam_usage_rights_node_idx" on "better_supabase"."dam_usage_rights" ("tenant_id", "node_id");
 create index "dam_usage_rights_expiry_idx" on "better_supabase"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;
@@ -363,7 +363,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:a77d21a0c4b156d99a3212e8c97f0a1e8825d10e53ff17d24007bf4e09b43c97
+-- @bsb-hash sha256:f56d16aa98df7b9c4bc250071a285b930bd00833e5f95492dd509343d5d6f5d6
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -377,14 +377,14 @@ create table "better_supabase"."dam_renditions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'failed')),
-  "format" text check ("format" is null or length("format") <= 20),
-  "width" integer check ("width" is null or "width" > 0),
-  "height" integer check ("height" is null or "height" > 0),
-  "size_bytes" bigint check ("size_bytes" is null or "size_bytes" >= 0),
-  "path" text check ("path" is null or length("path") <= 1000),
-  "error" text check ("error" is null or length("error") <= 500),
+  "kind" text not null constraint bsb_dam_renditions_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "status" text not null default 'ready' constraint bsb_dam_renditions_status_check check ("status" in ('pending', 'ready', 'failed')),
+  "format" text constraint bsb_dam_renditions_format_check check ("format" is null or length("format") <= 20),
+  "width" integer constraint bsb_dam_renditions_width_check check ("width" is null or "width" > 0),
+  "height" integer constraint bsb_dam_renditions_height_check check ("height" is null or "height" > 0),
+  "size_bytes" bigint constraint bsb_dam_renditions_size_bytes_check check ("size_bytes" is null or "size_bytes" >= 0),
+  "path" text constraint bsb_dam_renditions_path_check check ("path" is null or length("path") <= 1000),
+  "error" text constraint bsb_dam_renditions_error_check check ("error" is null or length("error") <= 500),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "node_id", "kind")
@@ -403,18 +403,18 @@ create table "better_supabase"."dam_usage_rights" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
-  "licensee" text not null check (length("licensee") >= 1 and length("licensee") <= 200),
-  "territory" text check ("territory" is null or length("territory") >= 1 and length("territory") <= 100),
-  "channel" text check ("channel" is null or length("channel") >= 1 and length("channel") <= 100),
+  "licensee" text not null constraint bsb_dam_usage_rights_licensee_check check (length("licensee") >= 1 and length("licensee") <= 200),
+  "territory" text constraint bsb_dam_usage_rights_territory_check check ("territory" is null or length("territory") >= 1 and length("territory") <= 100),
+  "channel" text constraint bsb_dam_usage_rights_channel_check check ("channel" is null or length("channel") >= 1 and length("channel") <= 100),
   "starts_on" date not null default current_date,
   "expires_on" date,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_dam_usage_rights_note_check check ("note" is null or length("note") <= 2000),
   "revoked_at" timestamptz,
   -- The expiry date the reminder last went out for.
   "reminded_for" date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("expires_on" is null or "expires_on" >= "starts_on")
+  constraint bsb_dam_usage_rights_check check ("expires_on" is null or "expires_on" >= "starts_on")
 );
 create index "dam_usage_rights_node_idx" on "better_supabase"."dam_usage_rights" ("tenant_id", "node_id");
 create index "dam_usage_rights_expiry_idx" on "better_supabase"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;
@@ -798,7 +798,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:4d3d6c9f71661919467c0281c14151aebf2af7823a9f8d69b20208a2aa5b4016
+-- @bsb-hash sha256:298257cc14a40b3bd766eeaca41a5729d8ffb375964f1b32566874c2702d7f64
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -817,14 +817,14 @@ create table "app_private"."dam_renditions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'failed')),
-  "format" text check ("format" is null or length("format") <= 20),
-  "width" integer check ("width" is null or "width" > 0),
-  "height" integer check ("height" is null or "height" > 0),
-  "size_bytes" bigint check ("size_bytes" is null or "size_bytes" >= 0),
-  "path" text check ("path" is null or length("path") <= 1000),
-  "error" text check ("error" is null or length("error") <= 500),
+  "kind" text not null constraint bsb_dam_renditions_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "status" text not null default 'ready' constraint bsb_dam_renditions_status_check check ("status" in ('pending', 'ready', 'failed')),
+  "format" text constraint bsb_dam_renditions_format_check check ("format" is null or length("format") <= 20),
+  "width" integer constraint bsb_dam_renditions_width_check check ("width" is null or "width" > 0),
+  "height" integer constraint bsb_dam_renditions_height_check check ("height" is null or "height" > 0),
+  "size_bytes" bigint constraint bsb_dam_renditions_size_bytes_check check ("size_bytes" is null or "size_bytes" >= 0),
+  "path" text constraint bsb_dam_renditions_path_check check ("path" is null or length("path") <= 1000),
+  "error" text constraint bsb_dam_renditions_error_check check ("error" is null or length("error") <= 500),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "node_id", "kind")
@@ -843,18 +843,18 @@ create table "app_private"."dam_usage_rights" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
-  "licensee" text not null check (length("licensee") >= 1 and length("licensee") <= 200),
-  "territory" text check ("territory" is null or length("territory") >= 1 and length("territory") <= 100),
-  "channel" text check ("channel" is null or length("channel") >= 1 and length("channel") <= 100),
+  "licensee" text not null constraint bsb_dam_usage_rights_licensee_check check (length("licensee") >= 1 and length("licensee") <= 200),
+  "territory" text constraint bsb_dam_usage_rights_territory_check check ("territory" is null or length("territory") >= 1 and length("territory") <= 100),
+  "channel" text constraint bsb_dam_usage_rights_channel_check check ("channel" is null or length("channel") >= 1 and length("channel") <= 100),
   "starts_on" date not null default current_date,
   "expires_on" date,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_dam_usage_rights_note_check check ("note" is null or length("note") <= 2000),
   "revoked_at" timestamptz,
   -- The expiry date the reminder last went out for.
   "reminded_for" date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("expires_on" is null or "expires_on" >= "starts_on")
+  constraint bsb_dam_usage_rights_check check ("expires_on" is null or "expires_on" >= "starts_on")
 );
 create index "dam_usage_rights_node_idx" on "app_private"."dam_usage_rights" ("tenant_id", "node_id");
 create index "dam_usage_rights_expiry_idx" on "app_private"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;
@@ -1165,7 +1165,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:7f4256d174d8c753b334375ac1a1d1b72f6a3624fffed725c37c3a37ad490500
+-- @bsb-hash sha256:4b401885a4161fd9b632f5b3bc14e0bec87488f6932c31a69e835113e0fd10c7
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1179,14 +1179,14 @@ create table "better_supabase"."dam_renditions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'failed')),
-  "format" text check ("format" is null or length("format") <= 20),
-  "width" integer check ("width" is null or "width" > 0),
-  "height" integer check ("height" is null or "height" > 0),
-  "size_bytes" bigint check ("size_bytes" is null or "size_bytes" >= 0),
-  "path" text check ("path" is null or length("path") <= 1000),
-  "error" text check ("error" is null or length("error") <= 500),
+  "kind" text not null constraint bsb_dam_renditions_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "status" text not null default 'ready' constraint bsb_dam_renditions_status_check check ("status" in ('pending', 'ready', 'failed')),
+  "format" text constraint bsb_dam_renditions_format_check check ("format" is null or length("format") <= 20),
+  "width" integer constraint bsb_dam_renditions_width_check check ("width" is null or "width" > 0),
+  "height" integer constraint bsb_dam_renditions_height_check check ("height" is null or "height" > 0),
+  "size_bytes" bigint constraint bsb_dam_renditions_size_bytes_check check ("size_bytes" is null or "size_bytes" >= 0),
+  "path" text constraint bsb_dam_renditions_path_check check ("path" is null or length("path") <= 1000),
+  "error" text constraint bsb_dam_renditions_error_check check ("error" is null or length("error") <= 500),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "node_id", "kind")
@@ -1205,18 +1205,18 @@ create table "better_supabase"."dam_usage_rights" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
-  "licensee" text not null check (length("licensee") >= 1 and length("licensee") <= 200),
-  "territory" text check ("territory" is null or length("territory") >= 1 and length("territory") <= 100),
-  "channel" text check ("channel" is null or length("channel") >= 1 and length("channel") <= 100),
+  "licensee" text not null constraint bsb_dam_usage_rights_licensee_check check (length("licensee") >= 1 and length("licensee") <= 200),
+  "territory" text constraint bsb_dam_usage_rights_territory_check check ("territory" is null or length("territory") >= 1 and length("territory") <= 100),
+  "channel" text constraint bsb_dam_usage_rights_channel_check check ("channel" is null or length("channel") >= 1 and length("channel") <= 100),
   "starts_on" date not null default current_date,
   "expires_on" date,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_dam_usage_rights_note_check check ("note" is null or length("note") <= 2000),
   "revoked_at" timestamptz,
   -- The expiry date the reminder last went out for.
   "reminded_for" date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("expires_on" is null or "expires_on" >= "starts_on")
+  constraint bsb_dam_usage_rights_check check ("expires_on" is null or "expires_on" >= "starts_on")
 );
 create index "dam_usage_rights_node_idx" on "better_supabase"."dam_usage_rights" ("tenant_id", "node_id");
 create index "dam_usage_rights_expiry_idx" on "better_supabase"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;
@@ -1597,7 +1597,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:ee07afab1614489c8ca815013c11974aa5b24ecd4de03503946fbe2aa212474d
+-- @bsb-hash sha256:63ff1317fd5d3c54ce1df5d746c7b7f32bd2576d2dde4bc33f3f587308fd7d14
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1611,14 +1611,14 @@ on conflict (name) do update
 alter table "better_supabase"."dam_renditions" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."dam_renditions" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."dam_renditions" add column if not exists "node_id" uuid;
-alter table "better_supabase"."dam_renditions" add column if not exists "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,40}$');
-alter table "better_supabase"."dam_renditions" add column if not exists "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'failed'));
-alter table "better_supabase"."dam_renditions" add column if not exists "format" text check ("format" is null or length("format") <= 20);
-alter table "better_supabase"."dam_renditions" add column if not exists "width" integer check ("width" is null or "width" > 0);
-alter table "better_supabase"."dam_renditions" add column if not exists "height" integer check ("height" is null or "height" > 0);
-alter table "better_supabase"."dam_renditions" add column if not exists "size_bytes" bigint check ("size_bytes" is null or "size_bytes" >= 0);
-alter table "better_supabase"."dam_renditions" add column if not exists "path" text check ("path" is null or length("path") <= 1000);
-alter table "better_supabase"."dam_renditions" add column if not exists "error" text check ("error" is null or length("error") <= 500);
+alter table "better_supabase"."dam_renditions" add column if not exists "kind" text constraint bsb_dam_renditions_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,40}$');
+alter table "better_supabase"."dam_renditions" add column if not exists "status" text not null default 'ready' constraint bsb_dam_renditions_status_check check ("status" in ('pending', 'ready', 'failed'));
+alter table "better_supabase"."dam_renditions" add column if not exists "format" text constraint bsb_dam_renditions_format_check check ("format" is null or length("format") <= 20);
+alter table "better_supabase"."dam_renditions" add column if not exists "width" integer constraint bsb_dam_renditions_width_check check ("width" is null or "width" > 0);
+alter table "better_supabase"."dam_renditions" add column if not exists "height" integer constraint bsb_dam_renditions_height_check check ("height" is null or "height" > 0);
+alter table "better_supabase"."dam_renditions" add column if not exists "size_bytes" bigint constraint bsb_dam_renditions_size_bytes_check check ("size_bytes" is null or "size_bytes" >= 0);
+alter table "better_supabase"."dam_renditions" add column if not exists "path" text constraint bsb_dam_renditions_path_check check ("path" is null or length("path") <= 1000);
+alter table "better_supabase"."dam_renditions" add column if not exists "error" text constraint bsb_dam_renditions_error_check check ("error" is null or length("error") <= 500);
 alter table "better_supabase"."dam_renditions" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."dam_renditions" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_dam_renditions_tenant_node_kind_key" on "better_supabase"."dam_renditions" ("tenant_id", "node_id", "kind");
@@ -1635,12 +1635,12 @@ create policy bsb_dam_renditions_read on "better_supabase"."dam_renditions"
 alter table "better_supabase"."dam_usage_rights" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."dam_usage_rights" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."dam_usage_rights" add column if not exists "node_id" uuid;
-alter table "better_supabase"."dam_usage_rights" add column if not exists "licensee" text check (length("licensee") >= 1 and length("licensee") <= 200);
-alter table "better_supabase"."dam_usage_rights" add column if not exists "territory" text check ("territory" is null or length("territory") >= 1 and length("territory") <= 100);
-alter table "better_supabase"."dam_usage_rights" add column if not exists "channel" text check ("channel" is null or length("channel") >= 1 and length("channel") <= 100);
+alter table "better_supabase"."dam_usage_rights" add column if not exists "licensee" text constraint bsb_dam_usage_rights_licensee_check check (length("licensee") >= 1 and length("licensee") <= 200);
+alter table "better_supabase"."dam_usage_rights" add column if not exists "territory" text constraint bsb_dam_usage_rights_territory_check check ("territory" is null or length("territory") >= 1 and length("territory") <= 100);
+alter table "better_supabase"."dam_usage_rights" add column if not exists "channel" text constraint bsb_dam_usage_rights_channel_check check ("channel" is null or length("channel") >= 1 and length("channel") <= 100);
 alter table "better_supabase"."dam_usage_rights" add column if not exists "starts_on" date not null default current_date;
 alter table "better_supabase"."dam_usage_rights" add column if not exists "expires_on" date;
-alter table "better_supabase"."dam_usage_rights" add column if not exists "note" text check ("note" is null or length("note") <= 2000);
+alter table "better_supabase"."dam_usage_rights" add column if not exists "note" text constraint bsb_dam_usage_rights_note_check check ("note" is null or length("note") <= 2000);
 alter table "better_supabase"."dam_usage_rights" add column if not exists "revoked_at" timestamptz;
 alter table "better_supabase"."dam_usage_rights" add column if not exists "reminded_for" date;
 alter table "better_supabase"."dam_usage_rights" add column if not exists "created_by" uuid;
@@ -1954,7 +1954,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:cd738e3397a79f3488a0d99f4859f20b77a649654b9f9d88012bf0cd395298b7
+-- @bsb-hash sha256:1c581b73abef43ebddd1b9d6f32534453d5ee0ab3b34d8289ab379d951a4faa4
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1968,14 +1968,14 @@ create table "better_supabase"."dam_renditions" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "node_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'failed')),
-  "format" text check ("format" is null or length("format") <= 20),
-  "width" integer check ("width" is null or "width" > 0),
-  "height" integer check ("height" is null or "height" > 0),
-  "size_bytes" bigint check ("size_bytes" is null or "size_bytes" >= 0),
-  "path" text check ("path" is null or length("path") <= 1000),
-  "error" text check ("error" is null or length("error") <= 500),
+  "kind" text not null constraint bsb_dam_renditions_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "status" text not null default 'ready' constraint bsb_dam_renditions_status_check check ("status" in ('pending', 'ready', 'failed')),
+  "format" text constraint bsb_dam_renditions_format_check check ("format" is null or length("format") <= 20),
+  "width" integer constraint bsb_dam_renditions_width_check check ("width" is null or "width" > 0),
+  "height" integer constraint bsb_dam_renditions_height_check check ("height" is null or "height" > 0),
+  "size_bytes" bigint constraint bsb_dam_renditions_size_bytes_check check ("size_bytes" is null or "size_bytes" >= 0),
+  "path" text constraint bsb_dam_renditions_path_check check ("path" is null or length("path") <= 1000),
+  "error" text constraint bsb_dam_renditions_error_check check ("error" is null or length("error") <= 500),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "node_id", "kind")
@@ -1994,18 +1994,18 @@ create table "better_supabase"."dam_usage_rights" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "node_id" uuid not null,
-  "licensee" text not null check (length("licensee") >= 1 and length("licensee") <= 200),
-  "territory" text check ("territory" is null or length("territory") >= 1 and length("territory") <= 100),
-  "channel" text check ("channel" is null or length("channel") >= 1 and length("channel") <= 100),
+  "licensee" text not null constraint bsb_dam_usage_rights_licensee_check check (length("licensee") >= 1 and length("licensee") <= 200),
+  "territory" text constraint bsb_dam_usage_rights_territory_check check ("territory" is null or length("territory") >= 1 and length("territory") <= 100),
+  "channel" text constraint bsb_dam_usage_rights_channel_check check ("channel" is null or length("channel") >= 1 and length("channel") <= 100),
   "starts_on" date not null default current_date,
   "expires_on" date,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_dam_usage_rights_note_check check ("note" is null or length("note") <= 2000),
   "revoked_at" timestamptz,
   -- The expiry date the reminder last went out for.
   "reminded_for" date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("expires_on" is null or "expires_on" >= "starts_on")
+  constraint bsb_dam_usage_rights_check check ("expires_on" is null or "expires_on" >= "starts_on")
 );
 create index "dam_usage_rights_node_idx" on "better_supabase"."dam_usage_rights" ("org_id", "node_id");
 create index "dam_usage_rights_expiry_idx" on "better_supabase"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;

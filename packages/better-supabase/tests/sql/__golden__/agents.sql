@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:cc427807823d0b7b75061ecd850accfb83a09cbb6a7ce0cdfecbec1237b522c7
+-- @bsb-hash sha256:811a621b51ee4200967dd9cd945f207859a29dbf524e2d60f1fd4b3c1c080a2e
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,16 +13,16 @@ create table "better_supabase"."agents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid references auth.users (id) on delete set null,
-  "slug" text not null check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text not null default '' check (length("description") <= 2000),
-  "instructions" text not null default '' check (length("instructions") <= 100000),
+  "slug" text not null constraint bsb_agents_slug_check check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
+  "name" text not null constraint bsb_agents_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text not null default '' constraint bsb_agents_description_check check (length("description") <= 2000),
+  "instructions" text not null default '' constraint bsb_agents_instructions_check check (length("instructions") <= 100000),
   "model" text,
-  "tools" jsonb not null default '[]' check (jsonb_typeof("tools") = 'array'),
+  "tools" jsonb not null default '[]' constraint bsb_agents_tools_check check (jsonb_typeof("tools") = 'array'),
   "connector_ids" uuid[] not null default '{}',
-  "knowledge_scope" jsonb not null default '[]' check (jsonb_typeof("knowledge_scope") = 'array'),
-  "starters" jsonb not null default '[]' check (jsonb_typeof("starters") = 'array'),
-  "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'public')),
+  "knowledge_scope" jsonb not null default '[]' constraint bsb_agents_knowledge_scope_check check (jsonb_typeof("knowledge_scope") = 'array'),
+  "starters" jsonb not null default '[]' constraint bsb_agents_starters_check check (jsonb_typeof("starters") = 'array'),
+  "visibility" text not null default 'private' constraint bsb_agents_visibility_check check ("visibility" in ('private', 'organization', 'public')),
   "published_at" timestamptz,
   "install_count" integer not null default 0,
   "rating_count" integer not null default 0,
@@ -60,8 +60,8 @@ create policy bsb_agent_installs_read on "better_supabase"."agent_installs"
 create table "better_supabase"."agent_ratings" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
-  "comment" text check (length("comment") <= 2000),
+  "rating" smallint not null constraint bsb_agent_ratings_rating_check check ("rating" >= 1 and "rating" <= 5),
+  "comment" text constraint bsb_agent_ratings_comment_check check (length("comment") <= 2000),
   "created_at" timestamptz not null default now(),
   primary key ("agent_id", "user_id")
 );
@@ -78,15 +78,15 @@ create policy bsb_agent_ratings_read on "better_supabase"."agent_ratings"
 create table "better_supabase"."agent_skills" (
   "id" uuid primary key default gen_random_uuid(),
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
-  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
-  "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
+  "provider" text not null constraint bsb_agent_skills_provider_check check (length("provider") >= 1 and length("provider") <= 100),
+  "reference" jsonb not null constraint bsb_agent_skills_reference_check check (jsonb_typeof("reference") = 'object'),
   -- Skill files kept in Storage (a list of {path, object}), the hash of their
   -- bytes, and the reference each provider returned for that hash.
   "name" text,
-  "files" jsonb not null default '[]' check (jsonb_typeof("files") = 'array'),
+  "files" jsonb not null default '[]' constraint bsb_agent_skills_files_check check (jsonb_typeof("files") = 'array'),
   "content_hash" text,
   "latest_version" text,
-  "provider_refs" jsonb not null default '{}' check (jsonb_typeof("provider_refs") = 'object'),
+  "provider_refs" jsonb not null default '{}' constraint bsb_agent_skills_provider_refs_check check (jsonb_typeof("provider_refs") = 'object'),
   "created_at" timestamptz not null default now()
 );
 create index agent_skills_agent_idx on "better_supabase"."agent_skills" ("agent_id");
@@ -471,7 +471,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:9e53d9129d0b6c535bc49490ef324c8da84b709693a9c655d0f41df4412654f9
+-- @bsb-hash sha256:43e818ea7affb161db637e5ed358db9ec992aed67104bea57c43ed5d3bde18c4
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -483,16 +483,16 @@ create table "better_supabase"."agents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid references auth.users (id) on delete set null,
-  "slug" text not null check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text not null default '' check (length("description") <= 2000),
-  "instructions" text not null default '' check (length("instructions") <= 100000),
+  "slug" text not null constraint bsb_agents_slug_check check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
+  "name" text not null constraint bsb_agents_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text not null default '' constraint bsb_agents_description_check check (length("description") <= 2000),
+  "instructions" text not null default '' constraint bsb_agents_instructions_check check (length("instructions") <= 100000),
   "model" text,
-  "tools" jsonb not null default '[]' check (jsonb_typeof("tools") = 'array'),
+  "tools" jsonb not null default '[]' constraint bsb_agents_tools_check check (jsonb_typeof("tools") = 'array'),
   "connector_ids" uuid[] not null default '{}',
-  "knowledge_scope" jsonb not null default '[]' check (jsonb_typeof("knowledge_scope") = 'array'),
-  "starters" jsonb not null default '[]' check (jsonb_typeof("starters") = 'array'),
-  "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'public')),
+  "knowledge_scope" jsonb not null default '[]' constraint bsb_agents_knowledge_scope_check check (jsonb_typeof("knowledge_scope") = 'array'),
+  "starters" jsonb not null default '[]' constraint bsb_agents_starters_check check (jsonb_typeof("starters") = 'array'),
+  "visibility" text not null default 'private' constraint bsb_agents_visibility_check check ("visibility" in ('private', 'organization', 'public')),
   "published_at" timestamptz,
   "install_count" integer not null default 0,
   "rating_count" integer not null default 0,
@@ -530,8 +530,8 @@ create policy bsb_agent_installs_read on "better_supabase"."agent_installs"
 create table "better_supabase"."agent_ratings" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
-  "comment" text check (length("comment") <= 2000),
+  "rating" smallint not null constraint bsb_agent_ratings_rating_check check ("rating" >= 1 and "rating" <= 5),
+  "comment" text constraint bsb_agent_ratings_comment_check check (length("comment") <= 2000),
   "created_at" timestamptz not null default now(),
   primary key ("agent_id", "user_id")
 );
@@ -548,15 +548,15 @@ create policy bsb_agent_ratings_read on "better_supabase"."agent_ratings"
 create table "better_supabase"."agent_skills" (
   "id" uuid primary key default gen_random_uuid(),
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
-  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
-  "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
+  "provider" text not null constraint bsb_agent_skills_provider_check check (length("provider") >= 1 and length("provider") <= 100),
+  "reference" jsonb not null constraint bsb_agent_skills_reference_check check (jsonb_typeof("reference") = 'object'),
   -- Skill files kept in Storage (a list of {path, object}), the hash of their
   -- bytes, and the reference each provider returned for that hash.
   "name" text,
-  "files" jsonb not null default '[]' check (jsonb_typeof("files") = 'array'),
+  "files" jsonb not null default '[]' constraint bsb_agent_skills_files_check check (jsonb_typeof("files") = 'array'),
   "content_hash" text,
   "latest_version" text,
-  "provider_refs" jsonb not null default '{}' check (jsonb_typeof("provider_refs") = 'object'),
+  "provider_refs" jsonb not null default '{}' constraint bsb_agent_skills_provider_refs_check check (jsonb_typeof("provider_refs") = 'object'),
   "created_at" timestamptz not null default now()
 );
 create index agent_skills_agent_idx on "better_supabase"."agent_skills" ("agent_id");
@@ -996,7 +996,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:8362d3f86428ff11c3f661d840c36310d74807eb9a22e076f438f9da050d1a25
+-- @bsb-hash sha256:4fb5cfb9b7dc1cb9b22cb5ed3efd43312afee6ab84eab8800ce435b91ca387be
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1013,16 +1013,16 @@ create table "app_private"."agents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid references auth.users (id) on delete set null,
-  "slug" text not null check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text not null default '' check (length("description") <= 2000),
-  "instructions" text not null default '' check (length("instructions") <= 100000),
+  "slug" text not null constraint bsb_agents_slug_check check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
+  "name" text not null constraint bsb_agents_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text not null default '' constraint bsb_agents_description_check check (length("description") <= 2000),
+  "instructions" text not null default '' constraint bsb_agents_instructions_check check (length("instructions") <= 100000),
   "model" text,
-  "tools" jsonb not null default '[]' check (jsonb_typeof("tools") = 'array'),
+  "tools" jsonb not null default '[]' constraint bsb_agents_tools_check check (jsonb_typeof("tools") = 'array'),
   "connector_ids" uuid[] not null default '{}',
-  "knowledge_scope" jsonb not null default '[]' check (jsonb_typeof("knowledge_scope") = 'array'),
-  "starters" jsonb not null default '[]' check (jsonb_typeof("starters") = 'array'),
-  "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'public')),
+  "knowledge_scope" jsonb not null default '[]' constraint bsb_agents_knowledge_scope_check check (jsonb_typeof("knowledge_scope") = 'array'),
+  "starters" jsonb not null default '[]' constraint bsb_agents_starters_check check (jsonb_typeof("starters") = 'array'),
+  "visibility" text not null default 'private' constraint bsb_agents_visibility_check check ("visibility" in ('private', 'organization', 'public')),
   "published_at" timestamptz,
   "install_count" integer not null default 0,
   "rating_count" integer not null default 0,
@@ -1060,8 +1060,8 @@ create policy bsb_agent_installs_read on "app_private"."agent_installs"
 create table "app_private"."agent_ratings" (
   "agent_id" uuid not null references "app_private"."agents" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
-  "comment" text check (length("comment") <= 2000),
+  "rating" smallint not null constraint bsb_agent_ratings_rating_check check ("rating" >= 1 and "rating" <= 5),
+  "comment" text constraint bsb_agent_ratings_comment_check check (length("comment") <= 2000),
   "created_at" timestamptz not null default now(),
   primary key ("agent_id", "user_id")
 );
@@ -1078,15 +1078,15 @@ create policy bsb_agent_ratings_read on "app_private"."agent_ratings"
 create table "app_private"."agent_skills" (
   "id" uuid primary key default gen_random_uuid(),
   "agent_id" uuid not null references "app_private"."agents" ("id") on delete cascade,
-  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
-  "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
+  "provider" text not null constraint bsb_agent_skills_provider_check check (length("provider") >= 1 and length("provider") <= 100),
+  "reference" jsonb not null constraint bsb_agent_skills_reference_check check (jsonb_typeof("reference") = 'object'),
   -- Skill files kept in Storage (a list of {path, object}), the hash of their
   -- bytes, and the reference each provider returned for that hash.
   "name" text,
-  "files" jsonb not null default '[]' check (jsonb_typeof("files") = 'array'),
+  "files" jsonb not null default '[]' constraint bsb_agent_skills_files_check check (jsonb_typeof("files") = 'array'),
   "content_hash" text,
   "latest_version" text,
-  "provider_refs" jsonb not null default '{}' check (jsonb_typeof("provider_refs") = 'object'),
+  "provider_refs" jsonb not null default '{}' constraint bsb_agent_skills_provider_refs_check check (jsonb_typeof("provider_refs") = 'object'),
   "created_at" timestamptz not null default now()
 );
 create index agent_skills_agent_idx on "app_private"."agent_skills" ("agent_id");
@@ -1471,7 +1471,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:f2f24e237f3c2c812fcdb919cf58cc8f0308a16fdc8b2b973d362ab2a6110c83
+-- @bsb-hash sha256:69ec39779d4f7d54db7a747201eadbd1fe27e4ffc540ad4bfc4d617a1b5d7072
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1483,16 +1483,16 @@ create table "better_supabase"."agents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
   "owner_id" uuid references auth.users (id) on delete set null,
-  "slug" text not null check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text not null default '' check (length("description") <= 2000),
-  "instructions" text not null default '' check (length("instructions") <= 100000),
+  "slug" text not null constraint bsb_agents_slug_check check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
+  "name" text not null constraint bsb_agents_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text not null default '' constraint bsb_agents_description_check check (length("description") <= 2000),
+  "instructions" text not null default '' constraint bsb_agents_instructions_check check (length("instructions") <= 100000),
   "model" text,
-  "tools" jsonb not null default '[]' check (jsonb_typeof("tools") = 'array'),
+  "tools" jsonb not null default '[]' constraint bsb_agents_tools_check check (jsonb_typeof("tools") = 'array'),
   "connector_ids" uuid[] not null default '{}',
-  "knowledge_scope" jsonb not null default '[]' check (jsonb_typeof("knowledge_scope") = 'array'),
-  "starters" jsonb not null default '[]' check (jsonb_typeof("starters") = 'array'),
-  "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'public')),
+  "knowledge_scope" jsonb not null default '[]' constraint bsb_agents_knowledge_scope_check check (jsonb_typeof("knowledge_scope") = 'array'),
+  "starters" jsonb not null default '[]' constraint bsb_agents_starters_check check (jsonb_typeof("starters") = 'array'),
+  "visibility" text not null default 'private' constraint bsb_agents_visibility_check check ("visibility" in ('private', 'organization', 'public')),
   "published_at" timestamptz,
   "install_count" integer not null default 0,
   "rating_count" integer not null default 0,
@@ -1530,8 +1530,8 @@ create policy bsb_agent_installs_read on "better_supabase"."agent_installs"
 create table "better_supabase"."agent_ratings" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
-  "comment" text check (length("comment") <= 2000),
+  "rating" smallint not null constraint bsb_agent_ratings_rating_check check ("rating" >= 1 and "rating" <= 5),
+  "comment" text constraint bsb_agent_ratings_comment_check check (length("comment") <= 2000),
   "created_at" timestamptz not null default now(),
   primary key ("agent_id", "user_id")
 );
@@ -1548,15 +1548,15 @@ create policy bsb_agent_ratings_read on "better_supabase"."agent_ratings"
 create table "better_supabase"."agent_skills" (
   "id" uuid primary key default gen_random_uuid(),
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
-  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
-  "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
+  "provider" text not null constraint bsb_agent_skills_provider_check check (length("provider") >= 1 and length("provider") <= 100),
+  "reference" jsonb not null constraint bsb_agent_skills_reference_check check (jsonb_typeof("reference") = 'object'),
   -- Skill files kept in Storage (a list of {path, object}), the hash of their
   -- bytes, and the reference each provider returned for that hash.
   "name" text,
-  "files" jsonb not null default '[]' check (jsonb_typeof("files") = 'array'),
+  "files" jsonb not null default '[]' constraint bsb_agent_skills_files_check check (jsonb_typeof("files") = 'array'),
   "content_hash" text,
   "latest_version" text,
-  "provider_refs" jsonb not null default '{}' check (jsonb_typeof("provider_refs") = 'object'),
+  "provider_refs" jsonb not null default '{}' constraint bsb_agent_skills_provider_refs_check check (jsonb_typeof("provider_refs") = 'object'),
   "created_at" timestamptz not null default now()
 );
 create index agent_skills_agent_idx on "better_supabase"."agent_skills" ("agent_id");
@@ -2028,7 +2028,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:d0f9fc3abf852ac414c647cef4f2aae38782b8ec414b76ae0858232d72f434ca
+-- @bsb-hash sha256:7a064d6cdf5518c22b1fe15f87254bd6357c5445a4f340111c24cc93f61b9a4e
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2040,16 +2040,16 @@ on conflict (name) do update
 alter table "better_supabase"."agents" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."agents" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."agents" add column if not exists "owner_id" uuid references auth.users (id) on delete set null;
-alter table "better_supabase"."agents" add column if not exists "slug" text check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64);
-alter table "better_supabase"."agents" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."agents" add column if not exists "description" text not null default '' check (length("description") <= 2000);
-alter table "better_supabase"."agents" add column if not exists "instructions" text not null default '' check (length("instructions") <= 100000);
+alter table "better_supabase"."agents" add column if not exists "slug" text constraint bsb_agents_slug_check check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64);
+alter table "better_supabase"."agents" add column if not exists "name" text constraint bsb_agents_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."agents" add column if not exists "description" text not null default '' constraint bsb_agents_description_check check (length("description") <= 2000);
+alter table "better_supabase"."agents" add column if not exists "instructions" text not null default '' constraint bsb_agents_instructions_check check (length("instructions") <= 100000);
 alter table "better_supabase"."agents" add column if not exists "model" text;
-alter table "better_supabase"."agents" add column if not exists "tools" jsonb not null default '[]' check (jsonb_typeof("tools") = 'array');
+alter table "better_supabase"."agents" add column if not exists "tools" jsonb not null default '[]' constraint bsb_agents_tools_check check (jsonb_typeof("tools") = 'array');
 alter table "better_supabase"."agents" add column if not exists "connector_ids" uuid[] not null default '{}';
-alter table "better_supabase"."agents" add column if not exists "knowledge_scope" jsonb not null default '[]' check (jsonb_typeof("knowledge_scope") = 'array');
-alter table "better_supabase"."agents" add column if not exists "starters" jsonb not null default '[]' check (jsonb_typeof("starters") = 'array');
-alter table "better_supabase"."agents" add column if not exists "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'public'));
+alter table "better_supabase"."agents" add column if not exists "knowledge_scope" jsonb not null default '[]' constraint bsb_agents_knowledge_scope_check check (jsonb_typeof("knowledge_scope") = 'array');
+alter table "better_supabase"."agents" add column if not exists "starters" jsonb not null default '[]' constraint bsb_agents_starters_check check (jsonb_typeof("starters") = 'array');
+alter table "better_supabase"."agents" add column if not exists "visibility" text not null default 'private' constraint bsb_agents_visibility_check check ("visibility" in ('private', 'organization', 'public'));
 alter table "better_supabase"."agents" add column if not exists "published_at" timestamptz;
 alter table "better_supabase"."agents" add column if not exists "install_count" integer not null default 0;
 alter table "better_supabase"."agents" add column if not exists "rating_count" integer not null default 0;
@@ -2082,8 +2082,8 @@ create policy bsb_agent_installs_select on "better_supabase"."agent_installs"
 -- better_supabase.agent_ratings is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."agent_ratings" add column if not exists "agent_id" uuid references "better_supabase"."agents" ("id") on delete cascade;
 alter table "better_supabase"."agent_ratings" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."agent_ratings" add column if not exists "rating" smallint check ("rating" >= 1 and "rating" <= 5);
-alter table "better_supabase"."agent_ratings" add column if not exists "comment" text check (length("comment") <= 2000);
+alter table "better_supabase"."agent_ratings" add column if not exists "rating" smallint constraint bsb_agent_ratings_rating_check check ("rating" >= 1 and "rating" <= 5);
+alter table "better_supabase"."agent_ratings" add column if not exists "comment" text constraint bsb_agent_ratings_comment_check check (length("comment") <= 2000);
 alter table "better_supabase"."agent_ratings" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists agent_ratings_user_idx on "better_supabase"."agent_ratings" ("user_id");
 alter table "better_supabase"."agent_ratings" enable row level security;
@@ -2097,13 +2097,13 @@ create policy bsb_agent_ratings_select on "better_supabase"."agent_ratings"
 -- better_supabase.agent_skills is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."agent_skills" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."agent_skills" add column if not exists "agent_id" uuid references "better_supabase"."agents" ("id") on delete cascade;
-alter table "better_supabase"."agent_skills" add column if not exists "provider" text check (length("provider") >= 1 and length("provider") <= 100);
-alter table "better_supabase"."agent_skills" add column if not exists "reference" jsonb check (jsonb_typeof("reference") = 'object');
+alter table "better_supabase"."agent_skills" add column if not exists "provider" text constraint bsb_agent_skills_provider_check check (length("provider") >= 1 and length("provider") <= 100);
+alter table "better_supabase"."agent_skills" add column if not exists "reference" jsonb constraint bsb_agent_skills_reference_check check (jsonb_typeof("reference") = 'object');
 alter table "better_supabase"."agent_skills" add column if not exists "name" text;
-alter table "better_supabase"."agent_skills" add column if not exists "files" jsonb not null default '[]' check (jsonb_typeof("files") = 'array');
+alter table "better_supabase"."agent_skills" add column if not exists "files" jsonb not null default '[]' constraint bsb_agent_skills_files_check check (jsonb_typeof("files") = 'array');
 alter table "better_supabase"."agent_skills" add column if not exists "content_hash" text;
 alter table "better_supabase"."agent_skills" add column if not exists "latest_version" text;
-alter table "better_supabase"."agent_skills" add column if not exists "provider_refs" jsonb not null default '{}' check (jsonb_typeof("provider_refs") = 'object');
+alter table "better_supabase"."agent_skills" add column if not exists "provider_refs" jsonb not null default '{}' constraint bsb_agent_skills_provider_refs_check check (jsonb_typeof("provider_refs") = 'object');
 alter table "better_supabase"."agent_skills" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists agent_skills_agent_idx on "better_supabase"."agent_skills" ("agent_id");
 alter table "better_supabase"."agent_skills" enable row level security;
@@ -2486,7 +2486,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_051_agents.sql
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:4a7e8a3c379b551647f595fa6ed4712d3dde2ac0c43f243f96e2732aea62688a
+-- @bsb-hash sha256:44dd4b434640c7516f2059261a40cc45da7058185d5cd286fd5b5292b4ff6517
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2498,16 +2498,16 @@ create table "better_supabase"."agents" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "owner_id" uuid references auth.users (id) on delete set null,
-  "slug" text not null check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text not null default '' check (length("description") <= 2000),
-  "instructions" text not null default '' check (length("instructions") <= 100000),
+  "slug" text not null constraint bsb_agents_slug_check check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
+  "name" text not null constraint bsb_agents_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text not null default '' constraint bsb_agents_description_check check (length("description") <= 2000),
+  "instructions" text not null default '' constraint bsb_agents_instructions_check check (length("instructions") <= 100000),
   "model" text,
-  "tools" jsonb not null default '[]' check (jsonb_typeof("tools") = 'array'),
+  "tools" jsonb not null default '[]' constraint bsb_agents_tools_check check (jsonb_typeof("tools") = 'array'),
   "connector_ids" uuid[] not null default '{}',
-  "knowledge_scope" jsonb not null default '[]' check (jsonb_typeof("knowledge_scope") = 'array'),
-  "starters" jsonb not null default '[]' check (jsonb_typeof("starters") = 'array'),
-  "visibility" text not null default 'private' check ("visibility" in ('private', 'organization', 'public')),
+  "knowledge_scope" jsonb not null default '[]' constraint bsb_agents_knowledge_scope_check check (jsonb_typeof("knowledge_scope") = 'array'),
+  "starters" jsonb not null default '[]' constraint bsb_agents_starters_check check (jsonb_typeof("starters") = 'array'),
+  "visibility" text not null default 'private' constraint bsb_agents_visibility_check check ("visibility" in ('private', 'organization', 'public')),
   "published_at" timestamptz,
   "install_count" integer not null default 0,
   "rating_count" integer not null default 0,
@@ -2545,8 +2545,8 @@ create policy bsb_agent_installs_read on "better_supabase"."agent_installs"
 create table "better_supabase"."agent_ratings" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
-  "comment" text check (length("comment") <= 2000),
+  "rating" smallint not null constraint bsb_agent_ratings_rating_check check ("rating" >= 1 and "rating" <= 5),
+  "comment" text constraint bsb_agent_ratings_comment_check check (length("comment") <= 2000),
   "created_at" timestamptz not null default now(),
   primary key ("agent_id", "user_id")
 );
@@ -2563,15 +2563,15 @@ create policy bsb_agent_ratings_read on "better_supabase"."agent_ratings"
 create table "better_supabase"."agent_skills" (
   "id" uuid primary key default gen_random_uuid(),
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
-  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
-  "reference" jsonb not null check (jsonb_typeof("reference") = 'object'),
+  "provider" text not null constraint bsb_agent_skills_provider_check check (length("provider") >= 1 and length("provider") <= 100),
+  "reference" jsonb not null constraint bsb_agent_skills_reference_check check (jsonb_typeof("reference") = 'object'),
   -- Skill files kept in Storage (a list of {path, object}), the hash of their
   -- bytes, and the reference each provider returned for that hash.
   "name" text,
-  "files" jsonb not null default '[]' check (jsonb_typeof("files") = 'array'),
+  "files" jsonb not null default '[]' constraint bsb_agent_skills_files_check check (jsonb_typeof("files") = 'array'),
   "content_hash" text,
   "latest_version" text,
-  "provider_refs" jsonb not null default '{}' check (jsonb_typeof("provider_refs") = 'object'),
+  "provider_refs" jsonb not null default '{}' constraint bsb_agent_skills_provider_refs_check check (jsonb_typeof("provider_refs") = 'object'),
   "created_at" timestamptz not null default now()
 );
 create index agent_skills_agent_idx on "better_supabase"."agent_skills" ("agent_id");

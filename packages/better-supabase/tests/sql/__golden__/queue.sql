@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:55d5bd639ec2ca3e25451de0093e9c6682161c6f9f2100fa0a753c4e7edda334
+-- @bsb-hash sha256:a106e60f594f4a1abd814a24f26e85e2c661f5de67aae54614e8728d555d2679
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -520,7 +520,7 @@ create table "better_supabase"."job_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
-  "state" text not null default 'held' check ("state" in ('held', 'completed')),
+  "state" text not null default 'held' constraint bsb_job_leases_state_check check ("state" in ('held', 'completed')),
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );
@@ -691,7 +691,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:d35ef2068f8ad8d8b7665fd1fba31e0b7f6712f107b98392801739c9069fcf00
+-- @bsb-hash sha256:5b995d3aaffe61e3c6594b41ab315b4b52a9bf807c7be8b85f2d295e4f931625
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1214,7 +1214,7 @@ create table "better_supabase"."job_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
-  "state" text not null default 'held' check ("state" in ('held', 'completed')),
+  "state" text not null default 'held' constraint bsb_job_leases_state_check check ("state" in ('held', 'completed')),
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );
@@ -1388,7 +1388,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:0aa88feffda8d01f9492c294160fc7cda1e22a57c4de9ed47b6d111fd02f9568
+-- @bsb-hash sha256:c1bc9edc0cd00b560eefc6f9080428d9f5371c5b4714e448d98f374a73068789
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1907,7 +1907,7 @@ create table "better_supabase"."job_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
-  "state" text not null default 'held' check ("state" in ('held', 'completed')),
+  "state" text not null default 'held' constraint bsb_job_leases_state_check check ("state" in ('held', 'completed')),
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );
@@ -2302,7 +2302,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:d4f65000c153407401237a8d18839dcc1a425c479f3b976697ef7db1c0bcfdc2
+-- @bsb-hash sha256:0e4b9aea030b34321c8e5c7e4244e5e069910ffd8ac2de9a3b42135282c6f148
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2821,7 +2821,7 @@ $$;
 alter table "better_supabase"."job_leases" add column if not exists "scope" text not null default '';
 alter table "better_supabase"."job_leases" add column if not exists "key" text;
 alter table "better_supabase"."job_leases" add column if not exists "holder" uuid;
-alter table "better_supabase"."job_leases" add column if not exists "state" text not null default 'held' check ("state" in ('held', 'completed'));
+alter table "better_supabase"."job_leases" add column if not exists "state" text not null default 'held' constraint bsb_job_leases_state_check check ("state" in ('held', 'completed'));
 alter table "better_supabase"."job_leases" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."job_leases" enable row level security;
 grant all on "better_supabase"."job_leases" to service_role;
@@ -2990,7 +2990,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_007_queue.sql
 -- better-supabase module: queue
 -- @bsb-block queue@11 managed
--- @bsb-hash sha256:55d5bd639ec2ca3e25451de0093e9c6682161c6f9f2100fa0a753c4e7edda334
+-- @bsb-hash sha256:a106e60f594f4a1abd814a24f26e85e2c661f5de67aae54614e8728d555d2679
 -- Typed jobs on Supabase Queues (pgmq) or a plain table (blocks.queue.options.backend): leases, retries with backoff, dead letters, deduplication keys, queue stats, and schedules with pg_cron or the drain route.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3509,7 +3509,7 @@ create table "better_supabase"."job_leases" (
   "scope" text not null default '',
   "key" text not null,
   "holder" uuid not null,
-  "state" text not null default 'held' check ("state" in ('held', 'completed')),
+  "state" text not null default 'held' constraint bsb_job_leases_state_check check ("state" in ('held', 'completed')),
   "expires_at" timestamptz not null,
   primary key ("scope", "key")
 );

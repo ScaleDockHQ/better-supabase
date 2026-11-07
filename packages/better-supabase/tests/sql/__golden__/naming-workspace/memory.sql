@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:755eac0558508980cf7bff803387e96fc782e5a2dee38fe09d63c906b5e1808f
+-- @bsb-hash sha256:d0b6ae53787b90a6d8a202f1e35ef233ec2cd5489a1016f7428e0bc16778f990
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,13 +15,13 @@ create table "better_supabase"."memories" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
   "owner_id" uuid references auth.users (id) on delete cascade,
-  "scope" text not null default 'user' check ("scope" in ('user', 'agent', 'chat', 'project', 'organization', 'record')),
+  "scope" text not null default 'user' constraint bsb_memories_scope_check check ("scope" in ('user', 'agent', 'chat', 'project', 'organization', 'record')),
   "agent_id" uuid,
   "chat_id" uuid,
   "project_id" uuid,
-  "kind" text not null check ("kind" in ('core', 'archival')),
-  "path" text check ("path" ~ '^/memories(/[A-Za-z0-9._ -]+)*$' and "path" !~ '(^|/)[.]{1,2}(/|$)'),
-  "content" text not null check (length("content") <= 100000),
+  "kind" text not null constraint bsb_memories_kind_check check ("kind" in ('core', 'archival')),
+  "path" text constraint bsb_memories_path_check check ("path" ~ '^/memories(/[A-Za-z0-9._ -]+)*$' and "path" !~ '(^|/)[.]{1,2}(/|$)'),
+  "content" text not null constraint bsb_memories_content_check check (length("content") <= 100000),
   "version" integer not null default 1,
   "embedding" extensions.vector(1536),
   "embedding_model" text,
@@ -29,8 +29,8 @@ create table "better_supabase"."memories" (
   "superseded_by" uuid references "better_supabase"."memories" ("id") on delete set null,
   "subject_type" text,
   "subject_id" text,
-  "category" text check ("category" ~ '^[a-z0-9][a-z0-9_-]*$'),
-  "confidence" real check ("confidence" >= 0 and "confidence" <= 1),
+  "category" text constraint bsb_memories_category_check check ("category" ~ '^[a-z0-9][a-z0-9_-]*$'),
+  "confidence" real constraint bsb_memories_confidence_check check ("confidence" >= 0 and "confidence" <= 1),
   "expires_at" timestamptz,
   "deleted_at" timestamptz,
   "use_count" integer not null default 0,
@@ -38,9 +38,9 @@ create table "better_supabase"."memories" (
   "tsv" tsvector generated always as (to_tsvector('simple'::regconfig, "content")) stored,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("kind" = 'core') = ("path" is not null)),
-  constraint memories_owner_check check ("scope" in ('organization', 'record') or "owner_id" is not null),
-  constraint memories_subject_check check (("scope" = 'record') = ("subject_id" is not null) and ("subject_id" is null) = ("subject_type" is null))
+  constraint bsb_memories_check check (("kind" = 'core') = ("path" is not null)),
+  constraint bsb_memories_owner_check check ("scope" in ('organization', 'record') or "owner_id" is not null),
+  constraint bsb_memories_subject_check check (("scope" = 'record') = ("subject_id" is not null) and ("subject_id" is null) = ("subject_type" is null))
 );
 create unique index memories_path_idx on "better_supabase"."memories" ("workspace_id", "owner_id", "scope", "agent_id", "chat_id", "project_id", "subject_type", "subject_id", "path") nulls not distinct
   where "path" is not null and "superseded_by" is null and "deleted_at" is null;
@@ -952,9 +952,9 @@ grant execute on function "better_supabase"."recall_ai_messages"(uuid, extension
 -- file memory and its replay records. Only the service role reads or writes
 -- them; a write names the version it read, so a stale write fails.
 create table "better_supabase"."memory_documents" (
-  "scope_key" text not null check (length("scope_key") <= 4096),
-  "path" text not null check (length("path") <= 1024),
-  "content" text not null check (length("content") <= 100000),
+  "scope_key" text not null constraint bsb_memory_documents_scope_key_check check (length("scope_key") <= 4096),
+  "path" text not null constraint bsb_memory_documents_path_check check (length("path") <= 1024),
+  "content" text not null constraint bsb_memory_documents_content_check check (length("content") <= 100000),
   "version" bigint not null default 1,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),

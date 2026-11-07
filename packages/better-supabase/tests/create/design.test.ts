@@ -428,10 +428,11 @@ describe("designIssues", () => {
 
     expect(designIssues(design, data, preset).length).toBeGreaterThan(0);
 
-    const long = setColumn(projects, "projects", "x".repeat(50), {
-      type: "text",
-      options: ["a"],
-    });
+    const long = updateTable(
+      setColumn(projects, "projects", "x".repeat(55), { type: "text" }),
+      "projects",
+      { unique: [["x".repeat(55)]] },
+    );
 
     expect(
       designIssues(long, data, preset).some((issue) =>

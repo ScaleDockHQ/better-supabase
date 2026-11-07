@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 
@@ -25,8 +26,12 @@ describe("time-tracking module", () => {
       modules: { "time-tracking": { options: { on: ["company", "project"] } } },
     });
 
-    expect(sql).toContain(`<> all (array['company', 'project']::text[])`);
-    expect(sql).toContain("time is tracked on company, project records");
+    expect(unnamedChecks(sql)).toContain(
+      `<> all (array['company', 'project']::text[])`,
+    );
+    expect(unnamedChecks(sql)).toContain(
+      "time is tracked on company, project records",
+    );
     expect(() =>
       sqlOf(BASE, {
         modules: { "time-tracking": { options: { on: ["Company"] } } },
@@ -36,23 +41,25 @@ describe("time-tracking module", () => {
 
   it("keeps one running timer and no overlaps per member", () => {
     const sql = sqlOf(BASE);
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       "create extension if not exists btree_gist with schema extensions;",
     );
-    expect(sql).toContain(`exclude using gist (`);
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(`exclude using gist (`);
+    expect(unnamedChecks(sql)).toContain(
       `tstzrange("started_at", coalesce("ended_at", 'infinity'::timestamptz)) with &&`,
     );
-    expect(sql).toContain(`where "ended_at" is null;`);
-    expect(sql).toContain("TIME_ENTRY_OVERLAP");
+    expect(unnamedChecks(sql)).toContain(`where "ended_at" is null;`);
+    expect(unnamedChecks(sql)).toContain("TIME_ENTRY_OVERLAP");
   });
 
   it("locks submitted and approved weeks with a trigger", () => {
     const sql = sqlOf(BASE);
-    expect(sql).toContain("before insert or update or delete on");
-    expect(sql).toContain("TIME_PERIOD_LOCKED");
-    expect(sql).toContain(`"better_supabase"."open_approval"(`);
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
+      "before insert or update or delete on",
+    );
+    expect(unnamedChecks(sql)).toContain("TIME_PERIOD_LOCKED");
+    expect(unnamedChecks(sql)).toContain(`"better_supabase"."open_approval"(`);
+    expect(unnamedChecks(sql)).toContain(
       `revoke execute on function "better_supabase"."approve_timesheet"(uuid) from public, anon, authenticated;`,
     );
   });
@@ -137,29 +144,31 @@ describe("time-tracking module", () => {
 
   it("stores the rate as minor units per hour with its currency", () => {
     const sql = sqlOf(BASE);
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `"rate" bigint check ("rate" is null or "rate" >= 0),\n  "rate_currency" text,`,
     );
-    expect(sql).not.toContain("numeric(12, 2)");
+    expect(unnamedChecks(sql)).not.toContain("numeric(12, 2)");
     expect(sql).toContain(
-      `add constraint "time_entries_rate_currency_check"\n  check ("rate_currency" is null or "rate_currency" ~ '^[A-Z]{3}$');`,
+      `add constraint bsb_time_entries_rate_currency_check\n  check ("rate_currency" is null or "rate_currency" ~ '^[A-Z]{3}$');`,
     );
     expect(sql).toContain(
-      `add constraint "time_entries_rate_needs_currency_check"\n  check ("rate" is null or "rate_currency" is not null);`,
+      `add constraint bsb_time_entries_rate_needs_currency_check\n  check ("rate" is null or "rate_currency" is not null);`,
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `'rate', v_row."rate"::text, 'rateCurrency', v_row."rate_currency"`,
     );
   });
 
   it("takes the rate as an amount and a currency", () => {
     const sql = sqlOf(BASE);
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       "rate bigint default null, rate_currency text default null, note text default null",
     );
-    expect(sql).toContain("TIME_RATE_INVALID");
-    expect(sql).toContain(`v_row."rate" := (v_patch ->> 'rate')::bigint;`);
-    expect(sql).not.toContain("::numeric");
+    expect(unnamedChecks(sql)).toContain("TIME_RATE_INVALID");
+    expect(unnamedChecks(sql)).toContain(
+      `v_row."rate" := (v_patch ->> 'rate')::bigint;`,
+    );
+    expect(unnamedChecks(sql)).not.toContain("::numeric");
 
     const [contract] = customContracts(["time-tracking"], {
       modules: { "time-tracking": { mode: "custom" } },
@@ -178,13 +187,13 @@ describe("time-tracking module", () => {
 
   it("totals billable amounts per currency in minor units", () => {
     const sql = sqlOf(BASE);
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `jsonb_build_object('amount', q.amount::text, 'currency', q.currency) order by q.currency`,
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `round(sum(extract(epoch from coalesce(y."ended_at", now()) - y."started_at") * y."rate" / 3600))::bigint as amount`,
     );
-    expect(sql).toContain(`group by y."rate_currency"`);
+    expect(unnamedChecks(sql)).toContain(`group by y."rate_currency"`);
   });
 
   it("upgrades a numeric rate to minor units", () => {
@@ -195,14 +204,16 @@ describe("time-tracking module", () => {
 
     expect(plan?.to).toBe(3);
     const sql = plan?.steps[0]?.sql ?? "";
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `alter table "better_supabase"."time_entries" add column if not exists "rate_currency" text;`,
     );
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `alter column "rate" type bigint using round("rate" * 100)::bigint;`,
     );
-    expect(sql).toContain("data_type = 'numeric'");
-    expect(sql).toContain("time_entries_rate_needs_currency_check");
+    expect(unnamedChecks(sql)).toContain("data_type = 'numeric'");
+    expect(unnamedChecks(sql)).toContain(
+      "time_entries_rate_needs_currency_check",
+    );
   });
 
   it("needs the approvals tables", () => {
@@ -235,9 +246,9 @@ describe("time-tracking module", () => {
       ownTables: { "app.hours": "app.sql", "app.weeks": "app.sql" },
     });
 
-    expect(sql).not.toMatch(/create table if not exists "app"/);
-    expect(sql).not.toContain("exclude using gist");
-    expect(sql).toContain(`"app"."hours"`);
-    expect(sql).toContain(`"app"."weeks"`);
+    expect(unnamedChecks(sql)).not.toMatch(/create table if not exists "app"/);
+    expect(unnamedChecks(sql)).not.toContain("exclude using gist");
+    expect(unnamedChecks(sql)).toContain(`"app"."hours"`);
+    expect(unnamedChecks(sql)).toContain(`"app"."weeks"`);
   });
 });

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:36a07aa50536b03bf26ed1764d59eb443b725a29cbc2e32f6567c3377700dd77
+-- @bsb-hash sha256:ab73716475de793701389722a378cbd1045947147acd9d9b88ad5aabf163ad73
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,8 +14,8 @@
 create table "better_supabase"."eval_datasets" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
-  "description" text check (length("description") <= 2000),
+  "name" text not null constraint bsb_eval_datasets_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
+  "description" text constraint bsb_eval_datasets_description_check check (length("description") <= 2000),
   "created_at" timestamptz not null default now()
 );
 create unique index "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
@@ -28,7 +28,7 @@ create table "better_supabase"."eval_items" (
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "input" jsonb not null,
   "expected" jsonb,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_eval_items_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "source_chat_id" text,
   "source_message_id" text,
   "created_at" timestamptz not null default now()
@@ -44,10 +44,10 @@ create table "better_supabase"."eval_runs" (
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "organization_id" uuid,
   "prompt_name" text not null,
-  "prompt_version" integer not null check ("prompt_version" >= 1),
+  "prompt_version" integer not null constraint bsb_eval_runs_prompt_version_check check ("prompt_version" >= 1),
   "model" text not null,
-  "scorers" jsonb not null default '[]'::jsonb check (jsonb_typeof("scorers") = 'array'),
-  "status" text not null default 'running' check ("status" in ('running', 'completed', 'failed', 'cancelled')),
+  "scorers" jsonb not null default '[]'::jsonb constraint bsb_eval_runs_scorers_check check (jsonb_typeof("scorers") = 'array'),
+  "status" text not null default 'running' constraint bsb_eval_runs_status_check check ("status" in ('running', 'completed', 'failed', 'cancelled')),
   "summary" jsonb,
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
@@ -61,10 +61,10 @@ create table "better_supabase"."eval_results" (
   "run_id" uuid not null references "better_supabase"."eval_runs" ("id") on delete cascade,
   "item_id" uuid not null references "better_supabase"."eval_items" ("id") on delete cascade,
   "output" text,
-  "scores" jsonb not null default '{}'::jsonb check (jsonb_typeof("scores") = 'object'),
+  "scores" jsonb not null default '{}'::jsonb constraint bsb_eval_results_scores_check check (jsonb_typeof("scores") = 'object'),
   "passed" boolean not null,
   "error" text,
-  "latency_ms" integer check ("latency_ms" >= 0),
+  "latency_ms" integer constraint bsb_eval_results_latency_ms_check check ("latency_ms" >= 0),
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "item_id")
 );
@@ -452,7 +452,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:f49ad67debb05ace8b4ba24e4b483ddb2d5bcecdd7d93a4b957b630c87768977
+-- @bsb-hash sha256:48c51fdce4c912989ce9c90b33a4c7357254db075b50d9d1a1dafc17f7ea9e65
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -465,8 +465,8 @@ on conflict (name) do update
 create table "better_supabase"."eval_datasets" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
-  "description" text check (length("description") <= 2000),
+  "name" text not null constraint bsb_eval_datasets_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
+  "description" text constraint bsb_eval_datasets_description_check check (length("description") <= 2000),
   "created_at" timestamptz not null default now()
 );
 create unique index "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
@@ -479,7 +479,7 @@ create table "better_supabase"."eval_items" (
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "input" jsonb not null,
   "expected" jsonb,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_eval_items_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "source_chat_id" text,
   "source_message_id" text,
   "created_at" timestamptz not null default now()
@@ -495,10 +495,10 @@ create table "better_supabase"."eval_runs" (
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "organization_id" uuid,
   "prompt_name" text not null,
-  "prompt_version" integer not null check ("prompt_version" >= 1),
+  "prompt_version" integer not null constraint bsb_eval_runs_prompt_version_check check ("prompt_version" >= 1),
   "model" text not null,
-  "scorers" jsonb not null default '[]'::jsonb check (jsonb_typeof("scorers") = 'array'),
-  "status" text not null default 'running' check ("status" in ('running', 'completed', 'failed', 'cancelled')),
+  "scorers" jsonb not null default '[]'::jsonb constraint bsb_eval_runs_scorers_check check (jsonb_typeof("scorers") = 'array'),
+  "status" text not null default 'running' constraint bsb_eval_runs_status_check check ("status" in ('running', 'completed', 'failed', 'cancelled')),
   "summary" jsonb,
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
@@ -512,10 +512,10 @@ create table "better_supabase"."eval_results" (
   "run_id" uuid not null references "better_supabase"."eval_runs" ("id") on delete cascade,
   "item_id" uuid not null references "better_supabase"."eval_items" ("id") on delete cascade,
   "output" text,
-  "scores" jsonb not null default '{}'::jsonb check (jsonb_typeof("scores") = 'object'),
+  "scores" jsonb not null default '{}'::jsonb constraint bsb_eval_results_scores_check check (jsonb_typeof("scores") = 'object'),
   "passed" boolean not null,
   "error" text,
-  "latency_ms" integer check ("latency_ms" >= 0),
+  "latency_ms" integer constraint bsb_eval_results_latency_ms_check check ("latency_ms" >= 0),
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "item_id")
 );
@@ -944,7 +944,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:ea4293f87de816cd1c4c7173fdd58c71e30242f8a0d308d1e6c79490481ad92c
+-- @bsb-hash sha256:a8a8c10d70bd106499cf280c9792b68b52b984f02e5b00620735fd4d68a97105
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -962,8 +962,8 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."eval_datasets" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
-  "description" text check (length("description") <= 2000),
+  "name" text not null constraint bsb_eval_datasets_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
+  "description" text constraint bsb_eval_datasets_description_check check (length("description") <= 2000),
   "created_at" timestamptz not null default now()
 );
 create unique index "bsb_eval_datasets_key" on "app_private"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
@@ -976,7 +976,7 @@ create table "app_private"."eval_items" (
   "dataset_id" uuid not null references "app_private"."eval_datasets" ("id") on delete cascade,
   "input" jsonb not null,
   "expected" jsonb,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_eval_items_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "source_chat_id" text,
   "source_message_id" text,
   "created_at" timestamptz not null default now()
@@ -992,10 +992,10 @@ create table "app_private"."eval_runs" (
   "dataset_id" uuid not null references "app_private"."eval_datasets" ("id") on delete cascade,
   "organization_id" uuid,
   "prompt_name" text not null,
-  "prompt_version" integer not null check ("prompt_version" >= 1),
+  "prompt_version" integer not null constraint bsb_eval_runs_prompt_version_check check ("prompt_version" >= 1),
   "model" text not null,
-  "scorers" jsonb not null default '[]'::jsonb check (jsonb_typeof("scorers") = 'array'),
-  "status" text not null default 'running' check ("status" in ('running', 'completed', 'failed', 'cancelled')),
+  "scorers" jsonb not null default '[]'::jsonb constraint bsb_eval_runs_scorers_check check (jsonb_typeof("scorers") = 'array'),
+  "status" text not null default 'running' constraint bsb_eval_runs_status_check check ("status" in ('running', 'completed', 'failed', 'cancelled')),
   "summary" jsonb,
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
@@ -1009,10 +1009,10 @@ create table "app_private"."eval_results" (
   "run_id" uuid not null references "app_private"."eval_runs" ("id") on delete cascade,
   "item_id" uuid not null references "app_private"."eval_items" ("id") on delete cascade,
   "output" text,
-  "scores" jsonb not null default '{}'::jsonb check (jsonb_typeof("scores") = 'object'),
+  "scores" jsonb not null default '{}'::jsonb constraint bsb_eval_results_scores_check check (jsonb_typeof("scores") = 'object'),
   "passed" boolean not null,
   "error" text,
-  "latency_ms" integer check ("latency_ms" >= 0),
+  "latency_ms" integer constraint bsb_eval_results_latency_ms_check check ("latency_ms" >= 0),
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "item_id")
 );
@@ -1400,7 +1400,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:5434ef94e498acaa65a48805d378ee1409ba0a0fc4aef8130226ff9af8ba15c3
+-- @bsb-hash sha256:87433cc957fb310c9c2df10fb60e07bbae646d59f8a0cd2f8f601e9380b50afb
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1413,8 +1413,8 @@ on conflict (name) do update
 create table "better_supabase"."eval_datasets" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
-  "description" text check (length("description") <= 2000),
+  "name" text not null constraint bsb_eval_datasets_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
+  "description" text constraint bsb_eval_datasets_description_check check (length("description") <= 2000),
   "created_at" timestamptz not null default now()
 );
 create unique index "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
@@ -1427,7 +1427,7 @@ create table "better_supabase"."eval_items" (
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "input" jsonb not null,
   "expected" jsonb,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_eval_items_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "source_chat_id" text,
   "source_message_id" text,
   "created_at" timestamptz not null default now()
@@ -1443,10 +1443,10 @@ create table "better_supabase"."eval_runs" (
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "organization_id" uuid,
   "prompt_name" text not null,
-  "prompt_version" integer not null check ("prompt_version" >= 1),
+  "prompt_version" integer not null constraint bsb_eval_runs_prompt_version_check check ("prompt_version" >= 1),
   "model" text not null,
-  "scorers" jsonb not null default '[]'::jsonb check (jsonb_typeof("scorers") = 'array'),
-  "status" text not null default 'running' check ("status" in ('running', 'completed', 'failed', 'cancelled')),
+  "scorers" jsonb not null default '[]'::jsonb constraint bsb_eval_runs_scorers_check check (jsonb_typeof("scorers") = 'array'),
+  "status" text not null default 'running' constraint bsb_eval_runs_status_check check ("status" in ('running', 'completed', 'failed', 'cancelled')),
   "summary" jsonb,
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
@@ -1460,10 +1460,10 @@ create table "better_supabase"."eval_results" (
   "run_id" uuid not null references "better_supabase"."eval_runs" ("id") on delete cascade,
   "item_id" uuid not null references "better_supabase"."eval_items" ("id") on delete cascade,
   "output" text,
-  "scores" jsonb not null default '{}'::jsonb check (jsonb_typeof("scores") = 'object'),
+  "scores" jsonb not null default '{}'::jsonb constraint bsb_eval_results_scores_check check (jsonb_typeof("scores") = 'object'),
   "passed" boolean not null,
   "error" text,
-  "latency_ms" integer check ("latency_ms" >= 0),
+  "latency_ms" integer constraint bsb_eval_results_latency_ms_check check ("latency_ms" >= 0),
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "item_id")
 );
@@ -1969,7 +1969,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:0f494bc1122b1f8476aaa783ed1796ef5549119e99eb1eee1f394a8bb17b070b
+-- @bsb-hash sha256:d3fd05cc029e7f0dc5cbc113085962184be72d7fc364d46cc5092a49ceb5bf11
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1982,8 +1982,8 @@ on conflict (name) do update
 -- better_supabase.eval_datasets is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."eval_datasets" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."eval_datasets" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."eval_datasets" add column if not exists "name" text check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$');
-alter table "better_supabase"."eval_datasets" add column if not exists "description" text check (length("description") <= 2000);
+alter table "better_supabase"."eval_datasets" add column if not exists "name" text constraint bsb_eval_datasets_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$');
+alter table "better_supabase"."eval_datasets" add column if not exists "description" text constraint bsb_eval_datasets_description_check check (length("description") <= 2000);
 alter table "better_supabase"."eval_datasets" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
 alter table "better_supabase"."eval_datasets" enable row level security;
@@ -1994,7 +1994,7 @@ alter table "better_supabase"."eval_items" add column if not exists "id" uuid de
 alter table "better_supabase"."eval_items" add column if not exists "dataset_id" uuid references "better_supabase"."eval_datasets" ("id") on delete cascade;
 alter table "better_supabase"."eval_items" add column if not exists "input" jsonb;
 alter table "better_supabase"."eval_items" add column if not exists "expected" jsonb;
-alter table "better_supabase"."eval_items" add column if not exists "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."eval_items" add column if not exists "metadata" jsonb not null default '{}'::jsonb constraint bsb_eval_items_metadata_check check (jsonb_typeof("metadata") = 'object');
 alter table "better_supabase"."eval_items" add column if not exists "source_chat_id" text;
 alter table "better_supabase"."eval_items" add column if not exists "source_message_id" text;
 alter table "better_supabase"."eval_items" add column if not exists "created_at" timestamptz not null default now();
@@ -2008,10 +2008,10 @@ alter table "better_supabase"."eval_runs" add column if not exists "id" uuid def
 alter table "better_supabase"."eval_runs" add column if not exists "dataset_id" uuid references "better_supabase"."eval_datasets" ("id") on delete cascade;
 alter table "better_supabase"."eval_runs" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."eval_runs" add column if not exists "prompt_name" text;
-alter table "better_supabase"."eval_runs" add column if not exists "prompt_version" integer check ("prompt_version" >= 1);
+alter table "better_supabase"."eval_runs" add column if not exists "prompt_version" integer constraint bsb_eval_runs_prompt_version_check check ("prompt_version" >= 1);
 alter table "better_supabase"."eval_runs" add column if not exists "model" text;
-alter table "better_supabase"."eval_runs" add column if not exists "scorers" jsonb not null default '[]'::jsonb check (jsonb_typeof("scorers") = 'array');
-alter table "better_supabase"."eval_runs" add column if not exists "status" text not null default 'running' check ("status" in ('running', 'completed', 'failed', 'cancelled'));
+alter table "better_supabase"."eval_runs" add column if not exists "scorers" jsonb not null default '[]'::jsonb constraint bsb_eval_runs_scorers_check check (jsonb_typeof("scorers") = 'array');
+alter table "better_supabase"."eval_runs" add column if not exists "status" text not null default 'running' constraint bsb_eval_runs_status_check check ("status" in ('running', 'completed', 'failed', 'cancelled'));
 alter table "better_supabase"."eval_runs" add column if not exists "summary" jsonb;
 alter table "better_supabase"."eval_runs" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."eval_runs" add column if not exists "finished_at" timestamptz;
@@ -2023,10 +2023,10 @@ grant all on "better_supabase"."eval_runs" to service_role;
 alter table "better_supabase"."eval_results" add column if not exists "run_id" uuid references "better_supabase"."eval_runs" ("id") on delete cascade;
 alter table "better_supabase"."eval_results" add column if not exists "item_id" uuid references "better_supabase"."eval_items" ("id") on delete cascade;
 alter table "better_supabase"."eval_results" add column if not exists "output" text;
-alter table "better_supabase"."eval_results" add column if not exists "scores" jsonb not null default '{}'::jsonb check (jsonb_typeof("scores") = 'object');
+alter table "better_supabase"."eval_results" add column if not exists "scores" jsonb not null default '{}'::jsonb constraint bsb_eval_results_scores_check check (jsonb_typeof("scores") = 'object');
 alter table "better_supabase"."eval_results" add column if not exists "passed" boolean;
 alter table "better_supabase"."eval_results" add column if not exists "error" text;
-alter table "better_supabase"."eval_results" add column if not exists "latency_ms" integer check ("latency_ms" >= 0);
+alter table "better_supabase"."eval_results" add column if not exists "latency_ms" integer constraint bsb_eval_results_latency_ms_check check ("latency_ms" >= 0);
 alter table "better_supabase"."eval_results" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists "eval_results_item_idx" on "better_supabase"."eval_results" ("item_id");
 alter table "better_supabase"."eval_results" enable row level security;
@@ -2411,7 +2411,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:f760d1c95ce1e00db8659d539462f869a5c8a03dd381f8146d1c43a61094b678
+-- @bsb-hash sha256:ff721353d22e191a6e72cadcd669f3816b1d17ca1921fcceaa8bb677d08a27c6
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2424,8 +2424,8 @@ on conflict (name) do update
 create table "better_supabase"."eval_datasets" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
-  "description" text check (length("description") <= 2000),
+  "name" text not null constraint bsb_eval_datasets_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
+  "description" text constraint bsb_eval_datasets_description_check check (length("description") <= 2000),
   "created_at" timestamptz not null default now()
 );
 create unique index "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("org_id"::text, '')), "name");
@@ -2438,7 +2438,7 @@ create table "better_supabase"."eval_items" (
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "input" jsonb not null,
   "expected" jsonb,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_eval_items_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "source_chat_id" text,
   "source_message_id" text,
   "created_at" timestamptz not null default now()
@@ -2454,10 +2454,10 @@ create table "better_supabase"."eval_runs" (
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
   "org_id" uuid,
   "prompt_name" text not null,
-  "prompt_version" integer not null check ("prompt_version" >= 1),
+  "prompt_version" integer not null constraint bsb_eval_runs_prompt_version_check check ("prompt_version" >= 1),
   "model" text not null,
-  "scorers" jsonb not null default '[]'::jsonb check (jsonb_typeof("scorers") = 'array'),
-  "status" text not null default 'running' check ("status" in ('running', 'completed', 'failed', 'cancelled')),
+  "scorers" jsonb not null default '[]'::jsonb constraint bsb_eval_runs_scorers_check check (jsonb_typeof("scorers") = 'array'),
+  "status" text not null default 'running' constraint bsb_eval_runs_status_check check ("status" in ('running', 'completed', 'failed', 'cancelled')),
   "summary" jsonb,
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
@@ -2471,10 +2471,10 @@ create table "better_supabase"."eval_results" (
   "run_id" uuid not null references "better_supabase"."eval_runs" ("id") on delete cascade,
   "item_id" uuid not null references "better_supabase"."eval_items" ("id") on delete cascade,
   "output" text,
-  "scores" jsonb not null default '{}'::jsonb check (jsonb_typeof("scores") = 'object'),
+  "scores" jsonb not null default '{}'::jsonb constraint bsb_eval_results_scores_check check (jsonb_typeof("scores") = 'object'),
   "passed" boolean not null,
   "error" text,
-  "latency_ms" integer check ("latency_ms" >= 0),
+  "latency_ms" integer constraint bsb_eval_results_latency_ms_check check ("latency_ms" >= 0),
   "created_at" timestamptz not null default now(),
   primary key ("run_id", "item_id")
 );

@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
 -- @bsb-block facilities@5 managed tasks
--- @bsb-hash sha256:d6ce183d0846051dadd85a4b7f430db7afc9b24acd7ece974f6c9296e1c69326
+-- @bsb-hash sha256:15ce13a2403fcaf0646eee71e67f3ea7890437f8d943450a963bd3ced307e283
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -14,23 +14,23 @@ create table "better_supabase"."maintenance_requests" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
+  "title" text not null constraint bsb_maintenance_requests_title_check check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "parent_id" uuid references "better_supabase"."maintenance_requests" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid,
   "iteration_id" uuid,
-  "priority" smallint not null default 0 check ("priority" >= 0 and "priority" <= 4),
-  "estimate" numeric(10, 2) check ("estimate" >= 0),
-  "progress" smallint check ("progress" >= 0 and "progress" <= 100),
+  "priority" smallint not null default 0 constraint bsb_maintenance_requests_priority_check check ("priority" >= 0 and "priority" <= 4),
+  "estimate" numeric(10, 2) constraint bsb_maintenance_requests_estimate_check check ("estimate" >= 0),
+  "progress" smallint constraint bsb_maintenance_requests_progress_check check ("progress" >= 0 and "progress" <= 100),
   "start_at" timestamptz,
   "end_at" timestamptz,
   "due_at" timestamptz,
   "pipeline_id" uuid,
   "stage_id" uuid,
   "stage_entered_at" timestamptz,
-  "state" text not null default 'backlog' check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled')),
-  "close_reason" text check ("close_reason" in ('completed', 'not_planned', 'duplicate')),
+  "state" text not null default 'backlog' constraint bsb_maintenance_requests_state_check check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled')),
+  "close_reason" text constraint bsb_maintenance_requests_close_reason_check check ("close_reason" in ('completed', 'not_planned', 'duplicate')),
   "closed_at" timestamptz,
   "locked" boolean not null default false,
   "rank" text collate "C" not null default 'V',
@@ -39,7 +39,7 @@ create table "better_supabase"."maintenance_requests" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
-  check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
+  constraint bsb_maintenance_requests_check check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
 );
 create index "maintenance_requests_board_idx" on "better_supabase"."maintenance_requests" ("pipeline_id", "stage_id", "rank");
 create index "maintenance_requests_parent_idx" on "better_supabase"."maintenance_requests" ("parent_id");
@@ -77,11 +77,11 @@ create table "better_supabase"."maintenance_request_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "maintenance_request_id" uuid not null references "better_supabase"."maintenance_requests" ("id") on delete cascade,
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
+  "title" text not null constraint bsb_maintenance_request_checklist_items_title_check check (length("title") >= 1 and length("title") <= 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
   "done_by" uuid,
-  "rank" text collate "C" not null check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "rank" text collate "C" not null constraint bsb_maintenance_request_checklist_items_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );

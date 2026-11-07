@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:b61d512a342cf6b062cdf30c3c581d78098d48e18e60fec5b91b03aef63e3337
+-- @bsb-hash sha256:b5362354143a8ef978a1ed762e7b7b322dfcdb42f73acb08e9f6a228e82f1f13
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -32,7 +32,7 @@ create trigger bsb_updated_at before update on "better_supabase"."invitations"
 create index invitations_invited_by_idx on "better_supabase"."invitations" ("invited_by");
 create index invitations_accepted_by_idx on "better_supabase"."invitations" ("accepted_by");
 alter table "better_supabase"."invitations"
-  add constraint invitations_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
+  add constraint bsb_invitations_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
 alter table "better_supabase"."invitations" enable row level security;
 revoke all on "better_supabase"."invitations" from public, anon, authenticated;
@@ -711,7 +711,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:fe3f68d327c803876f925fd9aa39698a5fa19ccaf68f87ed9f598175fdfb133c
+-- @bsb-hash sha256:a8550c561932afbde51a0e0bcabc7ed983e4fac6d8090340db6141399b761cb2
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -742,7 +742,7 @@ create trigger bsb_updated_at before update on "better_supabase"."invitations"
 create index invitations_invited_by_idx on "better_supabase"."invitations" ("invited_by");
 create index invitations_accepted_by_idx on "better_supabase"."invitations" ("accepted_by");
 alter table "better_supabase"."invitations"
-  add constraint invitations_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
+  add constraint bsb_invitations_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
 alter table "better_supabase"."invitations" enable row level security;
 revoke all on "better_supabase"."invitations" from public, anon, authenticated;
@@ -1514,7 +1514,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:146b5b75d8bd82bb48e5351e8cb61dfbf4ad39242fe0d22fb3c8d0818e617e6d
+-- @bsb-hash sha256:8b2a21230cb56c60f7aa8bbfbfa8ea1287c91aaf5190b08d042bd17a2085d72d
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1551,7 +1551,7 @@ create trigger bsb_updated_at before update on "app_private"."invitations"
 create index invitations_invited_by_idx on "app_private"."invitations" ("invited_by");
 create index invitations_accepted_by_idx on "app_private"."invitations" ("accepted_by");
 alter table "app_private"."invitations"
-  add constraint invitations_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
+  add constraint bsb_invitations_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
 alter table "app_private"."invitations" enable row level security;
 revoke all on "app_private"."invitations" from public, anon, authenticated;
@@ -2230,7 +2230,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:2a5beb1452c2314981dadd7d6b9482ad9c5d0be32261b4417908cc64a04e10c4
+-- @bsb-hash sha256:3e3cafac1dc419c0600902edcd5bb9bfc2935dd2b1d8323dde86722bb949dec7
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2261,7 +2261,7 @@ create trigger bsb_updated_at before update on "better_supabase"."invitations"
 create index invitations_invited_by_idx on "better_supabase"."invitations" ("invited_by");
 create index invitations_accepted_by_idx on "better_supabase"."invitations" ("accepted_by");
 alter table "better_supabase"."invitations"
-  add constraint invitations_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
+  add constraint bsb_invitations_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
 alter table "better_supabase"."invitations" enable row level security;
 revoke all on "better_supabase"."invitations" from public, anon, authenticated;
@@ -3768,7 +3768,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:d37198e800062f2f8785e6a591bafd310f37a761a0e88a899447b7e3f9899eb6
+-- @bsb-hash sha256:6ed098f53f7cd32d26b18ea553098112ee79d359bff17969dc7e9033da79cb73
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3799,7 +3799,7 @@ create trigger bsb_updated_at before update on "better_supabase"."invitations"
 create index invitations_invited_by_idx on "better_supabase"."invitations" ("invited_by");
 create index invitations_accepted_by_idx on "better_supabase"."invitations" ("accepted_by");
 alter table "better_supabase"."invitations"
-  add constraint invitations_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
+  add constraint bsb_invitations_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
 alter table "better_supabase"."invitations" enable row level security;
 revoke all on "better_supabase"."invitations" from public, anon, authenticated;

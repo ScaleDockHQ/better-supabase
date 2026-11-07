@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:8d4e61be7fdc4dd7c643745d3c03bac3e4999185a5b7c3ff4141818b007fc64d
+-- @bsb-hash sha256:755f0eefc2fc7110bd31a513f1c19ae91a225700982cf24c601ecef5372c6682
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,7 +15,7 @@ create table "better_supabase"."incoming_webhooks" (
   tenant uuid not null,
   name text not null,
   token_hash text not null unique,
-  verify text not null default 'none' check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret')),
+  verify text not null default 'none' constraint bsb_incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret')),
   secret text,
   secret_id uuid,
   previous_secret text,
@@ -23,13 +23,13 @@ create table "better_supabase"."incoming_webhooks" (
   previous_secret_expires_at timestamptz,
   signature_header text,
   enabled boolean not null default true,
-  max_body_bytes integer not null default 1048576 check (max_body_bytes > 0),
+  max_body_bytes integer not null default 1048576 constraint bsb_incoming_webhooks_max_body_bytes_check check (max_body_bytes > 0),
   receive_count bigint not null default 0,
   last_received_at timestamptz,
   last_status integer,
   metadata jsonb not null default '{}',
-  subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200),
+  subject_type text constraint bsb_incoming_webhooks_subject_type_check check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  subject_id text constraint bsb_incoming_webhooks_subject_id_check check (length(subject_id) >= 1 and length(subject_id) <= 200),
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -477,7 +477,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:ccb357e35fece4ddcddb37fe4c3a6e35f576f1e0b83d7f4996bfd75deb33b322
+-- @bsb-hash sha256:d232bc0b02bc34564f394d1116e11f63866b8fbde6959a587ae47232fc290088
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -491,7 +491,7 @@ create table "better_supabase"."incoming_webhooks" (
   tenant uuid not null,
   name text not null,
   token_hash text not null unique,
-  verify text not null default 'none' check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret')),
+  verify text not null default 'none' constraint bsb_incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret')),
   secret text,
   secret_id uuid,
   previous_secret text,
@@ -499,13 +499,13 @@ create table "better_supabase"."incoming_webhooks" (
   previous_secret_expires_at timestamptz,
   signature_header text,
   enabled boolean not null default true,
-  max_body_bytes integer not null default 1048576 check (max_body_bytes > 0),
+  max_body_bytes integer not null default 1048576 constraint bsb_incoming_webhooks_max_body_bytes_check check (max_body_bytes > 0),
   receive_count bigint not null default 0,
   last_received_at timestamptz,
   last_status integer,
   metadata jsonb not null default '{}',
-  subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200),
+  subject_type text constraint bsb_incoming_webhooks_subject_type_check check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  subject_id text constraint bsb_incoming_webhooks_subject_id_check check (length(subject_id) >= 1 and length(subject_id) <= 200),
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -1001,7 +1001,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:d97a122260b66e03afbfad1b41a909fc7882236da0eb4e19ac7df65e11c3a3ae
+-- @bsb-hash sha256:a46ce5a4d234a3684166ad265809721862750e1d38cd1f71363da559fe064c54
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1020,7 +1020,7 @@ create table "app_private"."incoming_webhooks" (
   tenant uuid not null,
   name text not null,
   token_hash text not null unique,
-  verify text not null default 'none' check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret')),
+  verify text not null default 'none' constraint bsb_incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret')),
   secret text,
   secret_id uuid,
   previous_secret text,
@@ -1028,13 +1028,13 @@ create table "app_private"."incoming_webhooks" (
   previous_secret_expires_at timestamptz,
   signature_header text,
   enabled boolean not null default true,
-  max_body_bytes integer not null default 1048576 check (max_body_bytes > 0),
+  max_body_bytes integer not null default 1048576 constraint bsb_incoming_webhooks_max_body_bytes_check check (max_body_bytes > 0),
   receive_count bigint not null default 0,
   last_received_at timestamptz,
   last_status integer,
   metadata jsonb not null default '{}',
-  subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200),
+  subject_type text constraint bsb_incoming_webhooks_subject_type_check check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  subject_id text constraint bsb_incoming_webhooks_subject_id_check check (length(subject_id) >= 1 and length(subject_id) <= 200),
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -1482,7 +1482,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_027_webhooks_in.sql
 -- better-supabase module: webhooks-in
 -- @bsb-block webhooks-in@4 managed
--- @bsb-hash sha256:f5c826ce2f680113965537a4bbe452208107953f25cf42887b7412fe8903e498
+-- @bsb-hash sha256:599afbf6ddb042d527aa543a50e7e09ad5e9ceda7bd9481138e2df790ed03602
 -- Per-tenant trigger URLs with a hashed token, optional Standard Webhooks or HMAC verification, a body size limit, receive counters and the last status; deliveries go to the webhook inbox with the endpoint's tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1496,7 +1496,7 @@ create table "better_supabase"."incoming_webhooks" (
   tenant uuid not null,
   name text not null,
   token_hash text not null unique,
-  verify text not null default 'none' check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret')),
+  verify text not null default 'none' constraint bsb_incoming_webhooks_verify_check check (verify in ('none', 'standard-webhooks', 'hmac-sha256', 'shared-secret')),
   secret text,
   secret_id uuid,
   previous_secret text,
@@ -1504,13 +1504,13 @@ create table "better_supabase"."incoming_webhooks" (
   previous_secret_expires_at timestamptz,
   signature_header text,
   enabled boolean not null default true,
-  max_body_bytes integer not null default 1048576 check (max_body_bytes > 0),
+  max_body_bytes integer not null default 1048576 constraint bsb_incoming_webhooks_max_body_bytes_check check (max_body_bytes > 0),
   receive_count bigint not null default 0,
   last_received_at timestamptz,
   last_status integer,
   metadata jsonb not null default '{}',
-  subject_type text check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  subject_id text check (length(subject_id) >= 1 and length(subject_id) <= 200),
+  subject_type text constraint bsb_incoming_webhooks_subject_type_check check (subject_type ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  subject_id text constraint bsb_incoming_webhooks_subject_id_check check (length(subject_id) >= 1 and length(subject_id) <= 200),
   created_by uuid references auth.users (id) on delete set null,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()

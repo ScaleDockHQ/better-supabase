@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 type Layout = Parameters<typeof renderBlocks>[1];
 
@@ -21,7 +22,7 @@ describe("brand-scoped templates", () => {
       brand({ table: "public.organizations", column: "brand" }),
     );
 
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `add column "brand" text check (length("brand") >= 1 and length("brand") <= 100)`,
     );
     expect(sql).toContain(`check ("scope" in ('tenant', 'brand', 'system'))`);

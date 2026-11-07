@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_164_lims.sql
 -- better-supabase module: lims
 -- @bsb-block lims@1 managed
--- @bsb-hash sha256:4009e92b1080074e65fcc8418d957276ce42f75c10678a121485fbe07c63ff35
+-- @bsb-hash sha256:f2ffce097c9b43f9adb7d77a8b50fef92ad0ef930631bb24e0d06974f210fb12
 -- Samples, test methods with specification limits, results through forms, a nonconformity case for every out of specification result and instruments from assets that must hold a valid qualification.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,9 +14,9 @@
 create table "better_supabase"."lims_methods" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "unit" text check ("unit" is null or length("unit") <= 40),
+  "key" text not null constraint bsb_lims_methods_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "name" text not null constraint bsb_lims_methods_name_check check (length("name") >= 1 and length("name") <= 200),
+  "unit" text constraint bsb_lims_methods_unit_check check ("unit" is null or length("unit") <= 40),
   "lower_limit" numeric,
   "upper_limit" numeric,
   "form_id" uuid,
@@ -24,7 +24,7 @@ create table "better_supabase"."lims_methods" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
-  check ("lower_limit" is null or "upper_limit" is null or "lower_limit" <= "upper_limit")
+  constraint bsb_lims_methods_check check ("lower_limit" is null or "upper_limit" is null or "lower_limit" <= "upper_limit")
 );
 alter table "better_supabase"."lims_methods" enable row level security;
 revoke all on "better_supabase"."lims_methods" from public, anon, authenticated;
@@ -41,13 +41,13 @@ create table "better_supabase"."lims_samples" (
   "tenant_id" uuid not null,
   "number" text not null,
   "sequence" bigint not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "kind" text check ("kind" is null or length("kind") <= 100),
-  "lot" text check ("lot" is null or length("lot") <= 100),
+  "title" text not null constraint bsb_lims_samples_title_check check (length("title") >= 1 and length("title") <= 200),
+  "kind" text constraint bsb_lims_samples_kind_check check ("kind" is null or length("kind") <= 100),
+  "lot" text constraint bsb_lims_samples_lot_check check ("lot" is null or length("lot") <= 100),
   "received_on" date not null default current_date,
-  "status" text not null default 'registered' check ("status" in ('registered', 'in_testing', 'completed', 'released', 'rejected')),
-  "notes" text check ("notes" is null or length("notes") <= 4000),
-  "rejection_reason" text check ("rejection_reason" is null or length("rejection_reason") <= 500),
+  "status" text not null default 'registered' constraint bsb_lims_samples_status_check check ("status" in ('registered', 'in_testing', 'completed', 'released', 'rejected')),
+  "notes" text constraint bsb_lims_samples_notes_check check ("notes" is null or length("notes") <= 4000),
+  "rejection_reason" text constraint bsb_lims_samples_rejection_reason_check check ("rejection_reason" is null or length("rejection_reason") <= 500),
   "completed_at" timestamptz,
   "released_at" timestamptz,
   "created_by" uuid,
@@ -75,11 +75,11 @@ create table "better_supabase"."lims_results" (
   "sample_id" uuid not null,
   "method_id" uuid not null,
   "value" numeric not null,
-  "outcome" text not null check ("outcome" in ('in_spec', 'out_of_spec')),
+  "outcome" text not null constraint bsb_lims_results_outcome_check check ("outcome" in ('in_spec', 'out_of_spec')),
   "instrument_id" uuid,
   "submission_id" uuid,
   "case_id" uuid,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_lims_results_note_check check ("note" is null or length("note") <= 2000),
   "tested_by" uuid,
   "tested_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now()

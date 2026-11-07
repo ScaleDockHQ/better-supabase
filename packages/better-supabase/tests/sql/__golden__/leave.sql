@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:c26ee2e361828c41f0f57a3521ef95fdab7be8bdbffd0c66c8af32a127972724
+-- @bsb-hash sha256:08eb71ff44e9513639272f285c826f5ec308700b9e4828a2be7a393a117cc080
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,17 +9,17 @@
 create table "better_supabase"."leave_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 100),
-  "unit" text not null default 'days' check ("unit" in ('days', 'hours')),
+  "key" text not null constraint bsb_leave_types_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_leave_types_name_check check (length("name") >= 1 and length("name") <= 100),
+  "unit" text not null default 'days' constraint bsb_leave_types_unit_check check ("unit" in ('days', 'hours')),
   "paid" boolean not null default true,
   -- Untracked types (unpaid leave, say) book no ledger entries and skip the balance check.
   "tracked" boolean not null default true,
   -- What accrue_leave grants each member per period when it names no amount.
-  "allowance" numeric(8, 2) check ("allowance" is null or "allowance" >= 0),
+  "allowance" numeric(8, 2) constraint bsb_leave_types_allowance_check check ("allowance" is null or "allowance" >= 0),
   -- How much close_leave_year carries into the next period; null carries everything.
-  "carryover_max" numeric(8, 2) check ("carryover_max" is null or "carryover_max" >= 0),
-  "color" text check ("color" is null or "color" ~ '^#[0-9a-fA-F]{6}$'),
+  "carryover_max" numeric(8, 2) constraint bsb_leave_types_carryover_max_check check ("carryover_max" is null or "carryover_max" >= 0),
+  "color" text constraint bsb_leave_types_color_check check ("color" is null or "color" ~ '^#[0-9a-fA-F]{6}$'),
   "auto_approve" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -42,17 +42,17 @@ create table "better_supabase"."leave_requests" (
   "type_id" uuid not null,
   "starts_on" date not null,
   "ends_on" date not null,
-  "partial" text not null default 'full' check ("partial" in ('full', 'morning', 'afternoon', 'hours')),
+  "partial" text not null default 'full' constraint bsb_leave_requests_partial_check check ("partial" in ('full', 'morning', 'afternoon', 'hours')),
   -- Working days, or hours for an hours type, that the request books.
-  "amount" numeric(8, 2) not null check ("amount" > 0),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "amount" numeric(8, 2) not null constraint bsb_leave_requests_amount_check check ("amount" > 0),
+  "note" text constraint bsb_leave_requests_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "approved_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancelled_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_leave_requests_check check ("ends_on" >= "starts_on"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."leave_types" ("tenant_id", "id") on delete restrict
 );
 create index "leave_requests_user_idx" on "better_supabase"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
@@ -1014,7 +1014,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:8df81229efdf59963917317e7f51e71b7f34b3636821fc04bdae38e2b28ec5e7
+-- @bsb-hash sha256:6c0632b292bb1f66cfd3b04e9fe7d1126f528d0130d63701abcb5c890417650b
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1022,17 +1022,17 @@ on conflict (name) do update
 create table "better_supabase"."leave_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 100),
-  "unit" text not null default 'days' check ("unit" in ('days', 'hours')),
+  "key" text not null constraint bsb_leave_types_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_leave_types_name_check check (length("name") >= 1 and length("name") <= 100),
+  "unit" text not null default 'days' constraint bsb_leave_types_unit_check check ("unit" in ('days', 'hours')),
   "paid" boolean not null default true,
   -- Untracked types (unpaid leave, say) book no ledger entries and skip the balance check.
   "tracked" boolean not null default true,
   -- What accrue_leave grants each member per period when it names no amount.
-  "allowance" numeric(8, 2) check ("allowance" is null or "allowance" >= 0),
+  "allowance" numeric(8, 2) constraint bsb_leave_types_allowance_check check ("allowance" is null or "allowance" >= 0),
   -- How much close_leave_year carries into the next period; null carries everything.
-  "carryover_max" numeric(8, 2) check ("carryover_max" is null or "carryover_max" >= 0),
-  "color" text check ("color" is null or "color" ~ '^#[0-9a-fA-F]{6}$'),
+  "carryover_max" numeric(8, 2) constraint bsb_leave_types_carryover_max_check check ("carryover_max" is null or "carryover_max" >= 0),
+  "color" text constraint bsb_leave_types_color_check check ("color" is null or "color" ~ '^#[0-9a-fA-F]{6}$'),
   "auto_approve" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -1055,17 +1055,17 @@ create table "better_supabase"."leave_requests" (
   "type_id" uuid not null,
   "starts_on" date not null,
   "ends_on" date not null,
-  "partial" text not null default 'full' check ("partial" in ('full', 'morning', 'afternoon', 'hours')),
+  "partial" text not null default 'full' constraint bsb_leave_requests_partial_check check ("partial" in ('full', 'morning', 'afternoon', 'hours')),
   -- Working days, or hours for an hours type, that the request books.
-  "amount" numeric(8, 2) not null check ("amount" > 0),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "amount" numeric(8, 2) not null constraint bsb_leave_requests_amount_check check ("amount" > 0),
+  "note" text constraint bsb_leave_requests_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "approved_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancelled_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_leave_requests_check check ("ends_on" >= "starts_on"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."leave_types" ("tenant_id", "id") on delete restrict
 );
 create index "leave_requests_user_idx" on "better_supabase"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
@@ -2193,7 +2193,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:a8fbc89b6fe0de2ca828548cd7790d4dea10e0b0d10670dc0740102f00a0cff4
+-- @bsb-hash sha256:9eba7d6c7b5c9a9d6eccaf25c2ffca9ef98d28f58f74a29212cc7526860f04cc
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2206,17 +2206,17 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."leave_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 100),
-  "unit" text not null default 'days' check ("unit" in ('days', 'hours')),
+  "key" text not null constraint bsb_leave_types_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_leave_types_name_check check (length("name") >= 1 and length("name") <= 100),
+  "unit" text not null default 'days' constraint bsb_leave_types_unit_check check ("unit" in ('days', 'hours')),
   "paid" boolean not null default true,
   -- Untracked types (unpaid leave, say) book no ledger entries and skip the balance check.
   "tracked" boolean not null default true,
   -- What accrue_leave grants each member per period when it names no amount.
-  "allowance" numeric(8, 2) check ("allowance" is null or "allowance" >= 0),
+  "allowance" numeric(8, 2) constraint bsb_leave_types_allowance_check check ("allowance" is null or "allowance" >= 0),
   -- How much close_leave_year carries into the next period; null carries everything.
-  "carryover_max" numeric(8, 2) check ("carryover_max" is null or "carryover_max" >= 0),
-  "color" text check ("color" is null or "color" ~ '^#[0-9a-fA-F]{6}$'),
+  "carryover_max" numeric(8, 2) constraint bsb_leave_types_carryover_max_check check ("carryover_max" is null or "carryover_max" >= 0),
+  "color" text constraint bsb_leave_types_color_check check ("color" is null or "color" ~ '^#[0-9a-fA-F]{6}$'),
   "auto_approve" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -2239,17 +2239,17 @@ create table "app_private"."leave_requests" (
   "type_id" uuid not null,
   "starts_on" date not null,
   "ends_on" date not null,
-  "partial" text not null default 'full' check ("partial" in ('full', 'morning', 'afternoon', 'hours')),
+  "partial" text not null default 'full' constraint bsb_leave_requests_partial_check check ("partial" in ('full', 'morning', 'afternoon', 'hours')),
   -- Working days, or hours for an hours type, that the request books.
-  "amount" numeric(8, 2) not null check ("amount" > 0),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "amount" numeric(8, 2) not null constraint bsb_leave_requests_amount_check check ("amount" > 0),
+  "note" text constraint bsb_leave_requests_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "approved_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancelled_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_leave_requests_check check ("ends_on" >= "starts_on"),
   foreign key ("tenant_id", "type_id") references "app_private"."leave_types" ("tenant_id", "id") on delete restrict
 );
 create index "leave_requests_user_idx" on "app_private"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
@@ -3211,7 +3211,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:c6a0669f17026c44ca45d5b3c56a9f47fd219ac5a666af9f941aa822c1d1e6ab
+-- @bsb-hash sha256:a50fd60b871487d0b6d553eae33933e935b2040175f0461323711daa13bdc697
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3219,17 +3219,17 @@ on conflict (name) do update
 create table "better_supabase"."leave_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 100),
-  "unit" text not null default 'days' check ("unit" in ('days', 'hours')),
+  "key" text not null constraint bsb_leave_types_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_leave_types_name_check check (length("name") >= 1 and length("name") <= 100),
+  "unit" text not null default 'days' constraint bsb_leave_types_unit_check check ("unit" in ('days', 'hours')),
   "paid" boolean not null default true,
   -- Untracked types (unpaid leave, say) book no ledger entries and skip the balance check.
   "tracked" boolean not null default true,
   -- What accrue_leave grants each member per period when it names no amount.
-  "allowance" numeric(8, 2) check ("allowance" is null or "allowance" >= 0),
+  "allowance" numeric(8, 2) constraint bsb_leave_types_allowance_check check ("allowance" is null or "allowance" >= 0),
   -- How much close_leave_year carries into the next period; null carries everything.
-  "carryover_max" numeric(8, 2) check ("carryover_max" is null or "carryover_max" >= 0),
-  "color" text check ("color" is null or "color" ~ '^#[0-9a-fA-F]{6}$'),
+  "carryover_max" numeric(8, 2) constraint bsb_leave_types_carryover_max_check check ("carryover_max" is null or "carryover_max" >= 0),
+  "color" text constraint bsb_leave_types_color_check check ("color" is null or "color" ~ '^#[0-9a-fA-F]{6}$'),
   "auto_approve" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -3252,17 +3252,17 @@ create table "better_supabase"."leave_requests" (
   "type_id" uuid not null,
   "starts_on" date not null,
   "ends_on" date not null,
-  "partial" text not null default 'full' check ("partial" in ('full', 'morning', 'afternoon', 'hours')),
+  "partial" text not null default 'full' constraint bsb_leave_requests_partial_check check ("partial" in ('full', 'morning', 'afternoon', 'hours')),
   -- Working days, or hours for an hours type, that the request books.
-  "amount" numeric(8, 2) not null check ("amount" > 0),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "amount" numeric(8, 2) not null constraint bsb_leave_requests_amount_check check ("amount" > 0),
+  "note" text constraint bsb_leave_requests_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "approved_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancelled_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_leave_requests_check check ("ends_on" >= "starts_on"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."leave_types" ("tenant_id", "id") on delete restrict
 );
 create index "leave_requests_user_idx" on "better_supabase"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);
@@ -4371,7 +4371,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:717af03edb03def7c40e622a354b4ffcaa825990ecfe3cc2d1505a99808a51d3
+-- @bsb-hash sha256:f3fb9043cdcf15e9806cbc51da8d57705e95990eb7f63ccb45f08629620a694d
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4379,14 +4379,14 @@ on conflict (name) do update
 -- better_supabase.leave_types is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."leave_types" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."leave_types" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."leave_types" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."leave_types" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 100);
-alter table "better_supabase"."leave_types" add column if not exists "unit" text not null default 'days' check ("unit" in ('days', 'hours'));
+alter table "better_supabase"."leave_types" add column if not exists "key" text constraint bsb_leave_types_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."leave_types" add column if not exists "name" text constraint bsb_leave_types_name_check check (length("name") >= 1 and length("name") <= 100);
+alter table "better_supabase"."leave_types" add column if not exists "unit" text not null default 'days' constraint bsb_leave_types_unit_check check ("unit" in ('days', 'hours'));
 alter table "better_supabase"."leave_types" add column if not exists "paid" boolean not null default true;
 alter table "better_supabase"."leave_types" add column if not exists "tracked" boolean not null default true;
-alter table "better_supabase"."leave_types" add column if not exists "allowance" numeric(8, 2) check ("allowance" is null or "allowance" >= 0);
-alter table "better_supabase"."leave_types" add column if not exists "carryover_max" numeric(8, 2) check ("carryover_max" is null or "carryover_max" >= 0);
-alter table "better_supabase"."leave_types" add column if not exists "color" text check ("color" is null or "color" ~ '^#[0-9a-fA-F]{6}$');
+alter table "better_supabase"."leave_types" add column if not exists "allowance" numeric(8, 2) constraint bsb_leave_types_allowance_check check ("allowance" is null or "allowance" >= 0);
+alter table "better_supabase"."leave_types" add column if not exists "carryover_max" numeric(8, 2) constraint bsb_leave_types_carryover_max_check check ("carryover_max" is null or "carryover_max" >= 0);
+alter table "better_supabase"."leave_types" add column if not exists "color" text constraint bsb_leave_types_color_check check ("color" is null or "color" ~ '^#[0-9a-fA-F]{6}$');
 alter table "better_supabase"."leave_types" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."leave_types" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."leave_types" add column if not exists "updated_at" timestamptz not null default now();
@@ -4406,9 +4406,9 @@ alter table "better_supabase"."leave_requests" add column if not exists "user_id
 alter table "better_supabase"."leave_requests" add column if not exists "type_id" uuid;
 alter table "better_supabase"."leave_requests" add column if not exists "starts_on" date;
 alter table "better_supabase"."leave_requests" add column if not exists "ends_on" date;
-alter table "better_supabase"."leave_requests" add column if not exists "partial" text not null default 'full' check ("partial" in ('full', 'morning', 'afternoon', 'hours'));
-alter table "better_supabase"."leave_requests" add column if not exists "amount" numeric(8, 2) check ("amount" > 0);
-alter table "better_supabase"."leave_requests" add column if not exists "note" text check ("note" is null or length("note") <= 2000);
+alter table "better_supabase"."leave_requests" add column if not exists "partial" text not null default 'full' constraint bsb_leave_requests_partial_check check ("partial" in ('full', 'morning', 'afternoon', 'hours'));
+alter table "better_supabase"."leave_requests" add column if not exists "amount" numeric(8, 2) constraint bsb_leave_requests_amount_check check ("amount" > 0);
+alter table "better_supabase"."leave_requests" add column if not exists "note" text constraint bsb_leave_requests_note_check check ("note" is null or length("note") <= 2000);
 alter table "better_supabase"."leave_requests" add column if not exists "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null;
 alter table "better_supabase"."leave_requests" add column if not exists "approved_at" timestamptz;
 alter table "better_supabase"."leave_requests" add column if not exists "cancelled_at" timestamptz;
@@ -5364,7 +5364,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:0440cf8bc351be011245d9dad4ae0361dcae8da48d89f4657ac813a13ef6d4ca
+-- @bsb-hash sha256:ac383c3c591e1a68e947f6285a3862dc9770dec0f923a923fb04a2e99276b230
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5372,17 +5372,17 @@ on conflict (name) do update
 create table "better_supabase"."leave_types" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 100),
-  "unit" text not null default 'days' check ("unit" in ('days', 'hours')),
+  "key" text not null constraint bsb_leave_types_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_leave_types_name_check check (length("name") >= 1 and length("name") <= 100),
+  "unit" text not null default 'days' constraint bsb_leave_types_unit_check check ("unit" in ('days', 'hours')),
   "paid" boolean not null default true,
   -- Untracked types (unpaid leave, say) book no ledger entries and skip the balance check.
   "tracked" boolean not null default true,
   -- What accrue_leave grants each member per period when it names no amount.
-  "allowance" numeric(8, 2) check ("allowance" is null or "allowance" >= 0),
+  "allowance" numeric(8, 2) constraint bsb_leave_types_allowance_check check ("allowance" is null or "allowance" >= 0),
   -- How much close_leave_year carries into the next period; null carries everything.
-  "carryover_max" numeric(8, 2) check ("carryover_max" is null or "carryover_max" >= 0),
-  "color" text check ("color" is null or "color" ~ '^#[0-9a-fA-F]{6}$'),
+  "carryover_max" numeric(8, 2) constraint bsb_leave_types_carryover_max_check check ("carryover_max" is null or "carryover_max" >= 0),
+  "color" text constraint bsb_leave_types_color_check check ("color" is null or "color" ~ '^#[0-9a-fA-F]{6}$'),
   "auto_approve" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -5405,17 +5405,17 @@ create table "better_supabase"."leave_requests" (
   "type_id" uuid not null,
   "starts_on" date not null,
   "ends_on" date not null,
-  "partial" text not null default 'full' check ("partial" in ('full', 'morning', 'afternoon', 'hours')),
+  "partial" text not null default 'full' constraint bsb_leave_requests_partial_check check ("partial" in ('full', 'morning', 'afternoon', 'hours')),
   -- Working days, or hours for an hours type, that the request books.
-  "amount" numeric(8, 2) not null check ("amount" > 0),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "amount" numeric(8, 2) not null constraint bsb_leave_requests_amount_check check ("amount" > 0),
+  "note" text constraint bsb_leave_requests_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "approved_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancelled_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_leave_requests_check check ("ends_on" >= "starts_on"),
   foreign key ("org_id", "type_id") references "better_supabase"."leave_types" ("org_id", "id") on delete restrict
 );
 create index "leave_requests_user_idx" on "better_supabase"."leave_requests" ("org_id", "user_id", "starts_on" desc);

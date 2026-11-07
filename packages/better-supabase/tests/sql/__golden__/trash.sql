@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:a92350a73857c379e0fa54789baa8be0f3c2936a1ea6ece18323d69ed1d90583
+-- @bsb-hash sha256:7c52391b288f0cf74a652036f19838f58988e6ce9d9daf3ce8cf6a8c8399404d
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,7 +13,7 @@ create table "better_supabase"."trash_items" (
   "subject_id" text not null,
   "title" text,
   "batch_id" uuid not null,
-  "depth" integer not null default 0 check ("depth" >= 0),
+  "depth" integer not null default 0 constraint bsb_trash_items_depth_check check ("depth" >= 0),
   "trashed_by" uuid,
   "trashed_at" timestamptz not null default now(),
   "purge_after" timestamptz,
@@ -330,7 +330,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:2144c51449e0d2749c010d3f2547fb35c5327bd24c1154bd87b7d722a07acc11
+-- @bsb-hash sha256:3c8de00f6139a2df4b596cdd1f7da90065a6d934a508e84520dfb223550c49d4
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -342,7 +342,7 @@ create table "better_supabase"."trash_items" (
   "subject_id" text not null,
   "title" text,
   "batch_id" uuid not null,
-  "depth" integer not null default 0 check ("depth" >= 0),
+  "depth" integer not null default 0 constraint bsb_trash_items_depth_check check ("depth" >= 0),
   "trashed_by" uuid,
   "trashed_at" timestamptz not null default now(),
   "purge_after" timestamptz,
@@ -686,7 +686,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:9f33ca7c1e8637ec2122c80e1dfbf3078b6ac3db7e27f48d1ea2271b8e26779f
+-- @bsb-hash sha256:ff2866c493f321b2045cb33e4e85fabd9775c0c71bee7f01d7f6a2711b8eb371
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -703,7 +703,7 @@ create table "app_private"."trash_items" (
   "subject_id" text not null,
   "title" text,
   "batch_id" uuid not null,
-  "depth" integer not null default 0 check ("depth" >= 0),
+  "depth" integer not null default 0 constraint bsb_trash_items_depth_check check ("depth" >= 0),
   "trashed_by" uuid,
   "trashed_at" timestamptz not null default now(),
   "purge_after" timestamptz,
@@ -1020,7 +1020,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:042f10295f48a268c2cccb289705603852d93ad8b74193c9ae14133718ec4352
+-- @bsb-hash sha256:1931c9fd517466decfa8fc6dcbc47288432253e9391ac726e93f35a31d6c7022
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1032,7 +1032,7 @@ create table "better_supabase"."trash_items" (
   "subject_id" text not null,
   "title" text,
   "batch_id" uuid not null,
-  "depth" integer not null default 0 check ("depth" >= 0),
+  "depth" integer not null default 0 constraint bsb_trash_items_depth_check check ("depth" >= 0),
   "trashed_by" uuid,
   "trashed_at" timestamptz not null default now(),
   "purge_after" timestamptz,
@@ -1409,7 +1409,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:6566cd656da7dd5939519d4a010e563c9c13e23f25c43b4e44251d0b9f0bcd2f
+-- @bsb-hash sha256:67812715a41e4606f06871a3b547e0095a39600ea70f7d224e2037c3853a767a
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1421,7 +1421,7 @@ alter table "better_supabase"."trash_items" add column if not exists "subject_ty
 alter table "better_supabase"."trash_items" add column if not exists "subject_id" text;
 alter table "better_supabase"."trash_items" add column if not exists "title" text;
 alter table "better_supabase"."trash_items" add column if not exists "batch_id" uuid;
-alter table "better_supabase"."trash_items" add column if not exists "depth" integer not null default 0 check ("depth" >= 0);
+alter table "better_supabase"."trash_items" add column if not exists "depth" integer not null default 0 constraint bsb_trash_items_depth_check check ("depth" >= 0);
 alter table "better_supabase"."trash_items" add column if not exists "trashed_by" uuid;
 alter table "better_supabase"."trash_items" add column if not exists "trashed_at" timestamptz not null default now();
 alter table "better_supabase"."trash_items" add column if not exists "purge_after" timestamptz;
@@ -1735,7 +1735,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_075_trash.sql
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:1290da90a7da3212245381dee964d80cd60641a60f0d3eeccd952e12fc79d67b
+-- @bsb-hash sha256:1537e7bc6e0ef2a51a9443eaedda9592b5dbee9cdef0eab917d27c9cc8706f86
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1747,7 +1747,7 @@ create table "better_supabase"."trash_items" (
   "subject_id" text not null,
   "title" text,
   "batch_id" uuid not null,
-  "depth" integer not null default 0 check ("depth" >= 0),
+  "depth" integer not null default 0 constraint bsb_trash_items_depth_check check ("depth" >= 0),
   "trashed_by" uuid,
   "trashed_at" timestamptz not null default now(),
   "purge_after" timestamptz,

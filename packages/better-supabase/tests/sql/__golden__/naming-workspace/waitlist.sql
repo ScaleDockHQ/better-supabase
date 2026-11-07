@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:da83304ff9b77ba5acc858fde5de03813103e0acfdb8bbdec6013b27305c24be
+-- @bsb-hash sha256:0c027ae49980f3da2978b76ab18467ae8db8430052dee4ad3e9a84c69ff50f33
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,11 +12,11 @@ create extension if not exists pgcrypto with schema extensions;
 -- reject; the before-user-created hook lets approved addresses sign up.
 create table "better_supabase"."waitlist_entries" (
   "id" uuid primary key default gen_random_uuid(),
-  "email" text not null unique check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
-  "status" text not null default 'waiting' check ("status" in ('waiting', 'approved', 'rejected', 'joined')),
+  "email" text not null unique constraint bsb_waitlist_entries_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "status" text not null default 'waiting' constraint bsb_waitlist_entries_status_check check ("status" in ('waiting', 'approved', 'rejected', 'joined')),
   "position" bigint generated always as identity,
-  "referrer" text check (length("referrer") <= 200),
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object' and pg_column_size("metadata") <= 4096),
+  "referrer" text constraint bsb_waitlist_entries_referrer_check check (length("referrer") <= 200),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_waitlist_entries_metadata_check check (jsonb_typeof("metadata") = 'object' and pg_column_size("metadata") <= 4096),
   "user_id" uuid references auth.users (id) on delete set null,
   "decided_by" uuid references auth.users (id) on delete set null,
   "decided_at" timestamptz,
@@ -35,11 +35,11 @@ create table "better_supabase"."invite_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "code_hash" text not null unique,
   "prefix" text not null,
-  "max_uses" integer check ("max_uses" > 0),
-  "uses" integer not null default 0 check ("uses" >= 0),
+  "max_uses" integer constraint bsb_invite_codes_max_uses_check check ("max_uses" > 0),
+  "uses" integer not null default 0 constraint bsb_invite_codes_uses_check check ("uses" >= 0),
   "expires_at" timestamptz,
   "workspace_id" uuid,
-  "role" text check ("role" is null or "workspace_id" is not null),
+  "role" text constraint bsb_invite_codes_check check ("role" is null or "workspace_id" is not null),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "revoked_at" timestamptz

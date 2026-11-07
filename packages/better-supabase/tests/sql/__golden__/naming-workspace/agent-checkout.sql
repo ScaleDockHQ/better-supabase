@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_178_agent_checkout.sql
 -- better-supabase module: agent-checkout
 -- @bsb-block agent-checkout@1 managed
--- @bsb-hash sha256:1c3adeed11a3563e433adb2ed31ba384c509e3eaed8b19c51996192873fed2df
+-- @bsb-hash sha256:a02034833cf99c6baabc0c69abb8cebefebdb9b940a9935f9eccd7f2d891049a
 -- ACP and UCP checkout sessions over an orders cart with idempotency keys, and AP2 checkout mandates verified with signing keys and used once.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,10 +13,10 @@ create table "better_supabase"."checkout_sessions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cart_id" uuid not null,
-  "protocol" text not null check ("protocol" in ('acp', 'ucp')),
-  "status" text not null default 'open' check ("status" in ('open', 'ready', 'completed', 'canceled')),
-  "idempotency_key" text not null check (length("idempotency_key") >= 1 and length("idempotency_key") <= 255),
-  "request_hash" text not null check (length("request_hash") >= 1 and length("request_hash") <= 128),
+  "protocol" text not null constraint bsb_checkout_sessions_protocol_check check ("protocol" in ('acp', 'ucp')),
+  "status" text not null default 'open' constraint bsb_checkout_sessions_status_check check ("status" in ('open', 'ready', 'completed', 'canceled')),
+  "idempotency_key" text not null constraint bsb_checkout_sessions_idempotency_key_check check (length("idempotency_key") >= 1 and length("idempotency_key") <= 255),
+  "request_hash" text not null constraint bsb_checkout_sessions_request_hash_check check (length("request_hash") >= 1 and length("request_hash") <= 128),
   "buyer" jsonb,
   "order_id" uuid,
   "expires_at" timestamptz,
@@ -24,7 +24,7 @@ create table "better_supabase"."checkout_sessions" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "idempotency_key"),
-  check (("status" = 'completed') = ("order_id" is not null))
+  constraint bsb_checkout_sessions_check check (("status" = 'completed') = ("order_id" is not null))
 );
 create index "checkout_sessions_cart_idx" on "better_supabase"."checkout_sessions" ("cart_id");
 alter table "better_supabase"."checkout_sessions" enable row level security;
@@ -42,10 +42,10 @@ create table "better_supabase"."agent_mandates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "session_id" uuid references "better_supabase"."checkout_sessions" ("id") on delete set null,
-  "vct" text not null check ("vct" in ('mandate.checkout.open.1', 'mandate.checkout.1')),
-  "status" text not null default 'active' check ("status" in ('active', 'consumed', 'revoked')),
-  "credential" text not null check (length("credential") >= 1 and length("credential") <= 16384),
-  "credential_hash" text not null check (length("credential_hash") >= 1 and length("credential_hash") <= 128),
+  "vct" text not null constraint bsb_agent_mandates_vct_check check ("vct" in ('mandate.checkout.open.1', 'mandate.checkout.1')),
+  "status" text not null default 'active' constraint bsb_agent_mandates_status_check check ("status" in ('active', 'consumed', 'revoked')),
+  "credential" text not null constraint bsb_agent_mandates_credential_check check (length("credential") >= 1 and length("credential") <= 16384),
+  "credential_hash" text not null constraint bsb_agent_mandates_credential_hash_check check (length("credential_hash") >= 1 and length("credential_hash") <= 128),
   "issuer_kid" text,
   "subject" text,
   "expires_at" timestamptz not null,
@@ -53,7 +53,7 @@ create table "better_supabase"."agent_mandates" (
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "credential_hash"),
-  check (("status" = 'consumed') = ("consumed_at" is not null))
+  constraint bsb_agent_mandates_check check (("status" = 'consumed') = ("consumed_at" is not null))
 );
 create index "agent_mandates_session_idx" on "better_supabase"."agent_mandates" ("session_id");
 alter table "better_supabase"."agent_mandates" enable row level security;

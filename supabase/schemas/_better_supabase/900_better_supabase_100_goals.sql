@@ -1,6 +1,6 @@
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:97c0524e16fe14422224c07935ea642d957d6616cc47834d3508f8e5d36f7592
+-- @bsb-hash sha256:da08be72d201770f4369dc15ea56bf36973280b72dbdca45934efe3accc6b08b
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,19 +10,19 @@
 create table "better_supabase"."goals" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "metric" text not null check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$'),
+  "name" text not null constraint bsb_goals_name_check check (length("name") >= 1 and length("name") <= 200),
+  "metric" text not null constraint bsb_goals_metric_check check ("metric" ~ '^[a-z][a-z0-9_.-]{0,80}$'),
   "owner_user_id" uuid,
   "team_id" uuid,
   "period_start" date not null,
   "period_end" date not null,
-  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
-  "goal" bigint not null check ("goal" > 0),
+  "currency" char(3) constraint bsb_goals_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "goal" bigint not null constraint bsb_goals_goal_check check ("goal" > 0),
   "actual" bigint not null default 0,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("period_end" >= "period_start")
+  constraint bsb_goals_check check ("period_end" >= "period_start")
 );
 create index "goals_period_idx" on "better_supabase"."goals" ("tenant_id", "period_start", "period_end") where "archived_at" is null;
 alter table "better_supabase"."goals" enable row level security;

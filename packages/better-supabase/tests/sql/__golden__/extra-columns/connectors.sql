@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_052_connectors.sql
 -- better-supabase module: connectors
 -- @bsb-block connectors@1 managed
--- @bsb-hash sha256:83baefa3b16aa8370eb56a4747db03fd515a8b8cbfd5deebf0caab1c9f9b004b
+-- @bsb-hash sha256:38061111e7ad82fe9ea0220f035088432ad8e42c1b60d0a9d092e450aa5274b0
 -- MCP servers per tenant with no, per-user OAuth or header auth; per-user grants that hold only a credential_ref; MCP sessions per chat; and tool list fingerprints that hold a changed list until an admin approves it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,18 +12,18 @@
 create table "better_supabase"."connector_servers" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "url" text not null check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
-  "transport" text not null default 'http' check ("transport" in ('http', 'sse')),
-  "auth_type" text not null default 'oauth' check ("auth_type" in ('none', 'oauth', 'header')),
-  "credential_ref" jsonb check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
+  "name" text not null constraint bsb_connector_servers_name_check check (length("name") >= 1 and length("name") <= 200),
+  "url" text not null constraint bsb_connector_servers_url_check check ("url" ~ '^(https://|http://(localhost|127[.]0[.]0[.]1)(:[0-9]+)?(/|$))' and length("url") <= 2000),
+  "transport" text not null default 'http' constraint bsb_connector_servers_transport_check check ("transport" in ('http', 'sse')),
+  "auth_type" text not null default 'oauth' constraint bsb_connector_servers_auth_type_check check ("auth_type" in ('none', 'oauth', 'header')),
+  "credential_ref" jsonb constraint bsb_connector_servers_credential_ref_check check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
   "scopes" text[] not null default '{}',
-  "client_metadata" jsonb not null default '{}' check (jsonb_typeof("client_metadata") = 'object'),
+  "client_metadata" jsonb not null default '{}' constraint bsb_connector_servers_client_metadata_check check (jsonb_typeof("client_metadata") = 'object'),
   "enabled" boolean not null default true,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("auth_type" = 'header') = ("credential_ref" is not null))
+  constraint bsb_connector_servers_check check (("auth_type" = 'header') = ("credential_ref" is not null))
 );
 create index connector_servers_tenant_idx on "better_supabase"."connector_servers" ("organization_id");
 create index connector_servers_created_by_idx on "better_supabase"."connector_servers" ("created_by");
@@ -42,7 +42,7 @@ create table "better_supabase"."connector_grants" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
   "organization_id" uuid not null,
-  "credential_ref" jsonb not null check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
+  "credential_ref" jsonb not null constraint bsb_connector_grants_credential_ref_check check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
   "scopes" text[] not null default '{}',
   "expires_at" timestamptz,
   "granted_at" timestamptz not null default now(),
@@ -85,9 +85,9 @@ create policy bsb_connector_sessions_read on "better_supabase"."connector_sessio
 -- admin before an assistant may call it.
 create table "better_supabase"."connector_tool_fingerprints" (
   "server_id" uuid not null references "better_supabase"."connector_servers" ("id") on delete cascade,
-  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
-  "tools" jsonb not null default '{}' check (jsonb_typeof("tools") = 'object'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
+  "fingerprint" text not null constraint bsb_connector_tool_fingerprints_fingerprint_check check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
+  "tools" jsonb not null default '{}' constraint bsb_connector_tool_fingerprints_tools_check check (jsonb_typeof("tools") = 'object'),
+  "status" text not null default 'pending' constraint bsb_connector_tool_fingerprints_status_check check ("status" in ('pending', 'approved', 'rejected')),
   "approved_by" uuid references auth.users (id) on delete set null,
   "approved_at" timestamptz,
   "created_at" timestamptz not null default now(),

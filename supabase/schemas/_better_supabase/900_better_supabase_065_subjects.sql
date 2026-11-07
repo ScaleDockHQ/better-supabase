@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:1c1856da7b19f7c00ad0c5c8b627d8034fe41a532b2c35e2f793ec3198a67343
+-- @bsb-hash sha256:24369a050a943493eb54faf8fa6e3fb969d84aae2d6b70256a2de0ab6272dc23
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -22,8 +22,8 @@ create table "better_supabase"."subject_members" (
   "reason" text,
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
-  constraint subject_members_one_member check (("user_id" is null) <> ("team_id" is null)),
-  constraint subject_members_dates check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on")
+  constraint bsb_subject_members_one_member check (("user_id" is null) <> ("team_id" is null)),
+  constraint bsb_subject_members_dates check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on")
 );
 create unique index subject_members_user_key on "better_supabase"."subject_members" ("subject_type", "subject_id", "user_id", "role") where "user_id" is not null;
 create unique index subject_members_team_key on "better_supabase"."subject_members" ("subject_type", "subject_id", "team_id", "role") where "team_id" is not null;

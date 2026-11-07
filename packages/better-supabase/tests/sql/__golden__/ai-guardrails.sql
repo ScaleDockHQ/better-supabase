@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:a1f1041a1637ec1c0c98e2c19ca75785d1f1064d5b461bf50c4a2118f0d5d973
+-- @bsb-hash sha256:a92f73c750c8557b55d72fb01fd445886d40af216eed0896036cbee46d76ee86
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,9 +15,9 @@
 create table "better_supabase"."guardrail_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "agent" text not null check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
-  "stage" text not null check ("stage" in ('input', 'output')),
-  "config" jsonb not null default '{}'::jsonb check (jsonb_typeof("config") = 'object'),
+  "agent" text not null constraint bsb_guardrail_policies_agent_check check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
+  "stage" text not null constraint bsb_guardrail_policies_stage_check check ("stage" in ('input', 'output')),
+  "config" jsonb not null default '{}'::jsonb constraint bsb_guardrail_policies_config_check check (jsonb_typeof("config") = 'object'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
@@ -30,9 +30,9 @@ create table "better_supabase"."guardrail_decisions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "agent" text not null,
-  "stage" text not null check ("stage" in ('input', 'output')),
-  "decision" text not null check ("decision" in ('allow', 'redact', 'block')),
-  "reasons" jsonb not null default '[]'::jsonb check (jsonb_typeof("reasons") = 'array'),
+  "stage" text not null constraint bsb_guardrail_decisions_stage_check check ("stage" in ('input', 'output')),
+  "decision" text not null constraint bsb_guardrail_decisions_decision_check check ("decision" in ('allow', 'redact', 'block')),
+  "reasons" jsonb not null default '[]'::jsonb constraint bsb_guardrail_decisions_reasons_check check (jsonb_typeof("reasons") = 'array'),
   "chat_id" text,
   "content_hash" text,
   "created_at" timestamptz not null default now()
@@ -183,7 +183,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:6d60297542726ea442e74a9d75f13eb9bcfdf84ed732ad2ef644297e66283df7
+-- @bsb-hash sha256:3dbb2a8202694634d57122c0009c1c8adfd1928d85dcc77080a06ed97ebe0f43
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -197,9 +197,9 @@ on conflict (name) do update
 create table "better_supabase"."guardrail_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "agent" text not null check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
-  "stage" text not null check ("stage" in ('input', 'output')),
-  "config" jsonb not null default '{}'::jsonb check (jsonb_typeof("config") = 'object'),
+  "agent" text not null constraint bsb_guardrail_policies_agent_check check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
+  "stage" text not null constraint bsb_guardrail_policies_stage_check check ("stage" in ('input', 'output')),
+  "config" jsonb not null default '{}'::jsonb constraint bsb_guardrail_policies_config_check check (jsonb_typeof("config") = 'object'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
@@ -212,9 +212,9 @@ create table "better_supabase"."guardrail_decisions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "agent" text not null,
-  "stage" text not null check ("stage" in ('input', 'output')),
-  "decision" text not null check ("decision" in ('allow', 'redact', 'block')),
-  "reasons" jsonb not null default '[]'::jsonb check (jsonb_typeof("reasons") = 'array'),
+  "stage" text not null constraint bsb_guardrail_decisions_stage_check check ("stage" in ('input', 'output')),
+  "decision" text not null constraint bsb_guardrail_decisions_decision_check check ("decision" in ('allow', 'redact', 'block')),
+  "reasons" jsonb not null default '[]'::jsonb constraint bsb_guardrail_decisions_reasons_check check (jsonb_typeof("reasons") = 'array'),
   "chat_id" text,
   "content_hash" text,
   "created_at" timestamptz not null default now()
@@ -374,7 +374,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:2aa5f703d4fe07d413aeb5e1f4a0cfc3c3bf797d425945d96befb806b4525532
+-- @bsb-hash sha256:0fed31d211be42c25e7e151366fb7ea93c8339eb7bfc91348f22be636aaf4ade
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -393,9 +393,9 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."guardrail_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "agent" text not null check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
-  "stage" text not null check ("stage" in ('input', 'output')),
-  "config" jsonb not null default '{}'::jsonb check (jsonb_typeof("config") = 'object'),
+  "agent" text not null constraint bsb_guardrail_policies_agent_check check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
+  "stage" text not null constraint bsb_guardrail_policies_stage_check check ("stage" in ('input', 'output')),
+  "config" jsonb not null default '{}'::jsonb constraint bsb_guardrail_policies_config_check check (jsonb_typeof("config") = 'object'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
@@ -408,9 +408,9 @@ create table "app_private"."guardrail_decisions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "agent" text not null,
-  "stage" text not null check ("stage" in ('input', 'output')),
-  "decision" text not null check ("decision" in ('allow', 'redact', 'block')),
-  "reasons" jsonb not null default '[]'::jsonb check (jsonb_typeof("reasons") = 'array'),
+  "stage" text not null constraint bsb_guardrail_decisions_stage_check check ("stage" in ('input', 'output')),
+  "decision" text not null constraint bsb_guardrail_decisions_decision_check check ("decision" in ('allow', 'redact', 'block')),
+  "reasons" jsonb not null default '[]'::jsonb constraint bsb_guardrail_decisions_reasons_check check (jsonb_typeof("reasons") = 'array'),
   "chat_id" text,
   "content_hash" text,
   "created_at" timestamptz not null default now()
@@ -561,7 +561,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:b77bed50010b1b30ed06532fd41237224ae91018ec54ed91acfabab40d74577b
+-- @bsb-hash sha256:d0f9f380a1cf46c1dab56ca8daf5c09cad33834228513db38d3e9a7a381ffc77
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -575,9 +575,9 @@ on conflict (name) do update
 create table "better_supabase"."guardrail_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "agent" text not null check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
-  "stage" text not null check ("stage" in ('input', 'output')),
-  "config" jsonb not null default '{}'::jsonb check (jsonb_typeof("config") = 'object'),
+  "agent" text not null constraint bsb_guardrail_policies_agent_check check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
+  "stage" text not null constraint bsb_guardrail_policies_stage_check check ("stage" in ('input', 'output')),
+  "config" jsonb not null default '{}'::jsonb constraint bsb_guardrail_policies_config_check check (jsonb_typeof("config") = 'object'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
@@ -590,9 +590,9 @@ create table "better_supabase"."guardrail_decisions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "agent" text not null,
-  "stage" text not null check ("stage" in ('input', 'output')),
-  "decision" text not null check ("decision" in ('allow', 'redact', 'block')),
-  "reasons" jsonb not null default '[]'::jsonb check (jsonb_typeof("reasons") = 'array'),
+  "stage" text not null constraint bsb_guardrail_decisions_stage_check check ("stage" in ('input', 'output')),
+  "decision" text not null constraint bsb_guardrail_decisions_decision_check check ("decision" in ('allow', 'redact', 'block')),
+  "reasons" jsonb not null default '[]'::jsonb constraint bsb_guardrail_decisions_reasons_check check (jsonb_typeof("reasons") = 'array'),
   "chat_id" text,
   "content_hash" text,
   "created_at" timestamptz not null default now()
@@ -794,7 +794,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:462ff503187e14736a932c97aa5b37b5825692e980b79a0d0dbd1dddbe065409
+-- @bsb-hash sha256:eee7ce29ae5dc42e948fd67c03f3354375718e023b8725ef538597209110ab7e
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -808,9 +808,9 @@ on conflict (name) do update
 -- better_supabase.guardrail_policies is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."guardrail_policies" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."guardrail_policies" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."guardrail_policies" add column if not exists "agent" text check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$');
-alter table "better_supabase"."guardrail_policies" add column if not exists "stage" text check ("stage" in ('input', 'output'));
-alter table "better_supabase"."guardrail_policies" add column if not exists "config" jsonb not null default '{}'::jsonb check (jsonb_typeof("config") = 'object');
+alter table "better_supabase"."guardrail_policies" add column if not exists "agent" text constraint bsb_guardrail_policies_agent_check check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$');
+alter table "better_supabase"."guardrail_policies" add column if not exists "stage" text constraint bsb_guardrail_policies_stage_check check ("stage" in ('input', 'output'));
+alter table "better_supabase"."guardrail_policies" add column if not exists "config" jsonb not null default '{}'::jsonb constraint bsb_guardrail_policies_config_check check (jsonb_typeof("config") = 'object');
 alter table "better_supabase"."guardrail_policies" add column if not exists "enabled" boolean not null default true;
 alter table "better_supabase"."guardrail_policies" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_guardrail_policies_key" on "better_supabase"."guardrail_policies" ((coalesce("organization_id"::text, '')), "agent", "stage");
@@ -821,9 +821,9 @@ grant all on "better_supabase"."guardrail_policies" to service_role;
 alter table "better_supabase"."guardrail_decisions" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."guardrail_decisions" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."guardrail_decisions" add column if not exists "agent" text;
-alter table "better_supabase"."guardrail_decisions" add column if not exists "stage" text check ("stage" in ('input', 'output'));
-alter table "better_supabase"."guardrail_decisions" add column if not exists "decision" text check ("decision" in ('allow', 'redact', 'block'));
-alter table "better_supabase"."guardrail_decisions" add column if not exists "reasons" jsonb not null default '[]'::jsonb check (jsonb_typeof("reasons") = 'array');
+alter table "better_supabase"."guardrail_decisions" add column if not exists "stage" text constraint bsb_guardrail_decisions_stage_check check ("stage" in ('input', 'output'));
+alter table "better_supabase"."guardrail_decisions" add column if not exists "decision" text constraint bsb_guardrail_decisions_decision_check check ("decision" in ('allow', 'redact', 'block'));
+alter table "better_supabase"."guardrail_decisions" add column if not exists "reasons" jsonb not null default '[]'::jsonb constraint bsb_guardrail_decisions_reasons_check check (jsonb_typeof("reasons") = 'array');
 alter table "better_supabase"."guardrail_decisions" add column if not exists "chat_id" text;
 alter table "better_supabase"."guardrail_decisions" add column if not exists "content_hash" text;
 alter table "better_supabase"."guardrail_decisions" add column if not exists "created_at" timestamptz not null default now();
@@ -972,7 +972,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:bf405dd57809fbd859d7f00772f21832ebee4a357b4dfa94337e542245e9cdda
+-- @bsb-hash sha256:45f101ec4e1cb546ccb3aad970b341367e0caae34a342efd688b53db986d3833
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -986,9 +986,9 @@ on conflict (name) do update
 create table "better_supabase"."guardrail_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
-  "agent" text not null check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
-  "stage" text not null check ("stage" in ('input', 'output')),
-  "config" jsonb not null default '{}'::jsonb check (jsonb_typeof("config") = 'object'),
+  "agent" text not null constraint bsb_guardrail_policies_agent_check check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
+  "stage" text not null constraint bsb_guardrail_policies_stage_check check ("stage" in ('input', 'output')),
+  "config" jsonb not null default '{}'::jsonb constraint bsb_guardrail_policies_config_check check (jsonb_typeof("config") = 'object'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
@@ -1001,9 +1001,9 @@ create table "better_supabase"."guardrail_decisions" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
   "agent" text not null,
-  "stage" text not null check ("stage" in ('input', 'output')),
-  "decision" text not null check ("decision" in ('allow', 'redact', 'block')),
-  "reasons" jsonb not null default '[]'::jsonb check (jsonb_typeof("reasons") = 'array'),
+  "stage" text not null constraint bsb_guardrail_decisions_stage_check check ("stage" in ('input', 'output')),
+  "decision" text not null constraint bsb_guardrail_decisions_decision_check check ("decision" in ('allow', 'redact', 'block')),
+  "reasons" jsonb not null default '[]'::jsonb constraint bsb_guardrail_decisions_reasons_check check (jsonb_typeof("reasons") = 'array'),
   "chat_id" text,
   "content_hash" text,
   "created_at" timestamptz not null default now()

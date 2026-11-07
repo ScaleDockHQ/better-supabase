@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:6aeaa8850a138be2cbdd7967cc3c288fdd39a06a1e7170f2cd68b2406195d319
+-- @bsb-hash sha256:cccc8932e8fd66ff31db36e5481dbfab8a7092081864476ffe3698b344b9f8d7
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17,7 +17,7 @@ create table "better_supabase"."bulk_runs" (
   "succeeded" integer not null default 0,
   "failed" integer not null default 0,
   "results" jsonb not null default '[]'::jsonb,
-  "status" text not null default 'pending' check ("status" in ('pending', 'running', 'completed', 'failed')),
+  "status" text not null default 'pending' constraint bsb_bulk_runs_status_check check ("status" in ('pending', 'running', 'completed', 'failed')),
   "created_by" uuid not null,
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz

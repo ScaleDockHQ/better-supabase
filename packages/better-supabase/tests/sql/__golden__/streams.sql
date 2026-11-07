@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:9917c35747fa390a096b1d0ca462a4505c85d19313e1d775f73848d8a2e3fcf5
+-- @bsb-hash sha256:3449f0075d7a384f661bc85fcd1ae5924e18bce53b6f51b1a34fedc6cd2d07a2
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,10 +10,10 @@
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
 create table "better_supabase"."streams" (
-  "id" text primary key check (length("id") >= 1 and length("id") <= 200),
+  "id" text primary key constraint bsb_streams_id_check check (length("id") >= 1 and length("id") <= 200),
   "tenant_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'default' check (length("kind") >= 1 and length("kind") <= 100),
+  "kind" text not null default 'default' constraint bsb_streams_kind_check check (length("kind") >= 1 and length("kind") <= 100),
   "wake" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "closed_at" timestamptz,
@@ -33,7 +33,7 @@ create policy bsb_streams_owner_read on "better_supabase"."streams"
 
 create table "better_supabase"."stream_chunks" (
   "stream_id" text not null references "better_supabase"."streams" ("id") on delete cascade,
-  "idx" integer not null check ("idx" >= 0),
+  "idx" integer not null constraint bsb_stream_chunks_idx_check check ("idx" >= 0),
   "data" bytea not null,
   primary key ("stream_id", "idx")
 );
@@ -53,7 +53,7 @@ create policy bsb_stream_chunks_owner_read on "better_supabase"."stream_chunks"
 -- not an integer makes stream_kv_incr fail with Redis's own error text, which
 -- is how the package learns a stream is DONE. The service role only.
 create table "better_supabase"."stream_kv" (
-  "key" text primary key check (length("key") >= 1 and length("key") <= 400),
+  "key" text primary key constraint bsb_stream_kv_key_check check (length("key") >= 1 and length("key") <= 400),
   "value" text not null,
   "expires_at" timestamptz
 );
@@ -403,7 +403,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:9917c35747fa390a096b1d0ca462a4505c85d19313e1d775f73848d8a2e3fcf5
+-- @bsb-hash sha256:3449f0075d7a384f661bc85fcd1ae5924e18bce53b6f51b1a34fedc6cd2d07a2
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -412,10 +412,10 @@ on conflict (name) do update
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
 create table "better_supabase"."streams" (
-  "id" text primary key check (length("id") >= 1 and length("id") <= 200),
+  "id" text primary key constraint bsb_streams_id_check check (length("id") >= 1 and length("id") <= 200),
   "tenant_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'default' check (length("kind") >= 1 and length("kind") <= 100),
+  "kind" text not null default 'default' constraint bsb_streams_kind_check check (length("kind") >= 1 and length("kind") <= 100),
   "wake" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "closed_at" timestamptz,
@@ -435,7 +435,7 @@ create policy bsb_streams_owner_read on "better_supabase"."streams"
 
 create table "better_supabase"."stream_chunks" (
   "stream_id" text not null references "better_supabase"."streams" ("id") on delete cascade,
-  "idx" integer not null check ("idx" >= 0),
+  "idx" integer not null constraint bsb_stream_chunks_idx_check check ("idx" >= 0),
   "data" bytea not null,
   primary key ("stream_id", "idx")
 );
@@ -455,7 +455,7 @@ create policy bsb_stream_chunks_owner_read on "better_supabase"."stream_chunks"
 -- not an integer makes stream_kv_incr fail with Redis's own error text, which
 -- is how the package learns a stream is DONE. The service role only.
 create table "better_supabase"."stream_kv" (
-  "key" text primary key check (length("key") >= 1 and length("key") <= 400),
+  "key" text primary key constraint bsb_stream_kv_key_check check (length("key") >= 1 and length("key") <= 400),
   "value" text not null,
   "expires_at" timestamptz
 );
@@ -805,7 +805,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:b9f7af7a93ca97161dcc7cfb9a652e7d3692c1a1e520d04a8629dbdfa9d98a73
+-- @bsb-hash sha256:714d777bd47bfb7cfcff4f113463c63a3f5cb7ace23fbba4f82d587e8d392aa6
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -819,10 +819,10 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
 create table "app_private"."streams" (
-  "id" text primary key check (length("id") >= 1 and length("id") <= 200),
+  "id" text primary key constraint bsb_streams_id_check check (length("id") >= 1 and length("id") <= 200),
   "tenant_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'default' check (length("kind") >= 1 and length("kind") <= 100),
+  "kind" text not null default 'default' constraint bsb_streams_kind_check check (length("kind") >= 1 and length("kind") <= 100),
   "wake" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "closed_at" timestamptz,
@@ -842,7 +842,7 @@ create policy bsb_streams_owner_read on "app_private"."streams"
 
 create table "app_private"."stream_chunks" (
   "stream_id" text not null references "app_private"."streams" ("id") on delete cascade,
-  "idx" integer not null check ("idx" >= 0),
+  "idx" integer not null constraint bsb_stream_chunks_idx_check check ("idx" >= 0),
   "data" bytea not null,
   primary key ("stream_id", "idx")
 );
@@ -862,7 +862,7 @@ create policy bsb_stream_chunks_owner_read on "app_private"."stream_chunks"
 -- not an integer makes stream_kv_incr fail with Redis's own error text, which
 -- is how the package learns a stream is DONE. The service role only.
 create table "app_private"."stream_kv" (
-  "key" text primary key check (length("key") >= 1 and length("key") <= 400),
+  "key" text primary key constraint bsb_stream_kv_key_check check (length("key") >= 1 and length("key") <= 400),
   "value" text not null,
   "expires_at" timestamptz
 );
@@ -1212,7 +1212,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:b416f0b90455843ed109a488fd8d2609262e8c67a45ae5a79a2a1057c3b94db5
+-- @bsb-hash sha256:7d1e8cc1c6d56ed1ec6947080375e7c34a137227cf8e64d874fa9238c5cec550
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1221,10 +1221,10 @@ on conflict (name) do update
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
 create table "better_supabase"."streams" (
-  "id" text primary key check (length("id") >= 1 and length("id") <= 200),
+  "id" text primary key constraint bsb_streams_id_check check (length("id") >= 1 and length("id") <= 200),
   "tenant_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'default' check (length("kind") >= 1 and length("kind") <= 100),
+  "kind" text not null default 'default' constraint bsb_streams_kind_check check (length("kind") >= 1 and length("kind") <= 100),
   "wake" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "closed_at" timestamptz,
@@ -1244,7 +1244,7 @@ create policy bsb_streams_owner_read on "better_supabase"."streams"
 
 create table "better_supabase"."stream_chunks" (
   "stream_id" text not null references "better_supabase"."streams" ("id") on delete cascade,
-  "idx" integer not null check ("idx" >= 0),
+  "idx" integer not null constraint bsb_stream_chunks_idx_check check ("idx" >= 0),
   "data" bytea not null,
   primary key ("stream_id", "idx")
 );
@@ -1264,7 +1264,7 @@ create policy bsb_stream_chunks_owner_read on "better_supabase"."stream_chunks"
 -- not an integer makes stream_kv_incr fail with Redis's own error text, which
 -- is how the package learns a stream is DONE. The service role only.
 create table "better_supabase"."stream_kv" (
-  "key" text primary key check (length("key") >= 1 and length("key") <= 400),
+  "key" text primary key constraint bsb_stream_kv_key_check check (length("key") >= 1 and length("key") <= 400),
   "value" text not null,
   "expires_at" timestamptz
 );
@@ -1720,7 +1720,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:73b4ecf459ee5e623005ac4cb8e704694be178d073362ea62013bd9d72db1b71
+-- @bsb-hash sha256:370f7447ca1277591ccca4cb08bfb982cd2374d216013f61a8723ce5d5e43a95
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1729,10 +1729,10 @@ on conflict (name) do update
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
 -- better_supabase.streams is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."streams" add column if not exists "id" text check (length("id") >= 1 and length("id") <= 200);
+alter table "better_supabase"."streams" add column if not exists "id" text constraint bsb_streams_id_check check (length("id") >= 1 and length("id") <= 200);
 alter table "better_supabase"."streams" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."streams" add column if not exists "owner_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."streams" add column if not exists "kind" text not null default 'default' check (length("kind") >= 1 and length("kind") <= 100);
+alter table "better_supabase"."streams" add column if not exists "kind" text not null default 'default' constraint bsb_streams_kind_check check (length("kind") >= 1 and length("kind") <= 100);
 alter table "better_supabase"."streams" add column if not exists "wake" boolean not null default true;
 alter table "better_supabase"."streams" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."streams" add column if not exists "closed_at" timestamptz;
@@ -1751,7 +1751,7 @@ create policy bsb_streams_select on "better_supabase"."streams"
 
 -- better_supabase.stream_chunks is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."stream_chunks" add column if not exists "stream_id" text references "better_supabase"."streams" ("id") on delete cascade;
-alter table "better_supabase"."stream_chunks" add column if not exists "idx" integer check ("idx" >= 0);
+alter table "better_supabase"."stream_chunks" add column if not exists "idx" integer constraint bsb_stream_chunks_idx_check check ("idx" >= 0);
 alter table "better_supabase"."stream_chunks" add column if not exists "data" bytea;
 create unique index if not exists "bsb_stream_chunks_idx_key" on "better_supabase"."stream_chunks" ("stream_id", "idx");
 alter table "better_supabase"."stream_chunks" enable row level security;
@@ -1769,7 +1769,7 @@ create policy bsb_stream_chunks_select on "better_supabase"."stream_chunks"
 -- not an integer makes stream_kv_incr fail with Redis's own error text, which
 -- is how the package learns a stream is DONE. The service role only.
 -- better_supabase.stream_kv is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."stream_kv" add column if not exists "key" text check (length("key") >= 1 and length("key") <= 400);
+alter table "better_supabase"."stream_kv" add column if not exists "key" text constraint bsb_stream_kv_key_check check (length("key") >= 1 and length("key") <= 400);
 alter table "better_supabase"."stream_kv" add column if not exists "value" text;
 alter table "better_supabase"."stream_kv" add column if not exists "expires_at" timestamptz;
 create index if not exists stream_kv_expires_idx on "better_supabase"."stream_kv" ("expires_at") where "expires_at" is not null;
@@ -2118,7 +2118,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:88d9147a5c150fd5cc2182b04998c41c257b958a1b6578178b45867609c5fc49
+-- @bsb-hash sha256:dd4aa9fc95ebd559e960462cf0eb1a4daaba2a45a2e7d4acbab4df57ceafe6ad
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2127,10 +2127,10 @@ on conflict (name) do update
 -- resumes from a chunk index. The service role writes; the owner reads
 -- through RLS.
 create table "better_supabase"."streams" (
-  "id" text primary key check (length("id") >= 1 and length("id") <= 200),
+  "id" text primary key constraint bsb_streams_id_check check (length("id") >= 1 and length("id") <= 200),
   "org_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
-  "kind" text not null default 'default' check (length("kind") >= 1 and length("kind") <= 100),
+  "kind" text not null default 'default' constraint bsb_streams_kind_check check (length("kind") >= 1 and length("kind") <= 100),
   "wake" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "closed_at" timestamptz,
@@ -2150,7 +2150,7 @@ create policy bsb_streams_owner_read on "better_supabase"."streams"
 
 create table "better_supabase"."stream_chunks" (
   "stream_id" text not null references "better_supabase"."streams" ("id") on delete cascade,
-  "idx" integer not null check ("idx" >= 0),
+  "idx" integer not null constraint bsb_stream_chunks_idx_check check ("idx" >= 0),
   "data" bytea not null,
   primary key ("stream_id", "idx")
 );
@@ -2170,7 +2170,7 @@ create policy bsb_stream_chunks_owner_read on "better_supabase"."stream_chunks"
 -- not an integer makes stream_kv_incr fail with Redis's own error text, which
 -- is how the package learns a stream is DONE. The service role only.
 create table "better_supabase"."stream_kv" (
-  "key" text primary key check (length("key") >= 1 and length("key") <= 400),
+  "key" text primary key constraint bsb_stream_kv_key_check check (length("key") >= 1 and length("key") <= 400),
   "value" text not null,
   "expires_at" timestamptz
 );

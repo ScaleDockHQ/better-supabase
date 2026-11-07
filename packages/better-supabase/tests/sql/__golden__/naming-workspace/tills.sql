@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_168_tills.sql
 -- better-supabase module: tills
 -- @bsb-block tills@1 managed
--- @bsb-hash sha256:c7078b7fc95dc9cc0f20ae01e5a3b5f22b52f42efe629fdd8a3a7d7e647dcf4b
+-- @bsb-hash sha256:1a2ad379fa7c64457e09206437a223e0b3776edeb5199f292254b24c22b6b7be
 -- Till sessions with an opening float, cash in and out, end-of-day counts that book their difference in accounting, and cash deposits that reconcile to bank transactions.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,10 +15,10 @@
 create table "better_supabase"."tills" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 100),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "name" text not null constraint bsb_tills_name_check check (length("name") >= 1 and length("name") <= 100),
+  "currency" text not null constraint bsb_tills_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "account_id" uuid,
-  "location" text check ("location" is null or length("location") <= 200),
+  "location" text constraint bsb_tills_location_check check ("location" is null or length("location") <= 200),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -38,13 +38,13 @@ create table "better_supabase"."till_sessions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "till_id" uuid not null references "better_supabase"."tills" ("id") on delete cascade,
-  "status" text not null default 'open' check ("status" in ('open', 'closed')),
-  "opening_float" bigint not null default 0 check ("opening_float" >= 0),
+  "status" text not null default 'open' constraint bsb_till_sessions_status_check check ("status" in ('open', 'closed')),
+  "opening_float" bigint not null default 0 constraint bsb_till_sessions_opening_float_check check ("opening_float" >= 0),
   "opened_by" uuid,
   "opened_at" timestamptz not null default now(),
   "closed_by" uuid,
   "closed_at" timestamptz,
-  "notes" text check ("notes" is null or length("notes") <= 2000)
+  "notes" text constraint bsb_till_sessions_notes_check check ("notes" is null or length("notes") <= 2000)
 );
 create index "till_sessions_opened_idx" on "better_supabase"."till_sessions" ("till_id", "opened_at" desc);
 create unique index "till_sessions_open_key" on "better_supabase"."till_sessions" ("till_id") where "status" = 'open';
@@ -63,10 +63,10 @@ create table "better_supabase"."till_movements" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "session_id" uuid not null references "better_supabase"."till_sessions" ("id") on delete cascade,
-  "kind" text not null check ("kind" in ('cash_sale', 'cash_refund', 'cash_in', 'cash_out')),
-  "amount" bigint not null check ("amount" > 0),
-  "reason" text check ("reason" is null or length("reason") <= 500),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "kind" text not null constraint bsb_till_movements_kind_check check ("kind" in ('cash_sale', 'cash_refund', 'cash_in', 'cash_out')),
+  "amount" bigint not null constraint bsb_till_movements_amount_check check ("amount" > 0),
+  "reason" text constraint bsb_till_movements_reason_check check ("reason" is null or length("reason") <= 500),
+  "reference" text constraint bsb_till_movements_reference_check check ("reference" is null or length("reference") <= 200),
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
@@ -88,12 +88,12 @@ create table "better_supabase"."till_counts" (
   "session_id" uuid not null references "better_supabase"."till_sessions" ("id") on delete cascade,
   "denominations" jsonb,
   "expected_amount" bigint not null,
-  "counted_amount" bigint not null check ("counted_amount" >= 0),
+  "counted_amount" bigint not null constraint bsb_till_counts_counted_amount_check check ("counted_amount" >= 0),
   "variance_amount" bigint not null,
   "counted_by" uuid,
   "counted_at" timestamptz not null default now(),
   "entry_id" uuid,
-  "notes" text check ("notes" is null or length("notes") <= 2000),
+  "notes" text constraint bsb_till_counts_notes_check check ("notes" is null or length("notes") <= 2000),
   unique ("session_id")
 );
 alter table "better_supabase"."till_counts" enable row level security;
@@ -110,10 +110,10 @@ create table "better_supabase"."till_deposits" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "session_id" uuid not null references "better_supabase"."till_sessions" ("id") on delete cascade,
-  "amount" bigint not null check ("amount" > 0),
+  "amount" bigint not null constraint bsb_till_deposits_amount_check check ("amount" > 0),
   "deposited_on" date not null,
-  "reference" text check ("reference" is null or length("reference") <= 200),
-  "status" text not null default 'pending' check ("status" in ('pending', 'reconciled')),
+  "reference" text constraint bsb_till_deposits_reference_check check ("reference" is null or length("reference") <= 200),
+  "status" text not null default 'pending' constraint bsb_till_deposits_status_check check ("status" in ('pending', 'reconciled')),
   "entry_id" uuid,
   "bank_transaction_id" uuid,
   "reconciled_at" timestamptz,

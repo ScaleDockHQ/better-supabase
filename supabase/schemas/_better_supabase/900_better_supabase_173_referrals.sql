@@ -1,6 +1,6 @@
 -- better-supabase module: referrals
 -- @bsb-block referrals@1 managed
--- @bsb-hash sha256:ba5edcf997939af8fcf38a6e1c395f2d1de6c843a8e882c7cbef0db6e4a9e4ad
+-- @bsb-hash sha256:d13dcdd0a52e34261c4b771fb1f64a894a68e1a1099f08b417e1c2afc8c470c1
 -- Referral codes per member, attribution when the referred user or organization signs up, and a reward posted once to the ledger when the referral qualifies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,20 +11,20 @@
 create table "better_supabase"."referral_codes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Z0-9]{4,32}$'),
+  "code" text not null constraint bsb_referral_codes_code_check check ("code" ~ '^[A-Z0-9]{4,32}$'),
   "referrer_id" uuid not null,
   -- The invitation the code was made for, so accepting it attributes the referral.
   "invitation_id" uuid,
-  "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
-  "reward_unit" text check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
-  "max_uses" integer check ("max_uses" is null or "max_uses" > 0),
+  "reward_amount" bigint not null default 0 constraint bsb_referral_codes_reward_amount_check check ("reward_amount" >= 0),
+  "reward_unit" text constraint bsb_referral_codes_reward_unit_check check ("reward_unit" is null or length("reward_unit") >= 1 and length("reward_unit") <= 32),
+  "max_uses" integer constraint bsb_referral_codes_max_uses_check check ("max_uses" is null or "max_uses" > 0),
   "uses" integer not null default 0,
   "active" boolean not null default true,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
   unique ("tenant_id", "id"),
-  check ("reward_amount" = 0 or "reward_unit" is not null)
+  constraint bsb_referral_codes_check check ("reward_amount" = 0 or "reward_unit" is not null)
 );
 create index referral_codes_referrer_idx on "better_supabase"."referral_codes" ("tenant_id", "referrer_id");
 create unique index referral_codes_invitation_key on "better_supabase"."referral_codes" ("tenant_id", "invitation_id") where "invitation_id" is not null;
@@ -43,10 +43,10 @@ create table "better_supabase"."referrals" (
   "referrer_id" uuid not null,
   "referred_user_id" uuid,
   "referred_organization_id" uuid,
-  "referred_email" text check ("referred_email" is null or length("referred_email") <= 320),
-  "status" text not null default 'attributed' check ("status" in ('attributed', 'qualified', 'rewarded', 'void')),
+  "referred_email" text constraint bsb_referrals_referred_email_check check ("referred_email" is null or length("referred_email") <= 320),
+  "status" text not null default 'attributed' constraint bsb_referrals_status_check check ("status" in ('attributed', 'qualified', 'rewarded', 'void')),
   -- The reward as the code promised it when the referral was attributed.
-  "reward_amount" bigint not null default 0 check ("reward_amount" >= 0),
+  "reward_amount" bigint not null default 0 constraint bsb_referrals_reward_amount_check check ("reward_amount" >= 0),
   "reward_unit" text,
   "qualified_at" timestamptz,
   "qualified_by" text,
@@ -54,7 +54,7 @@ create table "better_supabase"."referrals" (
   "ledger_transaction_id" uuid,
   "voided_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
+  constraint bsb_referrals_check check ("referred_user_id" is not null or "referred_organization_id" is not null or "referred_email" is not null),
   foreign key ("tenant_id", "code_id") references "better_supabase"."referral_codes" ("tenant_id", "id") on delete cascade
 );
 create unique index referrals_user_key on "better_supabase"."referrals" ("tenant_id", "referred_user_id") where "referred_user_id" is not null;

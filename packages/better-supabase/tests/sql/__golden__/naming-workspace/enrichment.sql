@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_135_enrichment.sql
 -- better-supabase module: enrichment
 -- @bsb-block enrichment@1 managed
--- @bsb-hash sha256:24c68bd2a171105e372b74bb9d4a866c88c697a9501b2d19320f98e4cb9bba7b
+-- @bsb-hash sha256:a9eacd3e6eb25172c2973b0d96c32430e2c6c0846fdb803487add3c9bbb5187c
 -- Company and person data from an enrichment provider, such as a company's industry and size or a person's title: one result per provider, the empty columns a match fills, and a list of the records due for a cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,13 +13,13 @@ create table "better_supabase"."enrichments" (
   "tenant_id" uuid not null,
   "company_id" uuid references "better_supabase"."companies" ("id") on delete cascade,
   "person_id" uuid references "better_supabase"."people" ("id") on delete cascade,
-  "provider" text not null check ("provider" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "status" text not null check ("status" in ('matched', 'not_found')),
-  "data" jsonb not null default '{}'::jsonb check (jsonb_typeof("data") = 'object'),
+  "provider" text not null constraint bsb_enrichments_provider_check check ("provider" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "status" text not null constraint bsb_enrichments_status_check check ("status" in ('matched', 'not_found')),
+  "data" jsonb not null default '{}'::jsonb constraint bsb_enrichments_data_check check (jsonb_typeof("data") = 'object'),
   "filled" text[] not null default '{}',
   "fetched_at" timestamptz not null default now(),
   "requested_by" uuid references auth.users (id) on delete set null,
-  check (num_nonnulls("company_id", "person_id") = 1),
+  constraint bsb_enrichments_check check (num_nonnulls("company_id", "person_id") = 1),
   constraint enrichments_company_provider_key unique ("company_id", "provider"),
   constraint enrichments_person_provider_key unique ("person_id", "provider")
 );

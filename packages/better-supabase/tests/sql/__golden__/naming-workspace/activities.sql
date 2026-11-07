@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_094_activities.sql
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:22ba7e67fb4a654760565c87a1880f4179492f19ff3e6a7817ff8c11ce806368
+-- @bsb-hash sha256:b4038b9222b1b969966089c13d24ba5b26cb91e8a855fc426ab594852b36223a
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,13 +11,13 @@ create table "better_supabase"."activities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "type" text not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
+  "title" text not null constraint bsb_activities_title_check check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "outcome" text,
   "owner_user_id" uuid,
   "due_at" timestamptz,
   "done_at" timestamptz,
-  "duration_seconds" integer check ("duration_seconds" >= 0),
+  "duration_seconds" integer constraint bsb_activities_duration_seconds_check check ("duration_seconds" >= 0),
   "external_ref" text,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -28,15 +28,15 @@ create index "activities_tenant_created_idx" on "better_supabase"."activities" (
 create unique index "activities_external_ref_idx" on "better_supabase"."activities" ("tenant_id", "external_ref") where "external_ref" is not null;
 -- Progress notes: who reads an engagement, when it locks, its addenda and the
 -- in-error flag.
-alter table "better_supabase"."activities" add column "audience" text not null default 'team' check ("audience" in ('team', 'subject', 'restricted'));
+alter table "better_supabase"."activities" add column "audience" text not null default 'team' constraint bsb_activities_audience_check check ("audience" in ('team', 'subject', 'restricted'));
 alter table "better_supabase"."activities" add column "restricted_roles" text[];
-alter table "better_supabase"."activities" add column "category" text check (length("category") >= 1 and length("category") <= 63);
+alter table "better_supabase"."activities" add column "category" text constraint bsb_activities_category_check check (length("category") >= 1 and length("category") <= 63);
 alter table "better_supabase"."activities" add column "locked_at" timestamptz;
 alter table "better_supabase"."activities" add column "amends_id" uuid references "better_supabase"."activities" ("id") on delete cascade;
 alter table "better_supabase"."activities" add column "goal_id" uuid;
 alter table "better_supabase"."activities" add column "marked_error_at" timestamptz;
 alter table "better_supabase"."activities" add column "marked_error_by" uuid;
-alter table "better_supabase"."activities" add column "marked_error_reason" text check (length("marked_error_reason") >= 1 and length("marked_error_reason") <= 2000);
+alter table "better_supabase"."activities" add column "marked_error_reason" text constraint bsb_activities_marked_error_reason_check check (length("marked_error_reason") >= 1 and length("marked_error_reason") <= 2000);
 create index "activities_amends_idx" on "better_supabase"."activities" ("amends_id");
 alter table "better_supabase"."activities" enable row level security;
 revoke all on "better_supabase"."activities" from public, anon, authenticated;

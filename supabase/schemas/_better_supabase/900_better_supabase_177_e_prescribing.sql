@@ -1,6 +1,6 @@
 -- better-supabase module: e-prescribing
 -- @bsb-block e-prescribing@1 managed
--- @bsb-hash sha256:b790adeddc70c4810c7c7f71495c4c16e5a57170ff4457d5fff45cc5f03b5537
+-- @bsb-hash sha256:e7d7b27f4e4df081bcd75287740e0be1305c58b18aed7b9a14c04bb5ed875d4c
 -- Prescriptions over medication orders with the states draft, signed, sent, dispensed and cancelled, a signature only the prescriber can give, and delivery through a PrescriptionGateway port that carries a FHIR R4 MedicationRequest.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -21,25 +21,25 @@ create table "better_supabase"."prescriptions" (
   "subject_type" text not null,
   "subject_id" text not null,
   "prescriber_id" uuid not null,
-  "prescriber_name" text check ("prescriber_name" is null or length("prescriber_name") <= 300),
-  "status" text not null default 'draft' check ("status" in ('draft', 'signed', 'sent', 'dispensed', 'cancelled')),
+  "prescriber_name" text constraint bsb_prescriptions_prescriber_name_check check ("prescriber_name" is null or length("prescriber_name") <= 300),
+  "status" text not null default 'draft' constraint bsb_prescriptions_status_check check ("status" in ('draft', 'signed', 'sent', 'dispensed', 'cancelled')),
   "snapshot" jsonb,
   "signed_by" uuid,
   "signed_at" timestamptz,
-  "gateway" text check ("gateway" is null or length("gateway") >= 1 and length("gateway") <= 100),
-  "gateway_reference" text check ("gateway_reference" is null or length("gateway_reference") <= 200),
+  "gateway" text constraint bsb_prescriptions_gateway_check check ("gateway" is null or length("gateway") >= 1 and length("gateway") <= 100),
+  "gateway_reference" text constraint bsb_prescriptions_gateway_reference_check check ("gateway_reference" is null or length("gateway_reference") <= 200),
   "sent_at" timestamptz,
-  "delivery_error" text check ("delivery_error" is null or length("delivery_error") <= 1000),
+  "delivery_error" text constraint bsb_prescriptions_delivery_error_check check ("delivery_error" is null or length("delivery_error") <= 1000),
   "dispensed_at" timestamptz,
   "cancelled_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") <= 1000),
+  "cancel_reason" text constraint bsb_prescriptions_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") <= 1000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("status" in ('draft', 'cancelled') or ("signed_by" is not null and "signed_at" is not null and "snapshot" is not null)),
-  check ("signed_by" is null or "signed_by" = "prescriber_id"),
-  check ("status" not in ('sent', 'dispensed') or ("sent_at" is not null and "gateway" is not null)),
-  check ("status" <> 'dispensed' or "dispensed_at" is not null),
-  check ("status" <> 'cancelled' or "cancelled_at" is not null),
+  constraint bsb_prescriptions_check check ("status" in ('draft', 'cancelled') or ("signed_by" is not null and "signed_at" is not null and "snapshot" is not null)),
+  constraint bsb_prescriptions_check1 check ("signed_by" is null or "signed_by" = "prescriber_id"),
+  constraint bsb_prescriptions_check2 check ("status" not in ('sent', 'dispensed') or ("sent_at" is not null and "gateway" is not null)),
+  constraint bsb_prescriptions_check3 check ("status" <> 'dispensed' or "dispensed_at" is not null),
+  constraint bsb_prescriptions_check4 check ("status" <> 'cancelled' or "cancelled_at" is not null),
   foreign key ("tenant_id", "order_id") references "better_supabase"."medication_orders" ("tenant_id", "id")
 );
 create unique index "prescriptions_live_order_key" on "better_supabase"."prescriptions" ("tenant_id", "order_id") where "status" <> 'cancelled';

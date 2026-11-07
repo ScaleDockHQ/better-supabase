@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:6c66d8d1e6a3e2ce26b10b26dd168e307bf4fb926638ee2f167df12b7ba6fc81
+-- @bsb-hash sha256:c192b473d59ef0f5fc4ebc356fd9f032a81fdbc9da7ceff0853406eb85c862c5
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16,16 +16,16 @@ create table "better_supabase"."time_rates" (
   "subject_type" text,
   "subject_id" text,
   -- Minor units of currency per hour (ADR 0037).
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_time_rates_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_time_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "effective_from" date not null default current_date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_time_rates_check check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
 -- What an hour costs the organization, in the rate's currency (project costing).
-alter table "better_supabase"."time_rates" add column "cost_amount" bigint check ("cost_amount" >= 0);
+alter table "better_supabase"."time_rates" add column "cost_amount" bigint constraint bsb_time_rates_cost_amount_check check ("cost_amount" >= 0);
 create index "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
@@ -782,7 +782,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:824e1f94f4ae9d9ca3ee28cbabb1d90141064a3a7f0b933b28395bca5bb3bef6
+-- @bsb-hash sha256:310f5fff308847f592d2be5a173b6a41938a7e90777ed5dec075d62265a1b0f3
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -797,16 +797,16 @@ create table "better_supabase"."time_rates" (
   "subject_type" text,
   "subject_id" text,
   -- Minor units of currency per hour (ADR 0037).
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_time_rates_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_time_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "effective_from" date not null default current_date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_time_rates_check check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
 -- What an hour costs the organization, in the rate's currency (project costing).
-alter table "better_supabase"."time_rates" add column "cost_amount" bigint check ("cost_amount" >= 0);
+alter table "better_supabase"."time_rates" add column "cost_amount" bigint constraint bsb_time_rates_cost_amount_check check ("cost_amount" >= 0);
 create index "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
@@ -1677,7 +1677,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:94c55a345b3d7caa29d54f0e31fb85879c664847cc674df999d1e864b7cc1efe
+-- @bsb-hash sha256:6164be648e0e25812f363cba9f13a39f419d1c6fac11890d63fca24cf8567b01
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1697,16 +1697,16 @@ create table "app_private"."time_rates" (
   "subject_type" text,
   "subject_id" text,
   -- Minor units of currency per hour (ADR 0037).
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_time_rates_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_time_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "effective_from" date not null default current_date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_time_rates_check check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
 -- What an hour costs the organization, in the rate's currency (project costing).
-alter table "app_private"."time_rates" add column "cost_amount" bigint check ("cost_amount" >= 0);
+alter table "app_private"."time_rates" add column "cost_amount" bigint constraint bsb_time_rates_cost_amount_check check ("cost_amount" >= 0);
 create index "time_rates_lookup_idx" on "app_private"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "app_private"."time_rates" enable row level security;
 revoke all on "app_private"."time_rates" from public, anon, authenticated;
@@ -2463,7 +2463,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:e5ef50a22accfcc579544fad6a12099be5851b1c31feeb32c80787420cc26465
+-- @bsb-hash sha256:292b91466edc61d529d6fae2a2ffc4cdfa88bdce29c4051301e6f50b804bfea7
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2478,16 +2478,16 @@ create table "better_supabase"."time_rates" (
   "subject_type" text,
   "subject_id" text,
   -- Minor units of currency per hour (ADR 0037).
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_time_rates_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_time_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "effective_from" date not null default current_date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_time_rates_check check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
 -- What an hour costs the organization, in the rate's currency (project costing).
-alter table "better_supabase"."time_rates" add column "cost_amount" bigint check ("cost_amount" >= 0);
+alter table "better_supabase"."time_rates" add column "cost_amount" bigint constraint bsb_time_rates_cost_amount_check check ("cost_amount" >= 0);
 create index "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 revoke all on "better_supabase"."time_rates" from public, anon, authenticated;
@@ -3344,7 +3344,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:896010a9a11a811be68aa82066cf622aad4f5974de294909dd2567cc8954bfdd
+-- @bsb-hash sha256:7d82f7d1c231370dfa68b96eabb3113407d6d1dbb276195ab47d6e0f261ee1dc
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3358,14 +3358,14 @@ alter table "better_supabase"."time_rates" add column if not exists "tenant_id" 
 alter table "better_supabase"."time_rates" add column if not exists "user_id" uuid;
 alter table "better_supabase"."time_rates" add column if not exists "subject_type" text;
 alter table "better_supabase"."time_rates" add column if not exists "subject_id" text;
-alter table "better_supabase"."time_rates" add column if not exists "rate" bigint check ("rate" >= 0);
-alter table "better_supabase"."time_rates" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."time_rates" add column if not exists "rate" bigint constraint bsb_time_rates_rate_check check ("rate" >= 0);
+alter table "better_supabase"."time_rates" add column if not exists "currency" char(3) constraint bsb_time_rates_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."time_rates" add column if not exists "effective_from" date not null default current_date;
 alter table "better_supabase"."time_rates" add column if not exists "created_by" uuid;
 alter table "better_supabase"."time_rates" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_time_rates_rate_key" on "better_supabase"."time_rates" ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from") nulls not distinct;
 -- What an hour costs the organization, in the rate's currency (project costing).
-alter table "better_supabase"."time_rates" add column if not exists "cost_amount" bigint check ("cost_amount" >= 0);
+alter table "better_supabase"."time_rates" add column if not exists "cost_amount" bigint constraint bsb_time_rates_cost_amount_check check ("cost_amount" >= 0);
 create index if not exists "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 grant select on "better_supabase"."time_rates" to authenticated;
@@ -4119,7 +4119,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:76dca154b51da1299fc408020da385656e99c213ef8fd26e1900deced7e2fb7b
+-- @bsb-hash sha256:72e3baaa7bdf3f86717aaa7d4053a0985a01323a4ed3cb41400ee6ca5a06306e
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4134,16 +4134,16 @@ create table "better_supabase"."time_rates" (
   "subject_type" text,
   "subject_id" text,
   -- Minor units of currency per hour (ADR 0037).
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_time_rates_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_time_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "effective_from" date not null default current_date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_time_rates_check check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("org_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
 -- What an hour costs the organization, in the rate's currency (project costing).
-alter table "better_supabase"."time_rates" add column "cost_amount" bigint check ("cost_amount" >= 0);
+alter table "better_supabase"."time_rates" add column "cost_amount" bigint constraint bsb_time_rates_cost_amount_check check ("cost_amount" >= 0);
 create index "time_rates_lookup_idx" on "better_supabase"."time_rates" ("org_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 revoke all on "better_supabase"."time_rates" from public, anon, authenticated;

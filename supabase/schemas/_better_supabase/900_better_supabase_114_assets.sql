@@ -1,6 +1,6 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:c60aef05069dce5592548ebb8f4c268cc9879600cf0e601aee8685d6f7c99ec8
+-- @bsb-hash sha256:2b9d545bc9fe28c6f6eba4fc162eb7721ccb5e3864042256bc128e2a7a0cfad1
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,21 +11,21 @@ create table "better_supabase"."asset_locations" (
   "tenant_id" uuid not null,
   "parent_id" uuid references "better_supabase"."asset_locations" ("id") on delete restrict,
   -- site, building, floor, unit, room, or the app's own kind.
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 100),
-  "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "latitude" double precision check ("latitude" >= -90 and "latitude" <= 90),
-  "longitude" double precision check ("longitude" >= -180 and "longitude" <= 180),
+  "kind" text not null constraint bsb_asset_locations_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_asset_locations_name_check check (length("name") >= 1 and length("name") <= 200),
+  "code" text constraint bsb_asset_locations_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "address" jsonb not null default '{}'::jsonb constraint bsb_asset_locations_address_check check (jsonb_typeof("address") = 'object'),
+  "latitude" double precision constraint bsb_asset_locations_latitude_check check ("latitude" >= -90 and "latitude" <= 90),
+  "longitude" double precision constraint bsb_asset_locations_longitude_check check ("longitude" >= -180 and "longitude" <= 180),
   point extensions.geography(Point, 4326) generated always as (case when "latitude" is null then null else extensions.st_setsrid(extensions.st_makepoint("longitude", "latitude"), 4326)::extensions.geography end) stored,
   -- A site's or unit's outline, from GeoJSON.
   area extensions.geography(MultiPolygon, 4326),
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_asset_locations_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
-  check (("latitude" is null) = ("longitude" is null))
+  constraint bsb_asset_locations_check check (("latitude" is null) = ("longitude" is null))
 );
 create index "asset_locations_parent_idx" on "better_supabase"."asset_locations" ("parent_id", "tenant_id");
 create index "asset_locations_coordinates_idx" on "better_supabase"."asset_locations" ("tenant_id", "latitude", "longitude") where "latitude" is not null;
@@ -36,27 +36,27 @@ create table "better_supabase"."assets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "location_id" uuid references "better_supabase"."asset_locations" ("id") on delete set null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "kind" text not null constraint bsb_assets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_assets_name_check check (length("name") >= 1 and length("name") <= 200),
   -- The asset tag, unique per organization.
-  "tag" text check ("tag" is null or length("tag") >= 1 and length("tag") <= 100),
-  "serial_number" text check ("serial_number" is null or length("serial_number") <= 200),
-  "status" text not null default 'active' check ("status" in ('active', 'maintenance', 'retired')),
+  "tag" text constraint bsb_assets_tag_check check ("tag" is null or length("tag") >= 1 and length("tag") <= 100),
+  "serial_number" text constraint bsb_assets_serial_number_check check ("serial_number" is null or length("serial_number") <= 200),
+  "status" text not null default 'active' constraint bsb_assets_status_check check ("status" in ('active', 'maintenance', 'retired')),
   -- member (a user id) or a subject type such as party, with its id.
-  "assignee_type" text check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "assignee_type" text constraint bsb_assets_assignee_type_check check ("assignee_type" is null or "assignee_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "assignee_id" text,
   -- Where a moving asset (a vehicle) was last seen.
-  "latitude" double precision check ("latitude" >= -90 and "latitude" <= 90),
-  "longitude" double precision check ("longitude" >= -180 and "longitude" <= 180),
+  "latitude" double precision constraint bsb_assets_latitude_check check ("latitude" >= -90 and "latitude" <= 90),
+  "longitude" double precision constraint bsb_assets_longitude_check check ("longitude" >= -180 and "longitude" <= 180),
   point extensions.geography(Point, 4326) generated always as (case when "latitude" is null then null else extensions.st_setsrid(extensions.st_makepoint("longitude", "latitude"), 4326)::extensions.geography end) stored,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_assets_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "retired_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "tag"),
-  check (("assignee_type" is null) = ("assignee_id" is null)),
-  check (("latitude" is null) = ("longitude" is null))
+  constraint bsb_assets_check check (("assignee_type" is null) = ("assignee_id" is null)),
+  constraint bsb_assets_check1 check (("latitude" is null) = ("longitude" is null))
 );
 create index "assets_location_idx" on "better_supabase"."assets" ("location_id", "tenant_id");
 create index "assets_assignee_idx" on "better_supabase"."assets" ("tenant_id", "assignee_type", "assignee_id") where "assignee_type" is not null;
@@ -70,7 +70,7 @@ create table "better_supabase"."asset_assignments" (
   "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
   "assignee_type" text not null,
   "assignee_id" text not null,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_asset_assignments_note_check check ("note" is null or length("note") <= 2000),
   "assigned_by" uuid,
   "assigned_at" timestamptz not null default now(),
   "released_at" timestamptz
@@ -136,24 +136,24 @@ create trigger "bsb_asset_locations_parent" before insert or update of "parent_i
   for each row execute function "better_supabase"."asset_location_check_parent"();
 
 -- What an asset cost and how it depreciates, in bigint minor units of currency.
-alter table "better_supabase"."assets" add column "acquisition_cost" bigint check ("acquisition_cost" >= 0);
-alter table "better_supabase"."assets" add column "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."assets" add column "acquisition_cost" bigint constraint bsb_assets_acquisition_cost_check check ("acquisition_cost" >= 0);
+alter table "better_supabase"."assets" add column "currency" text constraint bsb_assets_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."assets" add column "acquired_on" date;
-alter table "better_supabase"."assets" add column "useful_life_months" integer check ("useful_life_months" >= 1 and "useful_life_months" <= 1200);
-alter table "better_supabase"."assets" add column "residual_value" bigint not null default 0 check ("residual_value" >= 0);
-alter table "better_supabase"."assets" add column "depreciation_method" text not null default 'none' check ("depreciation_method" in ('none', 'straight_line', 'declining_balance'));
+alter table "better_supabase"."assets" add column "useful_life_months" integer constraint bsb_assets_useful_life_months_check check ("useful_life_months" >= 1 and "useful_life_months" <= 1200);
+alter table "better_supabase"."assets" add column "residual_value" bigint not null default 0 constraint bsb_assets_residual_value_check check ("residual_value" >= 0);
+alter table "better_supabase"."assets" add column "depreciation_method" text not null default 'none' constraint bsb_assets_depreciation_method_check check ("depreciation_method" in ('none', 'straight_line', 'declining_balance'));
 -- Declining balance: the yearly rate in basis points of the book value.
-alter table "better_supabase"."assets" add column "depreciation_rate_bps" integer check ("depreciation_rate_bps" >= 1 and "depreciation_rate_bps" <= 100000);
+alter table "better_supabase"."assets" add column "depreciation_rate_bps" integer constraint bsb_assets_depreciation_rate_bps_check check ("depreciation_rate_bps" >= 1 and "depreciation_rate_bps" <= 100000);
 alter table "better_supabase"."assets" add column "disposed_on" date;
-alter table "better_supabase"."assets" add column "disposal_amount" bigint check ("disposal_amount" >= 0);
+alter table "better_supabase"."assets" add column "disposal_amount" bigint constraint bsb_assets_disposal_amount_check check ("disposal_amount" >= 0);
 
 -- One month of an asset's depreciation; entry_id is its accounting entry.
 create table "better_supabase"."asset_depreciations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid not null references "better_supabase"."assets" ("id") on delete cascade,
-  "period_start" date not null check (extract(day from "period_start") = 1),
-  "amount" bigint not null check ("amount" > 0),
+  "period_start" date not null constraint bsb_asset_depreciations_period_start_check check (extract(day from "period_start") = 1),
+  "amount" bigint not null constraint bsb_asset_depreciations_amount_check check ("amount" > 0),
   "entry_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("asset_id", "period_start")

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:d56021171ae022d5bae2d84e9aa0e44572f0273843e97d9e07884815d2ff84c0
+-- @bsb-hash sha256:47de25d0916b0ad4d0a6aef1b77bf7600f85fd87ef7008a3ee620195101e3e18
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,7 +38,7 @@ grant all on "better_supabase"."reminders" to service_role;
 create index "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
 create index "reminders_tenant_idx" on "better_supabase"."reminders" ("tenant_id");
 -- A negative offset fires after the occurrence; a year either way bounds it.
-alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
+alter table "better_supabase"."reminders" add constraint bsb_reminders_offset_check
   check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
 create table "better_supabase"."reminder_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
@@ -260,7 +260,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:2366542dcfe259841fd57b18ff6b3bd8f66cd1dc34b337ba5d8cd2f311309c60
+-- @bsb-hash sha256:149b09c75fb1dcaaadb594c10fe9a8a70b3d1c44d1f287caaea834a43a312e4d
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -297,7 +297,7 @@ grant all on "better_supabase"."reminders" to service_role;
 create index "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
 create index "reminders_tenant_idx" on "better_supabase"."reminders" ("tenant_id");
 -- A negative offset fires after the occurrence; a year either way bounds it.
-alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
+alter table "better_supabase"."reminders" add constraint bsb_reminders_offset_check
   check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
 create table "better_supabase"."reminder_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
@@ -522,7 +522,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:1993df9f520eca235d59c0441cfd8ac946b7ca2fbf61ee89ab91e1422fb0872d
+-- @bsb-hash sha256:eea7f62f656161ebdf48dc08ee1a530e731972b47b299f2c388678b2c53811a5
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -564,7 +564,7 @@ grant all on "app_private"."reminders" to service_role;
 create index "reminders_subject_idx" on "app_private"."reminders" ("subject_type", "subject_id");
 create index "reminders_tenant_idx" on "app_private"."reminders" ("tenant_id");
 -- A negative offset fires after the occurrence; a year either way bounds it.
-alter table "app_private"."reminders" add constraint "reminders_offset_check"
+alter table "app_private"."reminders" add constraint bsb_reminders_offset_check
   check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
 create table "app_private"."reminder_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
@@ -786,7 +786,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:e713e572a7e3f5ea81262a7078e0ddcf93fed47f8f8fdb7e3b0893684d8aca03
+-- @bsb-hash sha256:9b5157129c81d0795b3b8a00a514de0a6f4a025fe5ac3ecede2519bf6fe71d75
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -823,7 +823,7 @@ grant all on "better_supabase"."reminders" to service_role;
 create index "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
 create index "reminders_tenant_idx" on "better_supabase"."reminders" ("tenant_id");
 -- A negative offset fires after the occurrence; a year either way bounds it.
-alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
+alter table "better_supabase"."reminders" add constraint bsb_reminders_offset_check
   check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
 create table "better_supabase"."reminder_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
@@ -1355,7 +1355,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_063_reminders.sql
 -- better-supabase module: reminders
 -- @bsb-block reminders@1 managed
--- @bsb-hash sha256:9e84dedc575b2938ec443d998025af0cf5df2d95b95dab264c169a6551011fba
+-- @bsb-hash sha256:64bc5ce32137aa73e4cf38d1de7fd086262237d5b673509ba4d73926b0a1ae3c
 -- Recurrence rules and reminders. Expansion follows RFC 5545 in TypeScript. Delivery is a job that records reminder.sent once per occurrence.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1392,7 +1392,7 @@ grant all on "better_supabase"."reminders" to service_role;
 create index "reminders_subject_idx" on "better_supabase"."reminders" ("subject_type", "subject_id");
 create index "reminders_tenant_idx" on "better_supabase"."reminders" ("org_id");
 -- A negative offset fires after the occurrence; a year either way bounds it.
-alter table "better_supabase"."reminders" add constraint "reminders_offset_check"
+alter table "better_supabase"."reminders" add constraint bsb_reminders_offset_check
   check ("offset_minutes" >= -525600 and "offset_minutes" <= 525600);
 create table "better_supabase"."reminder_deliveries" (
   "id" uuid primary key default gen_random_uuid(),

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_119_billable_time.sql
 -- better-supabase module: billable-time
 -- @bsb-block billable-time@1 managed
--- @bsb-hash sha256:16f7ef3e8ae2a2c70f0ef224e5e4a3a21397f74b714c1bbbd95412a8af5c7ba6
+-- @bsb-hash sha256:2177b65fd7f3be0beaadf7f482a3e71c26a3334405250215c6a8c8c18cc8efef
 -- A rate card for time entries, by member, record or organization with effective dates, and draft invoices from unbilled billable time with one line per record, member or entry, in bigint minor units. Billed entries lock until the invoice is voided.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16,16 +16,16 @@ create table "better_supabase"."time_rates" (
   "subject_type" text,
   "subject_id" text,
   -- Minor units of currency per hour (ADR 0037).
-  "rate" bigint not null check ("rate" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "rate" bigint not null constraint bsb_time_rates_rate_check check ("rate" >= 0),
+  "currency" char(3) not null constraint bsb_time_rates_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "effective_from" date not null default current_date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_time_rates_check check (("subject_type" is null) = ("subject_id" is null)),
   unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id", "effective_from")
 );
 -- What an hour costs the organization, in the rate's currency (project costing).
-alter table "better_supabase"."time_rates" add column "cost_amount" bigint check ("cost_amount" >= 0);
+alter table "better_supabase"."time_rates" add column "cost_amount" bigint constraint bsb_time_rates_cost_amount_check check ("cost_amount" >= 0);
 create index "time_rates_lookup_idx" on "better_supabase"."time_rates" ("tenant_id", "subject_type", "subject_id", "user_id", "effective_from" desc);
 alter table "better_supabase"."time_rates" enable row level security;
 revoke all on "better_supabase"."time_rates" from public, anon, authenticated;

@@ -1,6 +1,6 @@
 -- better-supabase module: trash
 -- @bsb-block trash@3 managed
--- @bsb-hash sha256:06dac169c8b447d70af073e57c57edf649ac910907d38c6f2f474715658050f6
+-- @bsb-hash sha256:b598ec65d0da51edd8e1f76fa09ba1593b4a9d71fbdab94f191863ee4859f649
 -- Soft delete through each subject's deletedAt column: trash with children in one batch, restore with unique checks, a list per organization, and purge after a retention period, skipped for subjects under a legal hold.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,7 +12,7 @@ create table "better_supabase"."trash_items" (
   "subject_id" text not null,
   "title" text,
   "batch_id" uuid not null,
-  "depth" integer not null default 0 check ("depth" >= 0),
+  "depth" integer not null default 0 constraint bsb_trash_items_depth_check check ("depth" >= 0),
   "trashed_by" uuid,
   "trashed_at" timestamptz not null default now(),
   "purge_after" timestamptz,

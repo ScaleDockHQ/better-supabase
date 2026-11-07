@@ -1,6 +1,6 @@
 -- better-supabase module: time-tracking
 -- @bsb-block time-tracking@3 managed
--- @bsb-hash sha256:0729ef0d877eebe43d466a16f989bab94beaeab1c4dc93e62cd968775f1e404f
+-- @bsb-hash sha256:e4b94e336ddcf7cfbfe1513726fbaf1e61c0ccca229934c1ba1eadc391c0a93b
 -- Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17,15 +17,15 @@ create table "better_supabase"."time_entries" (
   "ended_at" timestamptz,
   "billable" boolean not null default false,
   -- Minor units of rate_currency per hour (ADR 0037).
-  "rate" bigint check ("rate" is null or "rate" >= 0),
+  "rate" bigint constraint bsb_time_entries_rate_check check ("rate" is null or "rate" >= 0),
   "rate_currency" text,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_time_entries_note_check check ("note" is null or length("note") <= 2000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   -- What metrics sum: the length of a finished entry, null while it runs.
   "seconds" bigint generated always as (extract(epoch from "ended_at" - "started_at")::bigint) stored,
-  check ("ended_at" is null or "ended_at" > "started_at"),
-  check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_time_entries_check check ("ended_at" is null or "ended_at" > "started_at"),
+  constraint bsb_time_entries_check1 check (("subject_type" is null) = ("subject_id" is null)),
   -- A running entry reaches to infinity, so this also allows one running timer per user.
   constraint "time_entries_no_overlap_excl" exclude using gist (
     "tenant_id" with =,
@@ -33,9 +33,9 @@ create table "better_supabase"."time_entries" (
     tstzrange("started_at", coalesce("ended_at", 'infinity'::timestamptz)) with &&
   )
 );
-alter table "better_supabase"."time_entries" add constraint "time_entries_rate_currency_check"
+alter table "better_supabase"."time_entries" add constraint bsb_time_entries_rate_currency_check
   check ("rate_currency" is null or "rate_currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."time_entries" add constraint "time_entries_rate_needs_currency_check"
+alter table "better_supabase"."time_entries" add constraint bsb_time_entries_rate_needs_currency_check
   check ("rate" is null or "rate_currency" is not null);
 create unique index "time_entries_running_idx" on "better_supabase"."time_entries" ("tenant_id", "user_id") where "ended_at" is null;
 create index "time_entries_user_idx" on "better_supabase"."time_entries" ("tenant_id", "user_id", "started_at" desc);
@@ -52,9 +52,9 @@ create table "better_supabase"."timesheets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "week" date not null check (extract(isodow from "week") = 1),
+  "week" date not null constraint bsb_timesheets_week_check check (extract(isodow from "week") = 1),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_timesheets_note_check check ("note" is null or length("note") <= 2000),
   "submitted_at" timestamptz,
   "approved_at" timestamptz,
   "created_at" timestamptz not null default now(),

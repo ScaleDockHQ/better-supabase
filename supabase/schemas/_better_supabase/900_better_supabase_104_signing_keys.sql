@@ -1,6 +1,6 @@
 -- better-supabase module: signing-keys
 -- @bsb-block signing-keys@1 managed
--- @bsb-hash sha256:2291dcd475484e834028239992c4d7e8dae43cfc814ddeab3e4763b95cb1f18a
+-- @bsb-hash sha256:ddbd94d0d3d1cfabdf00481792d9283416aba9105308ce364e38cd0c2fba7f17
 -- Ed25519 or ES256 signing keys per owner: the private JWK in Supabase Vault, one active key per owner, rotation that keeps a retired kid in the JWKS until the latest exp a signer noted, and a purge. Only the service role calls it; createSigningKeys() in better-supabase/blocks/signing-keys generates keys and signs with WebCrypto.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,13 +10,13 @@
 -- key stays in the JWKS until publish_until, the latest exp a signer noted.
 create table "better_supabase"."signing_keys" (
   "id" uuid primary key default gen_random_uuid(),
-  "owner_type" text not null check ("owner_type" ~ '^[a-z][a-z0-9_-]{0,39}$'),
-  "owner_id" text not null check (length("owner_id") >= 1 and length("owner_id") <= 200),
-  "kid" text not null unique check (length("kid") >= 1 and length("kid") <= 200),
-  "alg" text not null check ("alg" in ('Ed25519', 'ES256')),
-  "public_jwk" jsonb not null check (not ("public_jwk" ? 'd')),
+  "owner_type" text not null constraint bsb_signing_keys_owner_type_check check ("owner_type" ~ '^[a-z][a-z0-9_-]{0,39}$'),
+  "owner_id" text not null constraint bsb_signing_keys_owner_id_check check (length("owner_id") >= 1 and length("owner_id") <= 200),
+  "kid" text not null unique constraint bsb_signing_keys_kid_check check (length("kid") >= 1 and length("kid") <= 200),
+  "alg" text not null constraint bsb_signing_keys_alg_check check ("alg" in ('Ed25519', 'ES256')),
+  "public_jwk" jsonb not null constraint bsb_signing_keys_public_jwk_check check (not ("public_jwk" ? 'd')),
   "vault_secret_id" uuid not null,
-  "state" text not null default 'active' check ("state" in ('active', 'retired')),
+  "state" text not null default 'active' constraint bsb_signing_keys_state_check check ("state" in ('active', 'retired')),
   "publish_until" timestamptz,
   "created_at" timestamptz not null default now(),
   "retired_at" timestamptz

@@ -1,6 +1,6 @@
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:af5ab97c9fe7e1e2ef15969875b4db81697834f43c7da3f16bf2903753de637a
+-- @bsb-hash sha256:d8d85cf960aad74ffac55e5254e892a9b5e3f7542c9e9169ea6f456ac2fcfef5
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,16 +13,16 @@
 create table "better_supabase"."channels" (
   "id" uuid primary key references "better_supabase"."conversations" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_-]{0,79}$'),
-  "visibility" text not null default 'public' check ("visibility" in ('public', 'private')),
-  "topic" text check ("topic" is null or length("topic") <= 250),
-  "purpose" text check ("purpose" is null or length("purpose") <= 250),
+  "name" text not null constraint bsb_channels_name_check check ("name" ~ '^[a-z0-9][a-z0-9_-]{0,79}$'),
+  "visibility" text not null default 'public' constraint bsb_channels_visibility_check check ("visibility" in ('public', 'private')),
+  "topic" text constraint bsb_channels_topic_check check ("topic" is null or length("topic") <= 250),
+  "purpose" text constraint bsb_channels_purpose_check check ("purpose" is null or length("purpose") <= 250),
   "subject_type" text,
   "subject_id" text,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null))
+  constraint bsb_channels_check check (("subject_type" is null) = ("subject_id" is null))
 );
 create unique index channels_name_idx on "better_supabase"."channels" ("tenant_id", "name");
 create index channels_subject_idx on "better_supabase"."channels" ("tenant_id", "subject_type", "subject_id") where "subject_type" is not null;

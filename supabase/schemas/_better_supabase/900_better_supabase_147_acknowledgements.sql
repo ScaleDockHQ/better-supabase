@@ -1,6 +1,6 @@
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:3bd71ef45341d6ed1a9d8d921b23727b06736ebe70809037ac903d0ee31fca75
+-- @bsb-hash sha256:f06a84aefd36db4bc8ec9c92c1a5bddce1ea585e3ad88ca5bd851dd41a12e410
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,9 +15,9 @@ create table "better_supabase"."acknowledgement_assignments" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "principal_type" text not null check ("principal_type" in ('user', 'team', 'role')),
-  "principal_id" text not null check (length("principal_id") >= 1 and length("principal_id") <= 200),
-  "due_in_days" integer check ("due_in_days" is null or ("due_in_days" >= 1 and "due_in_days" <= 365)),
+  "principal_type" text not null constraint bsb_acknowledgement_assignments_principal_type_check check ("principal_type" in ('user', 'team', 'role')),
+  "principal_id" text not null constraint bsb_acknowledgement_assignments_principal_id_check check (length("principal_id") >= 1 and length("principal_id") <= 200),
+  "due_in_days" integer constraint bsb_acknowledgement_assignments_due_in_days_check check ("due_in_days" is null or ("due_in_days" >= 1 and "due_in_days" <= 365)),
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
@@ -39,7 +39,7 @@ create table "better_supabase"."acknowledgements" (
   "subject_id" text not null,
   "version_id" uuid not null references "better_supabase"."versions" ("id") on delete restrict,
   "user_id" uuid not null,
-  "method" text not null default 'click' check ("method" in ('click', 'signature')),
+  "method" text not null default 'click' constraint bsb_acknowledgements_method_check check ("method" in ('click', 'signature')),
   "signature_id" uuid,
   "acknowledged_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "version_id", "user_id")

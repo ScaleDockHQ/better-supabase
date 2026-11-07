@@ -1,6 +1,6 @@
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:38ac3bc10d6a6f2dbaa7df6f5ee48b79c780a6fa898ed202a455bbac04cf8690
+-- @bsb-hash sha256:3e787b5daf84c533f62d2b73b621f41f8f751ef7996e88657f262b8a5617e552
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -23,7 +23,7 @@ create trigger bsb_updated_at before update on "better_supabase"."memberships"
 alter table "better_supabase"."memberships" add column "last_used_at" timestamptz;
 alter table "better_supabase"."memberships" add column "disabled_at" timestamptz;
 alter table "better_supabase"."memberships"
-  add constraint memberships_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
+  add constraint bsb_memberships_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
 alter table "better_supabase"."memberships" enable row level security;
 grant select on "better_supabase"."memberships" to authenticated;

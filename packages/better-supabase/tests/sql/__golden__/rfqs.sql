@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:3903aecbb1e6990220442378e0c8c55b7f74e365778ff628c3faac4a46ee1a41
+-- @bsb-hash sha256:127c8e5807b905a98f83b3605f24c797311fcc08745749719d6fd730fc5f18e5
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17,14 +17,14 @@ create table "better_supabase"."rfqs" (
   "tenant_id" uuid not null,
   "number" text not null,
   "sequence" bigint not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "title" text not null constraint bsb_rfqs_title_check check (length("title") >= 1 and length("title") <= 200),
+  "status" text not null default 'draft' constraint bsb_rfqs_status_check check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
+  "currency" text not null constraint bsb_rfqs_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "due_at" timestamptz,
-  "notes" text check ("notes" is null or length("notes") <= 4000),
+  "notes" text constraint bsb_rfqs_notes_check check ("notes" is null or length("notes") <= 4000),
   "awarded_quote_id" uuid,
   "purchase_order_id" uuid,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") <= 500),
+  "cancel_reason" text constraint bsb_rfqs_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") <= 500),
   "opened_at" timestamptz,
   "closed_at" timestamptz,
   "awarded_at" timestamptz,
@@ -48,11 +48,11 @@ create table "better_supabase"."rfq_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
-  "ordinal" integer not null check ("ordinal" > 0),
-  "description" text not null check (length("description") >= 1 and length("description") <= 500),
+  "ordinal" integer not null constraint bsb_rfq_lines_ordinal_check check ("ordinal" > 0),
+  "description" text not null constraint bsb_rfq_lines_description_check check (length("description") >= 1 and length("description") <= 500),
   "variant_id" uuid,
-  "quantity" numeric not null check ("quantity" > 0),
-  "unit" text check ("unit" is null or length("unit") <= 40),
+  "quantity" numeric not null constraint bsb_rfq_lines_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_rfq_lines_unit_check check ("unit" is null or length("unit") <= 40),
   unique ("rfq_id", "ordinal")
 );
 alter table "better_supabase"."rfq_lines" enable row level security;
@@ -69,9 +69,9 @@ create table "better_supabase"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
-  "supplier_type" text not null check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
-  "supplier_id" text not null check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
-  "status" text not null default 'invited' check ("status" in ('invited', 'declined', 'quoted')),
+  "supplier_type" text not null constraint bsb_rfq_suppliers_supplier_type_check check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
+  "supplier_id" text not null constraint bsb_rfq_suppliers_supplier_id_check check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
+  "status" text not null default 'invited' constraint bsb_rfq_suppliers_status_check check ("status" in ('invited', 'declined', 'quoted')),
   "invited_at" timestamptz not null default now(),
   "responded_at" timestamptz,
   unique ("rfq_id", "supplier_type", "supplier_id")
@@ -92,11 +92,11 @@ create table "better_supabase"."rfq_quotes" (
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
   "invitation_id" uuid not null references "better_supabase"."rfq_suppliers" ("id") on delete cascade,
-  "status" text not null default 'submitted' check ("status" in ('submitted', 'withdrawn', 'awarded', 'rejected')),
-  "total_amount" bigint not null check ("total_amount" >= 0),
-  "lead_time_days" integer check ("lead_time_days" is null or "lead_time_days" >= 0),
+  "status" text not null default 'submitted' constraint bsb_rfq_quotes_status_check check ("status" in ('submitted', 'withdrawn', 'awarded', 'rejected')),
+  "total_amount" bigint not null constraint bsb_rfq_quotes_total_amount_check check ("total_amount" >= 0),
+  "lead_time_days" integer constraint bsb_rfq_quotes_lead_time_days_check check ("lead_time_days" is null or "lead_time_days" >= 0),
   "valid_until" date,
-  "notes" text check ("notes" is null or length("notes") <= 4000),
+  "notes" text constraint bsb_rfq_quotes_notes_check check ("notes" is null or length("notes") <= 4000),
   "revision" integer not null default 1,
   "submitted_by" uuid,
   "submitted_at" timestamptz not null default now(),
@@ -119,8 +119,8 @@ create table "better_supabase"."rfq_quote_lines" (
   "tenant_id" uuid not null,
   "quote_id" uuid not null references "better_supabase"."rfq_quotes" ("id") on delete cascade,
   "line_id" uuid not null references "better_supabase"."rfq_lines" ("id") on delete cascade,
-  "unit_amount" bigint not null check ("unit_amount" >= 0),
-  "lead_time_days" integer check ("lead_time_days" is null or "lead_time_days" >= 0),
+  "unit_amount" bigint not null constraint bsb_rfq_quote_lines_unit_amount_check check ("unit_amount" >= 0),
+  "lead_time_days" integer constraint bsb_rfq_quote_lines_lead_time_days_check check ("lead_time_days" is null or "lead_time_days" >= 0),
   unique ("quote_id", "line_id")
 );
 create index "rfq_quote_lines_line_idx" on "better_supabase"."rfq_quote_lines" ("line_id");
@@ -927,7 +927,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:974693fe8ac3f48def1dd141d81110a15069a1ef0df0b5065b3693c885998501
+-- @bsb-hash sha256:1eda3b12a03203e06f669c1a54acdd42af63b7d8a102fd73de4e167c00b4d618
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -943,14 +943,14 @@ create table "better_supabase"."rfqs" (
   "tenant_id" uuid not null,
   "number" text not null,
   "sequence" bigint not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "title" text not null constraint bsb_rfqs_title_check check (length("title") >= 1 and length("title") <= 200),
+  "status" text not null default 'draft' constraint bsb_rfqs_status_check check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
+  "currency" text not null constraint bsb_rfqs_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "due_at" timestamptz,
-  "notes" text check ("notes" is null or length("notes") <= 4000),
+  "notes" text constraint bsb_rfqs_notes_check check ("notes" is null or length("notes") <= 4000),
   "awarded_quote_id" uuid,
   "purchase_order_id" uuid,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") <= 500),
+  "cancel_reason" text constraint bsb_rfqs_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") <= 500),
   "opened_at" timestamptz,
   "closed_at" timestamptz,
   "awarded_at" timestamptz,
@@ -974,11 +974,11 @@ create table "better_supabase"."rfq_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
-  "ordinal" integer not null check ("ordinal" > 0),
-  "description" text not null check (length("description") >= 1 and length("description") <= 500),
+  "ordinal" integer not null constraint bsb_rfq_lines_ordinal_check check ("ordinal" > 0),
+  "description" text not null constraint bsb_rfq_lines_description_check check (length("description") >= 1 and length("description") <= 500),
   "variant_id" uuid,
-  "quantity" numeric not null check ("quantity" > 0),
-  "unit" text check ("unit" is null or length("unit") <= 40),
+  "quantity" numeric not null constraint bsb_rfq_lines_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_rfq_lines_unit_check check ("unit" is null or length("unit") <= 40),
   unique ("rfq_id", "ordinal")
 );
 alter table "better_supabase"."rfq_lines" enable row level security;
@@ -995,9 +995,9 @@ create table "better_supabase"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
-  "supplier_type" text not null check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
-  "supplier_id" text not null check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
-  "status" text not null default 'invited' check ("status" in ('invited', 'declined', 'quoted')),
+  "supplier_type" text not null constraint bsb_rfq_suppliers_supplier_type_check check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
+  "supplier_id" text not null constraint bsb_rfq_suppliers_supplier_id_check check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
+  "status" text not null default 'invited' constraint bsb_rfq_suppliers_status_check check ("status" in ('invited', 'declined', 'quoted')),
   "invited_at" timestamptz not null default now(),
   "responded_at" timestamptz,
   unique ("rfq_id", "supplier_type", "supplier_id")
@@ -1018,11 +1018,11 @@ create table "better_supabase"."rfq_quotes" (
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
   "invitation_id" uuid not null references "better_supabase"."rfq_suppliers" ("id") on delete cascade,
-  "status" text not null default 'submitted' check ("status" in ('submitted', 'withdrawn', 'awarded', 'rejected')),
-  "total_amount" bigint not null check ("total_amount" >= 0),
-  "lead_time_days" integer check ("lead_time_days" is null or "lead_time_days" >= 0),
+  "status" text not null default 'submitted' constraint bsb_rfq_quotes_status_check check ("status" in ('submitted', 'withdrawn', 'awarded', 'rejected')),
+  "total_amount" bigint not null constraint bsb_rfq_quotes_total_amount_check check ("total_amount" >= 0),
+  "lead_time_days" integer constraint bsb_rfq_quotes_lead_time_days_check check ("lead_time_days" is null or "lead_time_days" >= 0),
   "valid_until" date,
-  "notes" text check ("notes" is null or length("notes") <= 4000),
+  "notes" text constraint bsb_rfq_quotes_notes_check check ("notes" is null or length("notes") <= 4000),
   "revision" integer not null default 1,
   "submitted_by" uuid,
   "submitted_at" timestamptz not null default now(),
@@ -1045,8 +1045,8 @@ create table "better_supabase"."rfq_quote_lines" (
   "tenant_id" uuid not null,
   "quote_id" uuid not null references "better_supabase"."rfq_quotes" ("id") on delete cascade,
   "line_id" uuid not null references "better_supabase"."rfq_lines" ("id") on delete cascade,
-  "unit_amount" bigint not null check ("unit_amount" >= 0),
-  "lead_time_days" integer check ("lead_time_days" is null or "lead_time_days" >= 0),
+  "unit_amount" bigint not null constraint bsb_rfq_quote_lines_unit_amount_check check ("unit_amount" >= 0),
+  "lead_time_days" integer constraint bsb_rfq_quote_lines_lead_time_days_check check ("lead_time_days" is null or "lead_time_days" >= 0),
   unique ("quote_id", "line_id")
 );
 create index "rfq_quote_lines_line_idx" on "better_supabase"."rfq_quote_lines" ("line_id");
@@ -1944,7 +1944,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:47ab2e7df097352e40881afb3bc87ce8a4cff7adecf55190df6f7c6aabd53d2c
+-- @bsb-hash sha256:c0b5696d5a91ce7cc768002a8193decb8d2391425d312c5dbe0ccb869cef4296
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1965,14 +1965,14 @@ create table "app_private"."rfqs" (
   "tenant_id" uuid not null,
   "number" text not null,
   "sequence" bigint not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "title" text not null constraint bsb_rfqs_title_check check (length("title") >= 1 and length("title") <= 200),
+  "status" text not null default 'draft' constraint bsb_rfqs_status_check check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
+  "currency" text not null constraint bsb_rfqs_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "due_at" timestamptz,
-  "notes" text check ("notes" is null or length("notes") <= 4000),
+  "notes" text constraint bsb_rfqs_notes_check check ("notes" is null or length("notes") <= 4000),
   "awarded_quote_id" uuid,
   "purchase_order_id" uuid,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") <= 500),
+  "cancel_reason" text constraint bsb_rfqs_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") <= 500),
   "opened_at" timestamptz,
   "closed_at" timestamptz,
   "awarded_at" timestamptz,
@@ -1996,11 +1996,11 @@ create table "app_private"."rfq_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "app_private"."rfqs" ("id") on delete cascade,
-  "ordinal" integer not null check ("ordinal" > 0),
-  "description" text not null check (length("description") >= 1 and length("description") <= 500),
+  "ordinal" integer not null constraint bsb_rfq_lines_ordinal_check check ("ordinal" > 0),
+  "description" text not null constraint bsb_rfq_lines_description_check check (length("description") >= 1 and length("description") <= 500),
   "variant_id" uuid,
-  "quantity" numeric not null check ("quantity" > 0),
-  "unit" text check ("unit" is null or length("unit") <= 40),
+  "quantity" numeric not null constraint bsb_rfq_lines_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_rfq_lines_unit_check check ("unit" is null or length("unit") <= 40),
   unique ("rfq_id", "ordinal")
 );
 alter table "app_private"."rfq_lines" enable row level security;
@@ -2017,9 +2017,9 @@ create table "app_private"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "app_private"."rfqs" ("id") on delete cascade,
-  "supplier_type" text not null check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
-  "supplier_id" text not null check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
-  "status" text not null default 'invited' check ("status" in ('invited', 'declined', 'quoted')),
+  "supplier_type" text not null constraint bsb_rfq_suppliers_supplier_type_check check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
+  "supplier_id" text not null constraint bsb_rfq_suppliers_supplier_id_check check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
+  "status" text not null default 'invited' constraint bsb_rfq_suppliers_status_check check ("status" in ('invited', 'declined', 'quoted')),
   "invited_at" timestamptz not null default now(),
   "responded_at" timestamptz,
   unique ("rfq_id", "supplier_type", "supplier_id")
@@ -2040,11 +2040,11 @@ create table "app_private"."rfq_quotes" (
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "app_private"."rfqs" ("id") on delete cascade,
   "invitation_id" uuid not null references "app_private"."rfq_suppliers" ("id") on delete cascade,
-  "status" text not null default 'submitted' check ("status" in ('submitted', 'withdrawn', 'awarded', 'rejected')),
-  "total_amount" bigint not null check ("total_amount" >= 0),
-  "lead_time_days" integer check ("lead_time_days" is null or "lead_time_days" >= 0),
+  "status" text not null default 'submitted' constraint bsb_rfq_quotes_status_check check ("status" in ('submitted', 'withdrawn', 'awarded', 'rejected')),
+  "total_amount" bigint not null constraint bsb_rfq_quotes_total_amount_check check ("total_amount" >= 0),
+  "lead_time_days" integer constraint bsb_rfq_quotes_lead_time_days_check check ("lead_time_days" is null or "lead_time_days" >= 0),
   "valid_until" date,
-  "notes" text check ("notes" is null or length("notes") <= 4000),
+  "notes" text constraint bsb_rfq_quotes_notes_check check ("notes" is null or length("notes") <= 4000),
   "revision" integer not null default 1,
   "submitted_by" uuid,
   "submitted_at" timestamptz not null default now(),
@@ -2067,8 +2067,8 @@ create table "app_private"."rfq_quote_lines" (
   "tenant_id" uuid not null,
   "quote_id" uuid not null references "app_private"."rfq_quotes" ("id") on delete cascade,
   "line_id" uuid not null references "app_private"."rfq_lines" ("id") on delete cascade,
-  "unit_amount" bigint not null check ("unit_amount" >= 0),
-  "lead_time_days" integer check ("lead_time_days" is null or "lead_time_days" >= 0),
+  "unit_amount" bigint not null constraint bsb_rfq_quote_lines_unit_amount_check check ("unit_amount" >= 0),
+  "lead_time_days" integer constraint bsb_rfq_quote_lines_lead_time_days_check check ("lead_time_days" is null or "lead_time_days" >= 0),
   unique ("quote_id", "line_id")
 );
 create index "rfq_quote_lines_line_idx" on "app_private"."rfq_quote_lines" ("line_id");
@@ -2875,7 +2875,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:9044d84aabcca0a2fe3f41a450a262781096b2cac55861db6e943678766f1d64
+-- @bsb-hash sha256:57b6ab47f1b10e27e483d832b2914a5cd69ec1873aee5d00e5577221ee410457
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2891,14 +2891,14 @@ create table "better_supabase"."rfqs" (
   "tenant_id" uuid not null,
   "number" text not null,
   "sequence" bigint not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "title" text not null constraint bsb_rfqs_title_check check (length("title") >= 1 and length("title") <= 200),
+  "status" text not null default 'draft' constraint bsb_rfqs_status_check check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
+  "currency" text not null constraint bsb_rfqs_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "due_at" timestamptz,
-  "notes" text check ("notes" is null or length("notes") <= 4000),
+  "notes" text constraint bsb_rfqs_notes_check check ("notes" is null or length("notes") <= 4000),
   "awarded_quote_id" uuid,
   "purchase_order_id" uuid,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") <= 500),
+  "cancel_reason" text constraint bsb_rfqs_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") <= 500),
   "opened_at" timestamptz,
   "closed_at" timestamptz,
   "awarded_at" timestamptz,
@@ -2922,11 +2922,11 @@ create table "better_supabase"."rfq_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
-  "ordinal" integer not null check ("ordinal" > 0),
-  "description" text not null check (length("description") >= 1 and length("description") <= 500),
+  "ordinal" integer not null constraint bsb_rfq_lines_ordinal_check check ("ordinal" > 0),
+  "description" text not null constraint bsb_rfq_lines_description_check check (length("description") >= 1 and length("description") <= 500),
   "variant_id" uuid,
-  "quantity" numeric not null check ("quantity" > 0),
-  "unit" text check ("unit" is null or length("unit") <= 40),
+  "quantity" numeric not null constraint bsb_rfq_lines_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_rfq_lines_unit_check check ("unit" is null or length("unit") <= 40),
   unique ("rfq_id", "ordinal")
 );
 alter table "better_supabase"."rfq_lines" enable row level security;
@@ -2943,9 +2943,9 @@ create table "better_supabase"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
-  "supplier_type" text not null check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
-  "supplier_id" text not null check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
-  "status" text not null default 'invited' check ("status" in ('invited', 'declined', 'quoted')),
+  "supplier_type" text not null constraint bsb_rfq_suppliers_supplier_type_check check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
+  "supplier_id" text not null constraint bsb_rfq_suppliers_supplier_id_check check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
+  "status" text not null default 'invited' constraint bsb_rfq_suppliers_status_check check ("status" in ('invited', 'declined', 'quoted')),
   "invited_at" timestamptz not null default now(),
   "responded_at" timestamptz,
   unique ("rfq_id", "supplier_type", "supplier_id")
@@ -2966,11 +2966,11 @@ create table "better_supabase"."rfq_quotes" (
   "tenant_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
   "invitation_id" uuid not null references "better_supabase"."rfq_suppliers" ("id") on delete cascade,
-  "status" text not null default 'submitted' check ("status" in ('submitted', 'withdrawn', 'awarded', 'rejected')),
-  "total_amount" bigint not null check ("total_amount" >= 0),
-  "lead_time_days" integer check ("lead_time_days" is null or "lead_time_days" >= 0),
+  "status" text not null default 'submitted' constraint bsb_rfq_quotes_status_check check ("status" in ('submitted', 'withdrawn', 'awarded', 'rejected')),
+  "total_amount" bigint not null constraint bsb_rfq_quotes_total_amount_check check ("total_amount" >= 0),
+  "lead_time_days" integer constraint bsb_rfq_quotes_lead_time_days_check check ("lead_time_days" is null or "lead_time_days" >= 0),
   "valid_until" date,
-  "notes" text check ("notes" is null or length("notes") <= 4000),
+  "notes" text constraint bsb_rfq_quotes_notes_check check ("notes" is null or length("notes") <= 4000),
   "revision" integer not null default 1,
   "submitted_by" uuid,
   "submitted_at" timestamptz not null default now(),
@@ -2993,8 +2993,8 @@ create table "better_supabase"."rfq_quote_lines" (
   "tenant_id" uuid not null,
   "quote_id" uuid not null references "better_supabase"."rfq_quotes" ("id") on delete cascade,
   "line_id" uuid not null references "better_supabase"."rfq_lines" ("id") on delete cascade,
-  "unit_amount" bigint not null check ("unit_amount" >= 0),
-  "lead_time_days" integer check ("lead_time_days" is null or "lead_time_days" >= 0),
+  "unit_amount" bigint not null constraint bsb_rfq_quote_lines_unit_amount_check check ("unit_amount" >= 0),
+  "lead_time_days" integer constraint bsb_rfq_quote_lines_lead_time_days_check check ("lead_time_days" is null or "lead_time_days" >= 0),
   unique ("quote_id", "line_id")
 );
 create index "rfq_quote_lines_line_idx" on "better_supabase"."rfq_quote_lines" ("line_id");
@@ -3925,7 +3925,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:88483fba92010a6cbbf32e1a4ed3e678b6848223fa419c1d0299f6503523203a
+-- @bsb-hash sha256:e9b810b3caef3815be502e1ceaac24570a5d183d21c20d1b77bb32a33199cd00
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3941,14 +3941,14 @@ alter table "better_supabase"."rfqs" add column if not exists "id" uuid default 
 alter table "better_supabase"."rfqs" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."rfqs" add column if not exists "number" text;
 alter table "better_supabase"."rfqs" add column if not exists "sequence" bigint;
-alter table "better_supabase"."rfqs" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
-alter table "better_supabase"."rfqs" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled'));
-alter table "better_supabase"."rfqs" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."rfqs" add column if not exists "title" text constraint bsb_rfqs_title_check check (length("title") >= 1 and length("title") <= 200);
+alter table "better_supabase"."rfqs" add column if not exists "status" text not null default 'draft' constraint bsb_rfqs_status_check check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled'));
+alter table "better_supabase"."rfqs" add column if not exists "currency" text constraint bsb_rfqs_currency_check check ("currency" ~ '^[A-Z]{3}$');
 alter table "better_supabase"."rfqs" add column if not exists "due_at" timestamptz;
-alter table "better_supabase"."rfqs" add column if not exists "notes" text check ("notes" is null or length("notes") <= 4000);
+alter table "better_supabase"."rfqs" add column if not exists "notes" text constraint bsb_rfqs_notes_check check ("notes" is null or length("notes") <= 4000);
 alter table "better_supabase"."rfqs" add column if not exists "awarded_quote_id" uuid;
 alter table "better_supabase"."rfqs" add column if not exists "purchase_order_id" uuid;
-alter table "better_supabase"."rfqs" add column if not exists "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") <= 500);
+alter table "better_supabase"."rfqs" add column if not exists "cancel_reason" text constraint bsb_rfqs_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") <= 500);
 alter table "better_supabase"."rfqs" add column if not exists "opened_at" timestamptz;
 alter table "better_supabase"."rfqs" add column if not exists "closed_at" timestamptz;
 alter table "better_supabase"."rfqs" add column if not exists "awarded_at" timestamptz;
@@ -3970,11 +3970,11 @@ create policy bsb_rfqs_read on "better_supabase"."rfqs"
 alter table "better_supabase"."rfq_lines" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."rfq_lines" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."rfq_lines" add column if not exists "rfq_id" uuid;
-alter table "better_supabase"."rfq_lines" add column if not exists "ordinal" integer check ("ordinal" > 0);
-alter table "better_supabase"."rfq_lines" add column if not exists "description" text check (length("description") >= 1 and length("description") <= 500);
+alter table "better_supabase"."rfq_lines" add column if not exists "ordinal" integer constraint bsb_rfq_lines_ordinal_check check ("ordinal" > 0);
+alter table "better_supabase"."rfq_lines" add column if not exists "description" text constraint bsb_rfq_lines_description_check check (length("description") >= 1 and length("description") <= 500);
 alter table "better_supabase"."rfq_lines" add column if not exists "variant_id" uuid;
-alter table "better_supabase"."rfq_lines" add column if not exists "quantity" numeric check ("quantity" > 0);
-alter table "better_supabase"."rfq_lines" add column if not exists "unit" text check ("unit" is null or length("unit") <= 40);
+alter table "better_supabase"."rfq_lines" add column if not exists "quantity" numeric constraint bsb_rfq_lines_quantity_check check ("quantity" > 0);
+alter table "better_supabase"."rfq_lines" add column if not exists "unit" text constraint bsb_rfq_lines_unit_check check ("unit" is null or length("unit") <= 40);
 create unique index if not exists "bsb_rfq_lines_tenant_id_key" on "better_supabase"."rfq_lines" ("tenant_id", "id");
 alter table "better_supabase"."rfq_lines" enable row level security;
 grant select on "better_supabase"."rfq_lines" to authenticated;
@@ -3989,9 +3989,9 @@ create policy bsb_rfq_lines_read on "better_supabase"."rfq_lines"
 alter table "better_supabase"."rfq_suppliers" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."rfq_suppliers" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."rfq_suppliers" add column if not exists "rfq_id" uuid;
-alter table "better_supabase"."rfq_suppliers" add column if not exists "supplier_type" text check (length("supplier_type") >= 1 and length("supplier_type") <= 100);
-alter table "better_supabase"."rfq_suppliers" add column if not exists "supplier_id" text check (length("supplier_id") >= 1 and length("supplier_id") <= 200);
-alter table "better_supabase"."rfq_suppliers" add column if not exists "status" text not null default 'invited' check ("status" in ('invited', 'declined', 'quoted'));
+alter table "better_supabase"."rfq_suppliers" add column if not exists "supplier_type" text constraint bsb_rfq_suppliers_supplier_type_check check (length("supplier_type") >= 1 and length("supplier_type") <= 100);
+alter table "better_supabase"."rfq_suppliers" add column if not exists "supplier_id" text constraint bsb_rfq_suppliers_supplier_id_check check (length("supplier_id") >= 1 and length("supplier_id") <= 200);
+alter table "better_supabase"."rfq_suppliers" add column if not exists "status" text not null default 'invited' constraint bsb_rfq_suppliers_status_check check ("status" in ('invited', 'declined', 'quoted'));
 alter table "better_supabase"."rfq_suppliers" add column if not exists "invited_at" timestamptz not null default now();
 alter table "better_supabase"."rfq_suppliers" add column if not exists "responded_at" timestamptz;
 create unique index if not exists "bsb_rfq_suppliers_tenant_id_key" on "better_supabase"."rfq_suppliers" ("tenant_id", "id");
@@ -4010,11 +4010,11 @@ alter table "better_supabase"."rfq_quotes" add column if not exists "id" uuid de
 alter table "better_supabase"."rfq_quotes" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."rfq_quotes" add column if not exists "rfq_id" uuid;
 alter table "better_supabase"."rfq_quotes" add column if not exists "invitation_id" uuid;
-alter table "better_supabase"."rfq_quotes" add column if not exists "status" text not null default 'submitted' check ("status" in ('submitted', 'withdrawn', 'awarded', 'rejected'));
-alter table "better_supabase"."rfq_quotes" add column if not exists "total_amount" bigint check ("total_amount" >= 0);
-alter table "better_supabase"."rfq_quotes" add column if not exists "lead_time_days" integer check ("lead_time_days" is null or "lead_time_days" >= 0);
+alter table "better_supabase"."rfq_quotes" add column if not exists "status" text not null default 'submitted' constraint bsb_rfq_quotes_status_check check ("status" in ('submitted', 'withdrawn', 'awarded', 'rejected'));
+alter table "better_supabase"."rfq_quotes" add column if not exists "total_amount" bigint constraint bsb_rfq_quotes_total_amount_check check ("total_amount" >= 0);
+alter table "better_supabase"."rfq_quotes" add column if not exists "lead_time_days" integer constraint bsb_rfq_quotes_lead_time_days_check check ("lead_time_days" is null or "lead_time_days" >= 0);
 alter table "better_supabase"."rfq_quotes" add column if not exists "valid_until" date;
-alter table "better_supabase"."rfq_quotes" add column if not exists "notes" text check ("notes" is null or length("notes") <= 4000);
+alter table "better_supabase"."rfq_quotes" add column if not exists "notes" text constraint bsb_rfq_quotes_notes_check check ("notes" is null or length("notes") <= 4000);
 alter table "better_supabase"."rfq_quotes" add column if not exists "revision" integer not null default 1;
 alter table "better_supabase"."rfq_quotes" add column if not exists "submitted_by" uuid;
 alter table "better_supabase"."rfq_quotes" add column if not exists "submitted_at" timestamptz not null default now();
@@ -4035,8 +4035,8 @@ alter table "better_supabase"."rfq_quote_lines" add column if not exists "id" uu
 alter table "better_supabase"."rfq_quote_lines" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."rfq_quote_lines" add column if not exists "quote_id" uuid;
 alter table "better_supabase"."rfq_quote_lines" add column if not exists "line_id" uuid;
-alter table "better_supabase"."rfq_quote_lines" add column if not exists "unit_amount" bigint check ("unit_amount" >= 0);
-alter table "better_supabase"."rfq_quote_lines" add column if not exists "lead_time_days" integer check ("lead_time_days" is null or "lead_time_days" >= 0);
+alter table "better_supabase"."rfq_quote_lines" add column if not exists "unit_amount" bigint constraint bsb_rfq_quote_lines_unit_amount_check check ("unit_amount" >= 0);
+alter table "better_supabase"."rfq_quote_lines" add column if not exists "lead_time_days" integer constraint bsb_rfq_quote_lines_lead_time_days_check check ("lead_time_days" is null or "lead_time_days" >= 0);
 create unique index if not exists "bsb_rfq_quote_lines_tenant_id_key" on "better_supabase"."rfq_quote_lines" ("tenant_id", "id");
 create index if not exists "rfq_quote_lines_line_idx" on "better_supabase"."rfq_quote_lines" ("line_id");
 alter table "better_supabase"."rfq_quote_lines" enable row level security;
@@ -4841,7 +4841,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_167_rfqs.sql
 -- better-supabase module: rfqs
 -- @bsb-block rfqs@1 managed
--- @bsb-hash sha256:18d1e91dda9aa36218ee45c56416fd8dafb9a216282623eed133fe7d1a44cc85
+-- @bsb-hash sha256:dec0ab6ed8a4d3e1aa45e7fc5e4c845be349bba1700574548f15783002ad4b74
 -- Requests for quotation to invited suppliers, their quotes per line, a side by side comparison and an award that marks the winner and can create the purchase order.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4857,14 +4857,14 @@ create table "better_supabase"."rfqs" (
   "org_id" uuid not null,
   "number" text not null,
   "sequence" bigint not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "title" text not null constraint bsb_rfqs_title_check check (length("title") >= 1 and length("title") <= 200),
+  "status" text not null default 'draft' constraint bsb_rfqs_status_check check ("status" in ('draft', 'open', 'closed', 'awarded', 'cancelled')),
+  "currency" text not null constraint bsb_rfqs_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "due_at" timestamptz,
-  "notes" text check ("notes" is null or length("notes") <= 4000),
+  "notes" text constraint bsb_rfqs_notes_check check ("notes" is null or length("notes") <= 4000),
   "awarded_quote_id" uuid,
   "purchase_order_id" uuid,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") <= 500),
+  "cancel_reason" text constraint bsb_rfqs_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") <= 500),
   "opened_at" timestamptz,
   "closed_at" timestamptz,
   "awarded_at" timestamptz,
@@ -4888,11 +4888,11 @@ create table "better_supabase"."rfq_lines" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
-  "ordinal" integer not null check ("ordinal" > 0),
-  "description" text not null check (length("description") >= 1 and length("description") <= 500),
+  "ordinal" integer not null constraint bsb_rfq_lines_ordinal_check check ("ordinal" > 0),
+  "description" text not null constraint bsb_rfq_lines_description_check check (length("description") >= 1 and length("description") <= 500),
   "variant_id" uuid,
-  "quantity" numeric not null check ("quantity" > 0),
-  "unit" text check ("unit" is null or length("unit") <= 40),
+  "quantity" numeric not null constraint bsb_rfq_lines_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_rfq_lines_unit_check check ("unit" is null or length("unit") <= 40),
   unique ("rfq_id", "ordinal")
 );
 alter table "better_supabase"."rfq_lines" enable row level security;
@@ -4909,9 +4909,9 @@ create table "better_supabase"."rfq_suppliers" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
-  "supplier_type" text not null check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
-  "supplier_id" text not null check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
-  "status" text not null default 'invited' check ("status" in ('invited', 'declined', 'quoted')),
+  "supplier_type" text not null constraint bsb_rfq_suppliers_supplier_type_check check (length("supplier_type") >= 1 and length("supplier_type") <= 100),
+  "supplier_id" text not null constraint bsb_rfq_suppliers_supplier_id_check check (length("supplier_id") >= 1 and length("supplier_id") <= 200),
+  "status" text not null default 'invited' constraint bsb_rfq_suppliers_status_check check ("status" in ('invited', 'declined', 'quoted')),
   "invited_at" timestamptz not null default now(),
   "responded_at" timestamptz,
   unique ("rfq_id", "supplier_type", "supplier_id")
@@ -4932,11 +4932,11 @@ create table "better_supabase"."rfq_quotes" (
   "org_id" uuid not null,
   "rfq_id" uuid not null references "better_supabase"."rfqs" ("id") on delete cascade,
   "invitation_id" uuid not null references "better_supabase"."rfq_suppliers" ("id") on delete cascade,
-  "status" text not null default 'submitted' check ("status" in ('submitted', 'withdrawn', 'awarded', 'rejected')),
-  "total_amount" bigint not null check ("total_amount" >= 0),
-  "lead_time_days" integer check ("lead_time_days" is null or "lead_time_days" >= 0),
+  "status" text not null default 'submitted' constraint bsb_rfq_quotes_status_check check ("status" in ('submitted', 'withdrawn', 'awarded', 'rejected')),
+  "total_amount" bigint not null constraint bsb_rfq_quotes_total_amount_check check ("total_amount" >= 0),
+  "lead_time_days" integer constraint bsb_rfq_quotes_lead_time_days_check check ("lead_time_days" is null or "lead_time_days" >= 0),
   "valid_until" date,
-  "notes" text check ("notes" is null or length("notes") <= 4000),
+  "notes" text constraint bsb_rfq_quotes_notes_check check ("notes" is null or length("notes") <= 4000),
   "revision" integer not null default 1,
   "submitted_by" uuid,
   "submitted_at" timestamptz not null default now(),
@@ -4959,8 +4959,8 @@ create table "better_supabase"."rfq_quote_lines" (
   "org_id" uuid not null,
   "quote_id" uuid not null references "better_supabase"."rfq_quotes" ("id") on delete cascade,
   "line_id" uuid not null references "better_supabase"."rfq_lines" ("id") on delete cascade,
-  "unit_amount" bigint not null check ("unit_amount" >= 0),
-  "lead_time_days" integer check ("lead_time_days" is null or "lead_time_days" >= 0),
+  "unit_amount" bigint not null constraint bsb_rfq_quote_lines_unit_amount_check check ("unit_amount" >= 0),
+  "lead_time_days" integer constraint bsb_rfq_quote_lines_lead_time_days_check check ("lead_time_days" is null or "lead_time_days" >= 0),
   unique ("quote_id", "line_id")
 );
 create index "rfq_quote_lines_line_idx" on "better_supabase"."rfq_quote_lines" ("line_id");

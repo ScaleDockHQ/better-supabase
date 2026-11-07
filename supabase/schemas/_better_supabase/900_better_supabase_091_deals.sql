@@ -1,6 +1,6 @@
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:f3203158511b5740a3daa9e5417cf81dff9de4984680fe2fa862d17a82c79935
+-- @bsb-hash sha256:b9662782063ad53b384f7127b363327fe2590460ff673afa9cc3e746daa7784f
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,25 +13,25 @@ create table "better_supabase"."deals" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
+  "name" text not null constraint bsb_deals_name_check check (length("name") >= 1 and length("name") <= 300),
   "company_type" text,
   "company_id" text,
   "motion" text,
   "priority" text,
   "owner_user_id" uuid,
   "product" text,
-  "seats" integer check ("seats" >= 0),
-  "amount" bigint not null default 0 check ("amount" >= 0),
-  "existing_amount" bigint not null default 0 check ("existing_amount" >= 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "value_period" text not null default 'one_time' check ("value_period" in ('one_time', 'monthly', 'annual')),
-  "amount_source" text not null default 'manual' check ("amount_source" in ('manual', 'line_items')),
+  "seats" integer constraint bsb_deals_seats_check check ("seats" >= 0),
+  "amount" bigint not null default 0 constraint bsb_deals_amount_check check ("amount" >= 0),
+  "existing_amount" bigint not null default 0 constraint bsb_deals_existing_amount_check check ("existing_amount" >= 0),
+  "currency" char(3) not null constraint bsb_deals_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "value_period" text not null default 'one_time' constraint bsb_deals_value_period_check check ("value_period" in ('one_time', 'monthly', 'annual')),
+  "amount_source" text not null default 'manual' constraint bsb_deals_amount_source_check check ("amount_source" in ('manual', 'line_items')),
   "pipeline_id" uuid,
   "stage_id" uuid,
   "stage_entered_at" timestamptz,
-  "outcome" text not null default 'open' check ("outcome" in ('open', 'won', 'lost')),
-  "probability" smallint check ("probability" >= 0 and "probability" <= 100),
-  "forecast_category" text check ("forecast_category" in ('commit', 'best_case', 'pipeline', 'omit')),
+  "outcome" text not null default 'open' constraint bsb_deals_outcome_check check ("outcome" in ('open', 'won', 'lost')),
+  "probability" smallint constraint bsb_deals_probability_check check ("probability" >= 0 and "probability" <= 100),
+  "forecast_category" text constraint bsb_deals_forecast_category_check check ("forecast_category" in ('commit', 'best_case', 'pipeline', 'omit')),
   "opened_on" date not null default current_date,
   "expected_close_on" date not null,
   "slipped_from" date,
@@ -56,7 +56,7 @@ create table "better_supabase"."deals" (
   "tax_total" bigint not null default 0,
   "total" bigint not null default 0,
   unique ("tenant_id", "number"),
-  check (("company_type" is null) = ("company_id" is null))
+  constraint bsb_deals_check check (("company_type" is null) = ("company_id" is null))
 );
 create index deals_pipeline_stage_idx on "better_supabase"."deals" ("pipeline_id", "stage_id", "rank");
 create index deals_tenant_close_idx on "better_supabase"."deals" ("tenant_id", "expected_close_on") where "outcome" = 'open';
@@ -797,15 +797,15 @@ create table "better_supabase"."deal_lines" (
   "parent_id" uuid not null references "better_supabase"."deals" ("id") on delete cascade,
   "product_type" text,
   "product_id" text,
-  "description" text not null check (length("description") >= 1 and length("description") <= 2000),
-  "quantity" numeric(18, 4) not null check ("quantity" > 0),
+  "description" text not null constraint bsb_deal_lines_description_check check (length("description") >= 1 and length("description") <= 2000),
+  "quantity" numeric(18, 4) not null constraint bsb_deal_lines_quantity_check check ("quantity" > 0),
   "unit_amount" bigint not null,
-  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
-  "tax_rate_bps" integer not null default 0 check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
+  "discount_bps" integer not null default 0 constraint bsb_deal_lines_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "tax_rate_bps" integer not null default 0 constraint bsb_deal_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
   "tax_code" text,
   "position" integer not null,
   "created_at" timestamptz not null default now(),
-  check (("product_type" is null) = ("product_id" is null))
+  constraint bsb_deal_lines_check check (("product_type" is null) = ("product_id" is null))
 );
 create index "deal_lines_parent_idx" on "better_supabase"."deal_lines" ("parent_id", "position");
 alter table "better_supabase"."deal_lines" enable row level security;

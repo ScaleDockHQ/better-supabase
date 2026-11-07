@@ -6,6 +6,7 @@ import type { BlockSqlLayout } from "../../../src/sql/module-types.ts";
 
 import { SQL_MODULES } from "../../../src/sql/registry.ts";
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const SUBJECTS: SubjectsConfig = {
   patient: {
@@ -101,7 +102,7 @@ describe("record access requests", () => {
     expect(alone).toContain(
       `'target', 'role', 'subjectType', null::text, 'subjectId', null::text, 'action', null::text`,
     );
-    expect(alone).toContain(`"role" text not null check`);
+    expect(unnamedChecks(alone)).toContain(`"role" text not null check`);
 
     const custom = sqlOf({ modules: { subjects: { mode: "custom" } } });
     expect(custom).not.toContain("request_record_access");

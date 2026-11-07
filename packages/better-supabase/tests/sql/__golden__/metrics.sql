@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:51575d13aa016ccdfd04edd76e0e253d0d6e5e3cc556ff2b42bbf1bf8438e38c
+-- @bsb-hash sha256:1238dd71290530a6bc1762d4df83a158f94ead048c9da65de292ebeb6e5220e6
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,7 +9,7 @@
 create table "better_supabase"."metric_points" (
   "tenant_id" uuid not null,
   "metric" text not null,
-  "grain" text not null check ("grain" in ('hour', 'day', 'week', 'month')),
+  "grain" text not null constraint bsb_metric_points_grain_check check ("grain" in ('hour', 'day', 'week', 'month')),
   "bucket_start" timestamptz not null,
   "dims" jsonb not null default '{}'::jsonb,
   "value" numeric not null,
@@ -142,7 +142,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:51575d13aa016ccdfd04edd76e0e253d0d6e5e3cc556ff2b42bbf1bf8438e38c
+-- @bsb-hash sha256:1238dd71290530a6bc1762d4df83a158f94ead048c9da65de292ebeb6e5220e6
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -150,7 +150,7 @@ on conflict (name) do update
 create table "better_supabase"."metric_points" (
   "tenant_id" uuid not null,
   "metric" text not null,
-  "grain" text not null check ("grain" in ('hour', 'day', 'week', 'month')),
+  "grain" text not null constraint bsb_metric_points_grain_check check ("grain" in ('hour', 'day', 'week', 'month')),
   "bucket_start" timestamptz not null,
   "dims" jsonb not null default '{}'::jsonb,
   "value" numeric not null,
@@ -283,7 +283,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:d430e260c1817df8577dfa9b73d456d0ad53afd7ae7dd51c1babf569bbff9051
+-- @bsb-hash sha256:dddfe5cd56a2915158d3f075808634eb457edd78dad4260e96b1c73b08bac75d
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -296,7 +296,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."metric_points" (
   "tenant_id" uuid not null,
   "metric" text not null,
-  "grain" text not null check ("grain" in ('hour', 'day', 'week', 'month')),
+  "grain" text not null constraint bsb_metric_points_grain_check check ("grain" in ('hour', 'day', 'week', 'month')),
   "bucket_start" timestamptz not null,
   "dims" jsonb not null default '{}'::jsonb,
   "value" numeric not null,
@@ -429,7 +429,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:89185fe9204237630b9b284ccc03d57115cd5a70819f2adaca9f29fd15816de5
+-- @bsb-hash sha256:c1bce5c5679dc0404d062960e617ea9a2e50a66ff93ff44c521c9e3c06b23bed
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -437,7 +437,7 @@ on conflict (name) do update
 create table "better_supabase"."metric_points" (
   "tenant_id" uuid not null,
   "metric" text not null,
-  "grain" text not null check ("grain" in ('hour', 'day', 'week', 'month')),
+  "grain" text not null constraint bsb_metric_points_grain_check check ("grain" in ('hour', 'day', 'week', 'month')),
   "bucket_start" timestamptz not null,
   "dims" jsonb not null default '{}'::jsonb,
   "value" numeric not null,
@@ -613,7 +613,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:c7c9ab0a14e88d599ee274cabbb142f147ce294e08a8417e2ba21784d8175d1e
+-- @bsb-hash sha256:4cbcd56c9309cd725581186293d44717dbf2410d481ffa5dcb6f00556bff1187
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -621,7 +621,7 @@ on conflict (name) do update
 -- better_supabase.metric_points is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."metric_points" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."metric_points" add column if not exists "metric" text;
-alter table "better_supabase"."metric_points" add column if not exists "grain" text check ("grain" in ('hour', 'day', 'week', 'month'));
+alter table "better_supabase"."metric_points" add column if not exists "grain" text constraint bsb_metric_points_grain_check check ("grain" in ('hour', 'day', 'week', 'month'));
 alter table "better_supabase"."metric_points" add column if not exists "bucket_start" timestamptz;
 alter table "better_supabase"."metric_points" add column if not exists "dims" jsonb not null default '{}'::jsonb;
 alter table "better_supabase"."metric_points" add column if not exists "value" numeric;
@@ -751,7 +751,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_071_metrics.sql
 -- better-supabase module: metrics
 -- @bsb-block metrics@1 managed
--- @bsb-hash sha256:0c95898677192b1edb33659ae3042682693b8dde52343d8ad331767696f9fe19
+-- @bsb-hash sha256:683856e3306c5a872beb56fd932ddebf84eed1e5878d7c5c78538307ecb0df2b
 -- Metrics declared with defineMetric over a table (count, sum or avg per time bucket and dimension), rolled up into metric_points or read from the table, with metric_series and metric_value checked against a permission in the tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -759,7 +759,7 @@ on conflict (name) do update
 create table "better_supabase"."metric_points" (
   "org_id" uuid not null,
   "metric" text not null,
-  "grain" text not null check ("grain" in ('hour', 'day', 'week', 'month')),
+  "grain" text not null constraint bsb_metric_points_grain_check check ("grain" in ('hour', 'day', 'week', 'month')),
   "bucket_start" timestamptz not null,
   "dims" jsonb not null default '{}'::jsonb,
   "value" numeric not null,

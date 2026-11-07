@@ -1,6 +1,6 @@
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:a4c55fc7c39b675db9a2a802ec0f3c67e2f3afdc283e3abe28177e1f495afd26
+-- @bsb-hash sha256:3dd5fdfb3e1deab00c33fcf8b21db1c198c50cc610ef61b1057e58ad977c996f
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,17 +9,17 @@ create table "better_supabase"."score_models" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- lead, health, or the app's own key.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text check ("description" is null or length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_score_models_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_score_models_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_score_models_description_check check ("description" is null or length("description") <= 2000),
+  "subject_type" text not null constraint bsb_score_models_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   -- [{ id, label, conditions, points }]: a filter tree over the rules field
   -- catalog and the points a match adds.
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_score_models_rules_check check (jsonb_typeof("rules") = 'array'),
   -- [{ id, label, source, field, weight, cap }]: a number times its weight.
-  "metrics" jsonb not null default '[]'::jsonb check (jsonb_typeof("metrics") = 'array'),
+  "metrics" jsonb not null default '[]'::jsonb constraint bsb_score_models_metrics_check check (jsonb_typeof("metrics") = 'array'),
   -- [{ label, min }], highest min first: the first band the score reaches.
-  "bands" jsonb not null default '[]'::jsonb check (jsonb_typeof("bands") = 'array'),
+  "bands" jsonb not null default '[]'::jsonb constraint bsb_score_models_bands_check check (jsonb_typeof("bands") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
   "created_by" uuid,
@@ -33,9 +33,9 @@ create table "better_supabase"."score_model_versions" (
   "model_id" uuid not null references "better_supabase"."score_models" ("id") on delete cascade,
   "version" integer not null,
   "tenant_id" uuid not null,
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
-  "metrics" jsonb not null default '[]'::jsonb check (jsonb_typeof("metrics") = 'array'),
-  "bands" jsonb not null default '[]'::jsonb check (jsonb_typeof("bands") = 'array'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_rules_check check (jsonb_typeof("rules") = 'array'),
+  "metrics" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_metrics_check check (jsonb_typeof("metrics") = 'array'),
+  "bands" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_bands_check check (jsonb_typeof("bands") = 'array'),
   "saved_by" uuid,
   "saved_at" timestamptz not null default now(),
   primary key ("model_id", "version")
@@ -51,7 +51,7 @@ create table "better_supabase"."scores" (
   "score" numeric not null,
   "band" text,
   -- { rules: [{ id, label, matched, points }], metrics: [{ id, label, value, points }] }
-  "breakdown" jsonb not null default '{}'::jsonb check (jsonb_typeof("breakdown") = 'object'),
+  "breakdown" jsonb not null default '{}'::jsonb constraint bsb_scores_breakdown_check check (jsonb_typeof("breakdown") = 'object'),
   "is_current" boolean not null default true,
   "computed_at" timestamptz not null default now()
 );

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:94323ca87991a6a8e97d034dcd0fca61eb977015470715defd2dbe209f12c974
+-- @bsb-hash sha256:b05a69f4ff9906565c4f2457297808754108254d968827f59aeb640563d06592
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,16 +12,16 @@
 -- ssf_received is the receiver's replay table of (issuer, jti).
 create table "better_supabase"."ssf_streams" (
   "id" uuid primary key default gen_random_uuid(),
-  "tenant" text check (length("tenant") >= 1 and length("tenant") <= 200),
-  "receiver" text not null check (length("receiver") >= 1 and length("receiver") <= 200),
-  "audience" text[] not null check (cardinality("audience") >= 1 and cardinality("audience") <= 20),
-  "description" text check (length("description") <= 1000),
+  "tenant" text constraint bsb_ssf_streams_tenant_check check (length("tenant") >= 1 and length("tenant") <= 200),
+  "receiver" text not null constraint bsb_ssf_streams_receiver_check check (length("receiver") >= 1 and length("receiver") <= 200),
+  "audience" text[] not null constraint bsb_ssf_streams_audience_check check (cardinality("audience") >= 1 and cardinality("audience") <= 20),
+  "description" text constraint bsb_ssf_streams_description_check check (length("description") <= 1000),
   "events_requested" text[] not null default '{}',
   "events_delivered" text[] not null default '{}',
-  "delivery_method" text not null check ("delivery_method" in ('urn:ietf:rfc:8935', 'urn:ietf:rfc:8936')),
+  "delivery_method" text not null constraint bsb_ssf_streams_delivery_method_check check ("delivery_method" in ('urn:ietf:rfc:8935', 'urn:ietf:rfc:8936')),
   "endpoint_id" uuid,
-  "status" text not null default 'enabled' check ("status" in ('enabled', 'paused', 'disabled')),
-  "reason" text check (length("reason") <= 1000),
+  "status" text not null default 'enabled' constraint bsb_ssf_streams_status_check check ("status" in ('enabled', 'paused', 'disabled')),
+  "reason" text constraint bsb_ssf_streams_reason_check check (length("reason") <= 1000),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -38,7 +38,7 @@ grant all on "better_supabase"."ssf_streams" to service_role;
 
 create table "better_supabase"."ssf_events" (
   "stream_id" uuid not null references "better_supabase"."ssf_streams" ("id") on delete cascade,
-  "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
+  "jti" text not null constraint bsb_ssf_events_jti_check check (length("jti") >= 1 and length("jti") <= 200),
   "token" text not null,
   "created_at" timestamptz not null default now(),
   primary key ("stream_id", "jti")
@@ -51,7 +51,7 @@ grant all on "better_supabase"."ssf_events" to service_role;
 
 create table "better_supabase"."ssf_received" (
   "issuer" text not null,
-  "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
+  "jti" text not null constraint bsb_ssf_received_jti_check check (length("jti") >= 1 and length("jti") <= 200),
   "received_at" timestamptz not null default now(),
   primary key ("issuer", "jti")
 );
@@ -501,7 +501,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:107a65f771cbba684ecbc009c46b7cf04159b394bb99a608b25ca50295c96c35
+-- @bsb-hash sha256:bb5948270dc70498f6c4e3890897cea99e80f62e98e162f01ce755cb113f9bcc
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -512,16 +512,16 @@ on conflict (name) do update
 -- ssf_received is the receiver's replay table of (issuer, jti).
 create table "better_supabase"."ssf_streams" (
   "id" uuid primary key default gen_random_uuid(),
-  "tenant" text check (length("tenant") >= 1 and length("tenant") <= 200),
-  "receiver" text not null check (length("receiver") >= 1 and length("receiver") <= 200),
-  "audience" text[] not null check (cardinality("audience") >= 1 and cardinality("audience") <= 20),
-  "description" text check (length("description") <= 1000),
+  "tenant" text constraint bsb_ssf_streams_tenant_check check (length("tenant") >= 1 and length("tenant") <= 200),
+  "receiver" text not null constraint bsb_ssf_streams_receiver_check check (length("receiver") >= 1 and length("receiver") <= 200),
+  "audience" text[] not null constraint bsb_ssf_streams_audience_check check (cardinality("audience") >= 1 and cardinality("audience") <= 20),
+  "description" text constraint bsb_ssf_streams_description_check check (length("description") <= 1000),
   "events_requested" text[] not null default '{}',
   "events_delivered" text[] not null default '{}',
-  "delivery_method" text not null check ("delivery_method" in ('urn:ietf:rfc:8935', 'urn:ietf:rfc:8936')),
+  "delivery_method" text not null constraint bsb_ssf_streams_delivery_method_check check ("delivery_method" in ('urn:ietf:rfc:8935', 'urn:ietf:rfc:8936')),
   "endpoint_id" uuid references "better_supabase"."webhook_endpoints" ("id") on delete set null,
-  "status" text not null default 'enabled' check ("status" in ('enabled', 'paused', 'disabled')),
-  "reason" text check (length("reason") <= 1000),
+  "status" text not null default 'enabled' constraint bsb_ssf_streams_status_check check ("status" in ('enabled', 'paused', 'disabled')),
+  "reason" text constraint bsb_ssf_streams_reason_check check (length("reason") <= 1000),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -538,7 +538,7 @@ grant all on "better_supabase"."ssf_streams" to service_role;
 
 create table "better_supabase"."ssf_events" (
   "stream_id" uuid not null references "better_supabase"."ssf_streams" ("id") on delete cascade,
-  "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
+  "jti" text not null constraint bsb_ssf_events_jti_check check (length("jti") >= 1 and length("jti") <= 200),
   "token" text not null,
   "created_at" timestamptz not null default now(),
   primary key ("stream_id", "jti")
@@ -551,7 +551,7 @@ grant all on "better_supabase"."ssf_events" to service_role;
 
 create table "better_supabase"."ssf_received" (
   "issuer" text not null,
-  "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
+  "jti" text not null constraint bsb_ssf_received_jti_check check (length("jti") >= 1 and length("jti") <= 200),
   "received_at" timestamptz not null default now(),
   primary key ("issuer", "jti")
 );
@@ -1039,7 +1039,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:ada94c39f635972909c7b425cef8ce67dcac39d16994bde3e8c58f944fc8cfd1
+-- @bsb-hash sha256:d0c03c80524bc0d8b8112ffa4f0a201fca3341300783412c601a1988ba550b9a
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1055,16 +1055,16 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- ssf_received is the receiver's replay table of (issuer, jti).
 create table "app_private"."ssf_streams" (
   "id" uuid primary key default gen_random_uuid(),
-  "tenant" text check (length("tenant") >= 1 and length("tenant") <= 200),
-  "receiver" text not null check (length("receiver") >= 1 and length("receiver") <= 200),
-  "audience" text[] not null check (cardinality("audience") >= 1 and cardinality("audience") <= 20),
-  "description" text check (length("description") <= 1000),
+  "tenant" text constraint bsb_ssf_streams_tenant_check check (length("tenant") >= 1 and length("tenant") <= 200),
+  "receiver" text not null constraint bsb_ssf_streams_receiver_check check (length("receiver") >= 1 and length("receiver") <= 200),
+  "audience" text[] not null constraint bsb_ssf_streams_audience_check check (cardinality("audience") >= 1 and cardinality("audience") <= 20),
+  "description" text constraint bsb_ssf_streams_description_check check (length("description") <= 1000),
   "events_requested" text[] not null default '{}',
   "events_delivered" text[] not null default '{}',
-  "delivery_method" text not null check ("delivery_method" in ('urn:ietf:rfc:8935', 'urn:ietf:rfc:8936')),
+  "delivery_method" text not null constraint bsb_ssf_streams_delivery_method_check check ("delivery_method" in ('urn:ietf:rfc:8935', 'urn:ietf:rfc:8936')),
   "endpoint_id" uuid,
-  "status" text not null default 'enabled' check ("status" in ('enabled', 'paused', 'disabled')),
-  "reason" text check (length("reason") <= 1000),
+  "status" text not null default 'enabled' constraint bsb_ssf_streams_status_check check ("status" in ('enabled', 'paused', 'disabled')),
+  "reason" text constraint bsb_ssf_streams_reason_check check (length("reason") <= 1000),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -1081,7 +1081,7 @@ grant all on "app_private"."ssf_streams" to service_role;
 
 create table "app_private"."ssf_events" (
   "stream_id" uuid not null references "app_private"."ssf_streams" ("id") on delete cascade,
-  "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
+  "jti" text not null constraint bsb_ssf_events_jti_check check (length("jti") >= 1 and length("jti") <= 200),
   "token" text not null,
   "created_at" timestamptz not null default now(),
   primary key ("stream_id", "jti")
@@ -1094,7 +1094,7 @@ grant all on "app_private"."ssf_events" to service_role;
 
 create table "app_private"."ssf_received" (
   "issuer" text not null,
-  "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
+  "jti" text not null constraint bsb_ssf_received_jti_check check (length("jti") >= 1 and length("jti") <= 200),
   "received_at" timestamptz not null default now(),
   primary key ("issuer", "jti")
 );
@@ -1544,7 +1544,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:dde6341a6b922c41e503ca98e58a2862f42bb6a692e33fa930a5642d3efd0585
+-- @bsb-hash sha256:28302bf4d9137d2d41a30722191e267df382d51f2aedd2f453dfc73b460a09d5
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1555,16 +1555,16 @@ on conflict (name) do update
 -- ssf_received is the receiver's replay table of (issuer, jti).
 create table "better_supabase"."ssf_streams" (
   "id" uuid primary key default gen_random_uuid(),
-  "tenant" text check (length("tenant") >= 1 and length("tenant") <= 200),
-  "receiver" text not null check (length("receiver") >= 1 and length("receiver") <= 200),
-  "audience" text[] not null check (cardinality("audience") >= 1 and cardinality("audience") <= 20),
-  "description" text check (length("description") <= 1000),
+  "tenant" text constraint bsb_ssf_streams_tenant_check check (length("tenant") >= 1 and length("tenant") <= 200),
+  "receiver" text not null constraint bsb_ssf_streams_receiver_check check (length("receiver") >= 1 and length("receiver") <= 200),
+  "audience" text[] not null constraint bsb_ssf_streams_audience_check check (cardinality("audience") >= 1 and cardinality("audience") <= 20),
+  "description" text constraint bsb_ssf_streams_description_check check (length("description") <= 1000),
   "events_requested" text[] not null default '{}',
   "events_delivered" text[] not null default '{}',
-  "delivery_method" text not null check ("delivery_method" in ('urn:ietf:rfc:8935', 'urn:ietf:rfc:8936')),
+  "delivery_method" text not null constraint bsb_ssf_streams_delivery_method_check check ("delivery_method" in ('urn:ietf:rfc:8935', 'urn:ietf:rfc:8936')),
   "endpoint_id" uuid,
-  "status" text not null default 'enabled' check ("status" in ('enabled', 'paused', 'disabled')),
-  "reason" text check (length("reason") <= 1000),
+  "status" text not null default 'enabled' constraint bsb_ssf_streams_status_check check ("status" in ('enabled', 'paused', 'disabled')),
+  "reason" text constraint bsb_ssf_streams_reason_check check (length("reason") <= 1000),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -1581,7 +1581,7 @@ grant all on "better_supabase"."ssf_streams" to service_role;
 
 create table "better_supabase"."ssf_events" (
   "stream_id" uuid not null references "better_supabase"."ssf_streams" ("id") on delete cascade,
-  "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
+  "jti" text not null constraint bsb_ssf_events_jti_check check (length("jti") >= 1 and length("jti") <= 200),
   "token" text not null,
   "created_at" timestamptz not null default now(),
   primary key ("stream_id", "jti")
@@ -1594,7 +1594,7 @@ grant all on "better_supabase"."ssf_events" to service_role;
 
 create table "better_supabase"."ssf_received" (
   "issuer" text not null,
-  "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
+  "jti" text not null constraint bsb_ssf_received_jti_check check (length("jti") >= 1 and length("jti") <= 200),
   "received_at" timestamptz not null default now(),
   primary key ("issuer", "jti")
 );
@@ -2168,7 +2168,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:61792aebddc69d9eefa32446e513da866d388a7b57f5f76144ff4bcae7632d0b
+-- @bsb-hash sha256:f97c7715d613274a8f8f1151b6228f35f4691519f9d8ae3bc944f9b9f5ba6bbc
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2179,16 +2179,16 @@ on conflict (name) do update
 -- ssf_received is the receiver's replay table of (issuer, jti).
 -- better_supabase.ssf_streams is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ssf_streams" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."ssf_streams" add column if not exists "tenant" text check (length("tenant") >= 1 and length("tenant") <= 200);
-alter table "better_supabase"."ssf_streams" add column if not exists "receiver" text check (length("receiver") >= 1 and length("receiver") <= 200);
-alter table "better_supabase"."ssf_streams" add column if not exists "audience" text[] check (cardinality("audience") >= 1 and cardinality("audience") <= 20);
-alter table "better_supabase"."ssf_streams" add column if not exists "description" text check (length("description") <= 1000);
+alter table "better_supabase"."ssf_streams" add column if not exists "tenant" text constraint bsb_ssf_streams_tenant_check check (length("tenant") >= 1 and length("tenant") <= 200);
+alter table "better_supabase"."ssf_streams" add column if not exists "receiver" text constraint bsb_ssf_streams_receiver_check check (length("receiver") >= 1 and length("receiver") <= 200);
+alter table "better_supabase"."ssf_streams" add column if not exists "audience" text[] constraint bsb_ssf_streams_audience_check check (cardinality("audience") >= 1 and cardinality("audience") <= 20);
+alter table "better_supabase"."ssf_streams" add column if not exists "description" text constraint bsb_ssf_streams_description_check check (length("description") <= 1000);
 alter table "better_supabase"."ssf_streams" add column if not exists "events_requested" text[] not null default '{}';
 alter table "better_supabase"."ssf_streams" add column if not exists "events_delivered" text[] not null default '{}';
-alter table "better_supabase"."ssf_streams" add column if not exists "delivery_method" text check ("delivery_method" in ('urn:ietf:rfc:8935', 'urn:ietf:rfc:8936'));
+alter table "better_supabase"."ssf_streams" add column if not exists "delivery_method" text constraint bsb_ssf_streams_delivery_method_check check ("delivery_method" in ('urn:ietf:rfc:8935', 'urn:ietf:rfc:8936'));
 alter table "better_supabase"."ssf_streams" add column if not exists "endpoint_id" uuid;
-alter table "better_supabase"."ssf_streams" add column if not exists "status" text not null default 'enabled' check ("status" in ('enabled', 'paused', 'disabled'));
-alter table "better_supabase"."ssf_streams" add column if not exists "reason" text check (length("reason") <= 1000);
+alter table "better_supabase"."ssf_streams" add column if not exists "status" text not null default 'enabled' constraint bsb_ssf_streams_status_check check ("status" in ('enabled', 'paused', 'disabled'));
+alter table "better_supabase"."ssf_streams" add column if not exists "reason" text constraint bsb_ssf_streams_reason_check check (length("reason") <= 1000);
 alter table "better_supabase"."ssf_streams" add column if not exists "verified_at" timestamptz;
 alter table "better_supabase"."ssf_streams" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."ssf_streams" add column if not exists "updated_at" timestamptz not null default now();
@@ -2204,7 +2204,7 @@ grant all on "better_supabase"."ssf_streams" to service_role;
 
 -- better_supabase.ssf_events is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ssf_events" add column if not exists "stream_id" uuid references "better_supabase"."ssf_streams" ("id") on delete cascade;
-alter table "better_supabase"."ssf_events" add column if not exists "jti" text check (length("jti") >= 1 and length("jti") <= 200);
+alter table "better_supabase"."ssf_events" add column if not exists "jti" text constraint bsb_ssf_events_jti_check check (length("jti") >= 1 and length("jti") <= 200);
 alter table "better_supabase"."ssf_events" add column if not exists "token" text;
 alter table "better_supabase"."ssf_events" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists ssf_events_order_idx on "better_supabase"."ssf_events" ("stream_id", "created_at");
@@ -2215,7 +2215,7 @@ grant all on "better_supabase"."ssf_events" to service_role;
 
 -- better_supabase.ssf_received is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ssf_received" add column if not exists "issuer" text;
-alter table "better_supabase"."ssf_received" add column if not exists "jti" text check (length("jti") >= 1 and length("jti") <= 200);
+alter table "better_supabase"."ssf_received" add column if not exists "jti" text constraint bsb_ssf_received_jti_check check (length("jti") >= 1 and length("jti") <= 200);
 alter table "better_supabase"."ssf_received" add column if not exists "received_at" timestamptz not null default now();
 create index if not exists ssf_received_at_idx on "better_supabase"."ssf_received" ("received_at");
 create unique index if not exists "bsb_ssf_received_key" on "better_supabase"."ssf_received" ("issuer", "jti");
@@ -2663,7 +2663,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:2e03eb39a6396942657364f151dd7582270a04f055df84f18e2d22d45d29cd27
+-- @bsb-hash sha256:120319540924c49ac6d88464acee01d301c247aba8f725e36e4f47f926571f1b
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2674,16 +2674,16 @@ on conflict (name) do update
 -- ssf_received is the receiver's replay table of (issuer, jti).
 create table "better_supabase"."ssf_streams" (
   "id" uuid primary key default gen_random_uuid(),
-  "org_id" text check (length("org_id") >= 1 and length("org_id") <= 200),
-  "receiver" text not null check (length("receiver") >= 1 and length("receiver") <= 200),
-  "audience" text[] not null check (cardinality("audience") >= 1 and cardinality("audience") <= 20),
-  "description" text check (length("description") <= 1000),
+  "org_id" text constraint bsb_ssf_streams_org_id_check check (length("org_id") >= 1 and length("org_id") <= 200),
+  "receiver" text not null constraint bsb_ssf_streams_receiver_check check (length("receiver") >= 1 and length("receiver") <= 200),
+  "audience" text[] not null constraint bsb_ssf_streams_audience_check check (cardinality("audience") >= 1 and cardinality("audience") <= 20),
+  "description" text constraint bsb_ssf_streams_description_check check (length("description") <= 1000),
   "events_requested" text[] not null default '{}',
   "events_delivered" text[] not null default '{}',
-  "delivery_method" text not null check ("delivery_method" in ('urn:ietf:rfc:8935', 'urn:ietf:rfc:8936')),
+  "delivery_method" text not null constraint bsb_ssf_streams_delivery_method_check check ("delivery_method" in ('urn:ietf:rfc:8935', 'urn:ietf:rfc:8936')),
   "endpoint_id" uuid,
-  "status" text not null default 'enabled' check ("status" in ('enabled', 'paused', 'disabled')),
-  "reason" text check (length("reason") <= 1000),
+  "status" text not null default 'enabled' constraint bsb_ssf_streams_status_check check ("status" in ('enabled', 'paused', 'disabled')),
+  "reason" text constraint bsb_ssf_streams_reason_check check (length("reason") <= 1000),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -2700,7 +2700,7 @@ grant all on "better_supabase"."ssf_streams" to service_role;
 
 create table "better_supabase"."ssf_events" (
   "stream_id" uuid not null references "better_supabase"."ssf_streams" ("id") on delete cascade,
-  "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
+  "jti" text not null constraint bsb_ssf_events_jti_check check (length("jti") >= 1 and length("jti") <= 200),
   "token" text not null,
   "created_at" timestamptz not null default now(),
   primary key ("stream_id", "jti")
@@ -2713,7 +2713,7 @@ grant all on "better_supabase"."ssf_events" to service_role;
 
 create table "better_supabase"."ssf_received" (
   "issuer" text not null,
-  "jti" text not null check (length("jti") >= 1 and length("jti") <= 200),
+  "jti" text not null constraint bsb_ssf_received_jti_check check (length("jti") >= 1 and length("jti") <= 200),
   "received_at" timestamptz not null default now(),
   primary key ("issuer", "jti")
 );

@@ -1,6 +1,6 @@
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:1c0b5a8227e4240c84412bcfaa63cb4c56d3bef8f5043e7563d4550fb56196be
+-- @bsb-hash sha256:85ebfb11e07a5f42acc4b28b83e12631fec496cd5d075af2b83a02614308ad80
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8,13 +8,13 @@
 create table "better_supabase"."ledger_accounts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "code" text not null check (length("code") >= 1 and length("code") <= 200),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "kind" text not null constraint bsb_ledger_accounts_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "code" text not null constraint bsb_ledger_accounts_code_check check (length("code") >= 1 and length("code") <= 200),
+  "name" text not null constraint bsb_ledger_accounts_name_check check (length("name") >= 1 and length("name") <= 200),
   -- An ISO 4217 code for money, or a custom unit such as item, days or points.
-  "unit" text not null check ("unit" ~ '^([A-Z]{3}|[a-z][a-z0-9_]{0,31})$'),
+  "unit" text not null constraint bsb_ledger_accounts_unit_check check ("unit" ~ '^([A-Z]{3}|[a-z][a-z0-9_]{0,31})$'),
   -- Decimal places of a custom unit: amounts are integers, 150 at scale 2 is 1.5.
-  "scale" smallint not null default 0 check ("scale" >= 0 and "scale" <= 6),
+  "scale" smallint not null default 0 constraint bsb_ledger_accounts_scale_check check ("scale" >= 0 and "scale" <= 6),
   "holder_type" text,
   "holder_id" text,
   -- The member the account belongs to, who can read it without a permission.
@@ -29,7 +29,7 @@ create table "better_supabase"."ledger_accounts" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
-  check (("holder_type" is null) = ("holder_id" is null))
+  constraint bsb_ledger_accounts_check check (("holder_type" is null) = ("holder_id" is null))
 );
 create index "ledger_accounts_holder_idx" on "better_supabase"."ledger_accounts" ("tenant_id", "holder_type", "holder_id") where "holder_type" is not null;
 create index "ledger_accounts_kind_idx" on "better_supabase"."ledger_accounts" ("tenant_id", "kind");
@@ -38,10 +38,10 @@ create index "ledger_accounts_owner_idx" on "better_supabase"."ledger_accounts" 
 create table "better_supabase"."ledger_transactions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$'),
+  "kind" text not null constraint bsb_ledger_transactions_kind_check check ("kind" ~ '^[a-z][a-z0-9_]*(\.[a-z][a-z0-9_]*)*$'),
   "reference_type" text,
   "reference_id" text,
-  "memo" text check ("memo" is null or length("memo") <= 2000),
+  "memo" text constraint bsb_ledger_transactions_memo_check check ("memo" is null or length("memo") <= 2000),
   "idempotency_key" text,
   "reverses" uuid references "better_supabase"."ledger_transactions" ("id") on delete restrict,
   "metadata" jsonb not null default '{}'::jsonb,
@@ -60,7 +60,7 @@ create table "better_supabase"."ledger_entries" (
   "transaction_id" uuid not null references "better_supabase"."ledger_transactions" ("id") on delete restrict,
   "account_id" uuid not null references "better_supabase"."ledger_accounts" ("id") on delete restrict,
   -- Signed, in the account's unit: the entries of a transaction sum to zero per unit.
-  "amount" bigint not null check ("amount" <> 0),
+  "amount" bigint not null constraint bsb_ledger_entries_amount_check check ("amount" <> 0),
   "unit" text not null,
   "created_at" timestamptz not null default now()
 );
@@ -72,7 +72,7 @@ create table "better_supabase"."ledger_balances" (
   "tenant_id" uuid not null,
   "balance" bigint not null default 0,
   -- The sum of the account's active holds.
-  "held" bigint not null default 0 check ("held" >= 0),
+  "held" bigint not null default 0 constraint bsb_ledger_balances_held_check check ("held" >= 0),
   "available" bigint generated always as ("balance" - "held") stored,
   "updated_at" timestamptz not null default now()
 );
@@ -82,8 +82,8 @@ create table "better_supabase"."ledger_holds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "account_id" uuid not null references "better_supabase"."ledger_accounts" ("id") on delete restrict,
-  "amount" bigint not null check ("amount" > 0),
-  "status" text not null default 'active' check ("status" in ('active', 'captured', 'released', 'expired')),
+  "amount" bigint not null constraint bsb_ledger_holds_amount_check check ("amount" > 0),
+  "status" text not null default 'active' constraint bsb_ledger_holds_status_check check ("status" in ('active', 'captured', 'released', 'expired')),
   "reference_type" text,
   "reference_id" text,
   "expires_at" timestamptz,

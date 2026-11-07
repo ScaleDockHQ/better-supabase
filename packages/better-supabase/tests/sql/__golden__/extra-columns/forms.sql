@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_086_forms.sql
 -- better-supabase module: forms
 -- @bsb-block forms@2 managed
--- @bsb-hash sha256:a731dc090171160b825934acacff6654b183d17f81a6d762bd9d8421f871e779
+-- @bsb-hash sha256:b16cc65a45f4b04cee7c203850be60d811e73d5d8fdaec181c6cd6f618fcc099
 -- Forms with numbered versions (steps and show or skip logic), a JSON Schema 2020-12 per version that validates every submission, drafts, public links through share-links with a rate limit and a bot-check hook, handlers that turn a submission into a record, scoring against an answer key respondents can't read, and NPS rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,10 +9,10 @@
 create table "better_supabase"."forms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 2000),
-  "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed', 'archived')),
+  "key" text not null constraint bsb_forms_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "title" text not null constraint bsb_forms_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_forms_description_check check ("description" is null or length("description") <= 2000),
+  "status" text not null default 'draft' constraint bsb_forms_status_check check ("status" in ('draft', 'open', 'closed', 'archived')),
   "current_version_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -31,7 +31,7 @@ create table "better_supabase"."form_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "form_id" uuid not null references "better_supabase"."forms" ("id") on delete cascade,
-  "number" integer not null check ("number" > 0),
+  "number" integer not null constraint bsb_form_versions_number_check check ("number" > 0),
   "definition" jsonb not null,
   "schema" jsonb not null,
   "created_by" uuid,
@@ -54,15 +54,15 @@ create table "better_supabase"."form_submissions" (
   "subject_type" text,
   "subject_id" text,
   "respondent_id" uuid,
-  "answers" jsonb not null default '{}'::jsonb check (jsonb_typeof("answers") = 'object' and octet_length("answers"::text) <= 1048576),
-  "status" text not null default 'submitted' check ("status" in ('draft', 'submitted', 'accepted', 'rejected')),
-  "source" text not null default 'member' check ("source" in ('member', 'public', 'service')),
+  "answers" jsonb not null default '{}'::jsonb constraint bsb_form_submissions_answers_check check (jsonb_typeof("answers") = 'object' and octet_length("answers"::text) <= 1048576),
+  "status" text not null default 'submitted' constraint bsb_form_submissions_status_check check ("status" in ('draft', 'submitted', 'accepted', 'rejected')),
+  "source" text not null default 'member' constraint bsb_form_submissions_source_check check ("source" in ('member', 'public', 'service')),
   "reviewed_by" uuid,
   "reviewed_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "submitted_at" timestamptz,
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null))
+  constraint bsb_form_submissions_check check (("subject_type" is null) = ("subject_id" is null))
 );
 create index "form_submissions_form_idx" on "better_supabase"."form_submissions" ("form_id", "created_at" desc);
 create index "form_submissions_version_idx" on "better_supabase"."form_submissions" ("version_id");
@@ -83,7 +83,7 @@ alter table "better_supabase"."form_submissions" add column "passed" boolean;
 create table "better_supabase"."form_answer_keys" (
   "version_id" uuid primary key references "better_supabase"."form_versions" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "answers" jsonb not null check (jsonb_typeof("answers") = 'object'),
+  "answers" jsonb not null constraint bsb_form_answer_keys_answers_check check (jsonb_typeof("answers") = 'object'),
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."form_answer_keys" enable row level security;

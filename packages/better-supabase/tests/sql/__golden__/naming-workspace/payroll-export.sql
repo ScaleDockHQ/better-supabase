@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_159_payroll_export.sql
 -- better-supabase module: payroll-export
 -- @bsb-block payroll-export@1 managed
--- @bsb-hash sha256:cf068324283d3271ff4a6caf9bc14797aacb6640eb50d5ea47146ca04c9cf0d3
+-- @bsb-hash sha256:75dd002d1b5a723dd2ae320a3f2b019f769a550146bae4aae64049bcf9f61ab3
 -- Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,20 +15,20 @@ create table "better_supabase"."payroll_runs" (
   "tenant_id" uuid not null,
   "period_from" date not null,
   "period_to" date not null,
-  "label" text check ("label" is null or length("label") >= 1 and length("label") <= 200),
-  "status" text not null default 'draft' check ("status" in ('draft', 'exported')),
-  "format" text check ("format" is null or length("format") >= 1 and length("format") <= 100),
+  "label" text constraint bsb_payroll_runs_label_check check ("label" is null or length("label") >= 1 and length("label") <= 200),
+  "status" text not null default 'draft' constraint bsb_payroll_runs_status_check check ("status" in ('draft', 'exported')),
+  "format" text constraint bsb_payroll_runs_format_check check ("format" is null or length("format") >= 1 and length("format") <= 100),
   -- The hex SHA-256 of the exported file.
-  "checksum" text check ("checksum" is null or "checksum" ~ '^[0-9a-f]{64}$'),
+  "checksum" text constraint bsb_payroll_runs_checksum_check check ("checksum" is null or "checksum" ~ '^[0-9a-f]{64}$'),
   "exported_at" timestamptz,
   "exported_by" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("period_from" <= "period_to"),
-  check ("period_to" - "period_from" <= 400),
-  check (("status" = 'exported') = ("exported_at" is not null and "format" is not null and "checksum" is not null))
+  constraint bsb_payroll_runs_check check ("period_from" <= "period_to"),
+  constraint bsb_payroll_runs_check1 check ("period_to" - "period_from" <= 400),
+  constraint bsb_payroll_runs_check2 check (("status" = 'exported') = ("exported_at" is not null and "format" is not null and "checksum" is not null))
 );
 create index "payroll_runs_tenant_idx" on "better_supabase"."payroll_runs" ("tenant_id", "period_from" desc);
 alter table "better_supabase"."payroll_runs" enable row level security;
@@ -47,16 +47,16 @@ create table "better_supabase"."payroll_lines" (
   "employee_id" uuid,
   -- The name when the run was collected, so an exported file stays reproducible.
   "employee_name" text,
-  "kind" text not null check ("kind" in ('worked', 'leave', 'scheduled')),
+  "kind" text not null constraint bsb_payroll_lines_kind_check check ("kind" in ('worked', 'leave', 'scheduled')),
   -- The leave type's key; null for worked and scheduled time.
-  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 200),
+  "code" text constraint bsb_payroll_lines_code_check check ("code" is null or length("code") >= 1 and length("code") <= 200),
   "paid" boolean not null default true,
-  "unit" text not null check ("unit" in ('hours', 'days')),
-  "quantity" numeric(12, 2) not null check ("quantity" >= 0),
+  "unit" text not null constraint bsb_payroll_lines_unit_check check ("unit" in ('hours', 'days')),
+  "quantity" numeric(12, 2) not null constraint bsb_payroll_lines_quantity_check check ("quantity" >= 0),
   -- How many entries, requests or assignments the line adds up.
-  "source_count" integer not null default 1 check ("source_count" >= 0),
+  "source_count" integer not null default 1 constraint bsb_payroll_lines_source_count_check check ("source_count" >= 0),
   "created_at" timestamptz not null default now(),
-  check ("user_id" is not null or "employee_id" is not null),
+  constraint bsb_payroll_lines_check check ("user_id" is not null or "employee_id" is not null),
   foreign key ("tenant_id", "run_id") references "better_supabase"."payroll_runs" ("tenant_id", "id") on delete cascade
 );
 create unique index "payroll_lines_person_key" on "better_supabase"."payroll_lines" ("run_id", coalesce("user_id", "employee_id"), "kind", coalesce("code", ''));

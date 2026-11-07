@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_161_dam.sql
 -- better-supabase module: dam
 -- @bsb-block dam@1 managed
--- @bsb-hash sha256:4706d30fe1d4df49e79ce6e618880e7a5efd0c830d2572470130b7112d0537f2
+-- @bsb-hash sha256:ca635c7e68b41a110334e45ec5410aee7acc33f79101f9a57402f009fd21e120
 -- Renditions of drive files (thumbnails and web sizes made through the drive's preview renderers) and usage rights with a territory, a channel and an expiry date, with a reminder before a right ends.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,14 +15,14 @@ create table "better_supabase"."dam_renditions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'failed')),
-  "format" text check ("format" is null or length("format") <= 20),
-  "width" integer check ("width" is null or "width" > 0),
-  "height" integer check ("height" is null or "height" > 0),
-  "size_bytes" bigint check ("size_bytes" is null or "size_bytes" >= 0),
-  "path" text check ("path" is null or length("path") <= 1000),
-  "error" text check ("error" is null or length("error") <= 500),
+  "kind" text not null constraint bsb_dam_renditions_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "status" text not null default 'ready' constraint bsb_dam_renditions_status_check check ("status" in ('pending', 'ready', 'failed')),
+  "format" text constraint bsb_dam_renditions_format_check check ("format" is null or length("format") <= 20),
+  "width" integer constraint bsb_dam_renditions_width_check check ("width" is null or "width" > 0),
+  "height" integer constraint bsb_dam_renditions_height_check check ("height" is null or "height" > 0),
+  "size_bytes" bigint constraint bsb_dam_renditions_size_bytes_check check ("size_bytes" is null or "size_bytes" >= 0),
+  "path" text constraint bsb_dam_renditions_path_check check ("path" is null or length("path") <= 1000),
+  "error" text constraint bsb_dam_renditions_error_check check ("error" is null or length("error") <= 500),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "node_id", "kind")
@@ -41,18 +41,18 @@ create table "better_supabase"."dam_usage_rights" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null,
-  "licensee" text not null check (length("licensee") >= 1 and length("licensee") <= 200),
-  "territory" text check ("territory" is null or length("territory") >= 1 and length("territory") <= 100),
-  "channel" text check ("channel" is null or length("channel") >= 1 and length("channel") <= 100),
+  "licensee" text not null constraint bsb_dam_usage_rights_licensee_check check (length("licensee") >= 1 and length("licensee") <= 200),
+  "territory" text constraint bsb_dam_usage_rights_territory_check check ("territory" is null or length("territory") >= 1 and length("territory") <= 100),
+  "channel" text constraint bsb_dam_usage_rights_channel_check check ("channel" is null or length("channel") >= 1 and length("channel") <= 100),
   "starts_on" date not null default current_date,
   "expires_on" date,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_dam_usage_rights_note_check check ("note" is null or length("note") <= 2000),
   "revoked_at" timestamptz,
   -- The expiry date the reminder last went out for.
   "reminded_for" date,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("expires_on" is null or "expires_on" >= "starts_on")
+  constraint bsb_dam_usage_rights_check check ("expires_on" is null or "expires_on" >= "starts_on")
 );
 create index "dam_usage_rights_node_idx" on "better_supabase"."dam_usage_rights" ("tenant_id", "node_id");
 create index "dam_usage_rights_expiry_idx" on "better_supabase"."dam_usage_rights" ("expires_on") where "revoked_at" is null and "expires_on" is not null;

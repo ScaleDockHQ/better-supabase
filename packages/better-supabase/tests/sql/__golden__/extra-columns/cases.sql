@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_cases.sql
 -- better-supabase module: cases
 -- @bsb-block cases@1 managed
--- @bsb-hash sha256:17257ad1afb07721bef5d9d1169d96d021de7612c4f5f0a7e3e5ba3fed52c6f2
+-- @bsb-hash sha256:a96c80f239ae7b8f87d4c93dfe2596cbd62fe9eb0f522862718b50d4179d3f4a
 -- Cases per organization: nonconformities, complaints, incidents, near misses, observations, improvements, change requests and audit findings of tenant-editable kinds, numbered per kind, each kind on its own pipeline, with a root cause, containment and corrective actions as work items, an effectiveness check, public intake through forms, and a close guard that refuses to close while a blocker remains.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,15 +14,15 @@
 create table "better_supabase"."case_kinds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,40}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_case_kinds_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,40}$'),
+  "name" text not null constraint bsb_case_kinds_name_check check (length("name") >= 1 and length("name") <= 200),
   -- The capital letters case numbers start with, such as NC-2026-0001.
-  "prefix" text not null check ("prefix" ~ '^[A-Z]{1,6}$'),
+  "prefix" text not null constraint bsb_case_kinds_prefix_check check ("prefix" ~ '^[A-Z]{1,6}$'),
   -- The kind's pipeline, one per kind (pipelines scope cases by kind).
   "pipeline_id" uuid,
   "investigation_form_id" uuid,
   "effectiveness_form_id" uuid,
-  "effectiveness_after_days" integer check ("effectiveness_after_days" is null or "effectiveness_after_days" >= 1 and "effectiveness_after_days" <= 365),
+  "effectiveness_after_days" integer constraint bsb_case_kinds_effectiveness_after_days_check check ("effectiveness_after_days" is null or "effectiveness_after_days" >= 1 and "effectiveness_after_days" <= 365),
   "requires_root_cause" boolean not null default true,
   "requires_actions" boolean not null default true,
   "requires_effectiveness" boolean not null default false,
@@ -46,15 +46,15 @@ create table "better_supabase"."cases" (
   "tenant_id" uuid not null,
   "kind_id" uuid not null,
   -- The kind's prefix and the number numbering gives, such as NC-2026-0001.
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_cases_number_check check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 20000),
+  "title" text not null constraint bsb_cases_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_cases_description_check check ("description" is null or length("description") <= 20000),
   -- One of options.severities and options.sources; the functions check them.
-  "severity" text check ("severity" is null or length("severity") >= 1 and length("severity") <= 41),
-  "source" text not null default 'internal' check (length("source") >= 1 and length("source") <= 41),
+  "severity" text constraint bsb_cases_severity_check check ("severity" is null or length("severity") >= 1 and length("severity") <= 41),
+  "source" text not null default 'internal' constraint bsb_cases_source_check check (length("source") >= 1 and length("source") <= 41),
   "reporter_id" uuid,
-  "reporter_contact" jsonb check ("reporter_contact" is null or jsonb_typeof("reporter_contact") = 'object'),
+  "reporter_contact" jsonb constraint bsb_cases_reporter_contact_check check ("reporter_contact" is null or jsonb_typeof("reporter_contact") = 'object'),
   "owner_id" uuid,
   "occurred_at" timestamptz,
   "detected_at" timestamptz not null default now(),
@@ -63,19 +63,19 @@ create table "better_supabase"."cases" (
   "stage_id" uuid,
   "stage_entered_at" timestamptz,
   -- Follows the stage's outcome: open, closed (success) or canceled (failure).
-  "status" text not null default 'open' check ("status" in ('open', 'closed', 'canceled')),
-  "root_cause" text check ("root_cause" is null or length("root_cause") <= 10000),
+  "status" text not null default 'open' constraint bsb_cases_status_check check ("status" in ('open', 'closed', 'canceled')),
+  "root_cause" text constraint bsb_cases_root_cause_check check ("root_cause" is null or length("root_cause") <= 10000),
   "root_cause_submission_id" uuid,
   "effective" boolean,
   "effectiveness_due_on" date,
   -- The due date notify_due_case_effectiveness last reported, so each date notifies once.
   "effectiveness_notified_for" date,
-  "effectiveness_note" text check ("effectiveness_note" is null or length("effectiveness_note") <= 4000),
+  "effectiveness_note" text constraint bsb_cases_effectiveness_note_check check ("effectiveness_note" is null or length("effectiveness_note") <= 4000),
   "effectiveness_submission_id" uuid,
   "closed_at" timestamptz,
   "closed_by" uuid,
-  "close_note" text check ("close_note" is null or length("close_note") <= 4000),
-  "rank" text collate "C" check ("rank" is null or "rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "close_note" text constraint bsb_cases_close_note_check check ("close_note" is null or length("close_note") <= 4000),
+  "rank" text collate "C" constraint bsb_cases_rank_check check ("rank" is null or "rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "archived_at" timestamptz,
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
@@ -104,7 +104,7 @@ create table "better_supabase"."case_actions" (
   -- A work item of the tasks block.
   -- No foreign key: the work items table renders after this one.
   "task_id" uuid not null,
-  "type" text not null check ("type" in ('containment', 'correction', 'corrective', 'preventive', 'improvement')),
+  "type" text not null constraint bsb_case_actions_type_check check ("type" in ('containment', 'correction', 'corrective', 'preventive', 'improvement')),
   "required" boolean not null default true,
   "created_at" timestamptz not null default now(),
   unique ("case_id", "task_id"),

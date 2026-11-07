@@ -140,7 +140,7 @@ describe("impersonation module", () => {
   it("needs a second admin by default, in a table that refuses self-approval", () => {
     const sql = support();
     expect(sql).toContain(
-      'constraint support_requests_distinct_approver check ("approved_by" <> "admin_id")',
+      'constraint bsb_support_requests_distinct_approver check ("approved_by" <> "admin_id")',
     );
     expect(sql).toContain("hint = 'SUPPORT_APPROVAL_REQUIRED'");
     expect(sql).toContain("hint = 'SUPPORT_SELF_APPROVAL'");

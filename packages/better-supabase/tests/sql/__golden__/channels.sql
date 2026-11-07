@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:68e7b31b1def42ee3a27e9fb41b6ce4c7732bada3691e87aa5c16ce36baeb627
+-- @bsb-hash sha256:937feb254bdcbad3df15da8779646ea2ccc507463f99baff8146c52600ebb49a
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,16 +14,16 @@
 create table "better_supabase"."channels" (
   "id" uuid primary key references "better_supabase"."conversations" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_-]{0,79}$'),
-  "visibility" text not null default 'public' check ("visibility" in ('public', 'private')),
-  "topic" text check ("topic" is null or length("topic") <= 250),
-  "purpose" text check ("purpose" is null or length("purpose") <= 250),
+  "name" text not null constraint bsb_channels_name_check check ("name" ~ '^[a-z0-9][a-z0-9_-]{0,79}$'),
+  "visibility" text not null default 'public' constraint bsb_channels_visibility_check check ("visibility" in ('public', 'private')),
+  "topic" text constraint bsb_channels_topic_check check ("topic" is null or length("topic") <= 250),
+  "purpose" text constraint bsb_channels_purpose_check check ("purpose" is null or length("purpose") <= 250),
   "subject_type" text,
   "subject_id" text,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null))
+  constraint bsb_channels_check check (("subject_type" is null) = ("subject_id" is null))
 );
 create unique index channels_name_idx on "better_supabase"."channels" ("tenant_id", "name");
 create index channels_subject_idx on "better_supabase"."channels" ("tenant_id", "subject_type", "subject_id") where "subject_type" is not null;
@@ -377,7 +377,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:5523ae243b4bf636a5735514b5e7030e0ca61d9c533894059a67638a8b31df82
+-- @bsb-hash sha256:dc7d255bfe255ce11efc6543ca9b4f1c6be94bc2e663bc611ea7f82e9a8aa179
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -390,16 +390,16 @@ on conflict (name) do update
 create table "better_supabase"."channels" (
   "id" uuid primary key references "better_supabase"."conversations" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_-]{0,79}$'),
-  "visibility" text not null default 'public' check ("visibility" in ('public', 'private')),
-  "topic" text check ("topic" is null or length("topic") <= 250),
-  "purpose" text check ("purpose" is null or length("purpose") <= 250),
+  "name" text not null constraint bsb_channels_name_check check ("name" ~ '^[a-z0-9][a-z0-9_-]{0,79}$'),
+  "visibility" text not null default 'public' constraint bsb_channels_visibility_check check ("visibility" in ('public', 'private')),
+  "topic" text constraint bsb_channels_topic_check check ("topic" is null or length("topic") <= 250),
+  "purpose" text constraint bsb_channels_purpose_check check ("purpose" is null or length("purpose") <= 250),
   "subject_type" text,
   "subject_id" text,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null))
+  constraint bsb_channels_check check (("subject_type" is null) = ("subject_id" is null))
 );
 create unique index channels_name_idx on "better_supabase"."channels" ("tenant_id", "name");
 create index channels_subject_idx on "better_supabase"."channels" ("tenant_id", "subject_type", "subject_id") where "subject_type" is not null;
@@ -774,7 +774,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:a7bf1b6b3a6faf6450e60d94f0624a8df42db376bfee981c338e0f6d418eccdd
+-- @bsb-hash sha256:d465cf66be6069d7de7b632eaa9d9d925dbd290407b21bcbd14a20fc5a139995
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -792,16 +792,16 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."channels" (
   "id" uuid primary key references "better_supabase"."conversations" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_-]{0,79}$'),
-  "visibility" text not null default 'public' check ("visibility" in ('public', 'private')),
-  "topic" text check ("topic" is null or length("topic") <= 250),
-  "purpose" text check ("purpose" is null or length("purpose") <= 250),
+  "name" text not null constraint bsb_channels_name_check check ("name" ~ '^[a-z0-9][a-z0-9_-]{0,79}$'),
+  "visibility" text not null default 'public' constraint bsb_channels_visibility_check check ("visibility" in ('public', 'private')),
+  "topic" text constraint bsb_channels_topic_check check ("topic" is null or length("topic") <= 250),
+  "purpose" text constraint bsb_channels_purpose_check check ("purpose" is null or length("purpose") <= 250),
   "subject_type" text,
   "subject_id" text,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null))
+  constraint bsb_channels_check check (("subject_type" is null) = ("subject_id" is null))
 );
 create unique index channels_name_idx on "app_private"."channels" ("tenant_id", "name");
 create index channels_subject_idx on "app_private"."channels" ("tenant_id", "subject_type", "subject_id") where "subject_type" is not null;
@@ -1155,7 +1155,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:b130e3eb4a617b88846e29702d37c6400d7f7f710e5e9982ffd6402b885bc174
+-- @bsb-hash sha256:dd8a699d5bfd1a7f30705d8e2d1634d88a6b0b3a48963bf494a9d8844be5ddce
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1168,16 +1168,16 @@ on conflict (name) do update
 create table "better_supabase"."channels" (
   "id" uuid primary key references "better_supabase"."conversations" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_-]{0,79}$'),
-  "visibility" text not null default 'public' check ("visibility" in ('public', 'private')),
-  "topic" text check ("topic" is null or length("topic") <= 250),
-  "purpose" text check ("purpose" is null or length("purpose") <= 250),
+  "name" text not null constraint bsb_channels_name_check check ("name" ~ '^[a-z0-9][a-z0-9_-]{0,79}$'),
+  "visibility" text not null default 'public' constraint bsb_channels_visibility_check check ("visibility" in ('public', 'private')),
+  "topic" text constraint bsb_channels_topic_check check ("topic" is null or length("topic") <= 250),
+  "purpose" text constraint bsb_channels_purpose_check check ("purpose" is null or length("purpose") <= 250),
   "subject_type" text,
   "subject_id" text,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null))
+  constraint bsb_channels_check check (("subject_type" is null) = ("subject_id" is null))
 );
 create unique index channels_name_idx on "better_supabase"."channels" ("tenant_id", "name");
 create index channels_subject_idx on "better_supabase"."channels" ("tenant_id", "subject_type", "subject_id") where "subject_type" is not null;
@@ -1629,7 +1629,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:4b3c27a9db2beeeab9d979aa79db97eed416556a7936f7efe13347dfb5ea4471
+-- @bsb-hash sha256:c48bfb1f13827f8f32c0c49948a0808fd470d5efd027e599b98e2c2e73506b87
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1642,10 +1642,10 @@ on conflict (name) do update
 -- better_supabase.channels is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."channels" add column if not exists "id" uuid references "better_supabase"."conversations" ("id") on delete cascade;
 alter table "better_supabase"."channels" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."channels" add column if not exists "name" text check ("name" ~ '^[a-z0-9][a-z0-9_-]{0,79}$');
-alter table "better_supabase"."channels" add column if not exists "visibility" text not null default 'public' check ("visibility" in ('public', 'private'));
-alter table "better_supabase"."channels" add column if not exists "topic" text check ("topic" is null or length("topic") <= 250);
-alter table "better_supabase"."channels" add column if not exists "purpose" text check ("purpose" is null or length("purpose") <= 250);
+alter table "better_supabase"."channels" add column if not exists "name" text constraint bsb_channels_name_check check ("name" ~ '^[a-z0-9][a-z0-9_-]{0,79}$');
+alter table "better_supabase"."channels" add column if not exists "visibility" text not null default 'public' constraint bsb_channels_visibility_check check ("visibility" in ('public', 'private'));
+alter table "better_supabase"."channels" add column if not exists "topic" text constraint bsb_channels_topic_check check ("topic" is null or length("topic") <= 250);
+alter table "better_supabase"."channels" add column if not exists "purpose" text constraint bsb_channels_purpose_check check ("purpose" is null or length("purpose") <= 250);
 alter table "better_supabase"."channels" add column if not exists "subject_type" text;
 alter table "better_supabase"."channels" add column if not exists "subject_id" text;
 alter table "better_supabase"."channels" add column if not exists "created_by" uuid;
@@ -2002,7 +2002,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_130_channels.sql
 -- better-supabase module: channels
 -- @bsb-block channels@1 managed
--- @bsb-hash sha256:97fd7f60ca43e3869bbc8d7c5a6b9a3c7175a9d8ef2cacb685b56bf83b10c630
+-- @bsb-hash sha256:bfc845d443f2c13a0bec699f7d6ef9b911fa58fd80be608ea13a0626453bf4a0
 -- Named conversations on the messaging core: public channels anyone in the tenant reads and joins, private ones for their members, each with a topic, a purpose and an optional linked record. Create, rename, join, leave and browse; messages, threads, typing and read markers come from messaging.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2015,16 +2015,16 @@ on conflict (name) do update
 create table "better_supabase"."channels" (
   "id" uuid primary key references "better_supabase"."conversations" ("id") on delete cascade,
   "org_id" uuid not null,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_-]{0,79}$'),
-  "visibility" text not null default 'public' check ("visibility" in ('public', 'private')),
-  "topic" text check ("topic" is null or length("topic") <= 250),
-  "purpose" text check ("purpose" is null or length("purpose") <= 250),
+  "name" text not null constraint bsb_channels_name_check check ("name" ~ '^[a-z0-9][a-z0-9_-]{0,79}$'),
+  "visibility" text not null default 'public' constraint bsb_channels_visibility_check check ("visibility" in ('public', 'private')),
+  "topic" text constraint bsb_channels_topic_check check ("topic" is null or length("topic") <= 250),
+  "purpose" text constraint bsb_channels_purpose_check check ("purpose" is null or length("purpose") <= 250),
   "subject_type" text,
   "subject_id" text,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null))
+  constraint bsb_channels_check check (("subject_type" is null) = ("subject_id" is null))
 );
 create unique index channels_name_idx on "better_supabase"."channels" ("org_id", "name");
 create index channels_subject_idx on "better_supabase"."channels" ("org_id", "subject_type", "subject_id") where "subject_type" is not null;

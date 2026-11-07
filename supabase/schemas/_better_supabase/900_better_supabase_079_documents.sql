@@ -1,6 +1,6 @@
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:bb5eb6de496d490b70a0f17af56e267bd69b6d7811e72a63d0582329a0a59a7f
+-- @bsb-hash sha256:18a5b866268a91fee0d16273675a0ebedb4bed5c12801e2b5cecbd3410fa85c4
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,7 +10,7 @@ create table "better_supabase"."documents" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "name" text not null default 'body' check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null default 'body' constraint bsb_documents_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -54,13 +54,13 @@ create table "better_supabase"."document_suggestions" (
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "payload" bytea not null,
-  "summary" text check (length("summary") >= 1 and length("summary") <= 500),
-  "status" text not null default 'open' check ("status" in ('open', 'accepted', 'rejected', 'withdrawn')),
+  "summary" text constraint bsb_document_suggestions_summary_check check (length("summary") >= 1 and length("summary") <= 500),
+  "status" text not null default 'open' constraint bsb_document_suggestions_status_check check ("status" in ('open', 'accepted', 'rejected', 'withdrawn')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "decided_by" uuid,
   "decided_at" timestamptz,
-  "note" text check (length("note") >= 1 and length("note") <= 500)
+  "note" text constraint bsb_document_suggestions_note_check check (length("note") >= 1 and length("note") <= 500)
 );
 create index "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;

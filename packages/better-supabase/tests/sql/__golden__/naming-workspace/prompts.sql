@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:ec31824b1ead3130284b1d755d26800629d07e3fe04846cd207f6fec608a17c5
+-- @bsb-hash sha256:6d88c1f3390baff6f5e93de05aa6d25e0de892bcac99b958bc43f0815fbb9da4
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,10 +13,10 @@
 create table "better_supabase"."prompt_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
-  "version" integer not null check ("version" >= 1),
-  "template" text not null check (length("template") >= 1 and length("template") <= 102400),
-  "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array'),
+  "name" text not null constraint bsb_prompt_versions_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
+  "version" integer not null constraint bsb_prompt_versions_version_check check ("version" >= 1),
+  "template" text not null constraint bsb_prompt_versions_template_check check (length("template") >= 1 and length("template") <= 102400),
+  "variables" jsonb not null default '[]'::jsonb constraint bsb_prompt_versions_variables_check check (jsonb_typeof("variables") = 'array'),
   "created_at" timestamptz not null default now()
 );
 create unique index "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("workspace_id"::text, '')), "name", "version");
@@ -28,8 +28,8 @@ grant all on "better_supabase"."prompt_versions" to service_role;
 create table "better_supabase"."prompt_labels" (
   "workspace_id" uuid,
   "name" text not null,
-  "label" text not null check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
-  "version" integer not null check ("version" >= 1),
+  "label" text not null constraint bsb_prompt_labels_label_check check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
+  "version" integer not null constraint bsb_prompt_labels_version_check check ("version" >= 1),
   "updated_at" timestamptz not null default now()
 );
 create unique index "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("workspace_id"::text, '')), "name", "label");

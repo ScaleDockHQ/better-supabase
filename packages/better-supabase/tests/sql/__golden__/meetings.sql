@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:f28d681d4d653a1425b64906c85e8c7613164c202307ad91daf6363227b1adb4
+-- @bsb-hash sha256:17b0b3c008ed94b73f320c5b4a4acf7c4698fb468c02252a6a07a95ca72a19f5
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,20 +13,20 @@ create table "better_supabase"."meetings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- One of options.kinds; the functions check it.
-  "kind" text not null check (length("kind") >= 1 and length("kind") <= 63),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "location" text check ("location" is null or length("location") <= 500),
+  "kind" text not null constraint bsb_meetings_kind_check check (length("kind") >= 1 and length("kind") <= 63),
+  "title" text not null constraint bsb_meetings_title_check check (length("title") >= 1 and length("title") <= 300),
+  "location" text constraint bsb_meetings_location_check check ("location" is null or length("location") <= 500),
   "starts_at" timestamptz not null,
   "ends_at" timestamptz,
-  "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'held', 'cancelled')),
+  "status" text not null default 'planned' constraint bsb_meetings_status_check check ("status" in ('planned', 'in_progress', 'held', 'cancelled')),
   "started_at" timestamptz,
   "held_at" timestamptz,
-  "summary" text check ("summary" is null or length("summary") <= 20000),
+  "summary" text constraint bsb_meetings_summary_check check ("summary" is null or length("summary") <= 20000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("ends_at" is null or "ends_at" >= "starts_at")
+  constraint bsb_meetings_check check ("ends_at" is null or "ends_at" >= "starts_at")
 );
 create index "meetings_tenant_idx" on "better_supabase"."meetings" ("tenant_id", "status", "starts_at" desc);
 alter table "better_supabase"."meetings" enable row level security;
@@ -38,8 +38,8 @@ create table "better_supabase"."meeting_attendees" (
   "meeting_id" uuid not null,
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null default 'attendee' check ("role" in ('chair', 'secretary', 'attendee', 'guest')),
-  "attendance" text not null default 'invited' check ("attendance" in ('invited', 'present', 'absent', 'excused')),
+  "role" text not null default 'attendee' constraint bsb_meeting_attendees_role_check check ("role" in ('chair', 'secretary', 'attendee', 'guest')),
+  "attendance" text not null default 'invited' constraint bsb_meeting_attendees_attendance_check check ("attendance" in ('invited', 'present', 'absent', 'excused')),
   "created_at" timestamptz not null default now(),
   primary key ("meeting_id", "user_id"),
   foreign key ("tenant_id", "meeting_id") references "better_supabase"."meetings" ("tenant_id", "id") on delete cascade
@@ -78,14 +78,14 @@ create table "better_supabase"."meeting_agenda_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
-  "ordinal" integer not null check ("ordinal" > 0),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "notes" text check ("notes" is null or length("notes") <= 10000),
+  "ordinal" integer not null constraint bsb_meeting_agenda_items_ordinal_check check ("ordinal" > 0),
+  "title" text not null constraint bsb_meeting_agenda_items_title_check check (length("title") >= 1 and length("title") <= 300),
+  "notes" text constraint bsb_meeting_agenda_items_notes_check check ("notes" is null or length("notes") <= 10000),
   "presenter_id" uuid,
   -- Minutes of this item, in Markdown.
-  "minutes" text check ("minutes" is null or length("minutes") <= 50000),
-  "status" text not null default 'open' check ("status" in ('open', 'covered', 'skipped')),
-  "outcome" text check ("outcome" is null or length("outcome") <= 2000),
+  "minutes" text constraint bsb_meeting_agenda_items_minutes_check check ("minutes" is null or length("minutes") <= 50000),
+  "status" text not null default 'open' constraint bsb_meeting_agenda_items_status_check check ("status" in ('open', 'covered', 'skipped')),
+  "outcome" text constraint bsb_meeting_agenda_items_outcome_check check ("outcome" is null or length("outcome") <= 2000),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
   unique ("meeting_id", "ordinal") deferrable initially deferred,
@@ -105,9 +105,9 @@ create table "better_supabase"."meeting_decisions" (
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
   "agenda_item_id" uuid,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "body" text check ("body" is null or length("body") <= 10000),
-  "status" text not null default 'proposed' check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
+  "title" text not null constraint bsb_meeting_decisions_title_check check (length("title") >= 1 and length("title") <= 300),
+  "body" text constraint bsb_meeting_decisions_body_check check ("body" is null or length("body") <= 10000),
+  "status" text not null default 'proposed' constraint bsb_meeting_decisions_status_check check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
   "decided_by" uuid,
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -1102,7 +1102,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:36234a47abff6ab8d6a645f3602da8aa307a3cce924196f09c371f22dcfdae12
+-- @bsb-hash sha256:bd0d4b0b31db39905a819de75f0fd149e1c4d6c1eac1570763c2a99430b07766
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1114,20 +1114,20 @@ create table "better_supabase"."meetings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- One of options.kinds; the functions check it.
-  "kind" text not null check (length("kind") >= 1 and length("kind") <= 63),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "location" text check ("location" is null or length("location") <= 500),
+  "kind" text not null constraint bsb_meetings_kind_check check (length("kind") >= 1 and length("kind") <= 63),
+  "title" text not null constraint bsb_meetings_title_check check (length("title") >= 1 and length("title") <= 300),
+  "location" text constraint bsb_meetings_location_check check ("location" is null or length("location") <= 500),
   "starts_at" timestamptz not null,
   "ends_at" timestamptz,
-  "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'held', 'cancelled')),
+  "status" text not null default 'planned' constraint bsb_meetings_status_check check ("status" in ('planned', 'in_progress', 'held', 'cancelled')),
   "started_at" timestamptz,
   "held_at" timestamptz,
-  "summary" text check ("summary" is null or length("summary") <= 20000),
+  "summary" text constraint bsb_meetings_summary_check check ("summary" is null or length("summary") <= 20000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("ends_at" is null or "ends_at" >= "starts_at")
+  constraint bsb_meetings_check check ("ends_at" is null or "ends_at" >= "starts_at")
 );
 create index "meetings_tenant_idx" on "better_supabase"."meetings" ("tenant_id", "status", "starts_at" desc);
 alter table "better_supabase"."meetings" enable row level security;
@@ -1139,8 +1139,8 @@ create table "better_supabase"."meeting_attendees" (
   "meeting_id" uuid not null,
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null default 'attendee' check ("role" in ('chair', 'secretary', 'attendee', 'guest')),
-  "attendance" text not null default 'invited' check ("attendance" in ('invited', 'present', 'absent', 'excused')),
+  "role" text not null default 'attendee' constraint bsb_meeting_attendees_role_check check ("role" in ('chair', 'secretary', 'attendee', 'guest')),
+  "attendance" text not null default 'invited' constraint bsb_meeting_attendees_attendance_check check ("attendance" in ('invited', 'present', 'absent', 'excused')),
   "created_at" timestamptz not null default now(),
   primary key ("meeting_id", "user_id"),
   foreign key ("tenant_id", "meeting_id") references "better_supabase"."meetings" ("tenant_id", "id") on delete cascade
@@ -1179,14 +1179,14 @@ create table "better_supabase"."meeting_agenda_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
-  "ordinal" integer not null check ("ordinal" > 0),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "notes" text check ("notes" is null or length("notes") <= 10000),
+  "ordinal" integer not null constraint bsb_meeting_agenda_items_ordinal_check check ("ordinal" > 0),
+  "title" text not null constraint bsb_meeting_agenda_items_title_check check (length("title") >= 1 and length("title") <= 300),
+  "notes" text constraint bsb_meeting_agenda_items_notes_check check ("notes" is null or length("notes") <= 10000),
   "presenter_id" uuid,
   -- Minutes of this item, in Markdown.
-  "minutes" text check ("minutes" is null or length("minutes") <= 50000),
-  "status" text not null default 'open' check ("status" in ('open', 'covered', 'skipped')),
-  "outcome" text check ("outcome" is null or length("outcome") <= 2000),
+  "minutes" text constraint bsb_meeting_agenda_items_minutes_check check ("minutes" is null or length("minutes") <= 50000),
+  "status" text not null default 'open' constraint bsb_meeting_agenda_items_status_check check ("status" in ('open', 'covered', 'skipped')),
+  "outcome" text constraint bsb_meeting_agenda_items_outcome_check check ("outcome" is null or length("outcome") <= 2000),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
   unique ("meeting_id", "ordinal") deferrable initially deferred,
@@ -1206,9 +1206,9 @@ create table "better_supabase"."meeting_decisions" (
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
   "agenda_item_id" uuid,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "body" text check ("body" is null or length("body") <= 10000),
-  "status" text not null default 'proposed' check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
+  "title" text not null constraint bsb_meeting_decisions_title_check check (length("title") >= 1 and length("title") <= 300),
+  "body" text constraint bsb_meeting_decisions_body_check check ("body" is null or length("body") <= 10000),
+  "status" text not null default 'proposed' constraint bsb_meeting_decisions_status_check check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
   "decided_by" uuid,
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -2331,7 +2331,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:2ff2a29474b3c7484d6ed879bf884eb5c4fad3bb0c87b9d3dcdab4c2caad3315
+-- @bsb-hash sha256:d8e5c075ec89d2948190a267ce826c250f14f6c4cce03ec91e121a1c9f4c34d9
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2348,20 +2348,20 @@ create table "app_private"."meetings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- One of options.kinds; the functions check it.
-  "kind" text not null check (length("kind") >= 1 and length("kind") <= 63),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "location" text check ("location" is null or length("location") <= 500),
+  "kind" text not null constraint bsb_meetings_kind_check check (length("kind") >= 1 and length("kind") <= 63),
+  "title" text not null constraint bsb_meetings_title_check check (length("title") >= 1 and length("title") <= 300),
+  "location" text constraint bsb_meetings_location_check check ("location" is null or length("location") <= 500),
   "starts_at" timestamptz not null,
   "ends_at" timestamptz,
-  "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'held', 'cancelled')),
+  "status" text not null default 'planned' constraint bsb_meetings_status_check check ("status" in ('planned', 'in_progress', 'held', 'cancelled')),
   "started_at" timestamptz,
   "held_at" timestamptz,
-  "summary" text check ("summary" is null or length("summary") <= 20000),
+  "summary" text constraint bsb_meetings_summary_check check ("summary" is null or length("summary") <= 20000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("ends_at" is null or "ends_at" >= "starts_at")
+  constraint bsb_meetings_check check ("ends_at" is null or "ends_at" >= "starts_at")
 );
 create index "meetings_tenant_idx" on "app_private"."meetings" ("tenant_id", "status", "starts_at" desc);
 alter table "app_private"."meetings" enable row level security;
@@ -2373,8 +2373,8 @@ create table "app_private"."meeting_attendees" (
   "meeting_id" uuid not null,
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null default 'attendee' check ("role" in ('chair', 'secretary', 'attendee', 'guest')),
-  "attendance" text not null default 'invited' check ("attendance" in ('invited', 'present', 'absent', 'excused')),
+  "role" text not null default 'attendee' constraint bsb_meeting_attendees_role_check check ("role" in ('chair', 'secretary', 'attendee', 'guest')),
+  "attendance" text not null default 'invited' constraint bsb_meeting_attendees_attendance_check check ("attendance" in ('invited', 'present', 'absent', 'excused')),
   "created_at" timestamptz not null default now(),
   primary key ("meeting_id", "user_id"),
   foreign key ("tenant_id", "meeting_id") references "app_private"."meetings" ("tenant_id", "id") on delete cascade
@@ -2413,14 +2413,14 @@ create table "app_private"."meeting_agenda_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
-  "ordinal" integer not null check ("ordinal" > 0),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "notes" text check ("notes" is null or length("notes") <= 10000),
+  "ordinal" integer not null constraint bsb_meeting_agenda_items_ordinal_check check ("ordinal" > 0),
+  "title" text not null constraint bsb_meeting_agenda_items_title_check check (length("title") >= 1 and length("title") <= 300),
+  "notes" text constraint bsb_meeting_agenda_items_notes_check check ("notes" is null or length("notes") <= 10000),
   "presenter_id" uuid,
   -- Minutes of this item, in Markdown.
-  "minutes" text check ("minutes" is null or length("minutes") <= 50000),
-  "status" text not null default 'open' check ("status" in ('open', 'covered', 'skipped')),
-  "outcome" text check ("outcome" is null or length("outcome") <= 2000),
+  "minutes" text constraint bsb_meeting_agenda_items_minutes_check check ("minutes" is null or length("minutes") <= 50000),
+  "status" text not null default 'open' constraint bsb_meeting_agenda_items_status_check check ("status" in ('open', 'covered', 'skipped')),
+  "outcome" text constraint bsb_meeting_agenda_items_outcome_check check ("outcome" is null or length("outcome") <= 2000),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
   unique ("meeting_id", "ordinal") deferrable initially deferred,
@@ -2440,9 +2440,9 @@ create table "app_private"."meeting_decisions" (
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
   "agenda_item_id" uuid,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "body" text check ("body" is null or length("body") <= 10000),
-  "status" text not null default 'proposed' check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
+  "title" text not null constraint bsb_meeting_decisions_title_check check (length("title") >= 1 and length("title") <= 300),
+  "body" text constraint bsb_meeting_decisions_body_check check ("body" is null or length("body") <= 10000),
+  "status" text not null default 'proposed' constraint bsb_meeting_decisions_status_check check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
   "decided_by" uuid,
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -3437,7 +3437,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:c7e0a57e4c9845b29c196f84eddec1edcdb68124de6dc44a04d64c2d715322c2
+-- @bsb-hash sha256:3c04a6afc269323aad985cfab5bfd075c9c136258ca7ecb5cf9dbc23d84c8fb7
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3449,20 +3449,20 @@ create table "better_supabase"."meetings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- One of options.kinds; the functions check it.
-  "kind" text not null check (length("kind") >= 1 and length("kind") <= 63),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "location" text check ("location" is null or length("location") <= 500),
+  "kind" text not null constraint bsb_meetings_kind_check check (length("kind") >= 1 and length("kind") <= 63),
+  "title" text not null constraint bsb_meetings_title_check check (length("title") >= 1 and length("title") <= 300),
+  "location" text constraint bsb_meetings_location_check check ("location" is null or length("location") <= 500),
   "starts_at" timestamptz not null,
   "ends_at" timestamptz,
-  "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'held', 'cancelled')),
+  "status" text not null default 'planned' constraint bsb_meetings_status_check check ("status" in ('planned', 'in_progress', 'held', 'cancelled')),
   "started_at" timestamptz,
   "held_at" timestamptz,
-  "summary" text check ("summary" is null or length("summary") <= 20000),
+  "summary" text constraint bsb_meetings_summary_check check ("summary" is null or length("summary") <= 20000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("ends_at" is null or "ends_at" >= "starts_at")
+  constraint bsb_meetings_check check ("ends_at" is null or "ends_at" >= "starts_at")
 );
 create index "meetings_tenant_idx" on "better_supabase"."meetings" ("tenant_id", "status", "starts_at" desc);
 alter table "better_supabase"."meetings" enable row level security;
@@ -3474,8 +3474,8 @@ create table "better_supabase"."meeting_attendees" (
   "meeting_id" uuid not null,
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null default 'attendee' check ("role" in ('chair', 'secretary', 'attendee', 'guest')),
-  "attendance" text not null default 'invited' check ("attendance" in ('invited', 'present', 'absent', 'excused')),
+  "role" text not null default 'attendee' constraint bsb_meeting_attendees_role_check check ("role" in ('chair', 'secretary', 'attendee', 'guest')),
+  "attendance" text not null default 'invited' constraint bsb_meeting_attendees_attendance_check check ("attendance" in ('invited', 'present', 'absent', 'excused')),
   "created_at" timestamptz not null default now(),
   primary key ("meeting_id", "user_id"),
   foreign key ("tenant_id", "meeting_id") references "better_supabase"."meetings" ("tenant_id", "id") on delete cascade
@@ -3514,14 +3514,14 @@ create table "better_supabase"."meeting_agenda_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
-  "ordinal" integer not null check ("ordinal" > 0),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "notes" text check ("notes" is null or length("notes") <= 10000),
+  "ordinal" integer not null constraint bsb_meeting_agenda_items_ordinal_check check ("ordinal" > 0),
+  "title" text not null constraint bsb_meeting_agenda_items_title_check check (length("title") >= 1 and length("title") <= 300),
+  "notes" text constraint bsb_meeting_agenda_items_notes_check check ("notes" is null or length("notes") <= 10000),
   "presenter_id" uuid,
   -- Minutes of this item, in Markdown.
-  "minutes" text check ("minutes" is null or length("minutes") <= 50000),
-  "status" text not null default 'open' check ("status" in ('open', 'covered', 'skipped')),
-  "outcome" text check ("outcome" is null or length("outcome") <= 2000),
+  "minutes" text constraint bsb_meeting_agenda_items_minutes_check check ("minutes" is null or length("minutes") <= 50000),
+  "status" text not null default 'open' constraint bsb_meeting_agenda_items_status_check check ("status" in ('open', 'covered', 'skipped')),
+  "outcome" text constraint bsb_meeting_agenda_items_outcome_check check ("outcome" is null or length("outcome") <= 2000),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
   unique ("meeting_id", "ordinal") deferrable initially deferred,
@@ -3541,9 +3541,9 @@ create table "better_supabase"."meeting_decisions" (
   "tenant_id" uuid not null,
   "meeting_id" uuid not null,
   "agenda_item_id" uuid,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "body" text check ("body" is null or length("body") <= 10000),
-  "status" text not null default 'proposed' check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
+  "title" text not null constraint bsb_meeting_decisions_title_check check (length("title") >= 1 and length("title") <= 300),
+  "body" text constraint bsb_meeting_decisions_body_check check ("body" is null or length("body") <= 10000),
+  "status" text not null default 'proposed' constraint bsb_meeting_decisions_status_check check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
   "decided_by" uuid,
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -4696,7 +4696,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:88e20f9fadf3dc5c4287650950a9c3e1e9cfb66a91d8448c9d466fd58d3b7744
+-- @bsb-hash sha256:539c357af03ebb1ee00e4b155ff147c4a1915fa00ea680a4470fe27d06d34fe0
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4707,15 +4707,15 @@ on conflict (name) do update
 -- better_supabase.meetings is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."meetings" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."meetings" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."meetings" add column if not exists "kind" text check (length("kind") >= 1 and length("kind") <= 63);
-alter table "better_supabase"."meetings" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 300);
-alter table "better_supabase"."meetings" add column if not exists "location" text check ("location" is null or length("location") <= 500);
+alter table "better_supabase"."meetings" add column if not exists "kind" text constraint bsb_meetings_kind_check check (length("kind") >= 1 and length("kind") <= 63);
+alter table "better_supabase"."meetings" add column if not exists "title" text constraint bsb_meetings_title_check check (length("title") >= 1 and length("title") <= 300);
+alter table "better_supabase"."meetings" add column if not exists "location" text constraint bsb_meetings_location_check check ("location" is null or length("location") <= 500);
 alter table "better_supabase"."meetings" add column if not exists "starts_at" timestamptz;
 alter table "better_supabase"."meetings" add column if not exists "ends_at" timestamptz;
-alter table "better_supabase"."meetings" add column if not exists "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'held', 'cancelled'));
+alter table "better_supabase"."meetings" add column if not exists "status" text not null default 'planned' constraint bsb_meetings_status_check check ("status" in ('planned', 'in_progress', 'held', 'cancelled'));
 alter table "better_supabase"."meetings" add column if not exists "started_at" timestamptz;
 alter table "better_supabase"."meetings" add column if not exists "held_at" timestamptz;
-alter table "better_supabase"."meetings" add column if not exists "summary" text check ("summary" is null or length("summary") <= 20000);
+alter table "better_supabase"."meetings" add column if not exists "summary" text constraint bsb_meetings_summary_check check ("summary" is null or length("summary") <= 20000);
 alter table "better_supabase"."meetings" add column if not exists "created_by" uuid;
 alter table "better_supabase"."meetings" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."meetings" add column if not exists "updated_at" timestamptz not null default now();
@@ -4729,8 +4729,8 @@ grant all on "better_supabase"."meetings" to service_role;
 alter table "better_supabase"."meeting_attendees" add column if not exists "meeting_id" uuid;
 alter table "better_supabase"."meeting_attendees" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."meeting_attendees" add column if not exists "user_id" uuid;
-alter table "better_supabase"."meeting_attendees" add column if not exists "role" text not null default 'attendee' check ("role" in ('chair', 'secretary', 'attendee', 'guest'));
-alter table "better_supabase"."meeting_attendees" add column if not exists "attendance" text not null default 'invited' check ("attendance" in ('invited', 'present', 'absent', 'excused'));
+alter table "better_supabase"."meeting_attendees" add column if not exists "role" text not null default 'attendee' constraint bsb_meeting_attendees_role_check check ("role" in ('chair', 'secretary', 'attendee', 'guest'));
+alter table "better_supabase"."meeting_attendees" add column if not exists "attendance" text not null default 'invited' constraint bsb_meeting_attendees_attendance_check check ("attendance" in ('invited', 'present', 'absent', 'excused'));
 alter table "better_supabase"."meeting_attendees" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_meeting_attendees_meeting_user_key" on "better_supabase"."meeting_attendees" ("meeting_id", "user_id");
 create index if not exists "meeting_attendees_parent_idx" on "better_supabase"."meeting_attendees" ("tenant_id", "meeting_id");
@@ -4766,13 +4766,13 @@ create policy bsb_meeting_attendees_read on "better_supabase"."meeting_attendees
 alter table "better_supabase"."meeting_agenda_items" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."meeting_agenda_items" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."meeting_agenda_items" add column if not exists "meeting_id" uuid;
-alter table "better_supabase"."meeting_agenda_items" add column if not exists "ordinal" integer check ("ordinal" > 0);
-alter table "better_supabase"."meeting_agenda_items" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 300);
-alter table "better_supabase"."meeting_agenda_items" add column if not exists "notes" text check ("notes" is null or length("notes") <= 10000);
+alter table "better_supabase"."meeting_agenda_items" add column if not exists "ordinal" integer constraint bsb_meeting_agenda_items_ordinal_check check ("ordinal" > 0);
+alter table "better_supabase"."meeting_agenda_items" add column if not exists "title" text constraint bsb_meeting_agenda_items_title_check check (length("title") >= 1 and length("title") <= 300);
+alter table "better_supabase"."meeting_agenda_items" add column if not exists "notes" text constraint bsb_meeting_agenda_items_notes_check check ("notes" is null or length("notes") <= 10000);
 alter table "better_supabase"."meeting_agenda_items" add column if not exists "presenter_id" uuid;
-alter table "better_supabase"."meeting_agenda_items" add column if not exists "minutes" text check ("minutes" is null or length("minutes") <= 50000);
-alter table "better_supabase"."meeting_agenda_items" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'covered', 'skipped'));
-alter table "better_supabase"."meeting_agenda_items" add column if not exists "outcome" text check ("outcome" is null or length("outcome") <= 2000);
+alter table "better_supabase"."meeting_agenda_items" add column if not exists "minutes" text constraint bsb_meeting_agenda_items_minutes_check check ("minutes" is null or length("minutes") <= 50000);
+alter table "better_supabase"."meeting_agenda_items" add column if not exists "status" text not null default 'open' constraint bsb_meeting_agenda_items_status_check check ("status" in ('open', 'covered', 'skipped'));
+alter table "better_supabase"."meeting_agenda_items" add column if not exists "outcome" text constraint bsb_meeting_agenda_items_outcome_check check ("outcome" is null or length("outcome") <= 2000);
 alter table "better_supabase"."meeting_agenda_items" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_meeting_agenda_items_meeting_ordinal_key" on "better_supabase"."meeting_agenda_items" ("meeting_id", "ordinal");
 create unique index if not exists "bsb_meeting_agenda_items_tenant_id_key" on "better_supabase"."meeting_agenda_items" ("tenant_id", "id");
@@ -4789,9 +4789,9 @@ alter table "better_supabase"."meeting_decisions" add column if not exists "id" 
 alter table "better_supabase"."meeting_decisions" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."meeting_decisions" add column if not exists "meeting_id" uuid;
 alter table "better_supabase"."meeting_decisions" add column if not exists "agenda_item_id" uuid;
-alter table "better_supabase"."meeting_decisions" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 300);
-alter table "better_supabase"."meeting_decisions" add column if not exists "body" text check ("body" is null or length("body") <= 10000);
-alter table "better_supabase"."meeting_decisions" add column if not exists "status" text not null default 'proposed' check ("status" in ('proposed', 'passed', 'rejected', 'deferred'));
+alter table "better_supabase"."meeting_decisions" add column if not exists "title" text constraint bsb_meeting_decisions_title_check check (length("title") >= 1 and length("title") <= 300);
+alter table "better_supabase"."meeting_decisions" add column if not exists "body" text constraint bsb_meeting_decisions_body_check check ("body" is null or length("body") <= 10000);
+alter table "better_supabase"."meeting_decisions" add column if not exists "status" text not null default 'proposed' constraint bsb_meeting_decisions_status_check check ("status" in ('proposed', 'passed', 'rejected', 'deferred'));
 alter table "better_supabase"."meeting_decisions" add column if not exists "decided_by" uuid;
 alter table "better_supabase"."meeting_decisions" add column if not exists "decided_at" timestamptz;
 alter table "better_supabase"."meeting_decisions" add column if not exists "created_at" timestamptz not null default now();
@@ -5777,7 +5777,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:cbb40aedb0055763aaeb20e9a47d28aaeac047cf6d6d47f662063b4d0f2637b5
+-- @bsb-hash sha256:2e10b44617a906d1ce07a052997a14d78a5e30133ebe2abe4ed9f037b6da623f
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5789,20 +5789,20 @@ create table "better_supabase"."meetings" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- One of options.kinds; the functions check it.
-  "kind" text not null check (length("kind") >= 1 and length("kind") <= 63),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "location" text check ("location" is null or length("location") <= 500),
+  "kind" text not null constraint bsb_meetings_kind_check check (length("kind") >= 1 and length("kind") <= 63),
+  "title" text not null constraint bsb_meetings_title_check check (length("title") >= 1 and length("title") <= 300),
+  "location" text constraint bsb_meetings_location_check check ("location" is null or length("location") <= 500),
   "starts_at" timestamptz not null,
   "ends_at" timestamptz,
-  "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'held', 'cancelled')),
+  "status" text not null default 'planned' constraint bsb_meetings_status_check check ("status" in ('planned', 'in_progress', 'held', 'cancelled')),
   "started_at" timestamptz,
   "held_at" timestamptz,
-  "summary" text check ("summary" is null or length("summary") <= 20000),
+  "summary" text constraint bsb_meetings_summary_check check ("summary" is null or length("summary") <= 20000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "id"),
-  check ("ends_at" is null or "ends_at" >= "starts_at")
+  constraint bsb_meetings_check check ("ends_at" is null or "ends_at" >= "starts_at")
 );
 create index "meetings_tenant_idx" on "better_supabase"."meetings" ("org_id", "status", "starts_at" desc);
 alter table "better_supabase"."meetings" enable row level security;
@@ -5814,8 +5814,8 @@ create table "better_supabase"."meeting_attendees" (
   "meeting_id" uuid not null,
   "org_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null default 'attendee' check ("role" in ('chair', 'secretary', 'attendee', 'guest')),
-  "attendance" text not null default 'invited' check ("attendance" in ('invited', 'present', 'absent', 'excused')),
+  "role" text not null default 'attendee' constraint bsb_meeting_attendees_role_check check ("role" in ('chair', 'secretary', 'attendee', 'guest')),
+  "attendance" text not null default 'invited' constraint bsb_meeting_attendees_attendance_check check ("attendance" in ('invited', 'present', 'absent', 'excused')),
   "created_at" timestamptz not null default now(),
   primary key ("meeting_id", "user_id"),
   foreign key ("org_id", "meeting_id") references "better_supabase"."meetings" ("org_id", "id") on delete cascade
@@ -5854,14 +5854,14 @@ create table "better_supabase"."meeting_agenda_items" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "meeting_id" uuid not null,
-  "ordinal" integer not null check ("ordinal" > 0),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "notes" text check ("notes" is null or length("notes") <= 10000),
+  "ordinal" integer not null constraint bsb_meeting_agenda_items_ordinal_check check ("ordinal" > 0),
+  "title" text not null constraint bsb_meeting_agenda_items_title_check check (length("title") >= 1 and length("title") <= 300),
+  "notes" text constraint bsb_meeting_agenda_items_notes_check check ("notes" is null or length("notes") <= 10000),
   "presenter_id" uuid,
   -- Minutes of this item, in Markdown.
-  "minutes" text check ("minutes" is null or length("minutes") <= 50000),
-  "status" text not null default 'open' check ("status" in ('open', 'covered', 'skipped')),
-  "outcome" text check ("outcome" is null or length("outcome") <= 2000),
+  "minutes" text constraint bsb_meeting_agenda_items_minutes_check check ("minutes" is null or length("minutes") <= 50000),
+  "status" text not null default 'open' constraint bsb_meeting_agenda_items_status_check check ("status" in ('open', 'covered', 'skipped')),
+  "outcome" text constraint bsb_meeting_agenda_items_outcome_check check ("outcome" is null or length("outcome") <= 2000),
   "created_at" timestamptz not null default now(),
   unique ("org_id", "id"),
   unique ("meeting_id", "ordinal") deferrable initially deferred,
@@ -5881,9 +5881,9 @@ create table "better_supabase"."meeting_decisions" (
   "org_id" uuid not null,
   "meeting_id" uuid not null,
   "agenda_item_id" uuid,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "body" text check ("body" is null or length("body") <= 10000),
-  "status" text not null default 'proposed' check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
+  "title" text not null constraint bsb_meeting_decisions_title_check check (length("title") >= 1 and length("title") <= 300),
+  "body" text constraint bsb_meeting_decisions_body_check check ("body" is null or length("body") <= 10000),
+  "status" text not null default 'proposed' constraint bsb_meeting_decisions_status_check check ("status" in ('proposed', 'passed', 'rejected', 'deferred')),
   "decided_by" uuid,
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now(),

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:fd88e1d7e6644450e672e008e911a782c1a873aede95210ed02838f507af228e
+-- @bsb-hash sha256:39d6c1b363f65fb9df9f62ee1e1750a1517dc07f66c43f372340d99d5356a08b
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,11 +13,11 @@
 create table "better_supabase"."maintenance_meters" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "unit" text not null check (length("unit") >= 1 and length("unit") <= 30),
+  "name" text not null constraint bsb_maintenance_meters_name_check check (length("name") >= 1 and length("name") <= 200),
+  "unit" text not null constraint bsb_maintenance_meters_unit_check check (length("unit") >= 1 and length("unit") <= 30),
   "asset_id" uuid,
   -- The latest reading. Readings only go up, so a plan can count from it.
-  "reading" numeric not null default 0 check ("reading" >= 0),
+  "reading" numeric not null default 0 constraint bsb_maintenance_meters_reading_check check ("reading" >= 0),
   "read_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
@@ -35,7 +35,7 @@ create table "better_supabase"."maintenance_meter_readings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "meter_id" uuid not null,
-  "value" numeric not null check ("value" >= 0),
+  "value" numeric not null constraint bsb_maintenance_meter_readings_value_check check ("value" >= 0),
   "read_at" timestamptz not null default now(),
   "read_by" uuid,
   foreign key ("tenant_id", "meter_id") references "better_supabase"."maintenance_meters" ("tenant_id", "id") on delete cascade
@@ -52,16 +52,16 @@ create policy bsb_maintenance_meter_readings_read on "better_supabase"."maintena
 create table "better_supabase"."maintenance_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "title" text not null constraint bsb_maintenance_plans_title_check check (length("title") >= 1 and length("title") <= 200),
   "asset_id" uuid,
-  "kind" text not null check ("kind" in ('time', 'meter', 'rrule')),
+  "kind" text not null constraint bsb_maintenance_plans_kind_check check ("kind" in ('time', 'meter', 'rrule')),
   -- A time plan falls due every_days after it was last done.
-  "every_days" integer check ("every_days" is null or "every_days" > 0),
+  "every_days" integer constraint bsb_maintenance_plans_every_days_check check ("every_days" is null or "every_days" > 0),
   -- A meter plan falls due every_value units of the meter after it was last done.
   "meter_id" uuid,
-  "every_value" numeric check ("every_value" is null or "every_value" > 0),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
-  "status" text not null default 'active' check ("status" in ('active', 'paused')),
+  "every_value" numeric constraint bsb_maintenance_plans_every_value_check check ("every_value" is null or "every_value" > 0),
+  "priority" text not null default 'normal' constraint bsb_maintenance_plans_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "status" text not null default 'active' constraint bsb_maintenance_plans_status_check check ("status" in ('active', 'paused')),
   "last_done_at" timestamptz,
   "last_done_value" numeric,
   "next_due_at" timestamptz,
@@ -70,7 +70,7 @@ create table "better_supabase"."maintenance_plans" (
   -- An rrule plan (RFC 5545: FREQ DAILY to YEARLY with INTERVAL, COUNT, UNTIL,
   -- BYDAY, BYMONTHDAY, BYMONTH, BYSETPOS and WKST) falls due on each
   -- occurrence from dtstart, read in the time zone tz.
-  "rrule" text check ("rrule" is null or length("rrule") >= 1 and length("rrule") <= 500),
+  "rrule" text constraint bsb_maintenance_plans_rrule_check check ("rrule" is null or length("rrule") >= 1 and length("rrule") <= 500),
   "dtstart" timestamptz,
   "tz" text not null default 'UTC',
   -- Qualification type keys the technician of the work order must hold.
@@ -80,7 +80,7 @@ create table "better_supabase"."maintenance_plans" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "meter_id") references "better_supabase"."maintenance_meters" ("tenant_id", "id"),
-  check (
+  constraint bsb_maintenance_plans_check check (
     ("kind" = 'time' and "every_days" is not null and "meter_id" is null and "every_value" is null and "rrule" is null)
     or ("kind" = 'meter' and "every_days" is null and "meter_id" is not null and "every_value" is not null and "rrule" is null)
     or ("kind" = 'rrule' and "every_days" is null and "meter_id" is null and "every_value" is null and "rrule" is not null and "dtstart" is not null)
@@ -103,8 +103,8 @@ create table "better_supabase"."maintenance_plan_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "quantity" numeric not null default 1 check ("quantity" > 0),
+  "name" text not null constraint bsb_maintenance_plan_parts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "quantity" numeric not null default 1 constraint bsb_maintenance_plan_parts_quantity_check check ("quantity" > 0),
   "variant_id" uuid,
   foreign key ("tenant_id", "plan_id") references "better_supabase"."maintenance_plans" ("tenant_id", "id") on delete cascade
 );
@@ -121,15 +121,15 @@ create table "better_supabase"."maintenance_calibrations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid,
-  "instrument" text not null check (length("instrument") >= 1 and length("instrument") <= 200),
+  "instrument" text not null constraint bsb_maintenance_calibrations_instrument_check check (length("instrument") >= 1 and length("instrument") <= 200),
   "performed_at" timestamptz not null,
   "due_at" timestamptz,
-  "result" text not null check ("result" in ('pass', 'fail', 'adjusted')),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "result" text not null constraint bsb_maintenance_calibrations_result_check check ("result" in ('pass', 'fail', 'adjusted')),
+  "reference" text constraint bsb_maintenance_calibrations_reference_check check ("reference" is null or length("reference") <= 200),
   "performed_by" uuid,
   -- Qualification type keys the person who calibrated held and the work needs.
   "qualifications" text[] not null default '{}',
-  check ("due_at" is null or "due_at" >= "performed_at")
+  constraint bsb_maintenance_calibrations_check check ("due_at" is null or "due_at" >= "performed_at")
 );
 create index "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
 create index "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "due_at");
@@ -944,7 +944,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:00a8489cfba8f24a0f3ddbee332daa9ed762077fbdf75938bc960659af075d5d
+-- @bsb-hash sha256:c431fbaf195e73105015d51f1e4eb388de419a4fc0100da4c4e1f931980d8592
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -956,11 +956,11 @@ on conflict (name) do update
 create table "better_supabase"."maintenance_meters" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "unit" text not null check (length("unit") >= 1 and length("unit") <= 30),
+  "name" text not null constraint bsb_maintenance_meters_name_check check (length("name") >= 1 and length("name") <= 200),
+  "unit" text not null constraint bsb_maintenance_meters_unit_check check (length("unit") >= 1 and length("unit") <= 30),
   "asset_id" uuid,
   -- The latest reading. Readings only go up, so a plan can count from it.
-  "reading" numeric not null default 0 check ("reading" >= 0),
+  "reading" numeric not null default 0 constraint bsb_maintenance_meters_reading_check check ("reading" >= 0),
   "read_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
@@ -978,7 +978,7 @@ create table "better_supabase"."maintenance_meter_readings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "meter_id" uuid not null,
-  "value" numeric not null check ("value" >= 0),
+  "value" numeric not null constraint bsb_maintenance_meter_readings_value_check check ("value" >= 0),
   "read_at" timestamptz not null default now(),
   "read_by" uuid,
   foreign key ("tenant_id", "meter_id") references "better_supabase"."maintenance_meters" ("tenant_id", "id") on delete cascade
@@ -995,16 +995,16 @@ create policy bsb_maintenance_meter_readings_read on "better_supabase"."maintena
 create table "better_supabase"."maintenance_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "title" text not null constraint bsb_maintenance_plans_title_check check (length("title") >= 1 and length("title") <= 200),
   "asset_id" uuid,
-  "kind" text not null check ("kind" in ('time', 'meter', 'rrule')),
+  "kind" text not null constraint bsb_maintenance_plans_kind_check check ("kind" in ('time', 'meter', 'rrule')),
   -- A time plan falls due every_days after it was last done.
-  "every_days" integer check ("every_days" is null or "every_days" > 0),
+  "every_days" integer constraint bsb_maintenance_plans_every_days_check check ("every_days" is null or "every_days" > 0),
   -- A meter plan falls due every_value units of the meter after it was last done.
   "meter_id" uuid,
-  "every_value" numeric check ("every_value" is null or "every_value" > 0),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
-  "status" text not null default 'active' check ("status" in ('active', 'paused')),
+  "every_value" numeric constraint bsb_maintenance_plans_every_value_check check ("every_value" is null or "every_value" > 0),
+  "priority" text not null default 'normal' constraint bsb_maintenance_plans_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "status" text not null default 'active' constraint bsb_maintenance_plans_status_check check ("status" in ('active', 'paused')),
   "last_done_at" timestamptz,
   "last_done_value" numeric,
   "next_due_at" timestamptz,
@@ -1013,7 +1013,7 @@ create table "better_supabase"."maintenance_plans" (
   -- An rrule plan (RFC 5545: FREQ DAILY to YEARLY with INTERVAL, COUNT, UNTIL,
   -- BYDAY, BYMONTHDAY, BYMONTH, BYSETPOS and WKST) falls due on each
   -- occurrence from dtstart, read in the time zone tz.
-  "rrule" text check ("rrule" is null or length("rrule") >= 1 and length("rrule") <= 500),
+  "rrule" text constraint bsb_maintenance_plans_rrule_check check ("rrule" is null or length("rrule") >= 1 and length("rrule") <= 500),
   "dtstart" timestamptz,
   "tz" text not null default 'UTC',
   -- Qualification type keys the technician of the work order must hold.
@@ -1023,7 +1023,7 @@ create table "better_supabase"."maintenance_plans" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "meter_id") references "better_supabase"."maintenance_meters" ("tenant_id", "id"),
-  check (
+  constraint bsb_maintenance_plans_check check (
     ("kind" = 'time' and "every_days" is not null and "meter_id" is null and "every_value" is null and "rrule" is null)
     or ("kind" = 'meter' and "every_days" is null and "meter_id" is not null and "every_value" is not null and "rrule" is null)
     or ("kind" = 'rrule' and "every_days" is null and "meter_id" is null and "every_value" is null and "rrule" is not null and "dtstart" is not null)
@@ -1046,8 +1046,8 @@ create table "better_supabase"."maintenance_plan_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "quantity" numeric not null default 1 check ("quantity" > 0),
+  "name" text not null constraint bsb_maintenance_plan_parts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "quantity" numeric not null default 1 constraint bsb_maintenance_plan_parts_quantity_check check ("quantity" > 0),
   "variant_id" uuid,
   foreign key ("tenant_id", "plan_id") references "better_supabase"."maintenance_plans" ("tenant_id", "id") on delete cascade
 );
@@ -1064,15 +1064,15 @@ create table "better_supabase"."maintenance_calibrations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid,
-  "instrument" text not null check (length("instrument") >= 1 and length("instrument") <= 200),
+  "instrument" text not null constraint bsb_maintenance_calibrations_instrument_check check (length("instrument") >= 1 and length("instrument") <= 200),
   "performed_at" timestamptz not null,
   "due_at" timestamptz,
-  "result" text not null check ("result" in ('pass', 'fail', 'adjusted')),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "result" text not null constraint bsb_maintenance_calibrations_result_check check ("result" in ('pass', 'fail', 'adjusted')),
+  "reference" text constraint bsb_maintenance_calibrations_reference_check check ("reference" is null or length("reference") <= 200),
   "performed_by" uuid,
   -- Qualification type keys the person who calibrated held and the work needs.
   "qualifications" text[] not null default '{}',
-  check ("due_at" is null or "due_at" >= "performed_at")
+  constraint bsb_maintenance_calibrations_check check ("due_at" is null or "due_at" >= "performed_at")
 );
 create index "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
 create index "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "due_at");
@@ -1994,7 +1994,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:cb05a696bbdc9b9b9a173439feff4737dd3f5495c214272c86280ac8be734a5e
+-- @bsb-hash sha256:ea4a137838b415406b6dbebeaecaca3ff97f0ea5a9c1fc3cac7faea73a1f5e5c
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2011,11 +2011,11 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."maintenance_meters" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "unit" text not null check (length("unit") >= 1 and length("unit") <= 30),
+  "name" text not null constraint bsb_maintenance_meters_name_check check (length("name") >= 1 and length("name") <= 200),
+  "unit" text not null constraint bsb_maintenance_meters_unit_check check (length("unit") >= 1 and length("unit") <= 30),
   "asset_id" uuid,
   -- The latest reading. Readings only go up, so a plan can count from it.
-  "reading" numeric not null default 0 check ("reading" >= 0),
+  "reading" numeric not null default 0 constraint bsb_maintenance_meters_reading_check check ("reading" >= 0),
   "read_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
@@ -2033,7 +2033,7 @@ create table "app_private"."maintenance_meter_readings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "meter_id" uuid not null,
-  "value" numeric not null check ("value" >= 0),
+  "value" numeric not null constraint bsb_maintenance_meter_readings_value_check check ("value" >= 0),
   "read_at" timestamptz not null default now(),
   "read_by" uuid,
   foreign key ("tenant_id", "meter_id") references "app_private"."maintenance_meters" ("tenant_id", "id") on delete cascade
@@ -2050,16 +2050,16 @@ create policy bsb_maintenance_meter_readings_read on "app_private"."maintenance_
 create table "app_private"."maintenance_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "title" text not null constraint bsb_maintenance_plans_title_check check (length("title") >= 1 and length("title") <= 200),
   "asset_id" uuid,
-  "kind" text not null check ("kind" in ('time', 'meter', 'rrule')),
+  "kind" text not null constraint bsb_maintenance_plans_kind_check check ("kind" in ('time', 'meter', 'rrule')),
   -- A time plan falls due every_days after it was last done.
-  "every_days" integer check ("every_days" is null or "every_days" > 0),
+  "every_days" integer constraint bsb_maintenance_plans_every_days_check check ("every_days" is null or "every_days" > 0),
   -- A meter plan falls due every_value units of the meter after it was last done.
   "meter_id" uuid,
-  "every_value" numeric check ("every_value" is null or "every_value" > 0),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
-  "status" text not null default 'active' check ("status" in ('active', 'paused')),
+  "every_value" numeric constraint bsb_maintenance_plans_every_value_check check ("every_value" is null or "every_value" > 0),
+  "priority" text not null default 'normal' constraint bsb_maintenance_plans_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "status" text not null default 'active' constraint bsb_maintenance_plans_status_check check ("status" in ('active', 'paused')),
   "last_done_at" timestamptz,
   "last_done_value" numeric,
   "next_due_at" timestamptz,
@@ -2068,7 +2068,7 @@ create table "app_private"."maintenance_plans" (
   -- An rrule plan (RFC 5545: FREQ DAILY to YEARLY with INTERVAL, COUNT, UNTIL,
   -- BYDAY, BYMONTHDAY, BYMONTH, BYSETPOS and WKST) falls due on each
   -- occurrence from dtstart, read in the time zone tz.
-  "rrule" text check ("rrule" is null or length("rrule") >= 1 and length("rrule") <= 500),
+  "rrule" text constraint bsb_maintenance_plans_rrule_check check ("rrule" is null or length("rrule") >= 1 and length("rrule") <= 500),
   "dtstart" timestamptz,
   "tz" text not null default 'UTC',
   -- Qualification type keys the technician of the work order must hold.
@@ -2078,7 +2078,7 @@ create table "app_private"."maintenance_plans" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "meter_id") references "app_private"."maintenance_meters" ("tenant_id", "id"),
-  check (
+  constraint bsb_maintenance_plans_check check (
     ("kind" = 'time' and "every_days" is not null and "meter_id" is null and "every_value" is null and "rrule" is null)
     or ("kind" = 'meter' and "every_days" is null and "meter_id" is not null and "every_value" is not null and "rrule" is null)
     or ("kind" = 'rrule' and "every_days" is null and "meter_id" is null and "every_value" is null and "rrule" is not null and "dtstart" is not null)
@@ -2101,8 +2101,8 @@ create table "app_private"."maintenance_plan_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "quantity" numeric not null default 1 check ("quantity" > 0),
+  "name" text not null constraint bsb_maintenance_plan_parts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "quantity" numeric not null default 1 constraint bsb_maintenance_plan_parts_quantity_check check ("quantity" > 0),
   "variant_id" uuid,
   foreign key ("tenant_id", "plan_id") references "app_private"."maintenance_plans" ("tenant_id", "id") on delete cascade
 );
@@ -2119,15 +2119,15 @@ create table "app_private"."maintenance_calibrations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid,
-  "instrument" text not null check (length("instrument") >= 1 and length("instrument") <= 200),
+  "instrument" text not null constraint bsb_maintenance_calibrations_instrument_check check (length("instrument") >= 1 and length("instrument") <= 200),
   "performed_at" timestamptz not null,
   "due_at" timestamptz,
-  "result" text not null check ("result" in ('pass', 'fail', 'adjusted')),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "result" text not null constraint bsb_maintenance_calibrations_result_check check ("result" in ('pass', 'fail', 'adjusted')),
+  "reference" text constraint bsb_maintenance_calibrations_reference_check check ("reference" is null or length("reference") <= 200),
   "performed_by" uuid,
   -- Qualification type keys the person who calibrated held and the work needs.
   "qualifications" text[] not null default '{}',
-  check ("due_at" is null or "due_at" >= "performed_at")
+  constraint bsb_maintenance_calibrations_check check ("due_at" is null or "due_at" >= "performed_at")
 );
 create index "maintenance_calibrations_asset_idx" on "app_private"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
 create index "maintenance_calibrations_due_idx" on "app_private"."maintenance_calibrations" ("tenant_id", "due_at");
@@ -2942,7 +2942,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:5c10802a544305eeb14dbc92cd43d1397fe62aa3792ec83dcd51ab189cb0cf23
+-- @bsb-hash sha256:a4a94aba0c451952aed5d8879d676c7ac576b141c2250f97e21b72b0b4d8b3f7
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2954,11 +2954,11 @@ on conflict (name) do update
 create table "better_supabase"."maintenance_meters" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "unit" text not null check (length("unit") >= 1 and length("unit") <= 30),
+  "name" text not null constraint bsb_maintenance_meters_name_check check (length("name") >= 1 and length("name") <= 200),
+  "unit" text not null constraint bsb_maintenance_meters_unit_check check (length("unit") >= 1 and length("unit") <= 30),
   "asset_id" uuid,
   -- The latest reading. Readings only go up, so a plan can count from it.
-  "reading" numeric not null default 0 check ("reading" >= 0),
+  "reading" numeric not null default 0 constraint bsb_maintenance_meters_reading_check check ("reading" >= 0),
   "read_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id")
@@ -2976,7 +2976,7 @@ create table "better_supabase"."maintenance_meter_readings" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "meter_id" uuid not null,
-  "value" numeric not null check ("value" >= 0),
+  "value" numeric not null constraint bsb_maintenance_meter_readings_value_check check ("value" >= 0),
   "read_at" timestamptz not null default now(),
   "read_by" uuid,
   foreign key ("tenant_id", "meter_id") references "better_supabase"."maintenance_meters" ("tenant_id", "id") on delete cascade
@@ -2993,16 +2993,16 @@ create policy bsb_maintenance_meter_readings_read on "better_supabase"."maintena
 create table "better_supabase"."maintenance_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "title" text not null constraint bsb_maintenance_plans_title_check check (length("title") >= 1 and length("title") <= 200),
   "asset_id" uuid,
-  "kind" text not null check ("kind" in ('time', 'meter', 'rrule')),
+  "kind" text not null constraint bsb_maintenance_plans_kind_check check ("kind" in ('time', 'meter', 'rrule')),
   -- A time plan falls due every_days after it was last done.
-  "every_days" integer check ("every_days" is null or "every_days" > 0),
+  "every_days" integer constraint bsb_maintenance_plans_every_days_check check ("every_days" is null or "every_days" > 0),
   -- A meter plan falls due every_value units of the meter after it was last done.
   "meter_id" uuid,
-  "every_value" numeric check ("every_value" is null or "every_value" > 0),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
-  "status" text not null default 'active' check ("status" in ('active', 'paused')),
+  "every_value" numeric constraint bsb_maintenance_plans_every_value_check check ("every_value" is null or "every_value" > 0),
+  "priority" text not null default 'normal' constraint bsb_maintenance_plans_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "status" text not null default 'active' constraint bsb_maintenance_plans_status_check check ("status" in ('active', 'paused')),
   "last_done_at" timestamptz,
   "last_done_value" numeric,
   "next_due_at" timestamptz,
@@ -3011,7 +3011,7 @@ create table "better_supabase"."maintenance_plans" (
   -- An rrule plan (RFC 5545: FREQ DAILY to YEARLY with INTERVAL, COUNT, UNTIL,
   -- BYDAY, BYMONTHDAY, BYMONTH, BYSETPOS and WKST) falls due on each
   -- occurrence from dtstart, read in the time zone tz.
-  "rrule" text check ("rrule" is null or length("rrule") >= 1 and length("rrule") <= 500),
+  "rrule" text constraint bsb_maintenance_plans_rrule_check check ("rrule" is null or length("rrule") >= 1 and length("rrule") <= 500),
   "dtstart" timestamptz,
   "tz" text not null default 'UTC',
   -- Qualification type keys the technician of the work order must hold.
@@ -3021,7 +3021,7 @@ create table "better_supabase"."maintenance_plans" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "meter_id") references "better_supabase"."maintenance_meters" ("tenant_id", "id"),
-  check (
+  constraint bsb_maintenance_plans_check check (
     ("kind" = 'time' and "every_days" is not null and "meter_id" is null and "every_value" is null and "rrule" is null)
     or ("kind" = 'meter' and "every_days" is null and "meter_id" is not null and "every_value" is not null and "rrule" is null)
     or ("kind" = 'rrule' and "every_days" is null and "meter_id" is null and "every_value" is null and "rrule" is not null and "dtstart" is not null)
@@ -3044,8 +3044,8 @@ create table "better_supabase"."maintenance_plan_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "plan_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "quantity" numeric not null default 1 check ("quantity" > 0),
+  "name" text not null constraint bsb_maintenance_plan_parts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "quantity" numeric not null default 1 constraint bsb_maintenance_plan_parts_quantity_check check ("quantity" > 0),
   "variant_id" uuid,
   foreign key ("tenant_id", "plan_id") references "better_supabase"."maintenance_plans" ("tenant_id", "id") on delete cascade
 );
@@ -3062,15 +3062,15 @@ create table "better_supabase"."maintenance_calibrations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "asset_id" uuid,
-  "instrument" text not null check (length("instrument") >= 1 and length("instrument") <= 200),
+  "instrument" text not null constraint bsb_maintenance_calibrations_instrument_check check (length("instrument") >= 1 and length("instrument") <= 200),
   "performed_at" timestamptz not null,
   "due_at" timestamptz,
-  "result" text not null check ("result" in ('pass', 'fail', 'adjusted')),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "result" text not null constraint bsb_maintenance_calibrations_result_check check ("result" in ('pass', 'fail', 'adjusted')),
+  "reference" text constraint bsb_maintenance_calibrations_reference_check check ("reference" is null or length("reference") <= 200),
   "performed_by" uuid,
   -- Qualification type keys the person who calibrated held and the work needs.
   "qualifications" text[] not null default '{}',
-  check ("due_at" is null or "due_at" >= "performed_at")
+  constraint bsb_maintenance_calibrations_check check ("due_at" is null or "due_at" >= "performed_at")
 );
 create index "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
 create index "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "due_at");
@@ -3992,7 +3992,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:234f0df74eaeca58a3cca00c68c42cba375c5a64b7512022d17552b4c113df98
+-- @bsb-hash sha256:71db4745ffacf33bbf66e0cca3a4cedba2154e10700893d044ee4bddbaecb5ab
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4004,10 +4004,10 @@ on conflict (name) do update
 -- better_supabase.maintenance_meters is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."maintenance_meters" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."maintenance_meters" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."maintenance_meters" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."maintenance_meters" add column if not exists "unit" text check (length("unit") >= 1 and length("unit") <= 30);
+alter table "better_supabase"."maintenance_meters" add column if not exists "name" text constraint bsb_maintenance_meters_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."maintenance_meters" add column if not exists "unit" text constraint bsb_maintenance_meters_unit_check check (length("unit") >= 1 and length("unit") <= 30);
 alter table "better_supabase"."maintenance_meters" add column if not exists "asset_id" uuid;
-alter table "better_supabase"."maintenance_meters" add column if not exists "reading" numeric not null default 0 check ("reading" >= 0);
+alter table "better_supabase"."maintenance_meters" add column if not exists "reading" numeric not null default 0 constraint bsb_maintenance_meters_reading_check check ("reading" >= 0);
 alter table "better_supabase"."maintenance_meters" add column if not exists "read_at" timestamptz;
 alter table "better_supabase"."maintenance_meters" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_maintenance_meters_tenant_id_key" on "better_supabase"."maintenance_meters" ("tenant_id", "id");
@@ -4023,7 +4023,7 @@ create policy bsb_maintenance_meters_read on "better_supabase"."maintenance_mete
 alter table "better_supabase"."maintenance_meter_readings" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."maintenance_meter_readings" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."maintenance_meter_readings" add column if not exists "meter_id" uuid;
-alter table "better_supabase"."maintenance_meter_readings" add column if not exists "value" numeric check ("value" >= 0);
+alter table "better_supabase"."maintenance_meter_readings" add column if not exists "value" numeric constraint bsb_maintenance_meter_readings_value_check check ("value" >= 0);
 alter table "better_supabase"."maintenance_meter_readings" add column if not exists "read_at" timestamptz not null default now();
 alter table "better_supabase"."maintenance_meter_readings" add column if not exists "read_by" uuid;
 create index if not exists "maintenance_meter_readings_meter_idx" on "better_supabase"."maintenance_meter_readings" ("tenant_id", "meter_id", "read_at" desc);
@@ -4037,19 +4037,19 @@ create policy bsb_maintenance_meter_readings_read on "better_supabase"."maintena
 -- better_supabase.maintenance_plans is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."maintenance_plans" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."maintenance_plans" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."maintenance_plans" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
+alter table "better_supabase"."maintenance_plans" add column if not exists "title" text constraint bsb_maintenance_plans_title_check check (length("title") >= 1 and length("title") <= 200);
 alter table "better_supabase"."maintenance_plans" add column if not exists "asset_id" uuid;
-alter table "better_supabase"."maintenance_plans" add column if not exists "kind" text check ("kind" in ('time', 'meter', 'rrule'));
-alter table "better_supabase"."maintenance_plans" add column if not exists "every_days" integer check ("every_days" is null or "every_days" > 0);
+alter table "better_supabase"."maintenance_plans" add column if not exists "kind" text constraint bsb_maintenance_plans_kind_check check ("kind" in ('time', 'meter', 'rrule'));
+alter table "better_supabase"."maintenance_plans" add column if not exists "every_days" integer constraint bsb_maintenance_plans_every_days_check check ("every_days" is null or "every_days" > 0);
 alter table "better_supabase"."maintenance_plans" add column if not exists "meter_id" uuid;
-alter table "better_supabase"."maintenance_plans" add column if not exists "every_value" numeric check ("every_value" is null or "every_value" > 0);
-alter table "better_supabase"."maintenance_plans" add column if not exists "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent'));
-alter table "better_supabase"."maintenance_plans" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'paused'));
+alter table "better_supabase"."maintenance_plans" add column if not exists "every_value" numeric constraint bsb_maintenance_plans_every_value_check check ("every_value" is null or "every_value" > 0);
+alter table "better_supabase"."maintenance_plans" add column if not exists "priority" text not null default 'normal' constraint bsb_maintenance_plans_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent'));
+alter table "better_supabase"."maintenance_plans" add column if not exists "status" text not null default 'active' constraint bsb_maintenance_plans_status_check check ("status" in ('active', 'paused'));
 alter table "better_supabase"."maintenance_plans" add column if not exists "last_done_at" timestamptz;
 alter table "better_supabase"."maintenance_plans" add column if not exists "last_done_value" numeric;
 alter table "better_supabase"."maintenance_plans" add column if not exists "next_due_at" timestamptz;
 alter table "better_supabase"."maintenance_plans" add column if not exists "work_order_id" uuid;
-alter table "better_supabase"."maintenance_plans" add column if not exists "rrule" text check ("rrule" is null or length("rrule") >= 1 and length("rrule") <= 500);
+alter table "better_supabase"."maintenance_plans" add column if not exists "rrule" text constraint bsb_maintenance_plans_rrule_check check ("rrule" is null or length("rrule") >= 1 and length("rrule") <= 500);
 alter table "better_supabase"."maintenance_plans" add column if not exists "dtstart" timestamptz;
 alter table "better_supabase"."maintenance_plans" add column if not exists "tz" text not null default 'UTC';
 alter table "better_supabase"."maintenance_plans" add column if not exists "required_qualifications" text[] not null default '{}';
@@ -4073,8 +4073,8 @@ create policy bsb_maintenance_plans_read on "better_supabase"."maintenance_plans
 alter table "better_supabase"."maintenance_plan_parts" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."maintenance_plan_parts" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."maintenance_plan_parts" add column if not exists "plan_id" uuid;
-alter table "better_supabase"."maintenance_plan_parts" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."maintenance_plan_parts" add column if not exists "quantity" numeric not null default 1 check ("quantity" > 0);
+alter table "better_supabase"."maintenance_plan_parts" add column if not exists "name" text constraint bsb_maintenance_plan_parts_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."maintenance_plan_parts" add column if not exists "quantity" numeric not null default 1 constraint bsb_maintenance_plan_parts_quantity_check check ("quantity" > 0);
 alter table "better_supabase"."maintenance_plan_parts" add column if not exists "variant_id" uuid;
 create index if not exists "maintenance_plan_parts_plan_idx" on "better_supabase"."maintenance_plan_parts" ("tenant_id", "plan_id");
 alter table "better_supabase"."maintenance_plan_parts" enable row level security;
@@ -4088,11 +4088,11 @@ create policy bsb_maintenance_plan_parts_read on "better_supabase"."maintenance_
 alter table "better_supabase"."maintenance_calibrations" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."maintenance_calibrations" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."maintenance_calibrations" add column if not exists "asset_id" uuid;
-alter table "better_supabase"."maintenance_calibrations" add column if not exists "instrument" text check (length("instrument") >= 1 and length("instrument") <= 200);
+alter table "better_supabase"."maintenance_calibrations" add column if not exists "instrument" text constraint bsb_maintenance_calibrations_instrument_check check (length("instrument") >= 1 and length("instrument") <= 200);
 alter table "better_supabase"."maintenance_calibrations" add column if not exists "performed_at" timestamptz;
 alter table "better_supabase"."maintenance_calibrations" add column if not exists "due_at" timestamptz;
-alter table "better_supabase"."maintenance_calibrations" add column if not exists "result" text check ("result" in ('pass', 'fail', 'adjusted'));
-alter table "better_supabase"."maintenance_calibrations" add column if not exists "reference" text check ("reference" is null or length("reference") <= 200);
+alter table "better_supabase"."maintenance_calibrations" add column if not exists "result" text constraint bsb_maintenance_calibrations_result_check check ("result" in ('pass', 'fail', 'adjusted'));
+alter table "better_supabase"."maintenance_calibrations" add column if not exists "reference" text constraint bsb_maintenance_calibrations_reference_check check ("reference" is null or length("reference") <= 200);
 alter table "better_supabase"."maintenance_calibrations" add column if not exists "performed_by" uuid;
 alter table "better_supabase"."maintenance_calibrations" add column if not exists "qualifications" text[] not null default '{}';
 create index if not exists "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("tenant_id", "asset_id", "performed_at" desc);
@@ -4907,7 +4907,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_160_maintenance.sql
 -- better-supabase module: maintenance
 -- @bsb-block maintenance@1 managed
--- @bsb-hash sha256:e7224aa22fcc9ade75aa9199bf641de6616561f6019a320f845412c5dbb72d3f
+-- @bsb-hash sha256:a9e6f8b66fc49d934d3597c4e5c38edf74a7d431104a6e57dfbf0078cb61b3f1
 -- Preventive maintenance plans that fall due by time, by a meter or by an RRULE, meter readings, calibration records, and the dispatch work orders the plans open with their spare parts. Technicians and calibrations can require qualifications.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4919,11 +4919,11 @@ on conflict (name) do update
 create table "better_supabase"."maintenance_meters" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "unit" text not null check (length("unit") >= 1 and length("unit") <= 30),
+  "name" text not null constraint bsb_maintenance_meters_name_check check (length("name") >= 1 and length("name") <= 200),
+  "unit" text not null constraint bsb_maintenance_meters_unit_check check (length("unit") >= 1 and length("unit") <= 30),
   "asset_id" uuid,
   -- The latest reading. Readings only go up, so a plan can count from it.
-  "reading" numeric not null default 0 check ("reading" >= 0),
+  "reading" numeric not null default 0 constraint bsb_maintenance_meters_reading_check check ("reading" >= 0),
   "read_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("org_id", "id")
@@ -4941,7 +4941,7 @@ create table "better_supabase"."maintenance_meter_readings" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "meter_id" uuid not null,
-  "value" numeric not null check ("value" >= 0),
+  "value" numeric not null constraint bsb_maintenance_meter_readings_value_check check ("value" >= 0),
   "read_at" timestamptz not null default now(),
   "read_by" uuid,
   foreign key ("org_id", "meter_id") references "better_supabase"."maintenance_meters" ("org_id", "id") on delete cascade
@@ -4958,16 +4958,16 @@ create policy bsb_maintenance_meter_readings_read on "better_supabase"."maintena
 create table "better_supabase"."maintenance_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "title" text not null constraint bsb_maintenance_plans_title_check check (length("title") >= 1 and length("title") <= 200),
   "asset_id" uuid,
-  "kind" text not null check ("kind" in ('time', 'meter', 'rrule')),
+  "kind" text not null constraint bsb_maintenance_plans_kind_check check ("kind" in ('time', 'meter', 'rrule')),
   -- A time plan falls due every_days after it was last done.
-  "every_days" integer check ("every_days" is null or "every_days" > 0),
+  "every_days" integer constraint bsb_maintenance_plans_every_days_check check ("every_days" is null or "every_days" > 0),
   -- A meter plan falls due every_value units of the meter after it was last done.
   "meter_id" uuid,
-  "every_value" numeric check ("every_value" is null or "every_value" > 0),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
-  "status" text not null default 'active' check ("status" in ('active', 'paused')),
+  "every_value" numeric constraint bsb_maintenance_plans_every_value_check check ("every_value" is null or "every_value" > 0),
+  "priority" text not null default 'normal' constraint bsb_maintenance_plans_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "status" text not null default 'active' constraint bsb_maintenance_plans_status_check check ("status" in ('active', 'paused')),
   "last_done_at" timestamptz,
   "last_done_value" numeric,
   "next_due_at" timestamptz,
@@ -4976,7 +4976,7 @@ create table "better_supabase"."maintenance_plans" (
   -- An rrule plan (RFC 5545: FREQ DAILY to YEARLY with INTERVAL, COUNT, UNTIL,
   -- BYDAY, BYMONTHDAY, BYMONTH, BYSETPOS and WKST) falls due on each
   -- occurrence from dtstart, read in the time zone tz.
-  "rrule" text check ("rrule" is null or length("rrule") >= 1 and length("rrule") <= 500),
+  "rrule" text constraint bsb_maintenance_plans_rrule_check check ("rrule" is null or length("rrule") >= 1 and length("rrule") <= 500),
   "dtstart" timestamptz,
   "tz" text not null default 'UTC',
   -- Qualification type keys the technician of the work order must hold.
@@ -4986,7 +4986,7 @@ create table "better_supabase"."maintenance_plans" (
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "id"),
   foreign key ("org_id", "meter_id") references "better_supabase"."maintenance_meters" ("org_id", "id"),
-  check (
+  constraint bsb_maintenance_plans_check check (
     ("kind" = 'time' and "every_days" is not null and "meter_id" is null and "every_value" is null and "rrule" is null)
     or ("kind" = 'meter' and "every_days" is null and "meter_id" is not null and "every_value" is not null and "rrule" is null)
     or ("kind" = 'rrule' and "every_days" is null and "meter_id" is null and "every_value" is null and "rrule" is not null and "dtstart" is not null)
@@ -5009,8 +5009,8 @@ create table "better_supabase"."maintenance_plan_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "plan_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "quantity" numeric not null default 1 check ("quantity" > 0),
+  "name" text not null constraint bsb_maintenance_plan_parts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "quantity" numeric not null default 1 constraint bsb_maintenance_plan_parts_quantity_check check ("quantity" > 0),
   "variant_id" uuid,
   foreign key ("org_id", "plan_id") references "better_supabase"."maintenance_plans" ("org_id", "id") on delete cascade
 );
@@ -5027,15 +5027,15 @@ create table "better_supabase"."maintenance_calibrations" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "asset_id" uuid,
-  "instrument" text not null check (length("instrument") >= 1 and length("instrument") <= 200),
+  "instrument" text not null constraint bsb_maintenance_calibrations_instrument_check check (length("instrument") >= 1 and length("instrument") <= 200),
   "performed_at" timestamptz not null,
   "due_at" timestamptz,
-  "result" text not null check ("result" in ('pass', 'fail', 'adjusted')),
-  "reference" text check ("reference" is null or length("reference") <= 200),
+  "result" text not null constraint bsb_maintenance_calibrations_result_check check ("result" in ('pass', 'fail', 'adjusted')),
+  "reference" text constraint bsb_maintenance_calibrations_reference_check check ("reference" is null or length("reference") <= 200),
   "performed_by" uuid,
   -- Qualification type keys the person who calibrated held and the work needs.
   "qualifications" text[] not null default '{}',
-  check ("due_at" is null or "due_at" >= "performed_at")
+  constraint bsb_maintenance_calibrations_check check ("due_at" is null or "due_at" >= "performed_at")
 );
 create index "maintenance_calibrations_asset_idx" on "better_supabase"."maintenance_calibrations" ("org_id", "asset_id", "performed_at" desc);
 create index "maintenance_calibrations_due_idx" on "better_supabase"."maintenance_calibrations" ("org_id", "due_at");

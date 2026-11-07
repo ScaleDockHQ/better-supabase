@@ -1,6 +1,6 @@
 -- better-supabase module: donations
 -- @bsb-block donations@2 managed
--- @bsb-hash sha256:8f9a5132184e9bf431fa92ce76e21830390673a20de089bd88507be79dee5aa8
+-- @bsb-hash sha256:350a77412e2b522ff63a54efbd72949f70a6f8d3314559e10282e5da3ba24f5d
 -- Gifts and pledges from donors (registered subjects) to funds and campaigns, each posted gift on the ledger in bigint minor units, charges through the versioned payments provider interface, and tax receipts numbered per organization with a yearly summary.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,11 +12,11 @@
 create table "better_supabase"."donation_funds" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "kind" text not null default 'fund' check ("kind" in ('fund', 'campaign')),
-  "goal" bigint check ("goal" is null or "goal" > 0),
-  "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "key" text not null constraint bsb_donation_funds_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_donation_funds_name_check check (length("name") >= 1 and length("name") <= 200),
+  "kind" text not null default 'fund' constraint bsb_donation_funds_kind_check check ("kind" in ('fund', 'campaign')),
+  "goal" bigint constraint bsb_donation_funds_goal_check check ("goal" is null or "goal" > 0),
+  "currency" char(3) constraint bsb_donation_funds_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "starts_on" date,
   "ends_on" date,
   "archived_at" timestamptz,
@@ -24,8 +24,8 @@ create table "better_supabase"."donation_funds" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id"),
-  check ("goal" is null or "currency" is not null),
-  check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on")
+  constraint bsb_donation_funds_check check ("goal" is null or "currency" is not null),
+  constraint bsb_donation_funds_check1 check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on")
 );
 alter table "better_supabase"."donation_funds" enable row level security;
 revoke all on "better_supabase"."donation_funds" from public, anon, authenticated;
@@ -43,20 +43,20 @@ create table "better_supabase"."pledges" (
   "donor_type" text not null,
   "donor_id" text not null,
   "fund_id" uuid,
-  "amount" bigint not null check ("amount" > 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "frequency" text not null default 'monthly' check ("frequency" in ('weekly', 'monthly', 'quarterly', 'yearly')),
+  "amount" bigint not null constraint bsb_pledges_amount_check check ("amount" > 0),
+  "currency" char(3) not null constraint bsb_pledges_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "frequency" text not null default 'monthly' constraint bsb_pledges_frequency_check check ("frequency" in ('weekly', 'monthly', 'quarterly', 'yearly')),
   "starts_on" date not null,
   "ends_on" date,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'ended')),
+  "status" text not null default 'active' constraint bsb_pledges_status_check check ("status" in ('active', 'paused', 'ended')),
   "provider" text,
   "provider_customer" text,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_pledges_note_check check ("note" is null or length("note") <= 2000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "fund_id") references "better_supabase"."donation_funds" ("tenant_id", "id") on delete restrict,
-  check ("ends_on" is null or "ends_on" > "starts_on")
+  constraint bsb_pledges_check check ("ends_on" is null or "ends_on" > "starts_on")
 );
 create index "pledges_tenant_idx" on "better_supabase"."pledges" ("tenant_id", "status");
 create index "pledges_donor_idx" on "better_supabase"."pledges" ("tenant_id", "donor_type", "donor_id");
@@ -77,13 +77,13 @@ create table "better_supabase"."donation_receipts" (
   "donor_id" text not null,
   "sequence" bigint not null,
   "number" text not null,
-  "kind" text not null check ("kind" in ('gift', 'yearly')),
+  "kind" text not null constraint bsb_donation_receipts_kind_check check ("kind" in ('gift', 'yearly')),
   "year" integer not null,
-  "amount" bigint not null check ("amount" > 0),
+  "amount" bigint not null constraint bsb_donation_receipts_amount_check check ("amount" > 0),
   "currency" char(3) not null,
   "issued_at" timestamptz not null default now(),
   "voided_at" timestamptz,
-  "void_reason" text check ("void_reason" is null or length("void_reason") <= 2000),
+  "void_reason" text constraint bsb_donation_receipts_void_reason_check check ("void_reason" is null or length("void_reason") <= 2000),
   unique ("tenant_id", "number")
 );
 create index "donation_receipts_donor_idx" on "better_supabase"."donation_receipts" ("tenant_id", "donor_type", "donor_id", "year");
@@ -106,17 +106,17 @@ create table "better_supabase"."donations" (
   "pledge_id" uuid references "better_supabase"."pledges" ("id") on delete set null,
   -- The pledge period this gift pays; unique per pledge.
   "period_start" date,
-  "amount" bigint not null check ("amount" > 0),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "amount" bigint not null constraint bsb_donations_amount_check check ("amount" > 0),
+  "currency" char(3) not null constraint bsb_donations_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "received_on" date not null default current_date,
-  "method" text check ("method" is null or length("method") <= 40),
-  "status" text not null default 'pending' check ("status" in ('pending', 'posted', 'failed', 'refunded')),
+  "method" text constraint bsb_donations_method_check check ("method" is null or length("method") <= 40),
+  "status" text not null default 'pending' constraint bsb_donations_status_check check ("status" in ('pending', 'posted', 'failed', 'refunded')),
   "provider" text,
   "payment_reference" text,
   "transaction_id" uuid,
   "refund_transaction_id" uuid,
   "receipt_id" uuid references "better_supabase"."donation_receipts" ("id") on delete set null,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_donations_note_check check ("note" is null or length("note") <= 2000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),

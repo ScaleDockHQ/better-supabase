@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:54a3ccdf08cdd52469a6fb236fe882ad48e79473d323268a0353b934338d5d7a
+-- @bsb-hash sha256:b3ac191101f87d3dcd2dd6f22d5d58dedadcc62aecb580cca310a62f08b5c0e9
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,24 +15,24 @@
 create table "better_supabase"."legal_entities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "vat_number" text check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
-  "coc_number" text check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
-  "iban" text check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
-  "bic" text check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
+  "code" text not null constraint bsb_legal_entities_code_check check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
+  "name" text not null constraint bsb_legal_entities_name_check check (length("name") >= 1 and length("name") <= 200),
+  "address" jsonb not null default '{}'::jsonb constraint bsb_legal_entities_address_check check (jsonb_typeof("address") = 'object'),
+  "vat_number" text constraint bsb_legal_entities_vat_number_check check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
+  "coc_number" text constraint bsb_legal_entities_coc_number_check check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
+  "iban" text constraint bsb_legal_entities_iban_check check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
+  "bic" text constraint bsb_legal_entities_bic_check check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
   "logo_attachment_id" uuid,
-  "default_currency" text check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
+  "default_currency" text constraint bsb_legal_entities_default_currency_check check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
   -- { "fiscalYearStartMonth": 1 to 12, "taxPeriod": "monthly" or "quarterly" }.
-  "fiscal" jsonb not null default '{"fiscalYearStartMonth": 1, "taxPeriod": "quarterly"}'::jsonb check (jsonb_typeof("fiscal") = 'object'),
+  "fiscal" jsonb not null default '{"fiscalYearStartMonth": 1, "taxPeriod": "quarterly"}'::jsonb constraint bsb_legal_entities_fiscal_check check (jsonb_typeof("fiscal") = 'object'),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
   unique ("tenant_id", "id"),
-  check (not ("is_default" and "archived_at" is not null))
+  constraint bsb_legal_entities_check check (not ("is_default" and "archived_at" is not null))
 );
 -- One default entity per organization.
 create unique index "legal_entities_default_idx" on "better_supabase"."legal_entities" ("tenant_id") where "is_default";
@@ -50,7 +50,7 @@ create policy bsb_legal_entities_read on "better_supabase"."legal_entities"
 create table "better_supabase"."legal_entity_settings" (
   "tenant_id" uuid not null,
   "legal_entity_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_legal_entity_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -541,7 +541,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:fc7f9896b3b65e75286f933c8d84b21cd24fa1c448df2a6a8b6dd8cd058ceb1e
+-- @bsb-hash sha256:12525a743e640567f446769353d6c8f1f7a06f3e1dc8a83bd8e68cc4e96b12d0
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -555,24 +555,24 @@ on conflict (name) do update
 create table "better_supabase"."legal_entities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "vat_number" text check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
-  "coc_number" text check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
-  "iban" text check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
-  "bic" text check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
+  "code" text not null constraint bsb_legal_entities_code_check check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
+  "name" text not null constraint bsb_legal_entities_name_check check (length("name") >= 1 and length("name") <= 200),
+  "address" jsonb not null default '{}'::jsonb constraint bsb_legal_entities_address_check check (jsonb_typeof("address") = 'object'),
+  "vat_number" text constraint bsb_legal_entities_vat_number_check check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
+  "coc_number" text constraint bsb_legal_entities_coc_number_check check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
+  "iban" text constraint bsb_legal_entities_iban_check check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
+  "bic" text constraint bsb_legal_entities_bic_check check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
   "logo_attachment_id" uuid references "better_supabase"."attachments" ("id") on delete set null,
-  "default_currency" text check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
+  "default_currency" text constraint bsb_legal_entities_default_currency_check check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
   -- { "fiscalYearStartMonth": 1 to 12, "taxPeriod": "monthly" or "quarterly" }.
-  "fiscal" jsonb not null default '{"fiscalYearStartMonth": 1, "taxPeriod": "quarterly"}'::jsonb check (jsonb_typeof("fiscal") = 'object'),
+  "fiscal" jsonb not null default '{"fiscalYearStartMonth": 1, "taxPeriod": "quarterly"}'::jsonb constraint bsb_legal_entities_fiscal_check check (jsonb_typeof("fiscal") = 'object'),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
   unique ("tenant_id", "id"),
-  check (not ("is_default" and "archived_at" is not null))
+  constraint bsb_legal_entities_check check (not ("is_default" and "archived_at" is not null))
 );
 -- One default entity per organization.
 create unique index "legal_entities_default_idx" on "better_supabase"."legal_entities" ("tenant_id") where "is_default";
@@ -590,7 +590,7 @@ create policy bsb_legal_entities_read on "better_supabase"."legal_entities"
 create table "better_supabase"."legal_entity_settings" (
   "tenant_id" uuid not null,
   "legal_entity_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_legal_entity_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -1271,7 +1271,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:594695d1e6d9b2e3ffe01bad392a311592de816600e525fd9f23215fcf974454
+-- @bsb-hash sha256:e12e6e1dda973c21bfa79c4fa4002a65e0e2d13689aef3fbd92e30ad42dc62de
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1290,24 +1290,24 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."legal_entities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "vat_number" text check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
-  "coc_number" text check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
-  "iban" text check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
-  "bic" text check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
+  "code" text not null constraint bsb_legal_entities_code_check check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
+  "name" text not null constraint bsb_legal_entities_name_check check (length("name") >= 1 and length("name") <= 200),
+  "address" jsonb not null default '{}'::jsonb constraint bsb_legal_entities_address_check check (jsonb_typeof("address") = 'object'),
+  "vat_number" text constraint bsb_legal_entities_vat_number_check check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
+  "coc_number" text constraint bsb_legal_entities_coc_number_check check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
+  "iban" text constraint bsb_legal_entities_iban_check check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
+  "bic" text constraint bsb_legal_entities_bic_check check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
   "logo_attachment_id" uuid,
-  "default_currency" text check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
+  "default_currency" text constraint bsb_legal_entities_default_currency_check check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
   -- { "fiscalYearStartMonth": 1 to 12, "taxPeriod": "monthly" or "quarterly" }.
-  "fiscal" jsonb not null default '{"fiscalYearStartMonth": 1, "taxPeriod": "quarterly"}'::jsonb check (jsonb_typeof("fiscal") = 'object'),
+  "fiscal" jsonb not null default '{"fiscalYearStartMonth": 1, "taxPeriod": "quarterly"}'::jsonb constraint bsb_legal_entities_fiscal_check check (jsonb_typeof("fiscal") = 'object'),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
   unique ("tenant_id", "id"),
-  check (not ("is_default" and "archived_at" is not null))
+  constraint bsb_legal_entities_check check (not ("is_default" and "archived_at" is not null))
 );
 -- One default entity per organization.
 create unique index "legal_entities_default_idx" on "app_private"."legal_entities" ("tenant_id") where "is_default";
@@ -1325,7 +1325,7 @@ create policy bsb_legal_entities_read on "app_private"."legal_entities"
 create table "app_private"."legal_entity_settings" (
   "tenant_id" uuid not null,
   "legal_entity_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_legal_entity_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -1816,7 +1816,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:7cc0e5e2c5ffb45d08278163bf6b6b5685c7118483565dd7bd5a7e7281be9b0c
+-- @bsb-hash sha256:720f9a82d1fd9acdcc4ed8ce5b13fb145c16f63f267ad36a4003e4feaf04aebd
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1830,24 +1830,24 @@ on conflict (name) do update
 create table "better_supabase"."legal_entities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "vat_number" text check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
-  "coc_number" text check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
-  "iban" text check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
-  "bic" text check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
+  "code" text not null constraint bsb_legal_entities_code_check check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
+  "name" text not null constraint bsb_legal_entities_name_check check (length("name") >= 1 and length("name") <= 200),
+  "address" jsonb not null default '{}'::jsonb constraint bsb_legal_entities_address_check check (jsonb_typeof("address") = 'object'),
+  "vat_number" text constraint bsb_legal_entities_vat_number_check check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
+  "coc_number" text constraint bsb_legal_entities_coc_number_check check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
+  "iban" text constraint bsb_legal_entities_iban_check check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
+  "bic" text constraint bsb_legal_entities_bic_check check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
   "logo_attachment_id" uuid,
-  "default_currency" text check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
+  "default_currency" text constraint bsb_legal_entities_default_currency_check check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
   -- { "fiscalYearStartMonth": 1 to 12, "taxPeriod": "monthly" or "quarterly" }.
-  "fiscal" jsonb not null default '{"fiscalYearStartMonth": 1, "taxPeriod": "quarterly"}'::jsonb check (jsonb_typeof("fiscal") = 'object'),
+  "fiscal" jsonb not null default '{"fiscalYearStartMonth": 1, "taxPeriod": "quarterly"}'::jsonb constraint bsb_legal_entities_fiscal_check check (jsonb_typeof("fiscal") = 'object'),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code"),
   unique ("tenant_id", "id"),
-  check (not ("is_default" and "archived_at" is not null))
+  constraint bsb_legal_entities_check check (not ("is_default" and "archived_at" is not null))
 );
 -- One default entity per organization.
 create unique index "legal_entities_default_idx" on "better_supabase"."legal_entities" ("tenant_id") where "is_default";
@@ -1865,7 +1865,7 @@ create policy bsb_legal_entities_read on "better_supabase"."legal_entities"
 create table "better_supabase"."legal_entity_settings" (
   "tenant_id" uuid not null,
   "legal_entity_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_legal_entity_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -2464,7 +2464,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:a0de6b329e5c225f81899335df17597d6ee575226914385653e40d6c17dc28b5
+-- @bsb-hash sha256:79b02d910c5b7930db110e5e0855fecc32f557bf420aa57f4f8b581d9a31174b
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2478,16 +2478,16 @@ on conflict (name) do update
 -- better_supabase.legal_entities is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."legal_entities" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."legal_entities" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."legal_entities" add column if not exists "code" text check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$');
-alter table "better_supabase"."legal_entities" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."legal_entities" add column if not exists "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object');
-alter table "better_supabase"."legal_entities" add column if not exists "vat_number" text check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50);
-alter table "better_supabase"."legal_entities" add column if not exists "coc_number" text check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50);
-alter table "better_supabase"."legal_entities" add column if not exists "iban" text check ("iban" is null or length("iban") >= 1 and length("iban") <= 34);
-alter table "better_supabase"."legal_entities" add column if not exists "bic" text check ("bic" is null or length("bic") >= 1 and length("bic") <= 11);
+alter table "better_supabase"."legal_entities" add column if not exists "code" text constraint bsb_legal_entities_code_check check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$');
+alter table "better_supabase"."legal_entities" add column if not exists "name" text constraint bsb_legal_entities_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."legal_entities" add column if not exists "address" jsonb not null default '{}'::jsonb constraint bsb_legal_entities_address_check check (jsonb_typeof("address") = 'object');
+alter table "better_supabase"."legal_entities" add column if not exists "vat_number" text constraint bsb_legal_entities_vat_number_check check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50);
+alter table "better_supabase"."legal_entities" add column if not exists "coc_number" text constraint bsb_legal_entities_coc_number_check check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50);
+alter table "better_supabase"."legal_entities" add column if not exists "iban" text constraint bsb_legal_entities_iban_check check ("iban" is null or length("iban") >= 1 and length("iban") <= 34);
+alter table "better_supabase"."legal_entities" add column if not exists "bic" text constraint bsb_legal_entities_bic_check check ("bic" is null or length("bic") >= 1 and length("bic") <= 11);
 alter table "better_supabase"."legal_entities" add column if not exists "logo_attachment_id" uuid;
-alter table "better_supabase"."legal_entities" add column if not exists "default_currency" text check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."legal_entities" add column if not exists "fiscal" jsonb not null default '{"fiscalYearStartMonth": 1, "taxPeriod": "quarterly"}'::jsonb check (jsonb_typeof("fiscal") = 'object');
+alter table "better_supabase"."legal_entities" add column if not exists "default_currency" text constraint bsb_legal_entities_default_currency_check check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."legal_entities" add column if not exists "fiscal" jsonb not null default '{"fiscalYearStartMonth": 1, "taxPeriod": "quarterly"}'::jsonb constraint bsb_legal_entities_fiscal_check check (jsonb_typeof("fiscal") = 'object');
 alter table "better_supabase"."legal_entities" add column if not exists "is_default" boolean not null default false;
 alter table "better_supabase"."legal_entities" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."legal_entities" add column if not exists "created_at" timestamptz not null default now();
@@ -2507,7 +2507,7 @@ create policy bsb_legal_entities_read on "better_supabase"."legal_entities"
 -- better_supabase.legal_entity_settings is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."legal_entity_settings" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."legal_entity_settings" add column if not exists "legal_entity_id" uuid;
-alter table "better_supabase"."legal_entity_settings" add column if not exists "key" text check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
+alter table "better_supabase"."legal_entity_settings" add column if not exists "key" text constraint bsb_legal_entity_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
 alter table "better_supabase"."legal_entity_settings" add column if not exists "value" jsonb;
 alter table "better_supabase"."legal_entity_settings" add column if not exists "updated_by" uuid references auth.users (id) on delete set null default auth.uid();
 alter table "better_supabase"."legal_entity_settings" add column if not exists "updated_at" timestamptz not null default now();
@@ -2995,7 +2995,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:ca58aa8fcb6d34ec1bb0b384722edbc294e00a03fd6036dd460d766202ebcd9e
+-- @bsb-hash sha256:2f8a2c154e5b38d767698e91d5867074b4eceafdafda1603a05ffd89aecf5c07
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3009,24 +3009,24 @@ on conflict (name) do update
 create table "better_supabase"."legal_entities" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "address" jsonb not null default '{}'::jsonb check (jsonb_typeof("address") = 'object'),
-  "vat_number" text check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
-  "coc_number" text check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
-  "iban" text check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
-  "bic" text check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
+  "code" text not null constraint bsb_legal_entities_code_check check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,31}$'),
+  "name" text not null constraint bsb_legal_entities_name_check check (length("name") >= 1 and length("name") <= 200),
+  "address" jsonb not null default '{}'::jsonb constraint bsb_legal_entities_address_check check (jsonb_typeof("address") = 'object'),
+  "vat_number" text constraint bsb_legal_entities_vat_number_check check ("vat_number" is null or length("vat_number") >= 1 and length("vat_number") <= 50),
+  "coc_number" text constraint bsb_legal_entities_coc_number_check check ("coc_number" is null or length("coc_number") >= 1 and length("coc_number") <= 50),
+  "iban" text constraint bsb_legal_entities_iban_check check ("iban" is null or length("iban") >= 1 and length("iban") <= 34),
+  "bic" text constraint bsb_legal_entities_bic_check check ("bic" is null or length("bic") >= 1 and length("bic") <= 11),
   "logo_attachment_id" uuid,
-  "default_currency" text check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
+  "default_currency" text constraint bsb_legal_entities_default_currency_check check ("default_currency" is null or "default_currency" ~ '^[A-Z]{3}$'),
   -- { "fiscalYearStartMonth": 1 to 12, "taxPeriod": "monthly" or "quarterly" }.
-  "fiscal" jsonb not null default '{"fiscalYearStartMonth": 1, "taxPeriod": "quarterly"}'::jsonb check (jsonb_typeof("fiscal") = 'object'),
+  "fiscal" jsonb not null default '{"fiscalYearStartMonth": 1, "taxPeriod": "quarterly"}'::jsonb constraint bsb_legal_entities_fiscal_check check (jsonb_typeof("fiscal") = 'object'),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "code"),
   unique ("org_id", "id"),
-  check (not ("is_default" and "archived_at" is not null))
+  constraint bsb_legal_entities_check check (not ("is_default" and "archived_at" is not null))
 );
 -- One default entity per organization.
 create unique index "legal_entities_default_idx" on "better_supabase"."legal_entities" ("org_id") where "is_default";
@@ -3044,7 +3044,7 @@ create policy bsb_legal_entities_read on "better_supabase"."legal_entities"
 create table "better_supabase"."legal_entity_settings" (
   "org_id" uuid not null,
   "legal_entity_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_legal_entity_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),

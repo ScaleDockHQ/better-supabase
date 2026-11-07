@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:10fcba16c1645e79fbf57c6ca6b58bd7befb70764bdf7cc5f088069a51b664fc
+-- @bsb-hash sha256:a483eae094f4450b8769375e74288d81fb8d257db99eed94cb1d7c47c923d6c9
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -165,11 +165,11 @@ create table "better_supabase"."document_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
-  "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
-  "language" text check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "name" text not null default 'default' check ("name" ~ '^[a-z][a-z0-9_-]{0,63}$'),
-  "body" text not null check (length(btrim("body")) > 0 and length("body") <= 200000),
-  "version" integer not null default 1 check ("version" >= 1),
+  "document_type" text not null constraint bsb_document_templates_document_type_check check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
+  "language" text constraint bsb_document_templates_language_check check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "name" text not null default 'default' constraint bsb_document_templates_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,63}$'),
+  "body" text not null constraint bsb_document_templates_body_check check (length(btrim("body")) > 0 and length("body") <= 200000),
+  "version" integer not null default 1 constraint bsb_document_templates_version_check check ("version" >= 1),
   "active" boolean not null default true,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
@@ -194,10 +194,10 @@ create table "better_supabase"."document_text_blocks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,63}$'),
-  "language" text check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "body" text not null check (length(btrim("body")) > 0 and length("body") <= 200000),
-  "version" integer not null default 1 check ("version" >= 1),
+  "key" text not null constraint bsb_document_text_blocks_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,63}$'),
+  "language" text constraint bsb_document_text_blocks_language_check check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "body" text not null constraint bsb_document_text_blocks_body_check check (length(btrim("body")) > 0 and length("body") <= 200000),
+  "version" integer not null default 1 constraint bsb_document_text_blocks_version_check check ("version" >= 1),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -220,7 +220,7 @@ create policy bsb_document_text_blocks_read on "better_supabase"."document_text_
 create table "better_supabase"."rendered_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
+  "document_type" text not null constraint bsb_rendered_documents_document_type_check check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
   "document_id" uuid not null,
   "language" text,
   "legal_entity_id" uuid,
@@ -228,8 +228,8 @@ create table "better_supabase"."rendered_documents" (
   "template_id" uuid,
   "template_version" integer,
   "template" jsonb,
-  "blocks" jsonb not null default '{}'::jsonb check (jsonb_typeof("blocks") = 'object'),
-  "variables" jsonb not null check (jsonb_typeof("variables") = 'object'),
+  "blocks" jsonb not null default '{}'::jsonb constraint bsb_rendered_documents_blocks_check check (jsonb_typeof("blocks") = 'object'),
+  "variables" jsonb not null constraint bsb_rendered_documents_variables_check check (jsonb_typeof("variables") = 'object'),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "document_type", "document_id")
@@ -1161,7 +1161,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:c47269ca795d13728ab4f3ed8c5eceaf8444a8ec18421d111d4bb414251b7cc5
+-- @bsb-hash sha256:3759a3c1e65d91c5d9c7039ce0c163a269974b89b4dd21c4170e9112ff412d5e
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1779,11 +1779,11 @@ create table "better_supabase"."document_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
-  "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
-  "language" text check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "name" text not null default 'default' check ("name" ~ '^[a-z][a-z0-9_-]{0,63}$'),
-  "body" text not null check (length(btrim("body")) > 0 and length("body") <= 200000),
-  "version" integer not null default 1 check ("version" >= 1),
+  "document_type" text not null constraint bsb_document_templates_document_type_check check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
+  "language" text constraint bsb_document_templates_language_check check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "name" text not null default 'default' constraint bsb_document_templates_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,63}$'),
+  "body" text not null constraint bsb_document_templates_body_check check (length(btrim("body")) > 0 and length("body") <= 200000),
+  "version" integer not null default 1 constraint bsb_document_templates_version_check check ("version" >= 1),
   "active" boolean not null default true,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
@@ -1808,10 +1808,10 @@ create table "better_supabase"."document_text_blocks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,63}$'),
-  "language" text check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "body" text not null check (length(btrim("body")) > 0 and length("body") <= 200000),
-  "version" integer not null default 1 check ("version" >= 1),
+  "key" text not null constraint bsb_document_text_blocks_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,63}$'),
+  "language" text constraint bsb_document_text_blocks_language_check check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "body" text not null constraint bsb_document_text_blocks_body_check check (length(btrim("body")) > 0 and length("body") <= 200000),
+  "version" integer not null default 1 constraint bsb_document_text_blocks_version_check check ("version" >= 1),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -1834,7 +1834,7 @@ create policy bsb_document_text_blocks_read on "better_supabase"."document_text_
 create table "better_supabase"."rendered_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
+  "document_type" text not null constraint bsb_rendered_documents_document_type_check check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
   "document_id" uuid not null,
   "language" text,
   "legal_entity_id" uuid,
@@ -1842,8 +1842,8 @@ create table "better_supabase"."rendered_documents" (
   "template_id" uuid,
   "template_version" integer,
   "template" jsonb,
-  "blocks" jsonb not null default '{}'::jsonb check (jsonb_typeof("blocks") = 'object'),
-  "variables" jsonb not null check (jsonb_typeof("variables") = 'object'),
+  "blocks" jsonb not null default '{}'::jsonb constraint bsb_rendered_documents_blocks_check check (jsonb_typeof("blocks") = 'object'),
+  "variables" jsonb not null constraint bsb_rendered_documents_variables_check check (jsonb_typeof("variables") = 'object'),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "document_type", "document_id")
@@ -2860,7 +2860,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:c83abafde264ee03df17fb8753cbafdef0bb24fd7246cbc79fa52f393865347d
+-- @bsb-hash sha256:61363a4ae029172d7410100ffc7bb0691bab649407f5a17e4330121d584d3c15
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3029,11 +3029,11 @@ create table "app_private"."document_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
-  "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
-  "language" text check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "name" text not null default 'default' check ("name" ~ '^[a-z][a-z0-9_-]{0,63}$'),
-  "body" text not null check (length(btrim("body")) > 0 and length("body") <= 200000),
-  "version" integer not null default 1 check ("version" >= 1),
+  "document_type" text not null constraint bsb_document_templates_document_type_check check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
+  "language" text constraint bsb_document_templates_language_check check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "name" text not null default 'default' constraint bsb_document_templates_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,63}$'),
+  "body" text not null constraint bsb_document_templates_body_check check (length(btrim("body")) > 0 and length("body") <= 200000),
+  "version" integer not null default 1 constraint bsb_document_templates_version_check check ("version" >= 1),
   "active" boolean not null default true,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
@@ -3058,10 +3058,10 @@ create table "app_private"."document_text_blocks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,63}$'),
-  "language" text check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "body" text not null check (length(btrim("body")) > 0 and length("body") <= 200000),
-  "version" integer not null default 1 check ("version" >= 1),
+  "key" text not null constraint bsb_document_text_blocks_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,63}$'),
+  "language" text constraint bsb_document_text_blocks_language_check check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "body" text not null constraint bsb_document_text_blocks_body_check check (length(btrim("body")) > 0 and length("body") <= 200000),
+  "version" integer not null default 1 constraint bsb_document_text_blocks_version_check check ("version" >= 1),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -3084,7 +3084,7 @@ create policy bsb_document_text_blocks_read on "app_private"."document_text_bloc
 create table "app_private"."rendered_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
+  "document_type" text not null constraint bsb_rendered_documents_document_type_check check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
   "document_id" uuid not null,
   "language" text,
   "legal_entity_id" uuid,
@@ -3092,8 +3092,8 @@ create table "app_private"."rendered_documents" (
   "template_id" uuid,
   "template_version" integer,
   "template" jsonb,
-  "blocks" jsonb not null default '{}'::jsonb check (jsonb_typeof("blocks") = 'object'),
-  "variables" jsonb not null check (jsonb_typeof("variables") = 'object'),
+  "blocks" jsonb not null default '{}'::jsonb constraint bsb_rendered_documents_blocks_check check (jsonb_typeof("blocks") = 'object'),
+  "variables" jsonb not null constraint bsb_rendered_documents_variables_check check (jsonb_typeof("variables") = 'object'),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "document_type", "document_id")
@@ -4025,7 +4025,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:ee53ac50250bfe9781159c126b0e211475892abacfb885f0215115a8abd7fd57
+-- @bsb-hash sha256:1096e1535917ca82485c71ad35a1fc8bbe673b35b862cd27be0dd9e7de29ae0c
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4189,11 +4189,11 @@ create table "better_supabase"."document_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
-  "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
-  "language" text check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "name" text not null default 'default' check ("name" ~ '^[a-z][a-z0-9_-]{0,63}$'),
-  "body" text not null check (length(btrim("body")) > 0 and length("body") <= 200000),
-  "version" integer not null default 1 check ("version" >= 1),
+  "document_type" text not null constraint bsb_document_templates_document_type_check check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
+  "language" text constraint bsb_document_templates_language_check check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "name" text not null default 'default' constraint bsb_document_templates_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,63}$'),
+  "body" text not null constraint bsb_document_templates_body_check check (length(btrim("body")) > 0 and length("body") <= 200000),
+  "version" integer not null default 1 constraint bsb_document_templates_version_check check ("version" >= 1),
   "active" boolean not null default true,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
@@ -4218,10 +4218,10 @@ create table "better_supabase"."document_text_blocks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "legal_entity_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,63}$'),
-  "language" text check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "body" text not null check (length(btrim("body")) > 0 and length("body") <= 200000),
-  "version" integer not null default 1 check ("version" >= 1),
+  "key" text not null constraint bsb_document_text_blocks_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,63}$'),
+  "language" text constraint bsb_document_text_blocks_language_check check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "body" text not null constraint bsb_document_text_blocks_body_check check (length(btrim("body")) > 0 and length("body") <= 200000),
+  "version" integer not null default 1 constraint bsb_document_text_blocks_version_check check ("version" >= 1),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -4244,7 +4244,7 @@ create policy bsb_document_text_blocks_read on "better_supabase"."document_text_
 create table "better_supabase"."rendered_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
+  "document_type" text not null constraint bsb_rendered_documents_document_type_check check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
   "document_id" uuid not null,
   "language" text,
   "legal_entity_id" uuid,
@@ -4252,8 +4252,8 @@ create table "better_supabase"."rendered_documents" (
   "template_id" uuid,
   "template_version" integer,
   "template" jsonb,
-  "blocks" jsonb not null default '{}'::jsonb check (jsonb_typeof("blocks") = 'object'),
-  "variables" jsonb not null check (jsonb_typeof("variables") = 'object'),
+  "blocks" jsonb not null default '{}'::jsonb constraint bsb_rendered_documents_blocks_check check (jsonb_typeof("blocks") = 'object'),
+  "variables" jsonb not null constraint bsb_rendered_documents_variables_check check (jsonb_typeof("variables") = 'object'),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "document_type", "document_id")
@@ -5432,7 +5432,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:7e23b5a973baa3a5024cbe5eed902b9a26f0837d04213cf5e30bb19ef9d0615c
+-- @bsb-hash sha256:69c900055e90b29e82f573c7abcd71abb406fe9cd327b12be1b3bfddef40af62
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5596,11 +5596,11 @@ grant execute on function "better_supabase"."document_variables"(uuid, text, uui
 alter table "better_supabase"."document_templates" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."document_templates" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."document_templates" add column if not exists "legal_entity_id" uuid;
-alter table "better_supabase"."document_templates" add column if not exists "document_type" text check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order'));
-alter table "better_supabase"."document_templates" add column if not exists "language" text check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$');
-alter table "better_supabase"."document_templates" add column if not exists "name" text not null default 'default' check ("name" ~ '^[a-z][a-z0-9_-]{0,63}$');
-alter table "better_supabase"."document_templates" add column if not exists "body" text check (length(btrim("body")) > 0 and length("body") <= 200000);
-alter table "better_supabase"."document_templates" add column if not exists "version" integer not null default 1 check ("version" >= 1);
+alter table "better_supabase"."document_templates" add column if not exists "document_type" text constraint bsb_document_templates_document_type_check check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order'));
+alter table "better_supabase"."document_templates" add column if not exists "language" text constraint bsb_document_templates_language_check check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$');
+alter table "better_supabase"."document_templates" add column if not exists "name" text not null default 'default' constraint bsb_document_templates_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,63}$');
+alter table "better_supabase"."document_templates" add column if not exists "body" text constraint bsb_document_templates_body_check check (length(btrim("body")) > 0 and length("body") <= 200000);
+alter table "better_supabase"."document_templates" add column if not exists "version" integer not null default 1 constraint bsb_document_templates_version_check check ("version" >= 1);
 alter table "better_supabase"."document_templates" add column if not exists "active" boolean not null default true;
 alter table "better_supabase"."document_templates" add column if not exists "created_by" uuid references auth.users (id) on delete set null default auth.uid();
 alter table "better_supabase"."document_templates" add column if not exists "created_at" timestamptz not null default now();
@@ -5620,10 +5620,10 @@ create policy bsb_document_templates_read on "better_supabase"."document_templat
 alter table "better_supabase"."document_text_blocks" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."document_text_blocks" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."document_text_blocks" add column if not exists "legal_entity_id" uuid;
-alter table "better_supabase"."document_text_blocks" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_]{0,63}$');
-alter table "better_supabase"."document_text_blocks" add column if not exists "language" text check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$');
-alter table "better_supabase"."document_text_blocks" add column if not exists "body" text check (length(btrim("body")) > 0 and length("body") <= 200000);
-alter table "better_supabase"."document_text_blocks" add column if not exists "version" integer not null default 1 check ("version" >= 1);
+alter table "better_supabase"."document_text_blocks" add column if not exists "key" text constraint bsb_document_text_blocks_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,63}$');
+alter table "better_supabase"."document_text_blocks" add column if not exists "language" text constraint bsb_document_text_blocks_language_check check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$');
+alter table "better_supabase"."document_text_blocks" add column if not exists "body" text constraint bsb_document_text_blocks_body_check check (length(btrim("body")) > 0 and length("body") <= 200000);
+alter table "better_supabase"."document_text_blocks" add column if not exists "version" integer not null default 1 constraint bsb_document_text_blocks_version_check check ("version" >= 1);
 alter table "better_supabase"."document_text_blocks" add column if not exists "created_by" uuid references auth.users (id) on delete set null default auth.uid();
 alter table "better_supabase"."document_text_blocks" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."document_text_blocks" add column if not exists "updated_at" timestamptz not null default now();
@@ -5642,7 +5642,7 @@ create policy bsb_document_text_blocks_read on "better_supabase"."document_text_
 -- better_supabase.rendered_documents is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."rendered_documents" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."rendered_documents" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."rendered_documents" add column if not exists "document_type" text check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order'));
+alter table "better_supabase"."rendered_documents" add column if not exists "document_type" text constraint bsb_rendered_documents_document_type_check check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order'));
 alter table "better_supabase"."rendered_documents" add column if not exists "document_id" uuid;
 alter table "better_supabase"."rendered_documents" add column if not exists "language" text;
 alter table "better_supabase"."rendered_documents" add column if not exists "legal_entity_id" uuid;
@@ -5650,8 +5650,8 @@ alter table "better_supabase"."rendered_documents" add column if not exists "con
 alter table "better_supabase"."rendered_documents" add column if not exists "template_id" uuid;
 alter table "better_supabase"."rendered_documents" add column if not exists "template_version" integer;
 alter table "better_supabase"."rendered_documents" add column if not exists "template" jsonb;
-alter table "better_supabase"."rendered_documents" add column if not exists "blocks" jsonb not null default '{}'::jsonb check (jsonb_typeof("blocks") = 'object');
-alter table "better_supabase"."rendered_documents" add column if not exists "variables" jsonb check (jsonb_typeof("variables") = 'object');
+alter table "better_supabase"."rendered_documents" add column if not exists "blocks" jsonb not null default '{}'::jsonb constraint bsb_rendered_documents_blocks_check check (jsonb_typeof("blocks") = 'object');
+alter table "better_supabase"."rendered_documents" add column if not exists "variables" jsonb constraint bsb_rendered_documents_variables_check check (jsonb_typeof("variables") = 'object');
 alter table "better_supabase"."rendered_documents" add column if not exists "created_by" uuid references auth.users (id) on delete set null default auth.uid();
 alter table "better_supabase"."rendered_documents" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists "rendered_documents_created_by_idx" on "better_supabase"."rendered_documents" ("created_by") where "created_by" is not null;
@@ -6580,7 +6580,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_163_document_templates.sql
 -- better-supabase module: document-templates
 -- @bsb-block document-templates@1 managed
--- @bsb-hash sha256:bd3226aa748df0402db9aeed502242815d011aa1a822f5243901a6adf5fca732
+-- @bsb-hash sha256:0c4af04223ac9adcf6235167582a0c38bcf37c4b8cbf550883784c7a647c4a61
 -- Templates for invoices, credit notes, quotes, orders, dunning letters, delivery notes and statements per legal entity and language, reusable text blocks, one versioned variable contract per document type, and render_document, which returns the variables, the chosen template and its texts. An issued invoice or credit note is frozen with the template version it used, so rendering it again never changes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6744,11 +6744,11 @@ create table "better_supabase"."document_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "legal_entity_id" uuid,
-  "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
-  "language" text check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "name" text not null default 'default' check ("name" ~ '^[a-z][a-z0-9_-]{0,63}$'),
-  "body" text not null check (length(btrim("body")) > 0 and length("body") <= 200000),
-  "version" integer not null default 1 check ("version" >= 1),
+  "document_type" text not null constraint bsb_document_templates_document_type_check check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
+  "language" text constraint bsb_document_templates_language_check check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "name" text not null default 'default' constraint bsb_document_templates_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,63}$'),
+  "body" text not null constraint bsb_document_templates_body_check check (length(btrim("body")) > 0 and length("body") <= 200000),
+  "version" integer not null default 1 constraint bsb_document_templates_version_check check ("version" >= 1),
   "active" boolean not null default true,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
@@ -6773,10 +6773,10 @@ create table "better_supabase"."document_text_blocks" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "legal_entity_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,63}$'),
-  "language" text check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
-  "body" text not null check (length(btrim("body")) > 0 and length("body") <= 200000),
-  "version" integer not null default 1 check ("version" >= 1),
+  "key" text not null constraint bsb_document_text_blocks_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,63}$'),
+  "language" text constraint bsb_document_text_blocks_language_check check ("language" is null or "language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "body" text not null constraint bsb_document_text_blocks_body_check check (length(btrim("body")) > 0 and length("body") <= 200000),
+  "version" integer not null default 1 constraint bsb_document_text_blocks_version_check check ("version" >= 1),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -6799,7 +6799,7 @@ create policy bsb_document_text_blocks_read on "better_supabase"."document_text_
 create table "better_supabase"."rendered_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "document_type" text not null check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
+  "document_type" text not null constraint bsb_rendered_documents_document_type_check check ("document_type" in ('invoice', 'credit_note', 'quote', 'order', 'dunning_letter', 'delivery_note', 'statement', 'purchase_order')),
   "document_id" uuid not null,
   "language" text,
   "legal_entity_id" uuid,
@@ -6807,8 +6807,8 @@ create table "better_supabase"."rendered_documents" (
   "template_id" uuid,
   "template_version" integer,
   "template" jsonb,
-  "blocks" jsonb not null default '{}'::jsonb check (jsonb_typeof("blocks") = 'object'),
-  "variables" jsonb not null check (jsonb_typeof("variables") = 'object'),
+  "blocks" jsonb not null default '{}'::jsonb constraint bsb_rendered_documents_blocks_check check (jsonb_typeof("blocks") = 'object'),
+  "variables" jsonb not null constraint bsb_rendered_documents_variables_check check (jsonb_typeof("variables") = 'object'),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("org_id", "document_type", "document_id")

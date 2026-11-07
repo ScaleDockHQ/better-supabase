@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:892d9b7ab467e5630f44a0f681fa6d0c398774c09d99e37d38f3bc015923851a
+-- @bsb-hash sha256:ad06b6825c0a7eb7058d7a204f78e79e95790266a9b92394f30dbc3e0f56ec5d
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17,7 +17,7 @@ create table "better_supabase"."bulk_runs" (
   "succeeded" integer not null default 0,
   "failed" integer not null default 0,
   "results" jsonb not null default '[]'::jsonb,
-  "status" text not null default 'pending' check ("status" in ('pending', 'running', 'completed', 'failed')),
+  "status" text not null default 'pending' constraint bsb_bulk_runs_status_check check ("status" in ('pending', 'running', 'completed', 'failed')),
   "created_by" uuid not null,
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
@@ -254,7 +254,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:d81ff76f2b12d0f6d475466912774149c489eca40623d6470fa78321f23ec2f6
+-- @bsb-hash sha256:41969a59bb035c3a8ec60843f251542ef6e916ea954682212d0d466f10348511
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -270,7 +270,7 @@ create table "better_supabase"."bulk_runs" (
   "succeeded" integer not null default 0,
   "failed" integer not null default 0,
   "results" jsonb not null default '[]'::jsonb,
-  "status" text not null default 'pending' check ("status" in ('pending', 'running', 'completed', 'failed')),
+  "status" text not null default 'pending' constraint bsb_bulk_runs_status_check check ("status" in ('pending', 'running', 'completed', 'failed')),
   "created_by" uuid not null,
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
@@ -527,7 +527,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:9d9a6488f28947d401e5d5e15c2956afa9a6700ec02d8b503edbf72642bbb3d4
+-- @bsb-hash sha256:cc64a58793b31b1389f51cae89eb5afab58f5b076f605fbee7ba8706e1f9b9e1
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -548,7 +548,7 @@ create table "app_private"."bulk_runs" (
   "succeeded" integer not null default 0,
   "failed" integer not null default 0,
   "results" jsonb not null default '[]'::jsonb,
-  "status" text not null default 'pending' check ("status" in ('pending', 'running', 'completed', 'failed')),
+  "status" text not null default 'pending' constraint bsb_bulk_runs_status_check check ("status" in ('pending', 'running', 'completed', 'failed')),
   "created_by" uuid not null,
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
@@ -785,7 +785,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:3d9fab96c1e97f716c18a34124d660b2618c442aaeca5f85e8065d2dc77cffb0
+-- @bsb-hash sha256:87a0032933f62e016ea3cc7cdbe061f00281db25058ca4369e59f6f83ecb1a6f
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -801,7 +801,7 @@ create table "better_supabase"."bulk_runs" (
   "succeeded" integer not null default 0,
   "failed" integer not null default 0,
   "results" jsonb not null default '[]'::jsonb,
-  "status" text not null default 'pending' check ("status" in ('pending', 'running', 'completed', 'failed')),
+  "status" text not null default 'pending' constraint bsb_bulk_runs_status_check check ("status" in ('pending', 'running', 'completed', 'failed')),
   "created_by" uuid not null,
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz
@@ -1088,7 +1088,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:be56fb511be17a17ec365cc4413ff64424ad14369ea7f9a82855ab732b2b3644
+-- @bsb-hash sha256:51a4598d43ff6db4c4c72e3df93023da010ff81fa8e3d1ca398320d2f582e1db
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1104,7 +1104,7 @@ alter table "better_supabase"."bulk_runs" add column if not exists "position" in
 alter table "better_supabase"."bulk_runs" add column if not exists "succeeded" integer not null default 0;
 alter table "better_supabase"."bulk_runs" add column if not exists "failed" integer not null default 0;
 alter table "better_supabase"."bulk_runs" add column if not exists "results" jsonb not null default '[]'::jsonb;
-alter table "better_supabase"."bulk_runs" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'running', 'completed', 'failed'));
+alter table "better_supabase"."bulk_runs" add column if not exists "status" text not null default 'pending' constraint bsb_bulk_runs_status_check check ("status" in ('pending', 'running', 'completed', 'failed'));
 alter table "better_supabase"."bulk_runs" add column if not exists "created_by" uuid;
 alter table "better_supabase"."bulk_runs" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."bulk_runs" add column if not exists "finished_at" timestamptz;
@@ -1339,7 +1339,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_069_bulk.sql
 -- better-supabase module: bulk
 -- @bsb-block bulk@1 managed
--- @bsb-hash sha256:1884a13223c6c3fcb3aa896d1444da8a657a633c83908585a533fa3f6c93e039
+-- @bsb-hash sha256:9b6b2d802d5e28b1369938905d5738e144df1962c75c26f8a214c0c70b61a36b
 -- One action over many rows: up to a limit in one call with a result per row, and larger sets as a background run on the jobs queue that runs as the user who started it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1355,7 +1355,7 @@ create table "better_supabase"."bulk_runs" (
   "succeeded" integer not null default 0,
   "failed" integer not null default 0,
   "results" jsonb not null default '[]'::jsonb,
-  "status" text not null default 'pending' check ("status" in ('pending', 'running', 'completed', 'failed')),
+  "status" text not null default 'pending' constraint bsb_bulk_runs_status_check check ("status" in ('pending', 'running', 'completed', 'failed')),
   "created_by" uuid not null,
   "created_at" timestamptz not null default now(),
   "finished_at" timestamptz

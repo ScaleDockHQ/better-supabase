@@ -1,6 +1,6 @@
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:b07ce5dfb3327cfdf332ceb00f21c506a7858a2061d6f9196c625f8fae94c848
+-- @bsb-hash sha256:2736f0f1e40d584430edd29320180f257a9033f227e1e5692dace2819d299514
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,16 +13,16 @@ create extension if not exists pgcrypto with schema extensions;
 create table "better_supabase"."templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "scope" text not null default 'tenant' check ("scope" in ('tenant', 'brand', 'system')),
-  "key" text check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,99}$'),
-  "type" text not null check ("type" ~ '^[a-z][a-z0-9_.-]{0,63}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "language" text not null default 'en' check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{1,8})*$'),
+  "scope" text not null default 'tenant' constraint bsb_templates_scope_check check ("scope" in ('tenant', 'brand', 'system')),
+  "key" text constraint bsb_templates_key_check check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,99}$'),
+  "type" text not null constraint bsb_templates_type_check check ("type" ~ '^[a-z][a-z0-9_.-]{0,63}$'),
+  "name" text not null constraint bsb_templates_name_check check (length("name") >= 1 and length("name") <= 200),
+  "language" text not null default 'en' constraint bsb_templates_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{1,8})*$'),
   "is_default" boolean not null default false,
   "settings" jsonb not null default '{}'::jsonb
-    check (jsonb_typeof("settings") = 'object' and pg_column_size("settings") <= 65536),
+    constraint bsb_templates_settings_check check (jsonb_typeof("settings") = 'object' and pg_column_size("settings") <= 65536),
   "forked_from" uuid references "better_supabase"."templates" ("id") on delete set null,
-  "forked_from_version" integer check ("forked_from_version" > 0),
+  "forked_from_version" integer constraint bsb_templates_forked_from_version_check check ("forked_from_version" > 0),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -30,8 +30,8 @@ create table "better_supabase"."templates" (
 -- Brand starters (options.brand): no tenant, a brand, read by every tenant
 -- whose "public"."organizations"."brand" matches. The key and default indexes
 -- count the brand, so each brand keeps its own keys and defaults.
-alter table "better_supabase"."templates" add column "brand" text check (length("brand") >= 1 and length("brand") <= 100);
-alter table "better_supabase"."templates" add constraint templates_system_check check (case "scope"::text
+alter table "better_supabase"."templates" add column "brand" text constraint bsb_templates_brand_check check (length("brand") >= 1 and length("brand") <= 100);
+alter table "better_supabase"."templates" add constraint bsb_templates_system_check check (case "scope"::text
   when 'tenant' then "tenant_id" is not null and "brand" is null
   when 'brand' then "tenant_id" is null and "brand" is not null
   else "tenant_id" is null and "brand" is null end);
@@ -74,8 +74,8 @@ create policy bsb_templates_read on "better_supabase"."templates"
 create table "better_supabase"."template_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
-  "version" integer not null check ("version" > 0),
-  "body" jsonb not null check (pg_column_size("body") <= 1048576),
+  "version" integer not null constraint bsb_template_versions_version_check check ("version" > 0),
+  "body" jsonb not null constraint bsb_template_versions_body_check check (pg_column_size("body") <= 1048576),
   "hash" text not null,
   "published_at" timestamptz,
   "created_by" uuid references auth.users (id) on delete set null,
@@ -98,8 +98,8 @@ create table "better_supabase"."template_applications" (
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "version_id" uuid not null references "better_supabase"."template_versions" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text not null constraint bsb_template_applications_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null constraint bsb_template_applications_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "applied_by" uuid references auth.users (id) on delete set null,
   "applied_at" timestamptz not null default now()
 );
@@ -122,7 +122,7 @@ create table "better_supabase"."template_workflows" (
   "id" uuid primary key default gen_random_uuid(),
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
-  "inputs" jsonb not null default '{}'::jsonb check (jsonb_typeof("inputs") = 'object'),
+  "inputs" jsonb not null default '{}'::jsonb constraint bsb_template_workflows_inputs_check check (jsonb_typeof("inputs") = 'object'),
   "enabled" boolean not null default true,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -997,7 +997,7 @@ create table "better_supabase"."template_schedules" (
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "input" jsonb not null default '{}'::jsonb
-    check (jsonb_typeof("input") = 'object' and pg_column_size("input") <= 65536),
+    constraint bsb_template_schedules_input_check check (jsonb_typeof("input") = 'object' and pg_column_size("input") <= 65536),
   "enabled" boolean not null default true,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),

@@ -1,6 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:116728616ca6a678b330cf0c57600a844586e945b617307582f59a4414ce5fce
+-- @bsb-hash sha256:bb220e8961c037af8a63d8b005b45d31bbffc6034f58e7ed84e5c92f94df3541
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,13 +10,13 @@ create table "better_supabase"."activities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "type" text not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
+  "title" text not null constraint bsb_activities_title_check check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "outcome" text,
   "owner_user_id" uuid,
   "due_at" timestamptz,
   "done_at" timestamptz,
-  "duration_seconds" integer check ("duration_seconds" >= 0),
+  "duration_seconds" integer constraint bsb_activities_duration_seconds_check check ("duration_seconds" >= 0),
   "external_ref" text,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -27,15 +27,15 @@ create index "activities_tenant_created_idx" on "better_supabase"."activities" (
 create unique index "activities_external_ref_idx" on "better_supabase"."activities" ("tenant_id", "external_ref") where "external_ref" is not null;
 -- Progress notes: who reads an engagement, when it locks, its addenda and the
 -- in-error flag.
-alter table "better_supabase"."activities" add column "audience" text not null default 'team' check ("audience" in ('team', 'subject', 'restricted'));
+alter table "better_supabase"."activities" add column "audience" text not null default 'team' constraint bsb_activities_audience_check check ("audience" in ('team', 'subject', 'restricted'));
 alter table "better_supabase"."activities" add column "restricted_roles" text[];
-alter table "better_supabase"."activities" add column "category" text check (length("category") >= 1 and length("category") <= 63);
+alter table "better_supabase"."activities" add column "category" text constraint bsb_activities_category_check check (length("category") >= 1 and length("category") <= 63);
 alter table "better_supabase"."activities" add column "locked_at" timestamptz;
 alter table "better_supabase"."activities" add column "amends_id" uuid references "better_supabase"."activities" ("id") on delete cascade;
 alter table "better_supabase"."activities" add column "goal_id" uuid;
 alter table "better_supabase"."activities" add column "marked_error_at" timestamptz;
 alter table "better_supabase"."activities" add column "marked_error_by" uuid;
-alter table "better_supabase"."activities" add column "marked_error_reason" text check (length("marked_error_reason") >= 1 and length("marked_error_reason") <= 2000);
+alter table "better_supabase"."activities" add column "marked_error_reason" text constraint bsb_activities_marked_error_reason_check check (length("marked_error_reason") >= 1 and length("marked_error_reason") <= 2000);
 create index "activities_amends_idx" on "better_supabase"."activities" ("amends_id");
 alter table "better_supabase"."activities" enable row level security;
 revoke all on "better_supabase"."activities" from public, anon, authenticated;
@@ -577,9 +577,9 @@ create table "better_supabase"."engagement_recordings" (
   "file_id" uuid not null references "better_supabase"."ai_files" ("id") on delete cascade,
   "filename" text not null,
   "media_type" text not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'transcribed', 'failed')),
+  "status" text not null default 'pending' constraint bsb_engagement_recordings_status_check check ("status" in ('pending', 'transcribed', 'failed')),
   "language" text,
-  "duration_seconds" integer check ("duration_seconds" >= 0),
+  "duration_seconds" integer constraint bsb_engagement_recordings_duration_seconds_check check ("duration_seconds" >= 0),
   "error" text,
   "model" text,
   "created_by" uuid,
@@ -602,15 +602,15 @@ create policy bsb_engagement_recordings_read on "better_supabase"."engagement_re
 create table "better_supabase"."engagement_transcript_segments" (
   "recording_id" uuid not null references "better_supabase"."engagement_recordings" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "position" integer not null check ("position" >= 1),
+  "position" integer not null constraint bsb_engagement_transcript_segments_position_check check ("position" >= 1),
   "speaker" text,
   "speaker_user_id" uuid,
-  "starts_ms" integer not null check ("starts_ms" >= 0),
+  "starts_ms" integer not null constraint bsb_engagement_transcript_segments_starts_ms_check check ("starts_ms" >= 0),
   "ends_ms" integer not null,
   "text" text not null,
-  "confidence" real check ("confidence" >= 0 and "confidence" <= 1),
+  "confidence" real constraint bsb_engagement_transcript_segments_confidence_check check ("confidence" >= 0 and "confidence" <= 1),
   primary key ("recording_id", "position"),
-  check ("ends_ms" >= "starts_ms")
+  constraint bsb_engagement_transcript_segments_check check ("ends_ms" >= "starts_ms")
 );
 alter table "better_supabase"."engagement_transcript_segments" enable row level security;
 revoke all on "better_supabase"."engagement_transcript_segments" from public, anon, authenticated;
@@ -625,10 +625,10 @@ create policy bsb_engagement_transcript_segments_read on "better_supabase"."enga
 create table "better_supabase"."engagement_notes" (
   "activity_id" uuid primary key references "better_supabase"."activities" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "summary" text not null check (length("summary") >= 1 and length("summary") <= 20000),
+  "summary" text not null constraint bsb_engagement_notes_summary_check check (length("summary") >= 1 and length("summary") <= 20000),
 
   "model" text,
-  "source" text not null default 'ai' check ("source" in ('ai', 'member')),
+  "source" text not null default 'ai' constraint bsb_engagement_notes_source_check check ("source" in ('ai', 'member')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()

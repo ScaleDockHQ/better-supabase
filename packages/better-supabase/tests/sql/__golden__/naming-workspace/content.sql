@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:c580af66f358626806719d45d03d9c3c1906f226b86623c4a09ea679e8e3d9eb
+-- @bsb-hash sha256:d2064a6beb082b596c99c40e0941d495485da46fece6937efa5365b4ac75daf1
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,11 +14,11 @@ create table "better_supabase"."content_entries" (
   -- One of options.types and options.locales; the functions check both.
   "type" text not null,
   "locale" text not null,
-  "slug" text not null check (length("slug") <= 200 and "slug" ~ '^[a-z0-9]+(?:[-/][a-z0-9]+)*$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "summary" text check ("summary" is null or length("summary") <= 2000),
-  "body" jsonb not null default '{}'::jsonb check (jsonb_typeof("body") in ('object', 'array')),
-  "status" text not null default 'draft' check ("status" in ('draft', 'scheduled', 'published', 'archived')),
+  "slug" text not null constraint bsb_content_entries_slug_check check (length("slug") <= 200 and "slug" ~ '^[a-z0-9]+(?:[-/][a-z0-9]+)*$'),
+  "title" text not null constraint bsb_content_entries_title_check check (length("title") >= 1 and length("title") <= 300),
+  "summary" text constraint bsb_content_entries_summary_check check ("summary" is null or length("summary") <= 2000),
+  "body" jsonb not null default '{}'::jsonb constraint bsb_content_entries_body_check check (jsonb_typeof("body") in ('object', 'array')),
+  "status" text not null default 'draft' constraint bsb_content_entries_status_check check ("status" in ('draft', 'scheduled', 'published', 'archived')),
   "publish_at" timestamptz,
   "published_at" timestamptz,
   "author_id" uuid references auth.users (id) on delete set null,
@@ -32,8 +32,8 @@ create table "better_supabase"."content_entries" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "type", "locale", "slug"),
   unique ("tenant_id", "translation_group_id", "locale"),
-  check ("status" <> 'scheduled' or "publish_at" is not null),
-  check ("status" <> 'published' or "published_at" is not null)
+  constraint bsb_content_entries_check check ("status" <> 'scheduled' or "publish_at" is not null),
+  constraint bsb_content_entries_check1 check ("status" <> 'published' or "published_at" is not null)
 );
 create index "content_entries_published_idx" on "better_supabase"."content_entries" ("tenant_id", "type", "locale", "published_at" desc) where "status" = 'published';
 create index "content_entries_due_idx" on "better_supabase"."content_entries" ("publish_at") where "status" = 'scheduled';

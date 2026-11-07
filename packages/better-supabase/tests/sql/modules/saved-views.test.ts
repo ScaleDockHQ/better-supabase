@@ -4,6 +4,7 @@ import type { AnyBlocksConfig } from "../../../src/config/blocks.ts";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
 import { ownTablesOf } from "../../fixtures/own-tables.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const sqlOf = (
   modules: readonly string[] = ["saved-views"],
@@ -17,7 +18,7 @@ const sqlOf = (
 describe("saved-views module", () => {
   it("creates the table with scope, kind and state checks", () => {
     const sql = sqlOf();
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `"scope" text not null default 'user' check ("scope" in ('user', 'team', 'tenant'))`,
     );
     expect(sql).toContain(

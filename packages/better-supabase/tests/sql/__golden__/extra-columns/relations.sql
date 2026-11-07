@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_068_relations.sql
 -- better-supabase module: relations
 -- @bsb-block relations@1 managed
--- @bsb-hash sha256:f00f31d595cef048e561cdba7e731eabd19c2f622134d7450c7680b58526c915
+-- @bsb-hash sha256:5b9cb6b6f11d08837317c55feca65f07025d0fba5779bb8813d2ef99bae5595a
 -- Typed links between subjects (blocks, parent, relates, or your own kinds), with inverse names, cycle checks, one-target kinds, walks and rollups.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,11 +14,11 @@ create table "better_supabase"."relations" (
   "source_id" text not null,
   "target_type" text not null,
   "target_id" text not null,
-  "data" jsonb not null default '{}'::jsonb check (jsonb_typeof("data") = 'object' and pg_column_size("data") <= 8192),
+  "data" jsonb not null default '{}'::jsonb constraint bsb_relations_data_check check (jsonb_typeof("data") = 'object' and pg_column_size("data") <= 8192),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "kind", "source_type", "source_id", "target_type", "target_id"),
-  check (not ("source_type" = "target_type" and "source_id" = "target_id"))
+  constraint bsb_relations_check check (not ("source_type" = "target_type" and "source_id" = "target_id"))
 );
 create index relations_target_idx on "better_supabase"."relations" ("tenant_id", "target_type", "target_id", "kind");
 alter table "better_supabase"."relations" enable row level security;

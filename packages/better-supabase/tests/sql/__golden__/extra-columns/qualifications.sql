@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_143_qualifications.sql
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:469871bdfe8e7327323d75fcd78ac02c7573fa0fad5f6bb566f95c0abd7d9df9
+-- @bsb-hash sha256:2f63200f59eed6cbe37f5eaf6e0e27276ca6937d8ed24a6346bd42de1a81a66f
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,13 +13,13 @@
 create table "better_supabase"."qualification_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text check ("description" is null or length("description") <= 4000),
+  "key" text not null constraint bsb_qualification_types_key_check check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,62}$'),
+  "name" text not null constraint bsb_qualification_types_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_qualification_types_description_check check ("description" is null or length("description") <= 4000),
   -- The holders the type applies to: member, company or asset.
-  "holder_types" text[] not null check (cardinality("holder_types") > 0),
+  "holder_types" text[] not null constraint bsb_qualification_types_holder_types_check check (cardinality("holder_types") > 0),
   -- A holding expires this many months after it is granted; null never expires.
-  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240),
+  "valid_for_months" integer constraint bsb_qualification_types_valid_for_months_check check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240),
   "evidence_required" boolean not null default false,
   "course_id" uuid,
   "archived_at" timestamptz,
@@ -43,8 +43,8 @@ create table "better_supabase"."qualification_requirements" (
   "type_id" uuid not null,
   -- Who must hold the type: a role, a team, a job title, an asset kind, a
   -- segment of companies, or one holder.
-  "target_type" text not null check ("target_type" in ('role', 'team', 'job_title', 'asset_kind', 'segment', 'holder')),
-  "target_value" text not null check (length("target_value") >= 1 and length("target_value") <= 200),
+  "target_type" text not null constraint bsb_qualification_requirements_target_type_check check ("target_type" in ('role', 'team', 'job_title', 'asset_kind', 'segment', 'holder')),
+  "target_value" text not null constraint bsb_qualification_requirements_target_value_check check (length("target_value") >= 1 and length("target_value") <= 200),
   "created_at" timestamptz not null default now(),
   unique ("type_id", "target_type", "target_value"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."qualification_types" ("tenant_id", "id") on delete cascade
@@ -62,24 +62,24 @@ create table "better_supabase"."qualifications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "type_id" uuid not null,
-  "holder_type" text not null check ("holder_type" in ('member', 'company', 'asset')),
-  "holder_id" text not null check (length("holder_id") >= 1 and length("holder_id") <= 200),
+  "holder_type" text not null constraint bsb_qualifications_holder_type_check check ("holder_type" in ('member', 'company', 'asset')),
+  "holder_id" text not null constraint bsb_qualifications_holder_id_check check (length("holder_id") >= 1 and length("holder_id") <= 200),
   "granted_on" date not null,
   "expires_on" date,
   "revoked_at" timestamptz,
-  "revoke_reason" text check ("revoke_reason" is null or length("revoke_reason") <= 2000),
+  "revoke_reason" text constraint bsb_qualifications_revoke_reason_check check ("revoke_reason" is null or length("revoke_reason") <= 2000),
   "evidence_attachment_id" uuid,
-  "evidence_note" text check ("evidence_note" is null or length("evidence_note") <= 4000),
-  "source" text not null default 'manual' check ("source" in ('manual', 'course', 'import')),
+  "evidence_note" text constraint bsb_qualifications_evidence_note_check check ("evidence_note" is null or length("evidence_note") <= 4000),
+  "source" text not null default 'manual' constraint bsb_qualifications_source_check check ("source" in ('manual', 'course', 'import')),
   -- The record behind a course or import holding, such as the certificate id.
   "source_id" text,
   "granted_by" uuid,
   -- The status notify_expiring_qualifications last reported, so each one
   -- notifies once.
-  "notified_status" text check ("notified_status" is null or "notified_status" in ('expiring', 'expired')),
+  "notified_status" text constraint bsb_qualifications_notified_status_check check ("notified_status" is null or "notified_status" in ('expiring', 'expired')),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("expires_on" is null or "expires_on" >= "granted_on"),
+  constraint bsb_qualifications_check check ("expires_on" is null or "expires_on" >= "granted_on"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."qualification_types" ("tenant_id", "id") on delete cascade
 );
 create index "qualifications_holder_idx" on "better_supabase"."qualifications" ("tenant_id", "holder_type", "holder_id");

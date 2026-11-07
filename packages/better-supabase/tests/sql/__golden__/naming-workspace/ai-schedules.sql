@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_053_ai_schedules.sql
 -- better-supabase module: ai-schedules
 -- @bsb-block ai-schedules@2 managed
--- @bsb-hash sha256:4a90372e213dc44678f2e32d1ff7f09b44a772ad102208da0d7a324e850d1321
+-- @bsb-hash sha256:c41541e5827a10da174a4549cb09549811c07adece0949c3fb8c6f29a4cfca83
 -- Prompts a user schedules on a cron, with a run per occurrence; the scheduler claims due tasks, queues an ai_task_run job when jobs is installed, and fails runs that stall.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,10 +15,10 @@ create table "better_supabase"."ai_scheduled_tasks" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
   "agent_id" uuid,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "prompt" text not null check (length("prompt") >= 1 and length("prompt") <= 20000),
-  "cron" text not null check (length("cron") >= 1 and length("cron") <= 200),
-  "timezone" text not null default 'UTC' check (length("timezone") >= 1 and length("timezone") <= 64),
+  "title" text not null constraint bsb_ai_scheduled_tasks_title_check check (length("title") >= 1 and length("title") <= 200),
+  "prompt" text not null constraint bsb_ai_scheduled_tasks_prompt_check check (length("prompt") >= 1 and length("prompt") <= 20000),
+  "cron" text not null constraint bsb_ai_scheduled_tasks_cron_check check (length("cron") >= 1 and length("cron") <= 200),
+  "timezone" text not null default 'UTC' constraint bsb_ai_scheduled_tasks_timezone_check check (length("timezone") >= 1 and length("timezone") <= 64),
   "enabled" boolean not null default true,
   "next_run_at" timestamptz,
   "last_run_at" timestamptz,
@@ -41,10 +41,10 @@ create table "better_supabase"."ai_task_runs" (
   "task_id" uuid not null references "better_supabase"."ai_scheduled_tasks" ("id") on delete cascade,
   "workspace_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "status" text not null default 'queued' check ("status" in ('queued', 'running', 'completed', 'failed')),
+  "status" text not null default 'queued' constraint bsb_ai_task_runs_status_check check ("status" in ('queued', 'running', 'completed', 'failed')),
   "scheduled_for" timestamptz not null,
   "chat_id" uuid,
-  "error" text check (length("error") <= 4000),
+  "error" text constraint bsb_ai_task_runs_error_check check (length("error") <= 4000),
   "started_at" timestamptz,
   "finished_at" timestamptz,
   "created_at" timestamptz not null default now()

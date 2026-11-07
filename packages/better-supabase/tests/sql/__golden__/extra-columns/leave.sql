@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_110_leave.sql
 -- better-supabase module: leave
 -- @bsb-block leave@3 managed
--- @bsb-hash sha256:e4d3bcaf50d47517c5b8a812b8a29eedfe3c8e852546f13bb99c777119f0228a
+-- @bsb-hash sha256:587f28eb9579485dcb01be0e56342ecd495a469498adb4ade9dbbeb314703210
 -- Leave types, requests that go through approvals, and a balance ledger per member and year with accruals, adjustments and a year-end carryover. With employees, requests carry the employee_id of their member, or belong to an employee with owner "employee". Balances can live in the app's own table of signed amounts instead of the ledger.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,17 +9,17 @@
 create table "better_supabase"."leave_types" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 100),
-  "unit" text not null default 'days' check ("unit" in ('days', 'hours')),
+  "key" text not null constraint bsb_leave_types_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_leave_types_name_check check (length("name") >= 1 and length("name") <= 100),
+  "unit" text not null default 'days' constraint bsb_leave_types_unit_check check ("unit" in ('days', 'hours')),
   "paid" boolean not null default true,
   -- Untracked types (unpaid leave, say) book no ledger entries and skip the balance check.
   "tracked" boolean not null default true,
   -- What accrue_leave grants each member per period when it names no amount.
-  "allowance" numeric(8, 2) check ("allowance" is null or "allowance" >= 0),
+  "allowance" numeric(8, 2) constraint bsb_leave_types_allowance_check check ("allowance" is null or "allowance" >= 0),
   -- How much close_leave_year carries into the next period; null carries everything.
-  "carryover_max" numeric(8, 2) check ("carryover_max" is null or "carryover_max" >= 0),
-  "color" text check ("color" is null or "color" ~ '^#[0-9a-fA-F]{6}$'),
+  "carryover_max" numeric(8, 2) constraint bsb_leave_types_carryover_max_check check ("carryover_max" is null or "carryover_max" >= 0),
+  "color" text constraint bsb_leave_types_color_check check ("color" is null or "color" ~ '^#[0-9a-fA-F]{6}$'),
   "auto_approve" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -42,17 +42,17 @@ create table "better_supabase"."leave_requests" (
   "type_id" uuid not null,
   "starts_on" date not null,
   "ends_on" date not null,
-  "partial" text not null default 'full' check ("partial" in ('full', 'morning', 'afternoon', 'hours')),
+  "partial" text not null default 'full' constraint bsb_leave_requests_partial_check check ("partial" in ('full', 'morning', 'afternoon', 'hours')),
   -- Working days, or hours for an hours type, that the request books.
-  "amount" numeric(8, 2) not null check ("amount" > 0),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "amount" numeric(8, 2) not null constraint bsb_leave_requests_amount_check check ("amount" > 0),
+  "note" text constraint bsb_leave_requests_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "approved_at" timestamptz,
   "cancelled_at" timestamptz,
   "cancelled_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_leave_requests_check check ("ends_on" >= "starts_on"),
   foreign key ("tenant_id", "type_id") references "better_supabase"."leave_types" ("tenant_id", "id") on delete restrict
 );
 create index "leave_requests_user_idx" on "better_supabase"."leave_requests" ("tenant_id", "user_id", "starts_on" desc);

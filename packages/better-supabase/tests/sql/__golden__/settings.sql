@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:b4aab5bb0d74aec32fc5294bf5339e09be2040adafabe24f864c09be8987b794
+-- @bsb-hash sha256:9b8924616c390cac4482e9b61b506b2dcf37c507ba4e3da255c746fef9204719
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,7 +10,7 @@
 -- keys with a JSON Schema also get a pg_jsonschema check below.
 create table "better_supabase"."user_settings" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_user_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -37,7 +37,7 @@ create policy bsb_user_settings_own_delete on "better_supabase"."user_settings"
 
 create table "better_supabase"."organization_settings" (
   "organization_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_organization_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -66,7 +66,7 @@ create policy bsb_organization_settings_delete on "better_supabase"."organizatio
 -- rates or feature switches an admin console edits. Each key's permission
 -- (is_platform) guards writes, and its read rule decides who sees it.
 create table "better_supabase"."platform_settings" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text primary key constraint bsb_platform_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now()
@@ -298,7 +298,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:d42867016522680dc1eedfb1883a7ac7e53ae98ff144cca3b701bc5f3d8bdb2d
+-- @bsb-hash sha256:74c193c3a401af3e8b30c0772898d733d8e9b75a0a8d9646a029cec17b67758e
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -307,7 +307,7 @@ on conflict (name) do update
 -- keys with a JSON Schema also get a pg_jsonschema check below.
 create table "better_supabase"."user_settings" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_user_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -334,7 +334,7 @@ create policy bsb_user_settings_own_delete on "better_supabase"."user_settings"
 
 create table "better_supabase"."organization_settings" (
   "organization_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_organization_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -363,7 +363,7 @@ create policy bsb_organization_settings_delete on "better_supabase"."organizatio
 -- rates or feature switches an admin console edits. Each key's permission
 -- (is_platform) guards writes, and its read rule decides who sees it.
 create table "better_supabase"."platform_settings" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text primary key constraint bsb_platform_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now()
@@ -671,7 +671,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:9fbb5f3daabe8a5b3e1c64227b2754dcd495b22ad6cf407043feff95f7ac27e1
+-- @bsb-hash sha256:4a1c28b89efe516a645a9302eeb9a45e710545cfc0b1b0ca2d7c7aad8b38fb16
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -685,7 +685,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- keys with a JSON Schema also get a pg_jsonschema check below.
 create table "app_private"."user_settings" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_user_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -712,7 +712,7 @@ create policy bsb_user_settings_own_delete on "app_private"."user_settings"
 
 create table "app_private"."organization_settings" (
   "organization_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_organization_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -741,7 +741,7 @@ create policy bsb_organization_settings_delete on "app_private"."organization_se
 -- rates or feature switches an admin console edits. Each key's permission
 -- (is_platform) guards writes, and its read rule decides who sees it.
 create table "app_private"."platform_settings" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text primary key constraint bsb_platform_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now()
@@ -973,7 +973,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:847e54e5fe7a141663f6e9bc555b2e10a2af3b228ee1aed324047f6b3c4b1f19
+-- @bsb-hash sha256:588472fc8fef949baa1367df6f46c0775ed180c0d33917976943f29579bef0d0
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -982,7 +982,7 @@ on conflict (name) do update
 -- keys with a JSON Schema also get a pg_jsonschema check below.
 create table "better_supabase"."user_settings" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_user_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -1009,7 +1009,7 @@ create policy bsb_user_settings_own_delete on "better_supabase"."user_settings"
 
 create table "better_supabase"."organization_settings" (
   "organization_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_organization_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -1038,7 +1038,7 @@ create policy bsb_organization_settings_delete on "better_supabase"."organizatio
 -- rates or feature switches an admin console edits. Each key's permission
 -- (is_platform) guards writes, and its read rule decides who sees it.
 create table "better_supabase"."platform_settings" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text primary key constraint bsb_platform_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now()
@@ -1368,7 +1368,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:a1066e1cc3a1d1ca6b2fad61bf761b32c147f8ce6c7ba1a6d4ea92c8f354ff4a
+-- @bsb-hash sha256:2a49c266ec38f8b9d87cfe2e9028a26fd4eb0203740f69483257febe8f8512cb
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1377,7 +1377,7 @@ on conflict (name) do update
 -- keys with a JSON Schema also get a pg_jsonschema check below.
 -- better_supabase.user_settings is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."user_settings" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."user_settings" add column if not exists "key" text check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
+alter table "better_supabase"."user_settings" add column if not exists "key" text constraint bsb_user_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
 alter table "better_supabase"."user_settings" add column if not exists "value" jsonb;
 alter table "better_supabase"."user_settings" add column if not exists "updated_by" uuid references auth.users (id) on delete set null default auth.uid();
 alter table "better_supabase"."user_settings" add column if not exists "updated_at" timestamptz not null default now();
@@ -1402,7 +1402,7 @@ create policy bsb_user_settings_delete on "better_supabase"."user_settings"
 
 -- better_supabase.organization_settings is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."organization_settings" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."organization_settings" add column if not exists "key" text check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
+alter table "better_supabase"."organization_settings" add column if not exists "key" text constraint bsb_organization_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
 alter table "better_supabase"."organization_settings" add column if not exists "value" jsonb;
 alter table "better_supabase"."organization_settings" add column if not exists "updated_by" uuid references auth.users (id) on delete set null default auth.uid();
 alter table "better_supabase"."organization_settings" add column if not exists "updated_at" timestamptz not null default now();
@@ -1429,7 +1429,7 @@ create policy bsb_organization_settings_delete on "better_supabase"."organizatio
 -- rates or feature switches an admin console edits. Each key's permission
 -- (is_platform) guards writes, and its read rule decides who sees it.
 -- better_supabase.platform_settings is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."platform_settings" add column if not exists "key" text check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
+alter table "better_supabase"."platform_settings" add column if not exists "key" text constraint bsb_platform_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$');
 alter table "better_supabase"."platform_settings" add column if not exists "value" jsonb;
 alter table "better_supabase"."platform_settings" add column if not exists "updated_by" uuid references auth.users (id) on delete set null default auth.uid();
 alter table "better_supabase"."platform_settings" add column if not exists "updated_at" timestamptz not null default now();
@@ -1660,7 +1660,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:c8461ba87e34e47b26d25e82a4cf90f8f6cb3a7b1576fa8a377fc1953029337f
+-- @bsb-hash sha256:cbdf822a800de6db85031f5d5d0102cbdf51d481bc7fb226ff81bcb5843090cb
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1669,7 +1669,7 @@ on conflict (name) do update
 -- keys with a JSON Schema also get a pg_jsonschema check below.
 create table "better_supabase"."user_settings" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_user_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -1696,7 +1696,7 @@ create policy bsb_user_settings_own_delete on "better_supabase"."user_settings"
 
 create table "better_supabase"."organization_settings" (
   "org_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text not null constraint bsb_organization_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
@@ -1725,7 +1725,7 @@ create policy bsb_organization_settings_delete on "better_supabase"."organizatio
 -- rates or feature switches an admin console edits. Each key's permission
 -- (is_platform) guards writes, and its read rule decides who sees it.
 create table "better_supabase"."platform_settings" (
-  "key" text primary key check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
+  "key" text primary key constraint bsb_platform_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now()

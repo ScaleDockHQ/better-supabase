@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_058_teams.sql
 -- better-supabase module: teams
 -- @bsb-block teams@3 managed
--- @bsb-hash sha256:7e57e299b4c6fbb12c59d2cc4a494d8cf61960b12c9aad17a2732249f148878c
+-- @bsb-hash sha256:93a0e006936faa2e109b4e15e4aa5f101f377fd974c5110ae1835dd16e6ea242
 -- Tenant teams and their members. Inbox assignment uses these rows instead of its own team tables.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,10 +10,10 @@
 create table "better_supabase"."teams" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "slug" text not null check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
+  "name" text not null constraint bsb_teams_name_check check (length("name") >= 1 and length("name") <= 200),
+  "slug" text not null constraint bsb_teams_slug_check check ("slug" ~ '^[a-z0-9]+(?:-[a-z0-9]+)*$'),
   "description" text,
-  "status" text not null default 'active' check ("status" in ('active', 'archived')),
+  "status" text not null default 'active' constraint bsb_teams_status_check check ("status" in ('active', 'archived')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_091_templates.sql
 -- better-supabase module: templates
 -- @bsb-block templates@1 managed
--- @bsb-hash sha256:69b166e3383a13ae3bccb817b59e1d9963d1f986dc034a408b351a7eb9791200
+-- @bsb-hash sha256:9598641eff4662e6c6e715c5c7e456550db93a05e906208a5c592c56465d39ad
 -- Typed, versioned templates (system starters and tenant forks) that create records, with merge fields and workflows started on each record they create.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,20 +14,20 @@ create extension if not exists pgcrypto with schema extensions;
 create table "better_supabase"."templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "scope" text not null default 'tenant' check ("scope" in ('tenant', 'system')),
-  "key" text check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,99}$'),
-  "type" text not null check ("type" ~ '^[a-z][a-z0-9_.-]{0,63}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "language" text not null default 'en' check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{1,8})*$'),
+  "scope" text not null default 'tenant' constraint bsb_templates_scope_check check ("scope" in ('tenant', 'system')),
+  "key" text constraint bsb_templates_key_check check ("key" ~ '^[a-z0-9][a-z0-9_.-]{0,99}$'),
+  "type" text not null constraint bsb_templates_type_check check ("type" ~ '^[a-z][a-z0-9_.-]{0,63}$'),
+  "name" text not null constraint bsb_templates_name_check check (length("name") >= 1 and length("name") <= 200),
+  "language" text not null default 'en' constraint bsb_templates_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{1,8})*$'),
   "is_default" boolean not null default false,
   "settings" jsonb not null default '{}'::jsonb
-    check (jsonb_typeof("settings") = 'object' and pg_column_size("settings") <= 65536),
+    constraint bsb_templates_settings_check check (jsonb_typeof("settings") = 'object' and pg_column_size("settings") <= 65536),
   "forked_from" uuid references "better_supabase"."templates" ("id") on delete set null,
-  "forked_from_version" integer check ("forked_from_version" > 0),
+  "forked_from_version" integer constraint bsb_templates_forked_from_version_check check ("forked_from_version" > 0),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  constraint templates_system_check check (("scope" = 'system') = ("tenant_id" is null))
+  constraint bsb_templates_system_check check (("scope" = 'system') = ("tenant_id" is null))
 );
 create unique index templates_key_idx on "better_supabase"."templates" ("tenant_id", "key") nulls not distinct where "key" is not null;
 create unique index templates_default_idx on "better_supabase"."templates" ("tenant_id", "type", "language") nulls not distinct where "is_default";
@@ -48,8 +48,8 @@ create policy bsb_templates_read on "better_supabase"."templates"
 create table "better_supabase"."template_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
-  "version" integer not null check ("version" > 0),
-  "body" jsonb not null check (pg_column_size("body") <= 1048576),
+  "version" integer not null constraint bsb_template_versions_version_check check ("version" > 0),
+  "body" jsonb not null constraint bsb_template_versions_body_check check (pg_column_size("body") <= 1048576),
   "hash" text not null,
   "published_at" timestamptz,
   "created_by" uuid references auth.users (id) on delete set null,
@@ -72,8 +72,8 @@ create table "better_supabase"."template_applications" (
   "template_id" uuid not null references "better_supabase"."templates" ("id") on delete cascade,
   "version_id" uuid not null references "better_supabase"."template_versions" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "subject_type" text not null check (length("subject_type") >= 1 and length("subject_type") <= 100),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text not null constraint bsb_template_applications_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 100),
+  "subject_id" text not null constraint bsb_template_applications_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "applied_by" uuid references auth.users (id) on delete set null,
   "applied_at" timestamptz not null default now()
 );

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:2cfbdb36ebba4ffe94e61a54914d7ac90f8aaccd5ede422bc8ef1bcf99bf66a5
+-- @bsb-hash sha256:fa6492d6d6e01878975e727bb0de9e9fd282208815011d3466e2157b1104f2cd
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,12 +13,12 @@
 create table "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
-  "name" text check ("name" is null or length("name") >= 1 and length("name") <= 200),
+  "email" text not null constraint bsb_guests_email_check check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
+  "name" text constraint bsb_guests_name_check check ("name" is null or length("name") >= 1 and length("name") <= 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
   "party_id" text,
-  "status" text not null default 'invited' check ("status" in ('invited', 'active', 'revoked')),
+  "status" text not null default 'invited' constraint bsb_guests_status_check check ("status" in ('invited', 'active', 'revoked')),
   "token_hash" text unique,
   "invited_by" uuid,
   "expires_at" timestamptz,
@@ -26,8 +26,8 @@ create table "better_supabase"."guests" (
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("party_type" is null) = ("party_id" is null)),
-  check ("status" <> 'active' or "user_id" is not null)
+  constraint bsb_guests_check check (("party_type" is null) = ("party_id" is null)),
+  constraint bsb_guests_check1 check ("status" <> 'active' or "user_id" is not null)
 );
 create unique index "guests_email_idx" on "better_supabase"."guests" ("tenant_id", lower("email"));
 create unique index "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
@@ -44,9 +44,9 @@ create table "better_supabase"."guest_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "guest_id" uuid not null references "better_supabase"."guests" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
-  "actions" text[] not null check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
+  "subject_type" text not null constraint bsb_guest_grants_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_guest_grants_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "actions" text[] not null constraint bsb_guest_grants_actions_check check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
   "granted_by" uuid,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -485,7 +485,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:14e446e955214dd6e17b81a5dec70ae419892f41277a0bf5bace65a42c4bf80d
+-- @bsb-hash sha256:2af25eefb115e5f9d9148d741be0f66d751b41be0022eb4a2897632b75382ceb
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -497,12 +497,12 @@ on conflict (name) do update
 create table "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
-  "name" text check ("name" is null or length("name") >= 1 and length("name") <= 200),
+  "email" text not null constraint bsb_guests_email_check check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
+  "name" text constraint bsb_guests_name_check check ("name" is null or length("name") >= 1 and length("name") <= 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
   "party_id" text,
-  "status" text not null default 'invited' check ("status" in ('invited', 'active', 'revoked')),
+  "status" text not null default 'invited' constraint bsb_guests_status_check check ("status" in ('invited', 'active', 'revoked')),
   "token_hash" text unique,
   "invited_by" uuid,
   "expires_at" timestamptz,
@@ -510,8 +510,8 @@ create table "better_supabase"."guests" (
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("party_type" is null) = ("party_id" is null)),
-  check ("status" <> 'active' or "user_id" is not null)
+  constraint bsb_guests_check check (("party_type" is null) = ("party_id" is null)),
+  constraint bsb_guests_check1 check ("status" <> 'active' or "user_id" is not null)
 );
 create unique index "guests_email_idx" on "better_supabase"."guests" ("tenant_id", lower("email"));
 create unique index "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
@@ -528,9 +528,9 @@ create table "better_supabase"."guest_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "guest_id" uuid not null references "better_supabase"."guests" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
-  "actions" text[] not null check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
+  "subject_type" text not null constraint bsb_guest_grants_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_guest_grants_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "actions" text[] not null constraint bsb_guest_grants_actions_check check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
   "granted_by" uuid,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -1029,7 +1029,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:ac74711bd176ca071e413e1be5450a0e0042af56598021b1088701370bdddc86
+-- @bsb-hash sha256:887b9750142bf6a2a2a42aac469df66c0f0f07701a368bd37e87d8440687ef49
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1046,12 +1046,12 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
-  "name" text check ("name" is null or length("name") >= 1 and length("name") <= 200),
+  "email" text not null constraint bsb_guests_email_check check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
+  "name" text constraint bsb_guests_name_check check ("name" is null or length("name") >= 1 and length("name") <= 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
   "party_id" text,
-  "status" text not null default 'invited' check ("status" in ('invited', 'active', 'revoked')),
+  "status" text not null default 'invited' constraint bsb_guests_status_check check ("status" in ('invited', 'active', 'revoked')),
   "token_hash" text unique,
   "invited_by" uuid,
   "expires_at" timestamptz,
@@ -1059,8 +1059,8 @@ create table "app_private"."guests" (
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("party_type" is null) = ("party_id" is null)),
-  check ("status" <> 'active' or "user_id" is not null)
+  constraint bsb_guests_check check (("party_type" is null) = ("party_id" is null)),
+  constraint bsb_guests_check1 check ("status" <> 'active' or "user_id" is not null)
 );
 create unique index "guests_email_idx" on "app_private"."guests" ("tenant_id", lower("email"));
 create unique index "guests_user_idx" on "app_private"."guests" ("tenant_id", "user_id") where "user_id" is not null;
@@ -1077,9 +1077,9 @@ create table "app_private"."guest_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "guest_id" uuid not null references "app_private"."guests" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
-  "actions" text[] not null check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
+  "subject_type" text not null constraint bsb_guest_grants_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_guest_grants_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "actions" text[] not null constraint bsb_guest_grants_actions_check check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
   "granted_by" uuid,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -1518,7 +1518,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:22cbfd9714b9c981883273926f751ed8d176141167f4a8216d77710c9bd0ba35
+-- @bsb-hash sha256:9a3972af1af3fc81c04bbdc0723c587bb31448a5ec16bd79639d772d1c46a0c0
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1530,12 +1530,12 @@ on conflict (name) do update
 create table "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
-  "name" text check ("name" is null or length("name") >= 1 and length("name") <= 200),
+  "email" text not null constraint bsb_guests_email_check check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
+  "name" text constraint bsb_guests_name_check check ("name" is null or length("name") >= 1 and length("name") <= 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
   "party_id" text,
-  "status" text not null default 'invited' check ("status" in ('invited', 'active', 'revoked')),
+  "status" text not null default 'invited' constraint bsb_guests_status_check check ("status" in ('invited', 'active', 'revoked')),
   "token_hash" text unique,
   "invited_by" uuid,
   "expires_at" timestamptz,
@@ -1543,8 +1543,8 @@ create table "better_supabase"."guests" (
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("party_type" is null) = ("party_id" is null)),
-  check ("status" <> 'active' or "user_id" is not null)
+  constraint bsb_guests_check check (("party_type" is null) = ("party_id" is null)),
+  constraint bsb_guests_check1 check ("status" <> 'active' or "user_id" is not null)
 );
 create unique index "guests_email_idx" on "better_supabase"."guests" ("tenant_id", lower("email"));
 create unique index "guests_user_idx" on "better_supabase"."guests" ("tenant_id", "user_id") where "user_id" is not null;
@@ -1561,9 +1561,9 @@ create table "better_supabase"."guest_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "guest_id" uuid not null references "better_supabase"."guests" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
-  "actions" text[] not null check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
+  "subject_type" text not null constraint bsb_guest_grants_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_guest_grants_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "actions" text[] not null constraint bsb_guest_grants_actions_check check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
   "granted_by" uuid,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -2111,7 +2111,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:652105bf369be9e8a2d52f3815c092d821780ee72fb1033527a617c0f3c76c76
+-- @bsb-hash sha256:1de071791c2fe08ef0ae4c749d7c68cc2ff1e53ca0932206e26ad80156da18db
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2123,12 +2123,12 @@ on conflict (name) do update
 -- better_supabase.guests is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."guests" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."guests" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."guests" add column if not exists "email" text check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1);
-alter table "better_supabase"."guests" add column if not exists "name" text check ("name" is null or length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."guests" add column if not exists "email" text constraint bsb_guests_email_check check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1);
+alter table "better_supabase"."guests" add column if not exists "name" text constraint bsb_guests_name_check check ("name" is null or length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."guests" add column if not exists "user_id" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."guests" add column if not exists "party_type" text;
 alter table "better_supabase"."guests" add column if not exists "party_id" text;
-alter table "better_supabase"."guests" add column if not exists "status" text not null default 'invited' check ("status" in ('invited', 'active', 'revoked'));
+alter table "better_supabase"."guests" add column if not exists "status" text not null default 'invited' constraint bsb_guests_status_check check ("status" in ('invited', 'active', 'revoked'));
 alter table "better_supabase"."guests" add column if not exists "token_hash" text;
 alter table "better_supabase"."guests" add column if not exists "invited_by" uuid;
 alter table "better_supabase"."guests" add column if not exists "expires_at" timestamptz;
@@ -2150,9 +2150,9 @@ create policy bsb_guests_select on "better_supabase"."guests"
 alter table "better_supabase"."guest_grants" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."guest_grants" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."guest_grants" add column if not exists "guest_id" uuid references "better_supabase"."guests" ("id") on delete cascade;
-alter table "better_supabase"."guest_grants" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."guest_grants" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-alter table "better_supabase"."guest_grants" add column if not exists "actions" text[] check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions"));
+alter table "better_supabase"."guest_grants" add column if not exists "subject_type" text constraint bsb_guest_grants_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."guest_grants" add column if not exists "subject_id" text constraint bsb_guest_grants_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."guest_grants" add column if not exists "actions" text[] constraint bsb_guest_grants_actions_check check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions"));
 alter table "better_supabase"."guest_grants" add column if not exists "granted_by" uuid;
 alter table "better_supabase"."guest_grants" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."guest_grants" add column if not exists "created_at" timestamptz not null default now();
@@ -2589,7 +2589,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_032_guests.sql
 -- better-supabase module: guests
 -- @bsb-block guests@1 managed
--- @bsb-hash sha256:33698b26d73d8c057712c1735f4f05a99325cad6ba756a1f34220abd7ef1cd22
+-- @bsb-hash sha256:f0e034ff5e43f3f0861f911274bf8b05f1010f10d61ba220211916bb66f6697c
 -- People outside the organization (clients, contractors) invited by email who read, comment on and upload to the records they are granted, and see the invoices and bookings of the party they act for. Never members, never through an authorization library.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2601,12 +2601,12 @@ on conflict (name) do update
 create table "better_supabase"."guests" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "email" text not null check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
-  "name" text check ("name" is null or length("name") >= 1 and length("name") <= 200),
+  "email" text not null constraint bsb_guests_email_check check (length("email") >= 3 and length("email") <= 320 and position('@' in "email") > 1),
+  "name" text constraint bsb_guests_name_check check ("name" is null or length("name") >= 1 and length("name") <= 200),
   "user_id" uuid references auth.users (id) on delete set null,
   "party_type" text,
   "party_id" text,
-  "status" text not null default 'invited' check ("status" in ('invited', 'active', 'revoked')),
+  "status" text not null default 'invited' constraint bsb_guests_status_check check ("status" in ('invited', 'active', 'revoked')),
   "token_hash" text unique,
   "invited_by" uuid,
   "expires_at" timestamptz,
@@ -2614,8 +2614,8 @@ create table "better_supabase"."guests" (
   "revoked_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("party_type" is null) = ("party_id" is null)),
-  check ("status" <> 'active' or "user_id" is not null)
+  constraint bsb_guests_check check (("party_type" is null) = ("party_id" is null)),
+  constraint bsb_guests_check1 check ("status" <> 'active' or "user_id" is not null)
 );
 create unique index "guests_email_idx" on "better_supabase"."guests" ("org_id", lower("email"));
 create unique index "guests_user_idx" on "better_supabase"."guests" ("org_id", "user_id") where "user_id" is not null;
@@ -2632,9 +2632,9 @@ create table "better_supabase"."guest_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "guest_id" uuid not null references "better_supabase"."guests" ("id") on delete cascade,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
-  "actions" text[] not null check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
+  "subject_type" text not null constraint bsb_guest_grants_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text not null constraint bsb_guest_grants_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "actions" text[] not null constraint bsb_guest_grants_actions_check check (cardinality("actions") > 0 and "actions" <@ array['read', 'comment', 'upload']::text[] and 'read' = any("actions")),
   "granted_by" uuid,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),

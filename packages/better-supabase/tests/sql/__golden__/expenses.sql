@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:927ae8ad556c12007b834bcc4fd7444c3c51ce192f6117de1ddd12e558f7f2ef
+-- @bsb-hash sha256:de443d845bccc4195a7f47864bcfdff53614e3aa592d3c48b3feb384029aba01
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,17 +15,17 @@
 create table "better_supabase"."expense_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
-  "limit_amount" bigint check ("limit_amount" is null or "limit_amount" > 0),
-  "receipt_over" bigint check ("receipt_over" is null or "receipt_over" >= 0),
+  "key" text not null constraint bsb_expense_categories_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_expense_categories_name_check check (length("name") >= 1 and length("name") <= 200),
+  "currency" char(3) constraint bsb_expense_categories_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "limit_amount" bigint constraint bsb_expense_categories_limit_amount_check check ("limit_amount" is null or "limit_amount" > 0),
+  "receipt_over" bigint constraint bsb_expense_categories_receipt_over_check check ("receipt_over" is null or "receipt_over" >= 0),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id"),
-  check (("limit_amount" is null and "receipt_over" is null) or "currency" is not null)
+  constraint bsb_expense_categories_check check (("limit_amount" is null and "receipt_over" is null) or "currency" is not null)
 );
 alter table "better_supabase"."expense_categories" enable row level security;
 revoke all on "better_supabase"."expense_categories" from public, anon, authenticated;
@@ -39,9 +39,9 @@ create table "better_supabase"."expense_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "title" text not null constraint bsb_expense_reports_title_check check (length("title") >= 1 and length("title") <= 200),
+  "currency" char(3) not null constraint bsb_expense_reports_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "note" text constraint bsb_expense_reports_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "submitted_at" timestamptz,
   "approved_at" timestamptz,
@@ -71,11 +71,11 @@ create table "better_supabase"."expense_lines" (
   "report_id" uuid not null references "better_supabase"."expense_reports" ("id") on delete cascade,
   "category_id" uuid not null,
   "spent_on" date not null,
-  "description" text not null check (length("description") >= 1 and length("description") <= 500),
-  "merchant" text check ("merchant" is null or length("merchant") <= 200),
+  "description" text not null constraint bsb_expense_lines_description_check check (length("description") >= 1 and length("description") <= 500),
+  "merchant" text constraint bsb_expense_lines_merchant_check check ("merchant" is null or length("merchant") <= 200),
   -- Minor units of the report's currency (ADR 0037).
-  "amount" bigint not null check ("amount" > 0),
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "amount" bigint not null constraint bsb_expense_lines_amount_check check ("amount" > 0),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_expense_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "category_id") references "better_supabase"."expense_categories" ("tenant_id", "id") on delete restrict
@@ -769,7 +769,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:436068005222eff58d1d0245467d03e9d5e18978b1be626037c87410bb383a0c
+-- @bsb-hash sha256:af8a69b9eeeb1549cf68be196a85729029764874d2cdca1bd2f84518e4d2f9d1
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -783,17 +783,17 @@ on conflict (name) do update
 create table "better_supabase"."expense_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
-  "limit_amount" bigint check ("limit_amount" is null or "limit_amount" > 0),
-  "receipt_over" bigint check ("receipt_over" is null or "receipt_over" >= 0),
+  "key" text not null constraint bsb_expense_categories_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_expense_categories_name_check check (length("name") >= 1 and length("name") <= 200),
+  "currency" char(3) constraint bsb_expense_categories_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "limit_amount" bigint constraint bsb_expense_categories_limit_amount_check check ("limit_amount" is null or "limit_amount" > 0),
+  "receipt_over" bigint constraint bsb_expense_categories_receipt_over_check check ("receipt_over" is null or "receipt_over" >= 0),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id"),
-  check (("limit_amount" is null and "receipt_over" is null) or "currency" is not null)
+  constraint bsb_expense_categories_check check (("limit_amount" is null and "receipt_over" is null) or "currency" is not null)
 );
 alter table "better_supabase"."expense_categories" enable row level security;
 revoke all on "better_supabase"."expense_categories" from public, anon, authenticated;
@@ -807,9 +807,9 @@ create table "better_supabase"."expense_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "title" text not null constraint bsb_expense_reports_title_check check (length("title") >= 1 and length("title") <= 200),
+  "currency" char(3) not null constraint bsb_expense_reports_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "note" text constraint bsb_expense_reports_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "submitted_at" timestamptz,
   "approved_at" timestamptz,
@@ -839,11 +839,11 @@ create table "better_supabase"."expense_lines" (
   "report_id" uuid not null references "better_supabase"."expense_reports" ("id") on delete cascade,
   "category_id" uuid not null,
   "spent_on" date not null,
-  "description" text not null check (length("description") >= 1 and length("description") <= 500),
-  "merchant" text check ("merchant" is null or length("merchant") <= 200),
+  "description" text not null constraint bsb_expense_lines_description_check check (length("description") >= 1 and length("description") <= 500),
+  "merchant" text constraint bsb_expense_lines_merchant_check check ("merchant" is null or length("merchant") <= 200),
   -- Minor units of the report's currency (ADR 0037).
-  "amount" bigint not null check ("amount" > 0),
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "amount" bigint not null constraint bsb_expense_lines_amount_check check ("amount" > 0),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_expense_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "category_id") references "better_supabase"."expense_categories" ("tenant_id", "id") on delete restrict
@@ -1642,7 +1642,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:5fc37565fb018dbc6d7966252d73441e59a44fba3790d32bb4a4eafc20f6ed6a
+-- @bsb-hash sha256:6d3d322b74e46bec2162df91ce7043cc7fc164e242a8b95084b9a643085d81de
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1661,17 +1661,17 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."expense_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
-  "limit_amount" bigint check ("limit_amount" is null or "limit_amount" > 0),
-  "receipt_over" bigint check ("receipt_over" is null or "receipt_over" >= 0),
+  "key" text not null constraint bsb_expense_categories_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_expense_categories_name_check check (length("name") >= 1 and length("name") <= 200),
+  "currency" char(3) constraint bsb_expense_categories_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "limit_amount" bigint constraint bsb_expense_categories_limit_amount_check check ("limit_amount" is null or "limit_amount" > 0),
+  "receipt_over" bigint constraint bsb_expense_categories_receipt_over_check check ("receipt_over" is null or "receipt_over" >= 0),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id"),
-  check (("limit_amount" is null and "receipt_over" is null) or "currency" is not null)
+  constraint bsb_expense_categories_check check (("limit_amount" is null and "receipt_over" is null) or "currency" is not null)
 );
 alter table "app_private"."expense_categories" enable row level security;
 revoke all on "app_private"."expense_categories" from public, anon, authenticated;
@@ -1685,9 +1685,9 @@ create table "app_private"."expense_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "title" text not null constraint bsb_expense_reports_title_check check (length("title") >= 1 and length("title") <= 200),
+  "currency" char(3) not null constraint bsb_expense_reports_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "note" text constraint bsb_expense_reports_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "submitted_at" timestamptz,
   "approved_at" timestamptz,
@@ -1717,11 +1717,11 @@ create table "app_private"."expense_lines" (
   "report_id" uuid not null references "app_private"."expense_reports" ("id") on delete cascade,
   "category_id" uuid not null,
   "spent_on" date not null,
-  "description" text not null check (length("description") >= 1 and length("description") <= 500),
-  "merchant" text check ("merchant" is null or length("merchant") <= 200),
+  "description" text not null constraint bsb_expense_lines_description_check check (length("description") >= 1 and length("description") <= 500),
+  "merchant" text constraint bsb_expense_lines_merchant_check check ("merchant" is null or length("merchant") <= 200),
   -- Minor units of the report's currency (ADR 0037).
-  "amount" bigint not null check ("amount" > 0),
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "amount" bigint not null constraint bsb_expense_lines_amount_check check ("amount" > 0),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_expense_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "category_id") references "app_private"."expense_categories" ("tenant_id", "id") on delete restrict
@@ -2415,7 +2415,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:72cacd3304509576de0eb625884a1006e0cfff75d5ad93e206f2f1041416a055
+-- @bsb-hash sha256:242fda788434d7d7380c05bdc12b8ed933750bf31354f8af580f3a5debfa56e9
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2429,17 +2429,17 @@ on conflict (name) do update
 create table "better_supabase"."expense_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
-  "limit_amount" bigint check ("limit_amount" is null or "limit_amount" > 0),
-  "receipt_over" bigint check ("receipt_over" is null or "receipt_over" >= 0),
+  "key" text not null constraint bsb_expense_categories_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_expense_categories_name_check check (length("name") >= 1 and length("name") <= 200),
+  "currency" char(3) constraint bsb_expense_categories_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "limit_amount" bigint constraint bsb_expense_categories_limit_amount_check check ("limit_amount" is null or "limit_amount" > 0),
+  "receipt_over" bigint constraint bsb_expense_categories_receipt_over_check check ("receipt_over" is null or "receipt_over" >= 0),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
   unique ("tenant_id", "id"),
-  check (("limit_amount" is null and "receipt_over" is null) or "currency" is not null)
+  constraint bsb_expense_categories_check check (("limit_amount" is null and "receipt_over" is null) or "currency" is not null)
 );
 alter table "better_supabase"."expense_categories" enable row level security;
 revoke all on "better_supabase"."expense_categories" from public, anon, authenticated;
@@ -2453,9 +2453,9 @@ create table "better_supabase"."expense_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "title" text not null constraint bsb_expense_reports_title_check check (length("title") >= 1 and length("title") <= 200),
+  "currency" char(3) not null constraint bsb_expense_reports_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "note" text constraint bsb_expense_reports_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "submitted_at" timestamptz,
   "approved_at" timestamptz,
@@ -2485,11 +2485,11 @@ create table "better_supabase"."expense_lines" (
   "report_id" uuid not null references "better_supabase"."expense_reports" ("id") on delete cascade,
   "category_id" uuid not null,
   "spent_on" date not null,
-  "description" text not null check (length("description") >= 1 and length("description") <= 500),
-  "merchant" text check ("merchant" is null or length("merchant") <= 200),
+  "description" text not null constraint bsb_expense_lines_description_check check (length("description") >= 1 and length("description") <= 500),
+  "merchant" text constraint bsb_expense_lines_merchant_check check ("merchant" is null or length("merchant") <= 200),
   -- Minor units of the report's currency (ADR 0037).
-  "amount" bigint not null check ("amount" > 0),
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "amount" bigint not null constraint bsb_expense_lines_amount_check check ("amount" > 0),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_expense_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "category_id") references "better_supabase"."expense_categories" ("tenant_id", "id") on delete restrict
@@ -3308,7 +3308,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:ab2d8e593efe3ac3940f69fa255f9f3e84d44864210c3ccd07d1d4b6606ee7f7
+-- @bsb-hash sha256:1a59d9338e097057844e58d9d42049cc98f568a796dad6903970230c9ab0ea79
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3322,11 +3322,11 @@ on conflict (name) do update
 -- better_supabase.expense_categories is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."expense_categories" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."expense_categories" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."expense_categories" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."expense_categories" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."expense_categories" add column if not exists "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."expense_categories" add column if not exists "limit_amount" bigint check ("limit_amount" is null or "limit_amount" > 0);
-alter table "better_supabase"."expense_categories" add column if not exists "receipt_over" bigint check ("receipt_over" is null or "receipt_over" >= 0);
+alter table "better_supabase"."expense_categories" add column if not exists "key" text constraint bsb_expense_categories_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."expense_categories" add column if not exists "name" text constraint bsb_expense_categories_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."expense_categories" add column if not exists "currency" char(3) constraint bsb_expense_categories_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."expense_categories" add column if not exists "limit_amount" bigint constraint bsb_expense_categories_limit_amount_check check ("limit_amount" is null or "limit_amount" > 0);
+alter table "better_supabase"."expense_categories" add column if not exists "receipt_over" bigint constraint bsb_expense_categories_receipt_over_check check ("receipt_over" is null or "receipt_over" >= 0);
 alter table "better_supabase"."expense_categories" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."expense_categories" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."expense_categories" add column if not exists "updated_at" timestamptz not null default now();
@@ -3343,9 +3343,9 @@ create policy bsb_expense_categories_select on "better_supabase"."expense_catego
 alter table "better_supabase"."expense_reports" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."expense_reports" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."expense_reports" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."expense_reports" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
-alter table "better_supabase"."expense_reports" add column if not exists "currency" char(3) check ("currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."expense_reports" add column if not exists "note" text check ("note" is null or length("note") <= 2000);
+alter table "better_supabase"."expense_reports" add column if not exists "title" text constraint bsb_expense_reports_title_check check (length("title") >= 1 and length("title") <= 200);
+alter table "better_supabase"."expense_reports" add column if not exists "currency" char(3) constraint bsb_expense_reports_currency_check check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."expense_reports" add column if not exists "note" text constraint bsb_expense_reports_note_check check ("note" is null or length("note") <= 2000);
 alter table "better_supabase"."expense_reports" add column if not exists "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null;
 alter table "better_supabase"."expense_reports" add column if not exists "submitted_at" timestamptz;
 alter table "better_supabase"."expense_reports" add column if not exists "approved_at" timestamptz;
@@ -3373,13 +3373,13 @@ alter table "better_supabase"."expense_lines" add column if not exists "tenant_i
 alter table "better_supabase"."expense_lines" add column if not exists "report_id" uuid references "better_supabase"."expense_reports" ("id") on delete cascade;
 alter table "better_supabase"."expense_lines" add column if not exists "category_id" uuid;
 alter table "better_supabase"."expense_lines" add column if not exists "spent_on" date;
-alter table "better_supabase"."expense_lines" add column if not exists "description" text check (length("description") >= 1 and length("description") <= 500);
-alter table "better_supabase"."expense_lines" add column if not exists "merchant" text check ("merchant" is null or length("merchant") <= 200);
-alter table "better_supabase"."expense_lines" add column if not exists "amount" bigint check ("amount" > 0);
-alter table "better_supabase"."expense_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object');
+alter table "better_supabase"."expense_lines" add column if not exists "description" text constraint bsb_expense_lines_description_check check (length("description") >= 1 and length("description") <= 500);
+alter table "better_supabase"."expense_lines" add column if not exists "merchant" text constraint bsb_expense_lines_merchant_check check ("merchant" is null or length("merchant") <= 200);
+alter table "better_supabase"."expense_lines" add column if not exists "amount" bigint constraint bsb_expense_lines_amount_check check ("amount" > 0);
+alter table "better_supabase"."expense_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb constraint bsb_expense_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object');
 alter table "better_supabase"."expense_lines" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."expense_lines" add column if not exists "updated_at" timestamptz not null default now();
-alter table "better_supabase"."expense_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object');
+alter table "better_supabase"."expense_lines" add column if not exists "dimensions" jsonb not null default '{}'::jsonb constraint bsb_expense_lines_dimensions_check1 check (jsonb_typeof("dimensions") = 'object');
 create index if not exists "expense_lines_report_idx" on "better_supabase"."expense_lines" ("report_id", "spent_on");
 create index if not exists "expense_lines_category_idx" on "better_supabase"."expense_lines" ("tenant_id", "category_id");
 alter table "better_supabase"."expense_lines" enable row level security;
@@ -4068,7 +4068,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_121_expenses.sql
 -- better-supabase module: expenses
 -- @bsb-block expenses@1 managed
--- @bsb-hash sha256:9e6737e1c4fc02810ac315838c40e6d357a809c3bf68eaf1262f0959001e9400
+-- @bsb-hash sha256:d619b1ec2851712e4b690ebb23ddfc7c49a834ce4d4abefe47f7a7dd46056670
 -- Expense reports with lines in categories and receipts as attachments, spend policies (a limit per category, a receipt threshold) checked on submit, approval through the approvals block, and the approved total and its reimbursement posted on the ledger in bigint minor units. Without reports, each expense is one row a member or an employee submits and the app decides.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4082,17 +4082,17 @@ on conflict (name) do update
 create table "better_supabase"."expense_categories" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "currency" char(3) check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
-  "limit_amount" bigint check ("limit_amount" is null or "limit_amount" > 0),
-  "receipt_over" bigint check ("receipt_over" is null or "receipt_over" >= 0),
+  "key" text not null constraint bsb_expense_categories_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_expense_categories_name_check check (length("name") >= 1 and length("name") <= 200),
+  "currency" char(3) constraint bsb_expense_categories_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "limit_amount" bigint constraint bsb_expense_categories_limit_amount_check check ("limit_amount" is null or "limit_amount" > 0),
+  "receipt_over" bigint constraint bsb_expense_categories_receipt_over_check check ("receipt_over" is null or "receipt_over" >= 0),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "key"),
   unique ("org_id", "id"),
-  check (("limit_amount" is null and "receipt_over" is null) or "currency" is not null)
+  constraint bsb_expense_categories_check check (("limit_amount" is null and "receipt_over" is null) or "currency" is not null)
 );
 alter table "better_supabase"."expense_categories" enable row level security;
 revoke all on "better_supabase"."expense_categories" from public, anon, authenticated;
@@ -4106,9 +4106,9 @@ create table "better_supabase"."expense_reports" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "title" text not null constraint bsb_expense_reports_title_check check (length("title") >= 1 and length("title") <= 200),
+  "currency" char(3) not null constraint bsb_expense_reports_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "note" text constraint bsb_expense_reports_note_check check ("note" is null or length("note") <= 2000),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete set null,
   "submitted_at" timestamptz,
   "approved_at" timestamptz,
@@ -4138,11 +4138,11 @@ create table "better_supabase"."expense_lines" (
   "report_id" uuid not null references "better_supabase"."expense_reports" ("id") on delete cascade,
   "category_id" uuid not null,
   "spent_on" date not null,
-  "description" text not null check (length("description") >= 1 and length("description") <= 500),
-  "merchant" text check ("merchant" is null or length("merchant") <= 200),
+  "description" text not null constraint bsb_expense_lines_description_check check (length("description") >= 1 and length("description") <= 500),
+  "merchant" text constraint bsb_expense_lines_merchant_check check ("merchant" is null or length("merchant") <= 200),
   -- Minor units of the report's currency (ADR 0037).
-  "amount" bigint not null check ("amount" > 0),
-  "dimensions" jsonb not null default '{}'::jsonb check (jsonb_typeof("dimensions") = 'object'),
+  "amount" bigint not null constraint bsb_expense_lines_amount_check check ("amount" > 0),
+  "dimensions" jsonb not null default '{}'::jsonb constraint bsb_expense_lines_dimensions_check check (jsonb_typeof("dimensions") = 'object'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   foreign key ("org_id", "category_id") references "better_supabase"."expense_categories" ("org_id", "id") on delete restrict

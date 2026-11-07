@@ -1,6 +1,6 @@
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:d083ab1e938e15f192e4ddb83a8192b96eb7c2c2271c7582cf20c03e270dd3cf
+-- @bsb-hash sha256:2a5a800f99453d8711b212f5428e010d92074bce671a736758c24456b9726a92
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,7 +9,7 @@
 create table "better_supabase"."maintenance_state" (
   "job" text primary key,
   "last_run_at" timestamptz,
-  "last_status" text check ("last_status" in ('ok', 'error')),
+  "last_status" text constraint bsb_maintenance_state_last_status_check check ("last_status" in ('ok', 'error')),
   "last_result" jsonb,
   "last_error" text,
   "runs" bigint not null default 0

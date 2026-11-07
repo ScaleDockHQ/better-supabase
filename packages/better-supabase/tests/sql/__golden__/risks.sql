@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:bad29f783fde513fe50f2f908130daa3f0985b08a14126002d585138d85bdd0a
+-- @bsb-hash sha256:230749b6c4808afe42f022f7dd9f610c6cd509d4c6ae36b29de26a61e88bc5fb
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,14 +12,14 @@
 create table "better_supabase"."risk_matrices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_risk_matrices_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_risk_matrices_name_check check (length("name") >= 1 and length("name") <= 200),
   -- [{ value, label }] with values 1 to n; save_risk_matrix checks the shape.
-  "likelihood_levels" jsonb not null check (jsonb_typeof("likelihood_levels") = 'array'),
-  "impact_levels" jsonb not null check (jsonb_typeof("impact_levels") = 'array'),
+  "likelihood_levels" jsonb not null constraint bsb_risk_matrices_likelihood_levels_check check (jsonb_typeof("likelihood_levels") = 'array'),
+  "impact_levels" jsonb not null constraint bsb_risk_matrices_impact_levels_check check (jsonb_typeof("impact_levels") = 'array'),
   -- [{ key, label, min, max }] covering every score once.
-  "bands" jsonb not null check (jsonb_typeof("bands") = 'array'),
-  "scoring" text not null default 'product' check ("scoring" in ('product', 'sum')),
+  "bands" jsonb not null constraint bsb_risk_matrices_bands_check check (jsonb_typeof("bands") = 'array'),
+  "scoring" text not null default 'product' constraint bsb_risk_matrices_scoring_check check ("scoring" in ('product', 'sum')),
   "is_default" boolean not null default false,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -39,31 +39,31 @@ create table "better_supabase"."risks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- RSK-0001, from the numbering block when it numbers risks.
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_risks_number_check check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "matrix_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "description" text check ("description" is null or length("description") <= 10000),
+  "title" text not null constraint bsb_risks_title_check check (length("title") >= 1 and length("title") <= 300),
+  "description" text constraint bsb_risks_description_check check ("description" is null or length("description") <= 10000),
   -- One of options.categories; the functions check it.
-  "category" text not null check (length("category") >= 1 and length("category") <= 63),
-  "cause" text check ("cause" is null or length("cause") <= 4000),
-  "consequence" text check ("consequence" is null or length("consequence") <= 4000),
+  "category" text not null constraint bsb_risks_category_check check (length("category") >= 1 and length("category") <= 63),
+  "cause" text constraint bsb_risks_cause_check check ("cause" is null or length("cause") <= 4000),
+  "consequence" text constraint bsb_risks_consequence_check check ("consequence" is null or length("consequence") <= 4000),
   "owner_id" uuid,
-  "status" text not null default 'identified' check ("status" in ('identified', 'assessed', 'treating', 'accepted', 'closed')),
-  "treatment" text check ("treatment" is null or "treatment" in ('mitigate', 'accept', 'transfer', 'avoid')),
+  "status" text not null default 'identified' constraint bsb_risks_status_check check ("status" in ('identified', 'assessed', 'treating', 'accepted', 'closed')),
+  "treatment" text constraint bsb_risks_treatment_check check ("treatment" is null or "treatment" in ('mitigate', 'accept', 'transfer', 'avoid')),
   -- An assessment or a review moves next_review_on this many months ahead (12 when null).
-  "review_interval_months" integer check ("review_interval_months" is null or "review_interval_months" >= 1 and "review_interval_months" <= 120),
+  "review_interval_months" integer constraint bsb_risks_review_interval_months_check check ("review_interval_months" is null or "review_interval_months" >= 1 and "review_interval_months" <= 120),
   "next_review_on" date,
   "reviewed_at" timestamptz,
   -- The review date notify_due_risk_reviews last reported, so each lapse notifies once.
   "review_notified_for" date,
-  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10),
-  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10),
-  "inherent_score" integer check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100),
+  "inherent_likelihood" integer constraint bsb_risks_inherent_likelihood_check check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10),
+  "inherent_impact" integer constraint bsb_risks_inherent_impact_check check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10),
+  "inherent_score" integer constraint bsb_risks_inherent_score_check check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100),
   "inherent_band" text,
-  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10),
-  "residual_impact" integer check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10),
-  "residual_score" integer check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100),
+  "residual_likelihood" integer constraint bsb_risks_residual_likelihood_check check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10),
+  "residual_impact" integer constraint bsb_risks_residual_impact_check check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10),
+  "residual_score" integer constraint bsb_risks_residual_score_check check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100),
   "residual_band" text,
   "current_assessment_id" uuid,
   "closed_at" timestamptz,
@@ -73,7 +73,7 @@ create table "better_supabase"."risks" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
   unique ("tenant_id", "id"),
-  check ("status" <> 'closed' or "closed_at" is not null),
+  constraint bsb_risks_check check ("status" <> 'closed' or "closed_at" is not null),
   foreign key ("tenant_id", "matrix_id") references "better_supabase"."risk_matrices" ("tenant_id", "id") on delete restrict
 );
 create index "risks_tenant_idx" on "better_supabase"."risks" ("tenant_id", "status", "residual_score" desc);
@@ -92,15 +92,15 @@ create table "better_supabase"."risk_assessments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "risk_id" uuid not null,
-  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10) not null,
-  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10) not null,
-  "inherent_score" integer check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100) not null,
+  "inherent_likelihood" integer constraint bsb_risk_assessments_inherent_likelihood_check check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10) not null,
+  "inherent_impact" integer constraint bsb_risk_assessments_inherent_impact_check check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10) not null,
+  "inherent_score" integer constraint bsb_risk_assessments_inherent_score_check check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100) not null,
   "inherent_band" text not null,
-  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10) not null,
-  "residual_impact" integer check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10) not null,
-  "residual_score" integer check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100) not null,
+  "residual_likelihood" integer constraint bsb_risk_assessments_residual_likelihood_check check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10) not null,
+  "residual_impact" integer constraint bsb_risk_assessments_residual_impact_check check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10) not null,
+  "residual_score" integer constraint bsb_risk_assessments_residual_score_check check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100) not null,
   "residual_band" text not null,
-  "rationale" text check ("rationale" is null or length("rationale") <= 10000),
+  "rationale" text constraint bsb_risk_assessments_rationale_check check ("rationale" is null or length("rationale") <= 10000),
   "version_id" uuid references "better_supabase"."versions" ("id") on delete set null,
   "assessed_by" uuid,
   "assessed_at" timestamptz not null default now(),
@@ -993,7 +993,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:43d8d42325f9c8f6d943cb9e1adfe6b155fd1bc5fbd852782ed21070a14d8037
+-- @bsb-hash sha256:ac1e95adbe82ec09189e48cb7e18a8adbb2d7ee462e3e93eb064d74d2c934cd3
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1004,14 +1004,14 @@ on conflict (name) do update
 create table "better_supabase"."risk_matrices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_risk_matrices_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_risk_matrices_name_check check (length("name") >= 1 and length("name") <= 200),
   -- [{ value, label }] with values 1 to n; save_risk_matrix checks the shape.
-  "likelihood_levels" jsonb not null check (jsonb_typeof("likelihood_levels") = 'array'),
-  "impact_levels" jsonb not null check (jsonb_typeof("impact_levels") = 'array'),
+  "likelihood_levels" jsonb not null constraint bsb_risk_matrices_likelihood_levels_check check (jsonb_typeof("likelihood_levels") = 'array'),
+  "impact_levels" jsonb not null constraint bsb_risk_matrices_impact_levels_check check (jsonb_typeof("impact_levels") = 'array'),
   -- [{ key, label, min, max }] covering every score once.
-  "bands" jsonb not null check (jsonb_typeof("bands") = 'array'),
-  "scoring" text not null default 'product' check ("scoring" in ('product', 'sum')),
+  "bands" jsonb not null constraint bsb_risk_matrices_bands_check check (jsonb_typeof("bands") = 'array'),
+  "scoring" text not null default 'product' constraint bsb_risk_matrices_scoring_check check ("scoring" in ('product', 'sum')),
   "is_default" boolean not null default false,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -1031,31 +1031,31 @@ create table "better_supabase"."risks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- RSK-0001, from the numbering block when it numbers risks.
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_risks_number_check check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "matrix_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "description" text check ("description" is null or length("description") <= 10000),
+  "title" text not null constraint bsb_risks_title_check check (length("title") >= 1 and length("title") <= 300),
+  "description" text constraint bsb_risks_description_check check ("description" is null or length("description") <= 10000),
   -- One of options.categories; the functions check it.
-  "category" text not null check (length("category") >= 1 and length("category") <= 63),
-  "cause" text check ("cause" is null or length("cause") <= 4000),
-  "consequence" text check ("consequence" is null or length("consequence") <= 4000),
+  "category" text not null constraint bsb_risks_category_check check (length("category") >= 1 and length("category") <= 63),
+  "cause" text constraint bsb_risks_cause_check check ("cause" is null or length("cause") <= 4000),
+  "consequence" text constraint bsb_risks_consequence_check check ("consequence" is null or length("consequence") <= 4000),
   "owner_id" uuid,
-  "status" text not null default 'identified' check ("status" in ('identified', 'assessed', 'treating', 'accepted', 'closed')),
-  "treatment" text check ("treatment" is null or "treatment" in ('mitigate', 'accept', 'transfer', 'avoid')),
+  "status" text not null default 'identified' constraint bsb_risks_status_check check ("status" in ('identified', 'assessed', 'treating', 'accepted', 'closed')),
+  "treatment" text constraint bsb_risks_treatment_check check ("treatment" is null or "treatment" in ('mitigate', 'accept', 'transfer', 'avoid')),
   -- An assessment or a review moves next_review_on this many months ahead (12 when null).
-  "review_interval_months" integer check ("review_interval_months" is null or "review_interval_months" >= 1 and "review_interval_months" <= 120),
+  "review_interval_months" integer constraint bsb_risks_review_interval_months_check check ("review_interval_months" is null or "review_interval_months" >= 1 and "review_interval_months" <= 120),
   "next_review_on" date,
   "reviewed_at" timestamptz,
   -- The review date notify_due_risk_reviews last reported, so each lapse notifies once.
   "review_notified_for" date,
-  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10),
-  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10),
-  "inherent_score" integer check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100),
+  "inherent_likelihood" integer constraint bsb_risks_inherent_likelihood_check check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10),
+  "inherent_impact" integer constraint bsb_risks_inherent_impact_check check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10),
+  "inherent_score" integer constraint bsb_risks_inherent_score_check check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100),
   "inherent_band" text,
-  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10),
-  "residual_impact" integer check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10),
-  "residual_score" integer check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100),
+  "residual_likelihood" integer constraint bsb_risks_residual_likelihood_check check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10),
+  "residual_impact" integer constraint bsb_risks_residual_impact_check check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10),
+  "residual_score" integer constraint bsb_risks_residual_score_check check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100),
   "residual_band" text,
   "current_assessment_id" uuid,
   "closed_at" timestamptz,
@@ -1065,7 +1065,7 @@ create table "better_supabase"."risks" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
   unique ("tenant_id", "id"),
-  check ("status" <> 'closed' or "closed_at" is not null),
+  constraint bsb_risks_check check ("status" <> 'closed' or "closed_at" is not null),
   foreign key ("tenant_id", "matrix_id") references "better_supabase"."risk_matrices" ("tenant_id", "id") on delete restrict
 );
 create index "risks_tenant_idx" on "better_supabase"."risks" ("tenant_id", "status", "residual_score" desc);
@@ -1084,15 +1084,15 @@ create table "better_supabase"."risk_assessments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "risk_id" uuid not null,
-  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10) not null,
-  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10) not null,
-  "inherent_score" integer check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100) not null,
+  "inherent_likelihood" integer constraint bsb_risk_assessments_inherent_likelihood_check check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10) not null,
+  "inherent_impact" integer constraint bsb_risk_assessments_inherent_impact_check check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10) not null,
+  "inherent_score" integer constraint bsb_risk_assessments_inherent_score_check check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100) not null,
   "inherent_band" text not null,
-  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10) not null,
-  "residual_impact" integer check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10) not null,
-  "residual_score" integer check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100) not null,
+  "residual_likelihood" integer constraint bsb_risk_assessments_residual_likelihood_check check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10) not null,
+  "residual_impact" integer constraint bsb_risk_assessments_residual_impact_check check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10) not null,
+  "residual_score" integer constraint bsb_risk_assessments_residual_score_check check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100) not null,
   "residual_band" text not null,
-  "rationale" text check ("rationale" is null or length("rationale") <= 10000),
+  "rationale" text constraint bsb_risk_assessments_rationale_check check ("rationale" is null or length("rationale") <= 10000),
   "version_id" uuid references "better_supabase"."versions" ("id") on delete set null,
   "assessed_by" uuid,
   "assessed_at" timestamptz not null default now(),
@@ -2103,7 +2103,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:86c80f8ce869489fdf082b50fabd4d52e63dbcf2d787f6084d1d26a96a99db90
+-- @bsb-hash sha256:03fc65dff458b9a3363a5063de4a1e991ff0db54a31e48fd2ec31cddfb52a922
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2119,14 +2119,14 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."risk_matrices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_risk_matrices_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_risk_matrices_name_check check (length("name") >= 1 and length("name") <= 200),
   -- [{ value, label }] with values 1 to n; save_risk_matrix checks the shape.
-  "likelihood_levels" jsonb not null check (jsonb_typeof("likelihood_levels") = 'array'),
-  "impact_levels" jsonb not null check (jsonb_typeof("impact_levels") = 'array'),
+  "likelihood_levels" jsonb not null constraint bsb_risk_matrices_likelihood_levels_check check (jsonb_typeof("likelihood_levels") = 'array'),
+  "impact_levels" jsonb not null constraint bsb_risk_matrices_impact_levels_check check (jsonb_typeof("impact_levels") = 'array'),
   -- [{ key, label, min, max }] covering every score once.
-  "bands" jsonb not null check (jsonb_typeof("bands") = 'array'),
-  "scoring" text not null default 'product' check ("scoring" in ('product', 'sum')),
+  "bands" jsonb not null constraint bsb_risk_matrices_bands_check check (jsonb_typeof("bands") = 'array'),
+  "scoring" text not null default 'product' constraint bsb_risk_matrices_scoring_check check ("scoring" in ('product', 'sum')),
   "is_default" boolean not null default false,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -2146,31 +2146,31 @@ create table "app_private"."risks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- RSK-0001, from the numbering block when it numbers risks.
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_risks_number_check check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "matrix_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "description" text check ("description" is null or length("description") <= 10000),
+  "title" text not null constraint bsb_risks_title_check check (length("title") >= 1 and length("title") <= 300),
+  "description" text constraint bsb_risks_description_check check ("description" is null or length("description") <= 10000),
   -- One of options.categories; the functions check it.
-  "category" text not null check (length("category") >= 1 and length("category") <= 63),
-  "cause" text check ("cause" is null or length("cause") <= 4000),
-  "consequence" text check ("consequence" is null or length("consequence") <= 4000),
+  "category" text not null constraint bsb_risks_category_check check (length("category") >= 1 and length("category") <= 63),
+  "cause" text constraint bsb_risks_cause_check check ("cause" is null or length("cause") <= 4000),
+  "consequence" text constraint bsb_risks_consequence_check check ("consequence" is null or length("consequence") <= 4000),
   "owner_id" uuid,
-  "status" text not null default 'identified' check ("status" in ('identified', 'assessed', 'treating', 'accepted', 'closed')),
-  "treatment" text check ("treatment" is null or "treatment" in ('mitigate', 'accept', 'transfer', 'avoid')),
+  "status" text not null default 'identified' constraint bsb_risks_status_check check ("status" in ('identified', 'assessed', 'treating', 'accepted', 'closed')),
+  "treatment" text constraint bsb_risks_treatment_check check ("treatment" is null or "treatment" in ('mitigate', 'accept', 'transfer', 'avoid')),
   -- An assessment or a review moves next_review_on this many months ahead (12 when null).
-  "review_interval_months" integer check ("review_interval_months" is null or "review_interval_months" >= 1 and "review_interval_months" <= 120),
+  "review_interval_months" integer constraint bsb_risks_review_interval_months_check check ("review_interval_months" is null or "review_interval_months" >= 1 and "review_interval_months" <= 120),
   "next_review_on" date,
   "reviewed_at" timestamptz,
   -- The review date notify_due_risk_reviews last reported, so each lapse notifies once.
   "review_notified_for" date,
-  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10),
-  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10),
-  "inherent_score" integer check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100),
+  "inherent_likelihood" integer constraint bsb_risks_inherent_likelihood_check check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10),
+  "inherent_impact" integer constraint bsb_risks_inherent_impact_check check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10),
+  "inherent_score" integer constraint bsb_risks_inherent_score_check check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100),
   "inherent_band" text,
-  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10),
-  "residual_impact" integer check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10),
-  "residual_score" integer check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100),
+  "residual_likelihood" integer constraint bsb_risks_residual_likelihood_check check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10),
+  "residual_impact" integer constraint bsb_risks_residual_impact_check check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10),
+  "residual_score" integer constraint bsb_risks_residual_score_check check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100),
   "residual_band" text,
   "current_assessment_id" uuid,
   "closed_at" timestamptz,
@@ -2180,7 +2180,7 @@ create table "app_private"."risks" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
   unique ("tenant_id", "id"),
-  check ("status" <> 'closed' or "closed_at" is not null),
+  constraint bsb_risks_check check ("status" <> 'closed' or "closed_at" is not null),
   foreign key ("tenant_id", "matrix_id") references "app_private"."risk_matrices" ("tenant_id", "id") on delete restrict
 );
 create index "risks_tenant_idx" on "app_private"."risks" ("tenant_id", "status", "residual_score" desc);
@@ -2199,15 +2199,15 @@ create table "app_private"."risk_assessments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "risk_id" uuid not null,
-  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10) not null,
-  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10) not null,
-  "inherent_score" integer check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100) not null,
+  "inherent_likelihood" integer constraint bsb_risk_assessments_inherent_likelihood_check check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10) not null,
+  "inherent_impact" integer constraint bsb_risk_assessments_inherent_impact_check check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10) not null,
+  "inherent_score" integer constraint bsb_risk_assessments_inherent_score_check check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100) not null,
   "inherent_band" text not null,
-  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10) not null,
-  "residual_impact" integer check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10) not null,
-  "residual_score" integer check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100) not null,
+  "residual_likelihood" integer constraint bsb_risk_assessments_residual_likelihood_check check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10) not null,
+  "residual_impact" integer constraint bsb_risk_assessments_residual_impact_check check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10) not null,
+  "residual_score" integer constraint bsb_risk_assessments_residual_score_check check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100) not null,
   "residual_band" text not null,
-  "rationale" text check ("rationale" is null or length("rationale") <= 10000),
+  "rationale" text constraint bsb_risk_assessments_rationale_check check ("rationale" is null or length("rationale") <= 10000),
   "version_id" uuid references "better_supabase"."versions" ("id") on delete set null,
   "assessed_by" uuid,
   "assessed_at" timestamptz not null default now(),
@@ -3100,7 +3100,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:0b0c3239ea34079976f8d1f389ffbf1bfc07374d628289a21bd4f7361a58bde1
+-- @bsb-hash sha256:2cb789d7605424e4519acaa0063201f2e206b36e53ff9c075abee63d76087c23
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3111,14 +3111,14 @@ on conflict (name) do update
 create table "better_supabase"."risk_matrices" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_risk_matrices_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_risk_matrices_name_check check (length("name") >= 1 and length("name") <= 200),
   -- [{ value, label }] with values 1 to n; save_risk_matrix checks the shape.
-  "likelihood_levels" jsonb not null check (jsonb_typeof("likelihood_levels") = 'array'),
-  "impact_levels" jsonb not null check (jsonb_typeof("impact_levels") = 'array'),
+  "likelihood_levels" jsonb not null constraint bsb_risk_matrices_likelihood_levels_check check (jsonb_typeof("likelihood_levels") = 'array'),
+  "impact_levels" jsonb not null constraint bsb_risk_matrices_impact_levels_check check (jsonb_typeof("impact_levels") = 'array'),
   -- [{ key, label, min, max }] covering every score once.
-  "bands" jsonb not null check (jsonb_typeof("bands") = 'array'),
-  "scoring" text not null default 'product' check ("scoring" in ('product', 'sum')),
+  "bands" jsonb not null constraint bsb_risk_matrices_bands_check check (jsonb_typeof("bands") = 'array'),
+  "scoring" text not null default 'product' constraint bsb_risk_matrices_scoring_check check ("scoring" in ('product', 'sum')),
   "is_default" boolean not null default false,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -3138,31 +3138,31 @@ create table "better_supabase"."risks" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- RSK-0001, from the numbering block when it numbers risks.
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_risks_number_check check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "matrix_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "description" text check ("description" is null or length("description") <= 10000),
+  "title" text not null constraint bsb_risks_title_check check (length("title") >= 1 and length("title") <= 300),
+  "description" text constraint bsb_risks_description_check check ("description" is null or length("description") <= 10000),
   -- One of options.categories; the functions check it.
-  "category" text not null check (length("category") >= 1 and length("category") <= 63),
-  "cause" text check ("cause" is null or length("cause") <= 4000),
-  "consequence" text check ("consequence" is null or length("consequence") <= 4000),
+  "category" text not null constraint bsb_risks_category_check check (length("category") >= 1 and length("category") <= 63),
+  "cause" text constraint bsb_risks_cause_check check ("cause" is null or length("cause") <= 4000),
+  "consequence" text constraint bsb_risks_consequence_check check ("consequence" is null or length("consequence") <= 4000),
   "owner_id" uuid,
-  "status" text not null default 'identified' check ("status" in ('identified', 'assessed', 'treating', 'accepted', 'closed')),
-  "treatment" text check ("treatment" is null or "treatment" in ('mitigate', 'accept', 'transfer', 'avoid')),
+  "status" text not null default 'identified' constraint bsb_risks_status_check check ("status" in ('identified', 'assessed', 'treating', 'accepted', 'closed')),
+  "treatment" text constraint bsb_risks_treatment_check check ("treatment" is null or "treatment" in ('mitigate', 'accept', 'transfer', 'avoid')),
   -- An assessment or a review moves next_review_on this many months ahead (12 when null).
-  "review_interval_months" integer check ("review_interval_months" is null or "review_interval_months" >= 1 and "review_interval_months" <= 120),
+  "review_interval_months" integer constraint bsb_risks_review_interval_months_check check ("review_interval_months" is null or "review_interval_months" >= 1 and "review_interval_months" <= 120),
   "next_review_on" date,
   "reviewed_at" timestamptz,
   -- The review date notify_due_risk_reviews last reported, so each lapse notifies once.
   "review_notified_for" date,
-  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10),
-  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10),
-  "inherent_score" integer check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100),
+  "inherent_likelihood" integer constraint bsb_risks_inherent_likelihood_check check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10),
+  "inherent_impact" integer constraint bsb_risks_inherent_impact_check check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10),
+  "inherent_score" integer constraint bsb_risks_inherent_score_check check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100),
   "inherent_band" text,
-  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10),
-  "residual_impact" integer check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10),
-  "residual_score" integer check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100),
+  "residual_likelihood" integer constraint bsb_risks_residual_likelihood_check check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10),
+  "residual_impact" integer constraint bsb_risks_residual_impact_check check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10),
+  "residual_score" integer constraint bsb_risks_residual_score_check check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100),
   "residual_band" text,
   "current_assessment_id" uuid,
   "closed_at" timestamptz,
@@ -3172,7 +3172,7 @@ create table "better_supabase"."risks" (
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
   unique ("tenant_id", "id"),
-  check ("status" <> 'closed' or "closed_at" is not null),
+  constraint bsb_risks_check check ("status" <> 'closed' or "closed_at" is not null),
   foreign key ("tenant_id", "matrix_id") references "better_supabase"."risk_matrices" ("tenant_id", "id") on delete restrict
 );
 create index "risks_tenant_idx" on "better_supabase"."risks" ("tenant_id", "status", "residual_score" desc);
@@ -3191,15 +3191,15 @@ create table "better_supabase"."risk_assessments" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "risk_id" uuid not null,
-  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10) not null,
-  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10) not null,
-  "inherent_score" integer check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100) not null,
+  "inherent_likelihood" integer constraint bsb_risk_assessments_inherent_likelihood_check check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10) not null,
+  "inherent_impact" integer constraint bsb_risk_assessments_inherent_impact_check check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10) not null,
+  "inherent_score" integer constraint bsb_risk_assessments_inherent_score_check check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100) not null,
   "inherent_band" text not null,
-  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10) not null,
-  "residual_impact" integer check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10) not null,
-  "residual_score" integer check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100) not null,
+  "residual_likelihood" integer constraint bsb_risk_assessments_residual_likelihood_check check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10) not null,
+  "residual_impact" integer constraint bsb_risk_assessments_residual_impact_check check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10) not null,
+  "residual_score" integer constraint bsb_risk_assessments_residual_score_check check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100) not null,
   "residual_band" text not null,
-  "rationale" text check ("rationale" is null or length("rationale") <= 10000),
+  "rationale" text constraint bsb_risk_assessments_rationale_check check ("rationale" is null or length("rationale") <= 10000),
   "version_id" uuid references "better_supabase"."versions" ("id") on delete set null,
   "assessed_by" uuid,
   "assessed_at" timestamptz not null default now(),
@@ -4222,7 +4222,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:9dd38e8433b04f8edcfd98365a2a2058b0561d7ff8a7939c8270493366418680
+-- @bsb-hash sha256:803c51d9d5923f40c40ec74dc786247b2497d4437973eeda87a7aaa1c7a9c38b
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4233,12 +4233,12 @@ on conflict (name) do update
 -- better_supabase.risk_matrices is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."risk_matrices" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."risk_matrices" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."risk_matrices" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."risk_matrices" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."risk_matrices" add column if not exists "likelihood_levels" jsonb check (jsonb_typeof("likelihood_levels") = 'array');
-alter table "better_supabase"."risk_matrices" add column if not exists "impact_levels" jsonb check (jsonb_typeof("impact_levels") = 'array');
-alter table "better_supabase"."risk_matrices" add column if not exists "bands" jsonb check (jsonb_typeof("bands") = 'array');
-alter table "better_supabase"."risk_matrices" add column if not exists "scoring" text not null default 'product' check ("scoring" in ('product', 'sum'));
+alter table "better_supabase"."risk_matrices" add column if not exists "key" text constraint bsb_risk_matrices_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."risk_matrices" add column if not exists "name" text constraint bsb_risk_matrices_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."risk_matrices" add column if not exists "likelihood_levels" jsonb constraint bsb_risk_matrices_likelihood_levels_check check (jsonb_typeof("likelihood_levels") = 'array');
+alter table "better_supabase"."risk_matrices" add column if not exists "impact_levels" jsonb constraint bsb_risk_matrices_impact_levels_check check (jsonb_typeof("impact_levels") = 'array');
+alter table "better_supabase"."risk_matrices" add column if not exists "bands" jsonb constraint bsb_risk_matrices_bands_check check (jsonb_typeof("bands") = 'array');
+alter table "better_supabase"."risk_matrices" add column if not exists "scoring" text not null default 'product' constraint bsb_risk_matrices_scoring_check check ("scoring" in ('product', 'sum'));
 alter table "better_supabase"."risk_matrices" add column if not exists "is_default" boolean not null default false;
 alter table "better_supabase"."risk_matrices" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."risk_matrices" add column if not exists "updated_at" timestamptz not null default now();
@@ -4255,28 +4255,28 @@ create policy bsb_risk_matrices_read on "better_supabase"."risk_matrices"
 -- better_supabase.risks is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."risks" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."risks" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."risks" add column if not exists "number" text check (length("number") >= 1 and length("number") <= 100);
+alter table "better_supabase"."risks" add column if not exists "number" text constraint bsb_risks_number_check check (length("number") >= 1 and length("number") <= 100);
 alter table "better_supabase"."risks" add column if not exists "sequence" bigint;
 alter table "better_supabase"."risks" add column if not exists "matrix_id" uuid;
-alter table "better_supabase"."risks" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 300);
-alter table "better_supabase"."risks" add column if not exists "description" text check ("description" is null or length("description") <= 10000);
-alter table "better_supabase"."risks" add column if not exists "category" text check (length("category") >= 1 and length("category") <= 63);
-alter table "better_supabase"."risks" add column if not exists "cause" text check ("cause" is null or length("cause") <= 4000);
-alter table "better_supabase"."risks" add column if not exists "consequence" text check ("consequence" is null or length("consequence") <= 4000);
+alter table "better_supabase"."risks" add column if not exists "title" text constraint bsb_risks_title_check check (length("title") >= 1 and length("title") <= 300);
+alter table "better_supabase"."risks" add column if not exists "description" text constraint bsb_risks_description_check check ("description" is null or length("description") <= 10000);
+alter table "better_supabase"."risks" add column if not exists "category" text constraint bsb_risks_category_check check (length("category") >= 1 and length("category") <= 63);
+alter table "better_supabase"."risks" add column if not exists "cause" text constraint bsb_risks_cause_check check ("cause" is null or length("cause") <= 4000);
+alter table "better_supabase"."risks" add column if not exists "consequence" text constraint bsb_risks_consequence_check check ("consequence" is null or length("consequence") <= 4000);
 alter table "better_supabase"."risks" add column if not exists "owner_id" uuid;
-alter table "better_supabase"."risks" add column if not exists "status" text not null default 'identified' check ("status" in ('identified', 'assessed', 'treating', 'accepted', 'closed'));
-alter table "better_supabase"."risks" add column if not exists "treatment" text check ("treatment" is null or "treatment" in ('mitigate', 'accept', 'transfer', 'avoid'));
-alter table "better_supabase"."risks" add column if not exists "review_interval_months" integer check ("review_interval_months" is null or "review_interval_months" >= 1 and "review_interval_months" <= 120);
+alter table "better_supabase"."risks" add column if not exists "status" text not null default 'identified' constraint bsb_risks_status_check check ("status" in ('identified', 'assessed', 'treating', 'accepted', 'closed'));
+alter table "better_supabase"."risks" add column if not exists "treatment" text constraint bsb_risks_treatment_check check ("treatment" is null or "treatment" in ('mitigate', 'accept', 'transfer', 'avoid'));
+alter table "better_supabase"."risks" add column if not exists "review_interval_months" integer constraint bsb_risks_review_interval_months_check check ("review_interval_months" is null or "review_interval_months" >= 1 and "review_interval_months" <= 120);
 alter table "better_supabase"."risks" add column if not exists "next_review_on" date;
 alter table "better_supabase"."risks" add column if not exists "reviewed_at" timestamptz;
 alter table "better_supabase"."risks" add column if not exists "review_notified_for" date;
-alter table "better_supabase"."risks" add column if not exists "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10);
-alter table "better_supabase"."risks" add column if not exists "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10);
-alter table "better_supabase"."risks" add column if not exists "inherent_score" integer check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100);
+alter table "better_supabase"."risks" add column if not exists "inherent_likelihood" integer constraint bsb_risks_inherent_likelihood_check check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10);
+alter table "better_supabase"."risks" add column if not exists "inherent_impact" integer constraint bsb_risks_inherent_impact_check check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10);
+alter table "better_supabase"."risks" add column if not exists "inherent_score" integer constraint bsb_risks_inherent_score_check check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100);
 alter table "better_supabase"."risks" add column if not exists "inherent_band" text;
-alter table "better_supabase"."risks" add column if not exists "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10);
-alter table "better_supabase"."risks" add column if not exists "residual_impact" integer check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10);
-alter table "better_supabase"."risks" add column if not exists "residual_score" integer check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100);
+alter table "better_supabase"."risks" add column if not exists "residual_likelihood" integer constraint bsb_risks_residual_likelihood_check check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10);
+alter table "better_supabase"."risks" add column if not exists "residual_impact" integer constraint bsb_risks_residual_impact_check check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10);
+alter table "better_supabase"."risks" add column if not exists "residual_score" integer constraint bsb_risks_residual_score_check check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100);
 alter table "better_supabase"."risks" add column if not exists "residual_band" text;
 alter table "better_supabase"."risks" add column if not exists "current_assessment_id" uuid;
 alter table "better_supabase"."risks" add column if not exists "closed_at" timestamptz;
@@ -4301,15 +4301,15 @@ create policy bsb_risks_read on "better_supabase"."risks"
 alter table "better_supabase"."risk_assessments" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."risk_assessments" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."risk_assessments" add column if not exists "risk_id" uuid;
-alter table "better_supabase"."risk_assessments" add column if not exists "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10);
-alter table "better_supabase"."risk_assessments" add column if not exists "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10);
-alter table "better_supabase"."risk_assessments" add column if not exists "inherent_score" integer check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100);
+alter table "better_supabase"."risk_assessments" add column if not exists "inherent_likelihood" integer constraint bsb_risk_assessments_inherent_likelihood_check check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10);
+alter table "better_supabase"."risk_assessments" add column if not exists "inherent_impact" integer constraint bsb_risk_assessments_inherent_impact_check check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10);
+alter table "better_supabase"."risk_assessments" add column if not exists "inherent_score" integer constraint bsb_risk_assessments_inherent_score_check check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100);
 alter table "better_supabase"."risk_assessments" add column if not exists "inherent_band" text;
-alter table "better_supabase"."risk_assessments" add column if not exists "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10);
-alter table "better_supabase"."risk_assessments" add column if not exists "residual_impact" integer check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10);
-alter table "better_supabase"."risk_assessments" add column if not exists "residual_score" integer check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100);
+alter table "better_supabase"."risk_assessments" add column if not exists "residual_likelihood" integer constraint bsb_risk_assessments_residual_likelihood_check check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10);
+alter table "better_supabase"."risk_assessments" add column if not exists "residual_impact" integer constraint bsb_risk_assessments_residual_impact_check check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10);
+alter table "better_supabase"."risk_assessments" add column if not exists "residual_score" integer constraint bsb_risk_assessments_residual_score_check check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100);
 alter table "better_supabase"."risk_assessments" add column if not exists "residual_band" text;
-alter table "better_supabase"."risk_assessments" add column if not exists "rationale" text check ("rationale" is null or length("rationale") <= 10000);
+alter table "better_supabase"."risk_assessments" add column if not exists "rationale" text constraint bsb_risk_assessments_rationale_check check ("rationale" is null or length("rationale") <= 10000);
 alter table "better_supabase"."risk_assessments" add column if not exists "version_id" uuid references "better_supabase"."versions" ("id") on delete set null;
 alter table "better_supabase"."risk_assessments" add column if not exists "assessed_by" uuid;
 alter table "better_supabase"."risk_assessments" add column if not exists "assessed_at" timestamptz not null default now();
@@ -5199,7 +5199,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_144_risks.sql
 -- better-supabase module: risks
 -- @bsb-block risks@1 managed
--- @bsb-hash sha256:3bda2e11a95dcf26acc2d532afebeea9c2e6e2fd8328e0494f8fd176c9c6e3e6
+-- @bsb-hash sha256:a9aa44b4bb2cbb8cc78d4f29d1b0338bdfb9218cfe55deab7a014bbc8f564b3c
 -- A risk register per organization: risks numbered RSK-0001, scored on a configurable likelihood by impact matrix before and after controls, with an assessment history snapshotted in versions, treatment, scheduled reviews, barriers linked through relations, and a heatmap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5210,14 +5210,14 @@ on conflict (name) do update
 create table "better_supabase"."risk_matrices" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_risk_matrices_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_risk_matrices_name_check check (length("name") >= 1 and length("name") <= 200),
   -- [{ value, label }] with values 1 to n; save_risk_matrix checks the shape.
-  "likelihood_levels" jsonb not null check (jsonb_typeof("likelihood_levels") = 'array'),
-  "impact_levels" jsonb not null check (jsonb_typeof("impact_levels") = 'array'),
+  "likelihood_levels" jsonb not null constraint bsb_risk_matrices_likelihood_levels_check check (jsonb_typeof("likelihood_levels") = 'array'),
+  "impact_levels" jsonb not null constraint bsb_risk_matrices_impact_levels_check check (jsonb_typeof("impact_levels") = 'array'),
   -- [{ key, label, min, max }] covering every score once.
-  "bands" jsonb not null check (jsonb_typeof("bands") = 'array'),
-  "scoring" text not null default 'product' check ("scoring" in ('product', 'sum')),
+  "bands" jsonb not null constraint bsb_risk_matrices_bands_check check (jsonb_typeof("bands") = 'array'),
+  "scoring" text not null default 'product' constraint bsb_risk_matrices_scoring_check check ("scoring" in ('product', 'sum')),
   "is_default" boolean not null default false,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -5237,31 +5237,31 @@ create table "better_supabase"."risks" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- RSK-0001, from the numbering block when it numbers risks.
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_risks_number_check check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   "matrix_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "description" text check ("description" is null or length("description") <= 10000),
+  "title" text not null constraint bsb_risks_title_check check (length("title") >= 1 and length("title") <= 300),
+  "description" text constraint bsb_risks_description_check check ("description" is null or length("description") <= 10000),
   -- One of options.categories; the functions check it.
-  "category" text not null check (length("category") >= 1 and length("category") <= 63),
-  "cause" text check ("cause" is null or length("cause") <= 4000),
-  "consequence" text check ("consequence" is null or length("consequence") <= 4000),
+  "category" text not null constraint bsb_risks_category_check check (length("category") >= 1 and length("category") <= 63),
+  "cause" text constraint bsb_risks_cause_check check ("cause" is null or length("cause") <= 4000),
+  "consequence" text constraint bsb_risks_consequence_check check ("consequence" is null or length("consequence") <= 4000),
   "owner_id" uuid,
-  "status" text not null default 'identified' check ("status" in ('identified', 'assessed', 'treating', 'accepted', 'closed')),
-  "treatment" text check ("treatment" is null or "treatment" in ('mitigate', 'accept', 'transfer', 'avoid')),
+  "status" text not null default 'identified' constraint bsb_risks_status_check check ("status" in ('identified', 'assessed', 'treating', 'accepted', 'closed')),
+  "treatment" text constraint bsb_risks_treatment_check check ("treatment" is null or "treatment" in ('mitigate', 'accept', 'transfer', 'avoid')),
   -- An assessment or a review moves next_review_on this many months ahead (12 when null).
-  "review_interval_months" integer check ("review_interval_months" is null or "review_interval_months" >= 1 and "review_interval_months" <= 120),
+  "review_interval_months" integer constraint bsb_risks_review_interval_months_check check ("review_interval_months" is null or "review_interval_months" >= 1 and "review_interval_months" <= 120),
   "next_review_on" date,
   "reviewed_at" timestamptz,
   -- The review date notify_due_risk_reviews last reported, so each lapse notifies once.
   "review_notified_for" date,
-  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10),
-  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10),
-  "inherent_score" integer check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100),
+  "inherent_likelihood" integer constraint bsb_risks_inherent_likelihood_check check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10),
+  "inherent_impact" integer constraint bsb_risks_inherent_impact_check check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10),
+  "inherent_score" integer constraint bsb_risks_inherent_score_check check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100),
   "inherent_band" text,
-  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10),
-  "residual_impact" integer check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10),
-  "residual_score" integer check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100),
+  "residual_likelihood" integer constraint bsb_risks_residual_likelihood_check check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10),
+  "residual_impact" integer constraint bsb_risks_residual_impact_check check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10),
+  "residual_score" integer constraint bsb_risks_residual_score_check check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100),
   "residual_band" text,
   "current_assessment_id" uuid,
   "closed_at" timestamptz,
@@ -5271,7 +5271,7 @@ create table "better_supabase"."risks" (
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "number"),
   unique ("org_id", "id"),
-  check ("status" <> 'closed' or "closed_at" is not null),
+  constraint bsb_risks_check check ("status" <> 'closed' or "closed_at" is not null),
   foreign key ("org_id", "matrix_id") references "better_supabase"."risk_matrices" ("org_id", "id") on delete restrict
 );
 create index "risks_tenant_idx" on "better_supabase"."risks" ("org_id", "status", "residual_score" desc);
@@ -5290,15 +5290,15 @@ create table "better_supabase"."risk_assessments" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "risk_id" uuid not null,
-  "inherent_likelihood" integer check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10) not null,
-  "inherent_impact" integer check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10) not null,
-  "inherent_score" integer check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100) not null,
+  "inherent_likelihood" integer constraint bsb_risk_assessments_inherent_likelihood_check check ("inherent_likelihood" is null or "inherent_likelihood" >= 1 and "inherent_likelihood" <= 10) not null,
+  "inherent_impact" integer constraint bsb_risk_assessments_inherent_impact_check check ("inherent_impact" is null or "inherent_impact" >= 1 and "inherent_impact" <= 10) not null,
+  "inherent_score" integer constraint bsb_risk_assessments_inherent_score_check check ("inherent_score" is null or "inherent_score" >= 1 and "inherent_score" <= 100) not null,
   "inherent_band" text not null,
-  "residual_likelihood" integer check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10) not null,
-  "residual_impact" integer check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10) not null,
-  "residual_score" integer check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100) not null,
+  "residual_likelihood" integer constraint bsb_risk_assessments_residual_likelihood_check check ("residual_likelihood" is null or "residual_likelihood" >= 1 and "residual_likelihood" <= 10) not null,
+  "residual_impact" integer constraint bsb_risk_assessments_residual_impact_check check ("residual_impact" is null or "residual_impact" >= 1 and "residual_impact" <= 10) not null,
+  "residual_score" integer constraint bsb_risk_assessments_residual_score_check check ("residual_score" is null or "residual_score" >= 1 and "residual_score" <= 100) not null,
   "residual_band" text not null,
-  "rationale" text check ("rationale" is null or length("rationale") <= 10000),
+  "rationale" text constraint bsb_risk_assessments_rationale_check check ("rationale" is null or length("rationale") <= 10000),
   "version_id" uuid references "better_supabase"."versions" ("id") on delete set null,
   "assessed_by" uuid,
   "assessed_at" timestamptz not null default now(),

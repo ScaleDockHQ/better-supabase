@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:60b29815918e8d3455d220421f7ef761b992f526ab6d96a7f843bf7643d25721
+-- @bsb-hash sha256:689b065ab0b12a3ce3807f15941ad1cd69e4c1ba800384c9aca7a2694cdb3b21
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,21 +12,21 @@
 -- and a revocation list of access token jtis. Tokens are issued elsewhere.
 create table "better_supabase"."oauth_clients" (
   "id" uuid primary key default gen_random_uuid(),
-  "client_id" text not null unique check ("client_id" ~ '^[A-Za-z0-9._~-]{8,128}$'),
-  "secret_hash" text check ("secret_hash" ~ '^[0-9a-f]{64}$'),
-  "registration_token_hash" text check ("registration_token_hash" ~ '^[0-9a-f]{64}$'),
-  "client_name" text check (length("client_name") <= 200),
+  "client_id" text not null unique constraint bsb_oauth_clients_client_id_check check ("client_id" ~ '^[A-Za-z0-9._~-]{8,128}$'),
+  "secret_hash" text constraint bsb_oauth_clients_secret_hash_check check ("secret_hash" ~ '^[0-9a-f]{64}$'),
+  "registration_token_hash" text constraint bsb_oauth_clients_registration_token_hash_check check ("registration_token_hash" ~ '^[0-9a-f]{64}$'),
+  "client_name" text constraint bsb_oauth_clients_client_name_check check (length("client_name") <= 200),
   "redirect_uris" text[] not null default '{}',
   "grant_types" text[] not null default '{authorization_code}'
-    check ("grant_types" <@ array['authorization_code', 'refresh_token', 'client_credentials', 'urn:ietf:params:oauth:grant-type:device_code']::text[]),
+    constraint bsb_oauth_clients_grant_types_check check ("grant_types" <@ array['authorization_code', 'refresh_token', 'client_credentials', 'urn:ietf:params:oauth:grant-type:device_code']::text[]),
   "token_endpoint_auth_method" text not null default 'client_secret_basic'
-    check ("token_endpoint_auth_method" in ('none', 'client_secret_basic', 'client_secret_post')),
+    constraint bsb_oauth_clients_token_endpoint_auth_method_check check ("token_endpoint_auth_method" in ('none', 'client_secret_basic', 'client_secret_post')),
   "scope" text,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_oauth_clients_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("token_endpoint_auth_method" = 'none') = ("secret_hash" is null))
+  constraint bsb_oauth_clients_check check (("token_endpoint_auth_method" = 'none') = ("secret_hash" is null))
 );
 create index oauth_clients_created_by_idx on "better_supabase"."oauth_clients" ("created_by");
 alter table "better_supabase"."oauth_clients" enable row level security;
@@ -51,14 +51,14 @@ revoke all on "better_supabase"."oauth_grants" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_grants" to service_role;
 
 create table "better_supabase"."oauth_authorization_codes" (
-  "code_hash" text primary key check ("code_hash" ~ '^[0-9a-f]{64}$'),
+  "code_hash" text primary key constraint bsb_oauth_authorization_codes_code_hash_check check ("code_hash" ~ '^[0-9a-f]{64}$'),
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "grant_id" uuid not null references "better_supabase"."oauth_grants" ("id") on delete cascade,
   "redirect_uri" text,
   "scope" text not null default '',
   "resource" text[] not null default '{}',
-  "code_challenge" text not null check ("code_challenge" ~ '^[A-Za-z0-9_-]{43}$'),
+  "code_challenge" text not null constraint bsb_oauth_authorization_codes_code_challenge_check check ("code_challenge" ~ '^[A-Za-z0-9_-]{43}$'),
   "nonce" text,
   "expires_at" timestamptz not null,
   "consumed_at" timestamptz,
@@ -73,20 +73,20 @@ revoke all on "better_supabase"."oauth_authorization_codes" from public, anon, a
 grant all on "better_supabase"."oauth_authorization_codes" to service_role;
 
 create table "better_supabase"."oauth_device_codes" (
-  "device_code_hash" text primary key check ("device_code_hash" ~ '^[0-9a-f]{64}$'),
-  "user_code" text not null check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
+  "device_code_hash" text primary key constraint bsb_oauth_device_codes_device_code_hash_check check ("device_code_hash" ~ '^[0-9a-f]{64}$'),
+  "user_code" text not null constraint bsb_oauth_device_codes_user_code_check check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "scope" text not null default '',
   "resource" text[] not null default '{}',
-  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'denied')),
+  "status" text not null default 'pending' constraint bsb_oauth_device_codes_status_check check ("status" in ('pending', 'approved', 'denied')),
   "user_id" uuid references auth.users (id) on delete cascade,
   "grant_id" uuid references "better_supabase"."oauth_grants" ("id") on delete cascade,
-  "poll_interval" integer not null default 5 check ("poll_interval" >= 1 and "poll_interval" <= 300),
+  "poll_interval" integer not null default 5 constraint bsb_oauth_device_codes_poll_interval_check check ("poll_interval" >= 1 and "poll_interval" <= 300),
   "last_polled_at" timestamptz,
   "expires_at" timestamptz not null,
   "consumed_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check (("status" = 'approved') = ("grant_id" is not null))
+  constraint bsb_oauth_device_codes_check check (("status" = 'approved') = ("grant_id" is not null))
 );
 create unique index oauth_device_codes_user_code_idx on "better_supabase"."oauth_device_codes" ("user_code") where "status" = 'pending';
 create index oauth_device_codes_expires_idx on "better_supabase"."oauth_device_codes" ("expires_at");
@@ -98,7 +98,7 @@ revoke all on "better_supabase"."oauth_device_codes" from public, anon, authenti
 grant all on "better_supabase"."oauth_device_codes" to service_role;
 
 create table "better_supabase"."oauth_revocations" (
-  "jti" text primary key check (length("jti") >= 1 and length("jti") <= 256),
+  "jti" text primary key constraint bsb_oauth_revocations_jti_check check (length("jti") >= 1 and length("jti") <= 256),
   "grant_id" uuid,
   "expires_at" timestamptz not null,
   "created_at" timestamptz not null default now()
@@ -817,7 +817,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:0b04c2d9dc1ba1c9e23b6494cd12dffb495bb5cc4f012ada0c26e3d0f36d7db4
+-- @bsb-hash sha256:133f14988b7b26212f1d68c674c3b6c81c55e426ddc6fb5cdec1f5db4e4e2363
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -828,21 +828,21 @@ on conflict (name) do update
 -- and a revocation list of access token jtis. Tokens are issued elsewhere.
 create table "better_supabase"."oauth_clients" (
   "id" uuid primary key default gen_random_uuid(),
-  "client_id" text not null unique check ("client_id" ~ '^[A-Za-z0-9._~-]{8,128}$'),
-  "secret_hash" text check ("secret_hash" ~ '^[0-9a-f]{64}$'),
-  "registration_token_hash" text check ("registration_token_hash" ~ '^[0-9a-f]{64}$'),
-  "client_name" text check (length("client_name") <= 200),
+  "client_id" text not null unique constraint bsb_oauth_clients_client_id_check check ("client_id" ~ '^[A-Za-z0-9._~-]{8,128}$'),
+  "secret_hash" text constraint bsb_oauth_clients_secret_hash_check check ("secret_hash" ~ '^[0-9a-f]{64}$'),
+  "registration_token_hash" text constraint bsb_oauth_clients_registration_token_hash_check check ("registration_token_hash" ~ '^[0-9a-f]{64}$'),
+  "client_name" text constraint bsb_oauth_clients_client_name_check check (length("client_name") <= 200),
   "redirect_uris" text[] not null default '{}',
   "grant_types" text[] not null default '{authorization_code}'
-    check ("grant_types" <@ array['authorization_code', 'refresh_token', 'client_credentials', 'urn:ietf:params:oauth:grant-type:device_code']::text[]),
+    constraint bsb_oauth_clients_grant_types_check check ("grant_types" <@ array['authorization_code', 'refresh_token', 'client_credentials', 'urn:ietf:params:oauth:grant-type:device_code']::text[]),
   "token_endpoint_auth_method" text not null default 'client_secret_basic'
-    check ("token_endpoint_auth_method" in ('none', 'client_secret_basic', 'client_secret_post')),
+    constraint bsb_oauth_clients_token_endpoint_auth_method_check check ("token_endpoint_auth_method" in ('none', 'client_secret_basic', 'client_secret_post')),
   "scope" text,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_oauth_clients_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("token_endpoint_auth_method" = 'none') = ("secret_hash" is null))
+  constraint bsb_oauth_clients_check check (("token_endpoint_auth_method" = 'none') = ("secret_hash" is null))
 );
 create index oauth_clients_created_by_idx on "better_supabase"."oauth_clients" ("created_by");
 alter table "better_supabase"."oauth_clients" enable row level security;
@@ -867,14 +867,14 @@ revoke all on "better_supabase"."oauth_grants" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_grants" to service_role;
 
 create table "better_supabase"."oauth_authorization_codes" (
-  "code_hash" text primary key check ("code_hash" ~ '^[0-9a-f]{64}$'),
+  "code_hash" text primary key constraint bsb_oauth_authorization_codes_code_hash_check check ("code_hash" ~ '^[0-9a-f]{64}$'),
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "grant_id" uuid not null references "better_supabase"."oauth_grants" ("id") on delete cascade,
   "redirect_uri" text,
   "scope" text not null default '',
   "resource" text[] not null default '{}',
-  "code_challenge" text not null check ("code_challenge" ~ '^[A-Za-z0-9_-]{43}$'),
+  "code_challenge" text not null constraint bsb_oauth_authorization_codes_code_challenge_check check ("code_challenge" ~ '^[A-Za-z0-9_-]{43}$'),
   "nonce" text,
   "expires_at" timestamptz not null,
   "consumed_at" timestamptz,
@@ -889,20 +889,20 @@ revoke all on "better_supabase"."oauth_authorization_codes" from public, anon, a
 grant all on "better_supabase"."oauth_authorization_codes" to service_role;
 
 create table "better_supabase"."oauth_device_codes" (
-  "device_code_hash" text primary key check ("device_code_hash" ~ '^[0-9a-f]{64}$'),
-  "user_code" text not null check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
+  "device_code_hash" text primary key constraint bsb_oauth_device_codes_device_code_hash_check check ("device_code_hash" ~ '^[0-9a-f]{64}$'),
+  "user_code" text not null constraint bsb_oauth_device_codes_user_code_check check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "scope" text not null default '',
   "resource" text[] not null default '{}',
-  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'denied')),
+  "status" text not null default 'pending' constraint bsb_oauth_device_codes_status_check check ("status" in ('pending', 'approved', 'denied')),
   "user_id" uuid references auth.users (id) on delete cascade,
   "grant_id" uuid references "better_supabase"."oauth_grants" ("id") on delete cascade,
-  "poll_interval" integer not null default 5 check ("poll_interval" >= 1 and "poll_interval" <= 300),
+  "poll_interval" integer not null default 5 constraint bsb_oauth_device_codes_poll_interval_check check ("poll_interval" >= 1 and "poll_interval" <= 300),
   "last_polled_at" timestamptz,
   "expires_at" timestamptz not null,
   "consumed_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check (("status" = 'approved') = ("grant_id" is not null))
+  constraint bsb_oauth_device_codes_check check (("status" = 'approved') = ("grant_id" is not null))
 );
 create unique index oauth_device_codes_user_code_idx on "better_supabase"."oauth_device_codes" ("user_code") where "status" = 'pending';
 create index oauth_device_codes_expires_idx on "better_supabase"."oauth_device_codes" ("expires_at");
@@ -914,7 +914,7 @@ revoke all on "better_supabase"."oauth_device_codes" from public, anon, authenti
 grant all on "better_supabase"."oauth_device_codes" to service_role;
 
 create table "better_supabase"."oauth_revocations" (
-  "jti" text primary key check (length("jti") >= 1 and length("jti") <= 256),
+  "jti" text primary key constraint bsb_oauth_revocations_jti_check check (length("jti") >= 1 and length("jti") <= 256),
   "grant_id" uuid,
   "expires_at" timestamptz not null,
   "created_at" timestamptz not null default now()
@@ -1679,7 +1679,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:62c6525614faa40e69aef5211cf1aa830d8d99ecf5e17a6e635328b35eafeca4
+-- @bsb-hash sha256:698581bb25e2f4e9d2e2d120e713459afc882be4134ba01b27840e18dfc5f27f
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1695,21 +1695,21 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- and a revocation list of access token jtis. Tokens are issued elsewhere.
 create table "app_private"."oauth_clients" (
   "id" uuid primary key default gen_random_uuid(),
-  "client_id" text not null unique check ("client_id" ~ '^[A-Za-z0-9._~-]{8,128}$'),
-  "secret_hash" text check ("secret_hash" ~ '^[0-9a-f]{64}$'),
-  "registration_token_hash" text check ("registration_token_hash" ~ '^[0-9a-f]{64}$'),
-  "client_name" text check (length("client_name") <= 200),
+  "client_id" text not null unique constraint bsb_oauth_clients_client_id_check check ("client_id" ~ '^[A-Za-z0-9._~-]{8,128}$'),
+  "secret_hash" text constraint bsb_oauth_clients_secret_hash_check check ("secret_hash" ~ '^[0-9a-f]{64}$'),
+  "registration_token_hash" text constraint bsb_oauth_clients_registration_token_hash_check check ("registration_token_hash" ~ '^[0-9a-f]{64}$'),
+  "client_name" text constraint bsb_oauth_clients_client_name_check check (length("client_name") <= 200),
   "redirect_uris" text[] not null default '{}',
   "grant_types" text[] not null default '{authorization_code}'
-    check ("grant_types" <@ array['authorization_code', 'refresh_token', 'client_credentials', 'urn:ietf:params:oauth:grant-type:device_code']::text[]),
+    constraint bsb_oauth_clients_grant_types_check check ("grant_types" <@ array['authorization_code', 'refresh_token', 'client_credentials', 'urn:ietf:params:oauth:grant-type:device_code']::text[]),
   "token_endpoint_auth_method" text not null default 'client_secret_basic'
-    check ("token_endpoint_auth_method" in ('none', 'client_secret_basic', 'client_secret_post')),
+    constraint bsb_oauth_clients_token_endpoint_auth_method_check check ("token_endpoint_auth_method" in ('none', 'client_secret_basic', 'client_secret_post')),
   "scope" text,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_oauth_clients_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("token_endpoint_auth_method" = 'none') = ("secret_hash" is null))
+  constraint bsb_oauth_clients_check check (("token_endpoint_auth_method" = 'none') = ("secret_hash" is null))
 );
 create index oauth_clients_created_by_idx on "app_private"."oauth_clients" ("created_by");
 alter table "app_private"."oauth_clients" enable row level security;
@@ -1734,14 +1734,14 @@ revoke all on "app_private"."oauth_grants" from public, anon, authenticated;
 grant all on "app_private"."oauth_grants" to service_role;
 
 create table "app_private"."oauth_authorization_codes" (
-  "code_hash" text primary key check ("code_hash" ~ '^[0-9a-f]{64}$'),
+  "code_hash" text primary key constraint bsb_oauth_authorization_codes_code_hash_check check ("code_hash" ~ '^[0-9a-f]{64}$'),
   "client_id" text not null references "app_private"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "grant_id" uuid not null references "app_private"."oauth_grants" ("id") on delete cascade,
   "redirect_uri" text,
   "scope" text not null default '',
   "resource" text[] not null default '{}',
-  "code_challenge" text not null check ("code_challenge" ~ '^[A-Za-z0-9_-]{43}$'),
+  "code_challenge" text not null constraint bsb_oauth_authorization_codes_code_challenge_check check ("code_challenge" ~ '^[A-Za-z0-9_-]{43}$'),
   "nonce" text,
   "expires_at" timestamptz not null,
   "consumed_at" timestamptz,
@@ -1756,20 +1756,20 @@ revoke all on "app_private"."oauth_authorization_codes" from public, anon, authe
 grant all on "app_private"."oauth_authorization_codes" to service_role;
 
 create table "app_private"."oauth_device_codes" (
-  "device_code_hash" text primary key check ("device_code_hash" ~ '^[0-9a-f]{64}$'),
-  "user_code" text not null check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
+  "device_code_hash" text primary key constraint bsb_oauth_device_codes_device_code_hash_check check ("device_code_hash" ~ '^[0-9a-f]{64}$'),
+  "user_code" text not null constraint bsb_oauth_device_codes_user_code_check check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
   "client_id" text not null references "app_private"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "scope" text not null default '',
   "resource" text[] not null default '{}',
-  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'denied')),
+  "status" text not null default 'pending' constraint bsb_oauth_device_codes_status_check check ("status" in ('pending', 'approved', 'denied')),
   "user_id" uuid references auth.users (id) on delete cascade,
   "grant_id" uuid references "app_private"."oauth_grants" ("id") on delete cascade,
-  "poll_interval" integer not null default 5 check ("poll_interval" >= 1 and "poll_interval" <= 300),
+  "poll_interval" integer not null default 5 constraint bsb_oauth_device_codes_poll_interval_check check ("poll_interval" >= 1 and "poll_interval" <= 300),
   "last_polled_at" timestamptz,
   "expires_at" timestamptz not null,
   "consumed_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check (("status" = 'approved') = ("grant_id" is not null))
+  constraint bsb_oauth_device_codes_check check (("status" = 'approved') = ("grant_id" is not null))
 );
 create unique index oauth_device_codes_user_code_idx on "app_private"."oauth_device_codes" ("user_code") where "status" = 'pending';
 create index oauth_device_codes_expires_idx on "app_private"."oauth_device_codes" ("expires_at");
@@ -1781,7 +1781,7 @@ revoke all on "app_private"."oauth_device_codes" from public, anon, authenticate
 grant all on "app_private"."oauth_device_codes" to service_role;
 
 create table "app_private"."oauth_revocations" (
-  "jti" text primary key check (length("jti") >= 1 and length("jti") <= 256),
+  "jti" text primary key constraint bsb_oauth_revocations_jti_check check (length("jti") >= 1 and length("jti") <= 256),
   "grant_id" uuid,
   "expires_at" timestamptz not null,
   "created_at" timestamptz not null default now()
@@ -2500,7 +2500,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:55099f19ac85a8e3f7a2b043566e7ed502bca11106fe2eac3270bf55c3d6ca6b
+-- @bsb-hash sha256:f8276981187db247cf723cc5267aa4e3d4585130ddf6fd3380032138e7230d37
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2511,21 +2511,21 @@ on conflict (name) do update
 -- and a revocation list of access token jtis. Tokens are issued elsewhere.
 create table "better_supabase"."oauth_clients" (
   "id" uuid primary key default gen_random_uuid(),
-  "client_id" text not null unique check ("client_id" ~ '^[A-Za-z0-9._~-]{8,128}$'),
-  "secret_hash" text check ("secret_hash" ~ '^[0-9a-f]{64}$'),
-  "registration_token_hash" text check ("registration_token_hash" ~ '^[0-9a-f]{64}$'),
-  "client_name" text check (length("client_name") <= 200),
+  "client_id" text not null unique constraint bsb_oauth_clients_client_id_check check ("client_id" ~ '^[A-Za-z0-9._~-]{8,128}$'),
+  "secret_hash" text constraint bsb_oauth_clients_secret_hash_check check ("secret_hash" ~ '^[0-9a-f]{64}$'),
+  "registration_token_hash" text constraint bsb_oauth_clients_registration_token_hash_check check ("registration_token_hash" ~ '^[0-9a-f]{64}$'),
+  "client_name" text constraint bsb_oauth_clients_client_name_check check (length("client_name") <= 200),
   "redirect_uris" text[] not null default '{}',
   "grant_types" text[] not null default '{authorization_code}'
-    check ("grant_types" <@ array['authorization_code', 'refresh_token', 'client_credentials', 'urn:ietf:params:oauth:grant-type:device_code']::text[]),
+    constraint bsb_oauth_clients_grant_types_check check ("grant_types" <@ array['authorization_code', 'refresh_token', 'client_credentials', 'urn:ietf:params:oauth:grant-type:device_code']::text[]),
   "token_endpoint_auth_method" text not null default 'client_secret_basic'
-    check ("token_endpoint_auth_method" in ('none', 'client_secret_basic', 'client_secret_post')),
+    constraint bsb_oauth_clients_token_endpoint_auth_method_check check ("token_endpoint_auth_method" in ('none', 'client_secret_basic', 'client_secret_post')),
   "scope" text,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_oauth_clients_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("token_endpoint_auth_method" = 'none') = ("secret_hash" is null))
+  constraint bsb_oauth_clients_check check (("token_endpoint_auth_method" = 'none') = ("secret_hash" is null))
 );
 create index oauth_clients_created_by_idx on "better_supabase"."oauth_clients" ("created_by");
 alter table "better_supabase"."oauth_clients" enable row level security;
@@ -2550,14 +2550,14 @@ revoke all on "better_supabase"."oauth_grants" from public, anon, authenticated;
 grant all on "better_supabase"."oauth_grants" to service_role;
 
 create table "better_supabase"."oauth_authorization_codes" (
-  "code_hash" text primary key check ("code_hash" ~ '^[0-9a-f]{64}$'),
+  "code_hash" text primary key constraint bsb_oauth_authorization_codes_code_hash_check check ("code_hash" ~ '^[0-9a-f]{64}$'),
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "grant_id" uuid not null references "better_supabase"."oauth_grants" ("id") on delete cascade,
   "redirect_uri" text,
   "scope" text not null default '',
   "resource" text[] not null default '{}',
-  "code_challenge" text not null check ("code_challenge" ~ '^[A-Za-z0-9_-]{43}$'),
+  "code_challenge" text not null constraint bsb_oauth_authorization_codes_code_challenge_check check ("code_challenge" ~ '^[A-Za-z0-9_-]{43}$'),
   "nonce" text,
   "expires_at" timestamptz not null,
   "consumed_at" timestamptz,
@@ -2572,20 +2572,20 @@ revoke all on "better_supabase"."oauth_authorization_codes" from public, anon, a
 grant all on "better_supabase"."oauth_authorization_codes" to service_role;
 
 create table "better_supabase"."oauth_device_codes" (
-  "device_code_hash" text primary key check ("device_code_hash" ~ '^[0-9a-f]{64}$'),
-  "user_code" text not null check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
+  "device_code_hash" text primary key constraint bsb_oauth_device_codes_device_code_hash_check check ("device_code_hash" ~ '^[0-9a-f]{64}$'),
+  "user_code" text not null constraint bsb_oauth_device_codes_user_code_check check ("user_code" ~ '^[A-Z0-9]{6,12}$'),
   "client_id" text not null references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade,
   "scope" text not null default '',
   "resource" text[] not null default '{}',
-  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'denied')),
+  "status" text not null default 'pending' constraint bsb_oauth_device_codes_status_check check ("status" in ('pending', 'approved', 'denied')),
   "user_id" uuid references auth.users (id) on delete cascade,
   "grant_id" uuid references "better_supabase"."oauth_grants" ("id") on delete cascade,
-  "poll_interval" integer not null default 5 check ("poll_interval" >= 1 and "poll_interval" <= 300),
+  "poll_interval" integer not null default 5 constraint bsb_oauth_device_codes_poll_interval_check check ("poll_interval" >= 1 and "poll_interval" <= 300),
   "last_polled_at" timestamptz,
   "expires_at" timestamptz not null,
   "consumed_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check (("status" = 'approved') = ("grant_id" is not null))
+  constraint bsb_oauth_device_codes_check check (("status" = 'approved') = ("grant_id" is not null))
 );
 create unique index oauth_device_codes_user_code_idx on "better_supabase"."oauth_device_codes" ("user_code") where "status" = 'pending';
 create index oauth_device_codes_expires_idx on "better_supabase"."oauth_device_codes" ("expires_at");
@@ -2597,7 +2597,7 @@ revoke all on "better_supabase"."oauth_device_codes" from public, anon, authenti
 grant all on "better_supabase"."oauth_device_codes" to service_role;
 
 create table "better_supabase"."oauth_revocations" (
-  "jti" text primary key check (length("jti") >= 1 and length("jti") <= 256),
+  "jti" text primary key constraint bsb_oauth_revocations_jti_check check (length("jti") >= 1 and length("jti") <= 256),
   "grant_id" uuid,
   "expires_at" timestamptz not null,
   "created_at" timestamptz not null default now()
@@ -3507,7 +3507,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_106_oauth_server.sql
 -- better-supabase module: oauth-server
 -- @bsb-block oauth-server@1 managed
--- @bsb-hash sha256:47f688424306de3993dee94f26e8c68935e28a3812aef66f86b78e2401415612
+-- @bsb-hash sha256:77b94e353a4e0f3abbbad9ab2635944f83609660c740409938a91247a444af5f
 -- Storage for an OAuth 2.1 authorization server: registered clients (RFC 7591) with hashed secrets, a grant per user and client, single-use authorization codes bound to a PKCE S256 challenge, device codes (RFC 8628) and a revocation list of access token jtis. It issues no tokens. createOauthServer() in better-supabase/blocks/oauth-server hashes secrets and checks PKCE, and its isRevoked plugs into accessTokenResolver.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3518,15 +3518,15 @@ on conflict (name) do update
 -- and a revocation list of access token jtis. Tokens are issued elsewhere.
 -- better_supabase.oauth_clients is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."oauth_clients" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."oauth_clients" add column if not exists "client_id" text check ("client_id" ~ '^[A-Za-z0-9._~-]{8,128}$');
-alter table "better_supabase"."oauth_clients" add column if not exists "secret_hash" text check ("secret_hash" ~ '^[0-9a-f]{64}$');
-alter table "better_supabase"."oauth_clients" add column if not exists "registration_token_hash" text check ("registration_token_hash" ~ '^[0-9a-f]{64}$');
-alter table "better_supabase"."oauth_clients" add column if not exists "client_name" text check (length("client_name") <= 200);
+alter table "better_supabase"."oauth_clients" add column if not exists "client_id" text constraint bsb_oauth_clients_client_id_check check ("client_id" ~ '^[A-Za-z0-9._~-]{8,128}$');
+alter table "better_supabase"."oauth_clients" add column if not exists "secret_hash" text constraint bsb_oauth_clients_secret_hash_check check ("secret_hash" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."oauth_clients" add column if not exists "registration_token_hash" text constraint bsb_oauth_clients_registration_token_hash_check check ("registration_token_hash" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."oauth_clients" add column if not exists "client_name" text constraint bsb_oauth_clients_client_name_check check (length("client_name") <= 200);
 alter table "better_supabase"."oauth_clients" add column if not exists "redirect_uris" text[] not null default '{}';
-alter table "better_supabase"."oauth_clients" add column if not exists "grant_types" text[] not null default '{authorization_code}' check ("grant_types" <@ array['authorization_code', 'refresh_token', 'client_credentials', 'urn:ietf:params:oauth:grant-type:device_code']::text[]);
-alter table "better_supabase"."oauth_clients" add column if not exists "token_endpoint_auth_method" text not null default 'client_secret_basic' check ("token_endpoint_auth_method" in ('none', 'client_secret_basic', 'client_secret_post'));
+alter table "better_supabase"."oauth_clients" add column if not exists "grant_types" text[] not null default '{authorization_code}' constraint bsb_oauth_clients_grant_types_check check ("grant_types" <@ array['authorization_code', 'refresh_token', 'client_credentials', 'urn:ietf:params:oauth:grant-type:device_code']::text[]);
+alter table "better_supabase"."oauth_clients" add column if not exists "token_endpoint_auth_method" text not null default 'client_secret_basic' constraint bsb_oauth_clients_token_endpoint_auth_method_check check ("token_endpoint_auth_method" in ('none', 'client_secret_basic', 'client_secret_post'));
 alter table "better_supabase"."oauth_clients" add column if not exists "scope" text;
-alter table "better_supabase"."oauth_clients" add column if not exists "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."oauth_clients" add column if not exists "metadata" jsonb not null default '{}'::jsonb constraint bsb_oauth_clients_metadata_check check (jsonb_typeof("metadata") = 'object');
 alter table "better_supabase"."oauth_clients" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."oauth_clients" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."oauth_clients" add column if not exists "updated_at" timestamptz not null default now();
@@ -3551,14 +3551,14 @@ alter table "better_supabase"."oauth_grants" enable row level security;
 grant all on "better_supabase"."oauth_grants" to service_role;
 
 -- better_supabase.oauth_authorization_codes is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."oauth_authorization_codes" add column if not exists "code_hash" text check ("code_hash" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."oauth_authorization_codes" add column if not exists "code_hash" text constraint bsb_oauth_authorization_codes_code_hash_check check ("code_hash" ~ '^[0-9a-f]{64}$');
 alter table "better_supabase"."oauth_authorization_codes" add column if not exists "client_id" text references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade;
 alter table "better_supabase"."oauth_authorization_codes" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."oauth_authorization_codes" add column if not exists "grant_id" uuid references "better_supabase"."oauth_grants" ("id") on delete cascade;
 alter table "better_supabase"."oauth_authorization_codes" add column if not exists "redirect_uri" text;
 alter table "better_supabase"."oauth_authorization_codes" add column if not exists "scope" text not null default '';
 alter table "better_supabase"."oauth_authorization_codes" add column if not exists "resource" text[] not null default '{}';
-alter table "better_supabase"."oauth_authorization_codes" add column if not exists "code_challenge" text check ("code_challenge" ~ '^[A-Za-z0-9_-]{43}$');
+alter table "better_supabase"."oauth_authorization_codes" add column if not exists "code_challenge" text constraint bsb_oauth_authorization_codes_code_challenge_check check ("code_challenge" ~ '^[A-Za-z0-9_-]{43}$');
 alter table "better_supabase"."oauth_authorization_codes" add column if not exists "nonce" text;
 alter table "better_supabase"."oauth_authorization_codes" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."oauth_authorization_codes" add column if not exists "consumed_at" timestamptz;
@@ -3571,15 +3571,15 @@ alter table "better_supabase"."oauth_authorization_codes" enable row level secur
 grant all on "better_supabase"."oauth_authorization_codes" to service_role;
 
 -- better_supabase.oauth_device_codes is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."oauth_device_codes" add column if not exists "device_code_hash" text check ("device_code_hash" ~ '^[0-9a-f]{64}$');
-alter table "better_supabase"."oauth_device_codes" add column if not exists "user_code" text check ("user_code" ~ '^[A-Z0-9]{6,12}$');
+alter table "better_supabase"."oauth_device_codes" add column if not exists "device_code_hash" text constraint bsb_oauth_device_codes_device_code_hash_check check ("device_code_hash" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."oauth_device_codes" add column if not exists "user_code" text constraint bsb_oauth_device_codes_user_code_check check ("user_code" ~ '^[A-Z0-9]{6,12}$');
 alter table "better_supabase"."oauth_device_codes" add column if not exists "client_id" text references "better_supabase"."oauth_clients" ("client_id") on delete cascade on update cascade;
 alter table "better_supabase"."oauth_device_codes" add column if not exists "scope" text not null default '';
 alter table "better_supabase"."oauth_device_codes" add column if not exists "resource" text[] not null default '{}';
-alter table "better_supabase"."oauth_device_codes" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'denied'));
+alter table "better_supabase"."oauth_device_codes" add column if not exists "status" text not null default 'pending' constraint bsb_oauth_device_codes_status_check check ("status" in ('pending', 'approved', 'denied'));
 alter table "better_supabase"."oauth_device_codes" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."oauth_device_codes" add column if not exists "grant_id" uuid references "better_supabase"."oauth_grants" ("id") on delete cascade;
-alter table "better_supabase"."oauth_device_codes" add column if not exists "poll_interval" integer not null default 5 check ("poll_interval" >= 1 and "poll_interval" <= 300);
+alter table "better_supabase"."oauth_device_codes" add column if not exists "poll_interval" integer not null default 5 constraint bsb_oauth_device_codes_poll_interval_check check ("poll_interval" >= 1 and "poll_interval" <= 300);
 alter table "better_supabase"."oauth_device_codes" add column if not exists "last_polled_at" timestamptz;
 alter table "better_supabase"."oauth_device_codes" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."oauth_device_codes" add column if not exists "consumed_at" timestamptz;
@@ -3593,7 +3593,7 @@ alter table "better_supabase"."oauth_device_codes" enable row level security;
 grant all on "better_supabase"."oauth_device_codes" to service_role;
 
 -- better_supabase.oauth_revocations is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."oauth_revocations" add column if not exists "jti" text check (length("jti") >= 1 and length("jti") <= 256);
+alter table "better_supabase"."oauth_revocations" add column if not exists "jti" text constraint bsb_oauth_revocations_jti_check check (length("jti") >= 1 and length("jti") <= 256);
 alter table "better_supabase"."oauth_revocations" add column if not exists "grant_id" uuid;
 alter table "better_supabase"."oauth_revocations" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."oauth_revocations" add column if not exists "created_at" timestamptz not null default now();

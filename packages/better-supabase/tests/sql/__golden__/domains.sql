@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@2 managed
--- @bsb-hash sha256:fac50c62d97ccc31d02bf7f6fa1d51ed9a537d25dd9bc7726e5d648c7833cb92
+-- @bsb-hash sha256:16013689b15d9e1215354c1a60eb4ac5a5feae8d37211fbcdc1343c272a7206e
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,15 +13,15 @@
 create table "better_supabase"."hostnames" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "hostname" text not null check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
-  "kind" text not null default 'custom' check ("kind" in ('custom', 'subdomain')),
+  "hostname" text not null constraint bsb_hostnames_hostname_check check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
+  "kind" text not null default 'custom' constraint bsb_hostnames_kind_check check ("kind" in ('custom', 'subdomain')),
   "verification_token" text not null default replace(gen_random_uuid()::text, '-', ''),
   "verified_at" timestamptz,
   "is_primary" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("organization_id", "hostname"),
-  check (not "is_primary" or "verified_at" is not null)
+  constraint bsb_hostnames_check check (not "is_primary" or "verified_at" is not null)
 );
 create unique index "hostnames_verified_idx" on "better_supabase"."hostnames" ("hostname") where "verified_at" is not null;
 create unique index "hostnames_primary_idx" on "better_supabase"."hostnames" ("organization_id") where "is_primary";
@@ -253,7 +253,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@2 managed
--- @bsb-hash sha256:7f65ea447f16055716dd2e75713b3247d1180f6f18d19fada156c560a382d394
+-- @bsb-hash sha256:6880653afc8fd53be57b791a8f71dded06467be85509212c2347d68992be7884
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -265,15 +265,15 @@ on conflict (name) do update
 create table "better_supabase"."hostnames" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "hostname" text not null check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
-  "kind" text not null default 'custom' check ("kind" in ('custom', 'subdomain')),
+  "hostname" text not null constraint bsb_hostnames_hostname_check check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
+  "kind" text not null default 'custom' constraint bsb_hostnames_kind_check check ("kind" in ('custom', 'subdomain')),
   "verification_token" text not null default replace(gen_random_uuid()::text, '-', ''),
   "verified_at" timestamptz,
   "is_primary" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("organization_id", "hostname"),
-  check (not "is_primary" or "verified_at" is not null)
+  constraint bsb_hostnames_check check (not "is_primary" or "verified_at" is not null)
 );
 create unique index "hostnames_verified_idx" on "better_supabase"."hostnames" ("hostname") where "verified_at" is not null;
 create unique index "hostnames_primary_idx" on "better_supabase"."hostnames" ("organization_id") where "is_primary";
@@ -555,7 +555,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@2 managed
--- @bsb-hash sha256:ef505eabf7fd6760ed18b31946dec08228ed4b3ada83b64bb467a1a9ec55a9ef
+-- @bsb-hash sha256:909710e2a20ee51877951941f7469c6f23f51257f2f25723bc11a4c4c6568c33
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -572,15 +572,15 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."hostnames" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "hostname" text not null check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
-  "kind" text not null default 'custom' check ("kind" in ('custom', 'subdomain')),
+  "hostname" text not null constraint bsb_hostnames_hostname_check check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
+  "kind" text not null default 'custom' constraint bsb_hostnames_kind_check check ("kind" in ('custom', 'subdomain')),
   "verification_token" text not null default replace(gen_random_uuid()::text, '-', ''),
   "verified_at" timestamptz,
   "is_primary" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("organization_id", "hostname"),
-  check (not "is_primary" or "verified_at" is not null)
+  constraint bsb_hostnames_check check (not "is_primary" or "verified_at" is not null)
 );
 create unique index "hostnames_verified_idx" on "app_private"."hostnames" ("hostname") where "verified_at" is not null;
 create unique index "hostnames_primary_idx" on "app_private"."hostnames" ("organization_id") where "is_primary";
@@ -812,7 +812,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@2 managed
--- @bsb-hash sha256:18ffa424f2d8c20be826f23c57c5d0144637ac6f5e330a5a2ff55147ad85acda
+-- @bsb-hash sha256:1686af9677a13e455a1d3297e680811994f0dad6831874ded7a50899b9a176ac
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -824,15 +824,15 @@ on conflict (name) do update
 create table "better_supabase"."hostnames" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "hostname" text not null check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
-  "kind" text not null default 'custom' check ("kind" in ('custom', 'subdomain')),
+  "hostname" text not null constraint bsb_hostnames_hostname_check check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
+  "kind" text not null default 'custom' constraint bsb_hostnames_kind_check check ("kind" in ('custom', 'subdomain')),
   "verification_token" text not null default replace(gen_random_uuid()::text, '-', ''),
   "verified_at" timestamptz,
   "is_primary" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("organization_id", "hostname"),
-  check (not "is_primary" or "verified_at" is not null)
+  constraint bsb_hostnames_check check (not "is_primary" or "verified_at" is not null)
 );
 create unique index "hostnames_verified_idx" on "better_supabase"."hostnames" ("hostname") where "verified_at" is not null;
 create unique index "hostnames_primary_idx" on "better_supabase"."hostnames" ("organization_id") where "is_primary";
@@ -1134,7 +1134,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@2 managed
--- @bsb-hash sha256:a281ac487bd13b305609784225409d6994c6bde63367fa68a35ff3e0f2cf9046
+-- @bsb-hash sha256:169bff463f896a8f3edc40fbb524c629bd5260c52aa9390f5b8546a273f56ce1
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1146,8 +1146,8 @@ on conflict (name) do update
 -- better_supabase.hostnames is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."hostnames" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."hostnames" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."hostnames" add column if not exists "hostname" text check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$');
-alter table "better_supabase"."hostnames" add column if not exists "kind" text not null default 'custom' check ("kind" in ('custom', 'subdomain'));
+alter table "better_supabase"."hostnames" add column if not exists "hostname" text constraint bsb_hostnames_hostname_check check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$');
+alter table "better_supabase"."hostnames" add column if not exists "kind" text not null default 'custom' constraint bsb_hostnames_kind_check check ("kind" in ('custom', 'subdomain'));
 alter table "better_supabase"."hostnames" add column if not exists "verification_token" text not null default replace(gen_random_uuid()::text, '-', '');
 alter table "better_supabase"."hostnames" add column if not exists "verified_at" timestamptz;
 alter table "better_supabase"."hostnames" add column if not exists "is_primary" boolean not null default false;
@@ -1382,7 +1382,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_107_domains.sql
 -- better-supabase module: domains
 -- @bsb-block domains@2 managed
--- @bsb-hash sha256:3b6cc2ba4e027cdfa2a41515f6a90aaf6e7784036b8fb247d320b6e7652f7932
+-- @bsb-hash sha256:b6b6eaa670df7eb2b94bb3fba7bcba3673d11a2b1b8a970b1636e989ad03f50f
 -- Hostnames an organization serves its app on: custom domains verified by a DNS TXT record, subdomains of the platform domain, one primary per organization, and resolve_hostname() for the proxy.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1394,15 +1394,15 @@ on conflict (name) do update
 create table "better_supabase"."hostnames" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "hostname" text not null check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
-  "kind" text not null default 'custom' check ("kind" in ('custom', 'subdomain')),
+  "hostname" text not null constraint bsb_hostnames_hostname_check check (length("hostname") <= 253 and "hostname" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
+  "kind" text not null default 'custom' constraint bsb_hostnames_kind_check check ("kind" in ('custom', 'subdomain')),
   "verification_token" text not null default replace(gen_random_uuid()::text, '-', ''),
   "verified_at" timestamptz,
   "is_primary" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("org_id", "hostname"),
-  check (not "is_primary" or "verified_at" is not null)
+  constraint bsb_hostnames_check check (not "is_primary" or "verified_at" is not null)
 );
 create unique index "hostnames_verified_idx" on "better_supabase"."hostnames" ("hostname") where "verified_at" is not null;
 create unique index "hostnames_primary_idx" on "better_supabase"."hostnames" ("org_id") where "is_primary";

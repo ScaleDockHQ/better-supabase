@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:8b69e9bbadcd61f0f0e964ba1a80d2e3f618f02ca4c6c56e865de879c6ca5392
+-- @bsb-hash sha256:643c80a690656cebc6b95eb8e4aea188dec9adebc054149a5f33c96257a32356
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16,7 +16,7 @@ create table "better_supabase"."marketplace_installations" (
   "team_id" text,
   "user_id" text,
   "tenant" text,
-  "status" text not null default 'active' check ("status" in ('active', 'suspended', 'removed')),
+  "status" text not null default 'active' constraint bsb_marketplace_installations_status_check check ("status" in ('active', 'suspended', 'removed')),
   "metadata" jsonb not null default '{}'::jsonb,
   "removed_at" timestamptz,
   "created_at" timestamptz not null default now()
@@ -38,7 +38,7 @@ grant all on "better_supabase"."marketplace_installations" to service_role;
 create table "better_supabase"."marketplace_plans" (
   "id" text primary key,
   "name" text not null,
-  "kind" text not null default 'subscription' check ("kind" in ('subscription', 'prepayment')),
+  "kind" text not null default 'subscription' constraint bsb_marketplace_plans_kind_check check ("kind" in ('subscription', 'prepayment')),
   "details" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now()
 );
@@ -56,7 +56,7 @@ create table "better_supabase"."marketplace_resources" (
   "external_id" text not null,
   "name" text not null,
   "plan_id" text references "better_supabase"."marketplace_plans" ("id") on delete set null,
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
+  "status" text not null default 'ready' constraint bsb_marketplace_resources_status_check check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
   "metadata" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "external_id")
@@ -105,7 +105,7 @@ create table "better_supabase"."marketplace_meter_reports" (
   "meter_id" text not null,
   "period_start" timestamptz not null,
   "period_end" timestamptz not null,
-  "quantity" numeric not null check ("quantity" >= 0),
+  "quantity" numeric not null constraint bsb_marketplace_meter_reports_quantity_check check ("quantity" >= 0),
   "reported_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "resource_external_id", "meter_id", "period_start", "period_end")
@@ -606,7 +606,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:466348e193a98424372012662df4e2c07c64e81be50b7a9339e7c1beb34f48b1
+-- @bsb-hash sha256:c998efd05259b37ac9c1812f39e7b550a070e7d738cb6312a721b72e194e9279
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -621,7 +621,7 @@ create table "better_supabase"."marketplace_installations" (
   "team_id" text,
   "user_id" text,
   "tenant" text,
-  "status" text not null default 'active' check ("status" in ('active', 'suspended', 'removed')),
+  "status" text not null default 'active' constraint bsb_marketplace_installations_status_check check ("status" in ('active', 'suspended', 'removed')),
   "metadata" jsonb not null default '{}'::jsonb,
   "removed_at" timestamptz,
   "created_at" timestamptz not null default now()
@@ -643,7 +643,7 @@ grant all on "better_supabase"."marketplace_installations" to service_role;
 create table "better_supabase"."marketplace_plans" (
   "id" text primary key,
   "name" text not null,
-  "kind" text not null default 'subscription' check ("kind" in ('subscription', 'prepayment')),
+  "kind" text not null default 'subscription' constraint bsb_marketplace_plans_kind_check check ("kind" in ('subscription', 'prepayment')),
   "details" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now()
 );
@@ -661,7 +661,7 @@ create table "better_supabase"."marketplace_resources" (
   "external_id" text not null,
   "name" text not null,
   "plan_id" text references "better_supabase"."marketplace_plans" ("id") on delete set null,
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
+  "status" text not null default 'ready' constraint bsb_marketplace_resources_status_check check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
   "metadata" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "external_id")
@@ -710,7 +710,7 @@ create table "better_supabase"."marketplace_meter_reports" (
   "meter_id" text not null,
   "period_start" timestamptz not null,
   "period_end" timestamptz not null,
-  "quantity" numeric not null check ("quantity" >= 0),
+  "quantity" numeric not null constraint bsb_marketplace_meter_reports_quantity_check check ("quantity" >= 0),
   "reported_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "resource_external_id", "meter_id", "period_start", "period_end")
@@ -1239,7 +1239,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:ffdf6650bdb4e2fcd5ff5cd829faf44d2d185ead1d1751175e6ba57ec59bae73
+-- @bsb-hash sha256:79b86c1e80e4c97d05cdaceef35f9f231fc8d43ac242532ffecc358ee3ece16e
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1259,7 +1259,7 @@ create table "app_private"."marketplace_installations" (
   "team_id" text,
   "user_id" text,
   "tenant" text,
-  "status" text not null default 'active' check ("status" in ('active', 'suspended', 'removed')),
+  "status" text not null default 'active' constraint bsb_marketplace_installations_status_check check ("status" in ('active', 'suspended', 'removed')),
   "metadata" jsonb not null default '{}'::jsonb,
   "removed_at" timestamptz,
   "created_at" timestamptz not null default now()
@@ -1281,7 +1281,7 @@ grant all on "app_private"."marketplace_installations" to service_role;
 create table "app_private"."marketplace_plans" (
   "id" text primary key,
   "name" text not null,
-  "kind" text not null default 'subscription' check ("kind" in ('subscription', 'prepayment')),
+  "kind" text not null default 'subscription' constraint bsb_marketplace_plans_kind_check check ("kind" in ('subscription', 'prepayment')),
   "details" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now()
 );
@@ -1299,7 +1299,7 @@ create table "app_private"."marketplace_resources" (
   "external_id" text not null,
   "name" text not null,
   "plan_id" text references "app_private"."marketplace_plans" ("id") on delete set null,
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
+  "status" text not null default 'ready' constraint bsb_marketplace_resources_status_check check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
   "metadata" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "external_id")
@@ -1348,7 +1348,7 @@ create table "app_private"."marketplace_meter_reports" (
   "meter_id" text not null,
   "period_start" timestamptz not null,
   "period_end" timestamptz not null,
-  "quantity" numeric not null check ("quantity" >= 0),
+  "quantity" numeric not null constraint bsb_marketplace_meter_reports_quantity_check check ("quantity" >= 0),
   "reported_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "resource_external_id", "meter_id", "period_start", "period_end")
@@ -1849,7 +1849,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:1079930e59b3a18d644b3c21d75f09b86dbbef0598ecfe7c63f32f828b72abc5
+-- @bsb-hash sha256:69e54b6ecdea549e44a146960df7a61c432a9496502c7be111cc96b21cbe1915
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1864,7 +1864,7 @@ create table "better_supabase"."marketplace_installations" (
   "team_id" text,
   "user_id" text,
   "tenant" text,
-  "status" text not null default 'active' check ("status" in ('active', 'suspended', 'removed')),
+  "status" text not null default 'active' constraint bsb_marketplace_installations_status_check check ("status" in ('active', 'suspended', 'removed')),
   "metadata" jsonb not null default '{}'::jsonb,
   "removed_at" timestamptz,
   "created_at" timestamptz not null default now()
@@ -1886,7 +1886,7 @@ grant all on "better_supabase"."marketplace_installations" to service_role;
 create table "better_supabase"."marketplace_plans" (
   "id" text primary key,
   "name" text not null,
-  "kind" text not null default 'subscription' check ("kind" in ('subscription', 'prepayment')),
+  "kind" text not null default 'subscription' constraint bsb_marketplace_plans_kind_check check ("kind" in ('subscription', 'prepayment')),
   "details" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now()
 );
@@ -1904,7 +1904,7 @@ create table "better_supabase"."marketplace_resources" (
   "external_id" text not null,
   "name" text not null,
   "plan_id" text references "better_supabase"."marketplace_plans" ("id") on delete set null,
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
+  "status" text not null default 'ready' constraint bsb_marketplace_resources_status_check check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
   "metadata" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "external_id")
@@ -1953,7 +1953,7 @@ create table "better_supabase"."marketplace_meter_reports" (
   "meter_id" text not null,
   "period_start" timestamptz not null,
   "period_end" timestamptz not null,
-  "quantity" numeric not null check ("quantity" >= 0),
+  "quantity" numeric not null constraint bsb_marketplace_meter_reports_quantity_check check ("quantity" >= 0),
   "reported_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "resource_external_id", "meter_id", "period_start", "period_end")
@@ -2616,7 +2616,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:7889ed34e2bcb9eb1684904170febf5cc8e4a4e6abe18457fd3fe2b228ba1978
+-- @bsb-hash sha256:8f2a17902ee3c7f3d795afec8cc5ba83552fc67b9d37043109bea3b70f738025
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2631,7 +2631,7 @@ alter table "better_supabase"."marketplace_installations" add column if not exis
 alter table "better_supabase"."marketplace_installations" add column if not exists "team_id" text;
 alter table "better_supabase"."marketplace_installations" add column if not exists "user_id" text;
 alter table "better_supabase"."marketplace_installations" add column if not exists "tenant" text;
-alter table "better_supabase"."marketplace_installations" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'suspended', 'removed'));
+alter table "better_supabase"."marketplace_installations" add column if not exists "status" text not null default 'active' constraint bsb_marketplace_installations_status_check check ("status" in ('active', 'suspended', 'removed'));
 alter table "better_supabase"."marketplace_installations" add column if not exists "metadata" jsonb not null default '{}'::jsonb;
 alter table "better_supabase"."marketplace_installations" add column if not exists "removed_at" timestamptz;
 alter table "better_supabase"."marketplace_installations" add column if not exists "created_at" timestamptz not null default now();
@@ -2652,7 +2652,7 @@ grant all on "better_supabase"."marketplace_installations" to service_role;
 -- better_supabase.marketplace_plans is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."marketplace_plans" add column if not exists "id" text;
 alter table "better_supabase"."marketplace_plans" add column if not exists "name" text;
-alter table "better_supabase"."marketplace_plans" add column if not exists "kind" text not null default 'subscription' check ("kind" in ('subscription', 'prepayment'));
+alter table "better_supabase"."marketplace_plans" add column if not exists "kind" text not null default 'subscription' constraint bsb_marketplace_plans_kind_check check ("kind" in ('subscription', 'prepayment'));
 alter table "better_supabase"."marketplace_plans" add column if not exists "details" jsonb not null default '{}'::jsonb;
 alter table "better_supabase"."marketplace_plans" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."marketplace_plans" add column if not exists "updated_at" timestamptz not null default now();
@@ -2669,7 +2669,7 @@ alter table "better_supabase"."marketplace_resources" add column if not exists "
 alter table "better_supabase"."marketplace_resources" add column if not exists "external_id" text;
 alter table "better_supabase"."marketplace_resources" add column if not exists "name" text;
 alter table "better_supabase"."marketplace_resources" add column if not exists "plan_id" text references "better_supabase"."marketplace_plans" ("id") on delete set null;
-alter table "better_supabase"."marketplace_resources" add column if not exists "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'suspended', 'deleted'));
+alter table "better_supabase"."marketplace_resources" add column if not exists "status" text not null default 'ready' constraint bsb_marketplace_resources_status_check check ("status" in ('pending', 'ready', 'suspended', 'deleted'));
 alter table "better_supabase"."marketplace_resources" add column if not exists "metadata" jsonb not null default '{}'::jsonb;
 alter table "better_supabase"."marketplace_resources" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."marketplace_resources" add column if not exists "updated_at" timestamptz not null default now();
@@ -2714,7 +2714,7 @@ alter table "better_supabase"."marketplace_meter_reports" add column if not exis
 alter table "better_supabase"."marketplace_meter_reports" add column if not exists "meter_id" text;
 alter table "better_supabase"."marketplace_meter_reports" add column if not exists "period_start" timestamptz;
 alter table "better_supabase"."marketplace_meter_reports" add column if not exists "period_end" timestamptz;
-alter table "better_supabase"."marketplace_meter_reports" add column if not exists "quantity" numeric check ("quantity" >= 0);
+alter table "better_supabase"."marketplace_meter_reports" add column if not exists "quantity" numeric constraint bsb_marketplace_meter_reports_quantity_check check ("quantity" >= 0);
 alter table "better_supabase"."marketplace_meter_reports" add column if not exists "reported_at" timestamptz;
 alter table "better_supabase"."marketplace_meter_reports" add column if not exists "created_at" timestamptz not null default now();
 -- reported_quantity: the total Vercel accepted for the period, so the next
@@ -3213,7 +3213,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_112_vercel_marketplace.sql
 -- better-supabase module: vercel-marketplace
 -- @bsb-block vercel-marketplace@2 managed
--- @bsb-hash sha256:a214ab9ce295578100086b45e718711adad5cac02325e953d1e8b1eeb1146020
+-- @bsb-hash sha256:fcd99dd4a510618c6e390749616e31472f606c28b1dc5208f1cebe53008612d8
 -- Vercel Marketplace provider state: installations per configuration id, provisioned resources with their tenant and secret handles, access tokens sealed in Vault, plans, invoices kept by event time and meter reports sent to Vercel per period. Only the service role calls it; createVercelMarketplace() in better-supabase/blocks/vercel-marketplace serves the Partner API, verifies webhooks, exchanges SSO codes and reports usage.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3228,7 +3228,7 @@ create table "better_supabase"."marketplace_installations" (
   "team_id" text,
   "user_id" text,
   "org_id" text,
-  "status" text not null default 'active' check ("status" in ('active', 'suspended', 'removed')),
+  "status" text not null default 'active' constraint bsb_marketplace_installations_status_check check ("status" in ('active', 'suspended', 'removed')),
   "metadata" jsonb not null default '{}'::jsonb,
   "removed_at" timestamptz,
   "created_at" timestamptz not null default now()
@@ -3250,7 +3250,7 @@ grant all on "better_supabase"."marketplace_installations" to service_role;
 create table "better_supabase"."marketplace_plans" (
   "id" text primary key,
   "name" text not null,
-  "kind" text not null default 'subscription' check ("kind" in ('subscription', 'prepayment')),
+  "kind" text not null default 'subscription' constraint bsb_marketplace_plans_kind_check check ("kind" in ('subscription', 'prepayment')),
   "details" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now()
 );
@@ -3268,7 +3268,7 @@ create table "better_supabase"."marketplace_resources" (
   "external_id" text not null,
   "name" text not null,
   "plan_id" text references "better_supabase"."marketplace_plans" ("id") on delete set null,
-  "status" text not null default 'ready' check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
+  "status" text not null default 'ready' constraint bsb_marketplace_resources_status_check check ("status" in ('pending', 'ready', 'suspended', 'deleted')),
   "metadata" jsonb not null default '{}'::jsonb,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "external_id")
@@ -3317,7 +3317,7 @@ create table "better_supabase"."marketplace_meter_reports" (
   "meter_id" text not null,
   "period_start" timestamptz not null,
   "period_end" timestamptz not null,
-  "quantity" numeric not null check ("quantity" >= 0),
+  "quantity" numeric not null constraint bsb_marketplace_meter_reports_quantity_check check ("quantity" >= 0),
   "reported_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("installation_id", "resource_external_id", "meter_id", "period_start", "period_end")

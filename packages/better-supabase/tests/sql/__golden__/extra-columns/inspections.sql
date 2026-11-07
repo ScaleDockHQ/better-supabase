@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_153_inspections.sql
 -- better-supabase module: inspections
 -- @bsb-block inspections@1 managed
--- @bsb-hash sha256:11e8f24f20b5b6dbf781344402ee8d74a376ff621c7a9c4500cca872ae162a53
+-- @bsb-hash sha256:13145897b7f5822a2599447036052e2bd44da9418d7b5607439743aa4b04b62b
 -- Audit programmes, inspections numbered AUD-2026-001 with a team and a checklist form, findings typed as nonconformities, observations or opportunities, and cases opened from nonconformities before an inspection closes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,17 +13,17 @@
 create table "better_supabase"."inspection_programs" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_inspection_programs_name_check check (length("name") >= 1 and length("name") <= 200),
   "period_start" date not null,
   "period_end" date not null,
   "owner_id" uuid,
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved', 'closed')),
-  "notes" text check ("notes" is null or length("notes") <= 10000),
+  "status" text not null default 'draft' constraint bsb_inspection_programs_status_check check ("status" in ('draft', 'approved', 'closed')),
+  "notes" text constraint bsb_inspection_programs_notes_check check ("notes" is null or length("notes") <= 10000),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("period_end" >= "period_start")
+  constraint bsb_inspection_programs_check check ("period_end" >= "period_start")
 );
 create index "inspection_programs_tenant_idx" on "better_supabase"."inspection_programs" ("tenant_id", "period_start" desc);
 alter table "better_supabase"."inspection_programs" enable row level security;
@@ -39,13 +39,13 @@ create table "better_supabase"."inspections" (
   "tenant_id" uuid not null,
   "program_id" uuid,
   -- AUD-2026-001, from the numbering block when it numbers inspections.
-  "number" text not null check (length("number") >= 1 and length("number") <= 100),
+  "number" text not null constraint bsb_inspections_number_check check (length("number") >= 1 and length("number") <= 100),
   "sequence" bigint not null,
   -- One of options.kinds; the functions check it.
-  "kind" text not null check (length("kind") >= 1 and length("kind") <= 63),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "scope" text check ("scope" is null or length("scope") <= 10000),
-  "criteria" text check ("criteria" is null or length("criteria") <= 10000),
+  "kind" text not null constraint bsb_inspections_kind_check check (length("kind") >= 1 and length("kind") <= 63),
+  "title" text not null constraint bsb_inspections_title_check check (length("title") >= 1 and length("title") <= 300),
+  "scope" text constraint bsb_inspections_scope_check check ("scope" is null or length("scope") <= 10000),
+  "criteria" text constraint bsb_inspections_criteria_check check ("criteria" is null or length("criteria") <= 10000),
   -- The subject audited, such as a supplier or a site.
   "auditee_type" text,
   "auditee_id" text,
@@ -56,17 +56,17 @@ create table "better_supabase"."inspections" (
   "completed_at" timestamptz,
   "closed_at" timestamptz,
   "overdue_notified_for" date,
-  "status" text not null default 'planned' check ("status" in ('planned', 'in_progress', 'reporting', 'closed', 'canceled')),
+  "status" text not null default 'planned' constraint bsb_inspections_status_check check ("status" in ('planned', 'in_progress', 'reporting', 'closed', 'canceled')),
   "checklist_form_id" uuid references "better_supabase"."forms" ("id") on delete restrict,
   "checklist_submission_id" uuid references "better_supabase"."form_submissions" ("id") on delete set null,
-  "summary" text check ("summary" is null or length("summary") <= 20000),
+  "summary" text constraint bsb_inspections_summary_check check ("summary" is null or length("summary") <= 20000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
   unique ("tenant_id", "id"),
-  check (("auditee_type" is null) = ("auditee_id" is null)),
-  check ("planned_end" is null or "planned_start" is null or "planned_end" >= "planned_start"),
+  constraint bsb_inspections_check check (("auditee_type" is null) = ("auditee_id" is null)),
+  constraint bsb_inspections_check1 check ("planned_end" is null or "planned_start" is null or "planned_end" >= "planned_start"),
   foreign key ("tenant_id", "program_id") references "better_supabase"."inspection_programs" ("tenant_id", "id") on delete restrict
 );
 create index "inspections_tenant_idx" on "better_supabase"."inspections" ("tenant_id", "status", "planned_start" desc);
@@ -84,7 +84,7 @@ create table "better_supabase"."inspection_members" (
   "inspection_id" uuid not null,
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null check ("role" in ('lead', 'auditor', 'observer', 'auditee')),
+  "role" text not null constraint bsb_inspection_members_role_check check ("role" in ('lead', 'auditor', 'observer', 'auditee')),
   "created_at" timestamptz not null default now(),
   primary key ("inspection_id", "user_id"),
   foreign key ("tenant_id", "inspection_id") references "better_supabase"."inspections" ("tenant_id", "id") on delete cascade
@@ -124,14 +124,14 @@ create table "better_supabase"."inspection_findings" (
   "tenant_id" uuid not null,
   "inspection_id" uuid not null,
   -- 1, 2, 3 within the inspection.
-  "number" integer not null check ("number" > 0),
+  "number" integer not null constraint bsb_inspection_findings_number_check check ("number" > 0),
   -- One of options.findingTypes; the functions check it.
-  "type" text not null check (length("type") >= 1 and length("type") <= 63),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "description" text check ("description" is null or length("description") <= 10000),
-  "clause" text check ("clause" is null or length("clause") <= 200),
+  "type" text not null constraint bsb_inspection_findings_type_check check (length("type") >= 1 and length("type") <= 63),
+  "title" text not null constraint bsb_inspection_findings_title_check check (length("title") >= 1 and length("title") <= 300),
+  "description" text constraint bsb_inspection_findings_description_check check ("description" is null or length("description") <= 10000),
+  "clause" text constraint bsb_inspection_findings_clause_check check ("clause" is null or length("clause") <= 200),
   "control_id" uuid,
-  "evidence" text check ("evidence" is null or length("evidence") <= 10000),
+  "evidence" text constraint bsb_inspection_findings_evidence_check check ("evidence" is null or length("evidence") <= 10000),
   "case_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),

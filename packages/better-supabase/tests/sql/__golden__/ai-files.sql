@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:9882a846079321fe3c6383e1a3aaa1917abf6022c3d2754a2dc3d57b2a390ac4
+-- @bsb-hash sha256:02255d50d2e50e8bc38f10ce83764ac97e0b597a2f2bb65359d6e389a9a6b9fd
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17,13 +17,13 @@ create table "better_supabase"."ai_files" (
   "chat_id" uuid,
   "project_id" uuid,
   "bucket" text not null,
-  "filename" text not null check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..')),
+  "filename" text not null constraint bsb_ai_files_filename_check check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..')),
   "path" text generated always as ("organization_id"::text || '/' || "owner_id"::text || '/' || "id"::text || '/' || "filename") stored,
-  "media_type" text not null check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
-  "byte_size" bigint not null check ("byte_size" >= 0 and "byte_size" <= 52428800),
-  "sha256" text check ("sha256" ~ '^[0-9a-f]{64}$'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'ready', 'failed')),
-  "source" text not null default 'upload' check ("source" in ('upload', 'generated', 'provider')),
+  "media_type" text not null constraint bsb_ai_files_media_type_check check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
+  "byte_size" bigint not null constraint bsb_ai_files_byte_size_check check ("byte_size" >= 0 and "byte_size" <= 52428800),
+  "sha256" text constraint bsb_ai_files_sha256_check check ("sha256" ~ '^[0-9a-f]{64}$'),
+  "status" text not null default 'pending' constraint bsb_ai_files_status_check check ("status" in ('pending', 'ready', 'failed')),
+  "source" text not null default 'upload' constraint bsb_ai_files_source_check check ("source" in ('upload', 'generated', 'provider')),
   "created_at" timestamptz not null default now(),
   "uploaded_at" timestamptz,
   "expires_at" timestamptz
@@ -45,8 +45,8 @@ create policy bsb_ai_files_read on "better_supabase"."ai_files"
 -- Gemini file URI), so the next call reuses it until it expires.
 create table "better_supabase"."ai_provider_files" (
   "file_id" uuid not null references "better_supabase"."ai_files" ("id") on delete cascade,
-  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
-  "reference" text not null check (length("reference") >= 1 and length("reference") <= 2000),
+  "provider" text not null constraint bsb_ai_provider_files_provider_check check (length("provider") >= 1 and length("provider") <= 100),
+  "reference" text not null constraint bsb_ai_provider_files_reference_check check (length("reference") >= 1 and length("reference") <= 2000),
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   primary key ("file_id", "provider")
@@ -64,9 +64,9 @@ create table "better_supabase"."ai_documents" (
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
-  "current_version" integer not null default 1 check ("current_version" >= 1),
+  "kind" text not null constraint bsb_ai_documents_kind_check check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
+  "title" text not null constraint bsb_ai_documents_title_check check (length("title") >= 1 and length("title") <= 500),
+  "current_version" integer not null default 1 constraint bsb_ai_documents_current_version_check check ("current_version" >= 1),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -725,7 +725,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:be1c6956ffccc198534b52b73b4c60a7dc4d6846b0efd4ca294183e74c854425
+-- @bsb-hash sha256:928c0864dd8cd558b4d099d3ec65e4027c5e72d11a825402f36309dfb98768c5
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -741,13 +741,13 @@ create table "better_supabase"."ai_files" (
   "chat_id" uuid,
   "project_id" uuid,
   "bucket" text not null,
-  "filename" text not null check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..')),
+  "filename" text not null constraint bsb_ai_files_filename_check check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..')),
   "path" text generated always as ("organization_id"::text || '/' || "owner_id"::text || '/' || "id"::text || '/' || "filename") stored,
-  "media_type" text not null check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
-  "byte_size" bigint not null check ("byte_size" >= 0 and "byte_size" <= 52428800),
-  "sha256" text check ("sha256" ~ '^[0-9a-f]{64}$'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'ready', 'failed')),
-  "source" text not null default 'upload' check ("source" in ('upload', 'generated', 'provider')),
+  "media_type" text not null constraint bsb_ai_files_media_type_check check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
+  "byte_size" bigint not null constraint bsb_ai_files_byte_size_check check ("byte_size" >= 0 and "byte_size" <= 52428800),
+  "sha256" text constraint bsb_ai_files_sha256_check check ("sha256" ~ '^[0-9a-f]{64}$'),
+  "status" text not null default 'pending' constraint bsb_ai_files_status_check check ("status" in ('pending', 'ready', 'failed')),
+  "source" text not null default 'upload' constraint bsb_ai_files_source_check check ("source" in ('upload', 'generated', 'provider')),
   "created_at" timestamptz not null default now(),
   "uploaded_at" timestamptz,
   "expires_at" timestamptz
@@ -769,8 +769,8 @@ create policy bsb_ai_files_read on "better_supabase"."ai_files"
 -- Gemini file URI), so the next call reuses it until it expires.
 create table "better_supabase"."ai_provider_files" (
   "file_id" uuid not null references "better_supabase"."ai_files" ("id") on delete cascade,
-  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
-  "reference" text not null check (length("reference") >= 1 and length("reference") <= 2000),
+  "provider" text not null constraint bsb_ai_provider_files_provider_check check (length("provider") >= 1 and length("provider") <= 100),
+  "reference" text not null constraint bsb_ai_provider_files_reference_check check (length("reference") >= 1 and length("reference") <= 2000),
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   primary key ("file_id", "provider")
@@ -788,9 +788,9 @@ create table "better_supabase"."ai_documents" (
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
-  "current_version" integer not null default 1 check ("current_version" >= 1),
+  "kind" text not null constraint bsb_ai_documents_kind_check check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
+  "title" text not null constraint bsb_ai_documents_title_check check (length("title") >= 1 and length("title") <= 500),
+  "current_version" integer not null default 1 constraint bsb_ai_documents_current_version_check check ("current_version" >= 1),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -1453,7 +1453,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:ce16e534c234cb3d977fe30b292842fe78b3d42a1e4ec6d10ad0094e92ab2278
+-- @bsb-hash sha256:db2f78bfd39bed412d4e519b7a620f46cdff0fcb3b793e83096ecd06fb30159a
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1474,13 +1474,13 @@ create table "app_private"."ai_files" (
   "chat_id" uuid,
   "project_id" uuid,
   "bucket" text not null,
-  "filename" text not null check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..')),
+  "filename" text not null constraint bsb_ai_files_filename_check check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..')),
   "path" text generated always as ("organization_id"::text || '/' || "owner_id"::text || '/' || "id"::text || '/' || "filename") stored,
-  "media_type" text not null check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
-  "byte_size" bigint not null check ("byte_size" >= 0 and "byte_size" <= 52428800),
-  "sha256" text check ("sha256" ~ '^[0-9a-f]{64}$'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'ready', 'failed')),
-  "source" text not null default 'upload' check ("source" in ('upload', 'generated', 'provider')),
+  "media_type" text not null constraint bsb_ai_files_media_type_check check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
+  "byte_size" bigint not null constraint bsb_ai_files_byte_size_check check ("byte_size" >= 0 and "byte_size" <= 52428800),
+  "sha256" text constraint bsb_ai_files_sha256_check check ("sha256" ~ '^[0-9a-f]{64}$'),
+  "status" text not null default 'pending' constraint bsb_ai_files_status_check check ("status" in ('pending', 'ready', 'failed')),
+  "source" text not null default 'upload' constraint bsb_ai_files_source_check check ("source" in ('upload', 'generated', 'provider')),
   "created_at" timestamptz not null default now(),
   "uploaded_at" timestamptz,
   "expires_at" timestamptz
@@ -1502,8 +1502,8 @@ create policy bsb_ai_files_read on "app_private"."ai_files"
 -- Gemini file URI), so the next call reuses it until it expires.
 create table "app_private"."ai_provider_files" (
   "file_id" uuid not null references "app_private"."ai_files" ("id") on delete cascade,
-  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
-  "reference" text not null check (length("reference") >= 1 and length("reference") <= 2000),
+  "provider" text not null constraint bsb_ai_provider_files_provider_check check (length("provider") >= 1 and length("provider") <= 100),
+  "reference" text not null constraint bsb_ai_provider_files_reference_check check (length("reference") >= 1 and length("reference") <= 2000),
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   primary key ("file_id", "provider")
@@ -1521,9 +1521,9 @@ create table "app_private"."ai_documents" (
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
-  "current_version" integer not null default 1 check ("current_version" >= 1),
+  "kind" text not null constraint bsb_ai_documents_kind_check check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
+  "title" text not null constraint bsb_ai_documents_title_check check (length("title") >= 1 and length("title") <= 500),
+  "current_version" integer not null default 1 constraint bsb_ai_documents_current_version_check check ("current_version" >= 1),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -2182,7 +2182,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:dcf087871ccf76bbfd7fd40a29b22905414cc48f2b4b28909f8f9d163dc5a788
+-- @bsb-hash sha256:a7d28d4ebee6f013b63903c14251b651157991fa84d579fa6ac655a3a1411c08
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2198,13 +2198,13 @@ create table "better_supabase"."ai_files" (
   "chat_id" uuid,
   "project_id" uuid,
   "bucket" text not null,
-  "filename" text not null check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..')),
+  "filename" text not null constraint bsb_ai_files_filename_check check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..')),
   "path" text generated always as ("organization_id"::text || '/' || "owner_id"::text || '/' || "id"::text || '/' || "filename") stored,
-  "media_type" text not null check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
-  "byte_size" bigint not null check ("byte_size" >= 0 and "byte_size" <= 52428800),
-  "sha256" text check ("sha256" ~ '^[0-9a-f]{64}$'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'ready', 'failed')),
-  "source" text not null default 'upload' check ("source" in ('upload', 'generated', 'provider')),
+  "media_type" text not null constraint bsb_ai_files_media_type_check check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
+  "byte_size" bigint not null constraint bsb_ai_files_byte_size_check check ("byte_size" >= 0 and "byte_size" <= 52428800),
+  "sha256" text constraint bsb_ai_files_sha256_check check ("sha256" ~ '^[0-9a-f]{64}$'),
+  "status" text not null default 'pending' constraint bsb_ai_files_status_check check ("status" in ('pending', 'ready', 'failed')),
+  "source" text not null default 'upload' constraint bsb_ai_files_source_check check ("source" in ('upload', 'generated', 'provider')),
   "created_at" timestamptz not null default now(),
   "uploaded_at" timestamptz,
   "expires_at" timestamptz
@@ -2226,8 +2226,8 @@ create policy bsb_ai_files_read on "better_supabase"."ai_files"
 -- Gemini file URI), so the next call reuses it until it expires.
 create table "better_supabase"."ai_provider_files" (
   "file_id" uuid not null references "better_supabase"."ai_files" ("id") on delete cascade,
-  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
-  "reference" text not null check (length("reference") >= 1 and length("reference") <= 2000),
+  "provider" text not null constraint bsb_ai_provider_files_provider_check check (length("provider") >= 1 and length("provider") <= 100),
+  "reference" text not null constraint bsb_ai_provider_files_reference_check check (length("reference") >= 1 and length("reference") <= 2000),
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   primary key ("file_id", "provider")
@@ -2245,9 +2245,9 @@ create table "better_supabase"."ai_documents" (
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
-  "current_version" integer not null default 1 check ("current_version" >= 1),
+  "kind" text not null constraint bsb_ai_documents_kind_check check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
+  "title" text not null constraint bsb_ai_documents_title_check check (length("title") >= 1 and length("title") <= 500),
+  "current_version" integer not null default 1 constraint bsb_ai_documents_current_version_check check ("current_version" >= 1),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
@@ -3101,7 +3101,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:ee284d1d5b1c69631f043618d85a464c44bfbf08b4b04cbeaf5fd46ab8449b65
+-- @bsb-hash sha256:eb5d3ea85ef29717112d16650da321f6a75bc4e18239c4d2cbc16c030616b056
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3117,13 +3117,13 @@ alter table "better_supabase"."ai_files" add column if not exists "owner_id" uui
 alter table "better_supabase"."ai_files" add column if not exists "chat_id" uuid;
 alter table "better_supabase"."ai_files" add column if not exists "project_id" uuid;
 alter table "better_supabase"."ai_files" add column if not exists "bucket" text;
-alter table "better_supabase"."ai_files" add column if not exists "filename" text check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..'));
+alter table "better_supabase"."ai_files" add column if not exists "filename" text constraint bsb_ai_files_filename_check check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..'));
 alter table "better_supabase"."ai_files" add column if not exists "path" text generated always as ("organization_id"::text || '/' || "owner_id"::text || '/' || "id"::text || '/' || "filename") stored;
-alter table "better_supabase"."ai_files" add column if not exists "media_type" text check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$');
-alter table "better_supabase"."ai_files" add column if not exists "byte_size" bigint check ("byte_size" >= 0 and "byte_size" <= 52428800);
-alter table "better_supabase"."ai_files" add column if not exists "sha256" text check ("sha256" ~ '^[0-9a-f]{64}$');
-alter table "better_supabase"."ai_files" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'ready', 'failed'));
-alter table "better_supabase"."ai_files" add column if not exists "source" text not null default 'upload' check ("source" in ('upload', 'generated', 'provider'));
+alter table "better_supabase"."ai_files" add column if not exists "media_type" text constraint bsb_ai_files_media_type_check check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$');
+alter table "better_supabase"."ai_files" add column if not exists "byte_size" bigint constraint bsb_ai_files_byte_size_check check ("byte_size" >= 0 and "byte_size" <= 52428800);
+alter table "better_supabase"."ai_files" add column if not exists "sha256" text constraint bsb_ai_files_sha256_check check ("sha256" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."ai_files" add column if not exists "status" text not null default 'pending' constraint bsb_ai_files_status_check check ("status" in ('pending', 'ready', 'failed'));
+alter table "better_supabase"."ai_files" add column if not exists "source" text not null default 'upload' constraint bsb_ai_files_source_check check ("source" in ('upload', 'generated', 'provider'));
 alter table "better_supabase"."ai_files" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."ai_files" add column if not exists "uploaded_at" timestamptz;
 alter table "better_supabase"."ai_files" add column if not exists "expires_at" timestamptz;
@@ -3143,8 +3143,8 @@ create policy bsb_ai_files_read on "better_supabase"."ai_files"
 -- Gemini file URI), so the next call reuses it until it expires.
 -- better_supabase.ai_provider_files is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."ai_provider_files" add column if not exists "file_id" uuid references "better_supabase"."ai_files" ("id") on delete cascade;
-alter table "better_supabase"."ai_provider_files" add column if not exists "provider" text check (length("provider") >= 1 and length("provider") <= 100);
-alter table "better_supabase"."ai_provider_files" add column if not exists "reference" text check (length("reference") >= 1 and length("reference") <= 2000);
+alter table "better_supabase"."ai_provider_files" add column if not exists "provider" text constraint bsb_ai_provider_files_provider_check check (length("provider") >= 1 and length("provider") <= 100);
+alter table "better_supabase"."ai_provider_files" add column if not exists "reference" text constraint bsb_ai_provider_files_reference_check check (length("reference") >= 1 and length("reference") <= 2000);
 alter table "better_supabase"."ai_provider_files" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."ai_provider_files" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_ai_provider_files_file_key" on "better_supabase"."ai_provider_files" ("file_id", "provider");
@@ -3160,9 +3160,9 @@ alter table "better_supabase"."ai_documents" add column if not exists "id" uuid 
 alter table "better_supabase"."ai_documents" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."ai_documents" add column if not exists "owner_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."ai_documents" add column if not exists "chat_id" uuid;
-alter table "better_supabase"."ai_documents" add column if not exists "kind" text check ("kind" in ('text', 'code', 'sheet', 'image', 'spec'));
-alter table "better_supabase"."ai_documents" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 500);
-alter table "better_supabase"."ai_documents" add column if not exists "current_version" integer not null default 1 check ("current_version" >= 1);
+alter table "better_supabase"."ai_documents" add column if not exists "kind" text constraint bsb_ai_documents_kind_check check ("kind" in ('text', 'code', 'sheet', 'image', 'spec'));
+alter table "better_supabase"."ai_documents" add column if not exists "title" text constraint bsb_ai_documents_title_check check (length("title") >= 1 and length("title") <= 500);
+alter table "better_supabase"."ai_documents" add column if not exists "current_version" integer not null default 1 constraint bsb_ai_documents_current_version_check check ("current_version" >= 1);
 alter table "better_supabase"."ai_documents" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."ai_documents" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists ai_documents_owner_idx on "better_supabase"."ai_documents" ("owner_id");
@@ -3817,7 +3817,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_048_ai_files.sql
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:0f76096bfc7e8e6e558e7cb622eeaed0c7b06b559e5e1f1e306a0e2e6a5881be
+-- @bsb-hash sha256:d3d7db91849306484a5e2b11e95ccd7b10196f5e0f2310a4d045bc15c6c5c83c
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3833,13 +3833,13 @@ create table "better_supabase"."ai_files" (
   "chat_id" uuid,
   "project_id" uuid,
   "bucket" text not null,
-  "filename" text not null check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..')),
+  "filename" text not null constraint bsb_ai_files_filename_check check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..')),
   "path" text generated always as ("org_id"::text || '/' || "owner_id"::text || '/' || "id"::text || '/' || "filename") stored,
-  "media_type" text not null check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
-  "byte_size" bigint not null check ("byte_size" >= 0 and "byte_size" <= 52428800),
-  "sha256" text check ("sha256" ~ '^[0-9a-f]{64}$'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'ready', 'failed')),
-  "source" text not null default 'upload' check ("source" in ('upload', 'generated', 'provider')),
+  "media_type" text not null constraint bsb_ai_files_media_type_check check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
+  "byte_size" bigint not null constraint bsb_ai_files_byte_size_check check ("byte_size" >= 0 and "byte_size" <= 52428800),
+  "sha256" text constraint bsb_ai_files_sha256_check check ("sha256" ~ '^[0-9a-f]{64}$'),
+  "status" text not null default 'pending' constraint bsb_ai_files_status_check check ("status" in ('pending', 'ready', 'failed')),
+  "source" text not null default 'upload' constraint bsb_ai_files_source_check check ("source" in ('upload', 'generated', 'provider')),
   "created_at" timestamptz not null default now(),
   "uploaded_at" timestamptz,
   "expires_at" timestamptz
@@ -3861,8 +3861,8 @@ create policy bsb_ai_files_read on "better_supabase"."ai_files"
 -- Gemini file URI), so the next call reuses it until it expires.
 create table "better_supabase"."ai_provider_files" (
   "file_id" uuid not null references "better_supabase"."ai_files" ("id") on delete cascade,
-  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
-  "reference" text not null check (length("reference") >= 1 and length("reference") <= 2000),
+  "provider" text not null constraint bsb_ai_provider_files_provider_check check (length("provider") >= 1 and length("provider") <= 100),
+  "reference" text not null constraint bsb_ai_provider_files_reference_check check (length("reference") >= 1 and length("reference") <= 2000),
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   primary key ("file_id", "provider")
@@ -3880,9 +3880,9 @@ create table "better_supabase"."ai_documents" (
   "org_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
-  "current_version" integer not null default 1 check ("current_version" >= 1),
+  "kind" text not null constraint bsb_ai_documents_kind_check check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
+  "title" text not null constraint bsb_ai_documents_title_check check (length("title") >= 1 and length("title") <= 500),
+  "current_version" integer not null default 1 constraint bsb_ai_documents_current_version_check check ("current_version" >= 1),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );

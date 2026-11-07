@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:2b5ee0e9dd48a14afc5a3efac5790beb67ed3a96f06a6ddfc37f3bf3235e3879
+-- @bsb-hash sha256:8a8a3ec9d9f7f39482453a627fb8863c2937da55bd933aee275f06ca8597967e
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,7 +11,7 @@ create table "better_supabase"."documents" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "name" text not null default 'body' check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null default 'body' constraint bsb_documents_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -55,13 +55,13 @@ create table "better_supabase"."document_suggestions" (
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "payload" bytea not null,
-  "summary" text check (length("summary") >= 1 and length("summary") <= 500),
-  "status" text not null default 'open' check ("status" in ('open', 'accepted', 'rejected', 'withdrawn')),
+  "summary" text constraint bsb_document_suggestions_summary_check check (length("summary") >= 1 and length("summary") <= 500),
+  "status" text not null default 'open' constraint bsb_document_suggestions_status_check check ("status" in ('open', 'accepted', 'rejected', 'withdrawn')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "decided_by" uuid,
   "decided_at" timestamptz,
-  "note" text check (length("note") >= 1 and length("note") <= 500)
+  "note" text constraint bsb_document_suggestions_note_check check (length("note") >= 1 and length("note") <= 500)
 );
 create index "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;
@@ -538,7 +538,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:4e9cbaf12614522ee43b3b1f1ea4e2b81aeee3be25c0d864851df72684f3729a
+-- @bsb-hash sha256:c90efe9fe88738155527d94c576ce15d2683f3a8b98b324f91df57852b69f390
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -548,7 +548,7 @@ create table "better_supabase"."documents" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "name" text not null default 'body' check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null default 'body' constraint bsb_documents_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -592,13 +592,13 @@ create table "better_supabase"."document_suggestions" (
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "payload" bytea not null,
-  "summary" text check (length("summary") >= 1 and length("summary") <= 500),
-  "status" text not null default 'open' check ("status" in ('open', 'accepted', 'rejected', 'withdrawn')),
+  "summary" text constraint bsb_document_suggestions_summary_check check (length("summary") >= 1 and length("summary") <= 500),
+  "status" text not null default 'open' constraint bsb_document_suggestions_status_check check ("status" in ('open', 'accepted', 'rejected', 'withdrawn')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "decided_by" uuid,
   "decided_at" timestamptz,
-  "note" text check (length("note") >= 1 and length("note") <= 500)
+  "note" text constraint bsb_document_suggestions_note_check check (length("note") >= 1 and length("note") <= 500)
 );
 create index "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;
@@ -1224,7 +1224,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:29e703a26b1b357b3fbc938f5d279c4164090a1565e0f712c4b1fe5f2d6c3041
+-- @bsb-hash sha256:d29f02fe01a22daf27ea8a321966d31f130d81a958cbe7b29fae5ba4890a61f5
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1239,7 +1239,7 @@ create table "app_private"."documents" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "name" text not null default 'body' check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null default 'body' constraint bsb_documents_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -1283,13 +1283,13 @@ create table "app_private"."document_suggestions" (
   "document_id" uuid not null references "app_private"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "payload" bytea not null,
-  "summary" text check (length("summary") >= 1 and length("summary") <= 500),
-  "status" text not null default 'open' check ("status" in ('open', 'accepted', 'rejected', 'withdrawn')),
+  "summary" text constraint bsb_document_suggestions_summary_check check (length("summary") >= 1 and length("summary") <= 500),
+  "status" text not null default 'open' constraint bsb_document_suggestions_status_check check ("status" in ('open', 'accepted', 'rejected', 'withdrawn')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "decided_by" uuid,
   "decided_at" timestamptz,
-  "note" text check (length("note") >= 1 and length("note") <= 500)
+  "note" text constraint bsb_document_suggestions_note_check check (length("note") >= 1 and length("note") <= 500)
 );
 create index "document_suggestions_document_idx" on "app_private"."document_suggestions" ("document_id", "status", "created_at");
 alter table "app_private"."document_suggestions" enable row level security;
@@ -1766,7 +1766,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:142291c06c6ca93f3e1b67ac31d3c830d7ac880b603637eea1488698e6713918
+-- @bsb-hash sha256:2ad2d221d2e5ef54c9bb5b89a8096bdca69afe178b38d15d8df36115371576cb
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1776,7 +1776,7 @@ create table "better_supabase"."documents" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "name" text not null default 'body' check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null default 'body' constraint bsb_documents_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -1820,13 +1820,13 @@ create table "better_supabase"."document_suggestions" (
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "payload" bytea not null,
-  "summary" text check (length("summary") >= 1 and length("summary") <= 500),
-  "status" text not null default 'open' check ("status" in ('open', 'accepted', 'rejected', 'withdrawn')),
+  "summary" text constraint bsb_document_suggestions_summary_check check (length("summary") >= 1 and length("summary") <= 500),
+  "status" text not null default 'open' constraint bsb_document_suggestions_status_check check ("status" in ('open', 'accepted', 'rejected', 'withdrawn')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "decided_by" uuid,
   "decided_at" timestamptz,
-  "note" text check (length("note") >= 1 and length("note") <= 500)
+  "note" text constraint bsb_document_suggestions_note_check check (length("note") >= 1 and length("note") <= 500)
 );
 create index "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;
@@ -2402,7 +2402,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:022431eabccf55d559d080133f1ce5fa463b231025c5a60b6e4c4f0bfaeb1fbb
+-- @bsb-hash sha256:1dfd5d46c7a958eb72fdc034f657e16fb5e0c3f839d854afdfdc757d54115d3d
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2412,7 +2412,7 @@ alter table "better_supabase"."documents" add column if not exists "id" uuid def
 alter table "better_supabase"."documents" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."documents" add column if not exists "subject_type" text;
 alter table "better_supabase"."documents" add column if not exists "subject_id" text;
-alter table "better_supabase"."documents" add column if not exists "name" text not null default 'body' check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."documents" add column if not exists "name" text not null default 'body' constraint bsb_documents_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."documents" add column if not exists "created_by" uuid;
 alter table "better_supabase"."documents" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."documents" add column if not exists "updated_at" timestamptz not null default now();
@@ -2451,13 +2451,13 @@ alter table "better_supabase"."document_suggestions" add column if not exists "i
 alter table "better_supabase"."document_suggestions" add column if not exists "document_id" uuid references "better_supabase"."documents" ("id") on delete cascade;
 alter table "better_supabase"."document_suggestions" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."document_suggestions" add column if not exists "payload" bytea;
-alter table "better_supabase"."document_suggestions" add column if not exists "summary" text check (length("summary") >= 1 and length("summary") <= 500);
-alter table "better_supabase"."document_suggestions" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'accepted', 'rejected', 'withdrawn'));
+alter table "better_supabase"."document_suggestions" add column if not exists "summary" text constraint bsb_document_suggestions_summary_check check (length("summary") >= 1 and length("summary") <= 500);
+alter table "better_supabase"."document_suggestions" add column if not exists "status" text not null default 'open' constraint bsb_document_suggestions_status_check check ("status" in ('open', 'accepted', 'rejected', 'withdrawn'));
 alter table "better_supabase"."document_suggestions" add column if not exists "created_by" uuid;
 alter table "better_supabase"."document_suggestions" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."document_suggestions" add column if not exists "decided_by" uuid;
 alter table "better_supabase"."document_suggestions" add column if not exists "decided_at" timestamptz;
-alter table "better_supabase"."document_suggestions" add column if not exists "note" text check (length("note") >= 1 and length("note") <= 500);
+alter table "better_supabase"."document_suggestions" add column if not exists "note" text constraint bsb_document_suggestions_note_check check (length("note") >= 1 and length("note") <= 500);
 create index if not exists "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;
 grant all on "better_supabase"."document_suggestions" to service_role;
@@ -2932,7 +2932,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_079_documents.sql
 -- better-supabase module: documents
 -- @bsb-block documents@1 managed
--- @bsb-hash sha256:318bc1659b6cf75974aea1fc35f1234ac8ac5ee061ff01a1abfc6d3a6a3449ae
+-- @bsb-hash sha256:29249bef3a4ee340fcdf09fdb44264d0ff3d0814bf7b52a3834b7c6afdee966d
 -- Yjs documents attached to any subject: an update log, a compacted snapshot, a private realtime topic per document for updates and presence, suggestions that editors accept into the log, and named versions through the versions module.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2942,7 +2942,7 @@ create table "better_supabase"."documents" (
   "org_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "name" text not null default 'body' check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null default 'body' constraint bsb_documents_name_check check ("name" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -2986,13 +2986,13 @@ create table "better_supabase"."document_suggestions" (
   "document_id" uuid not null references "better_supabase"."documents" ("id") on delete cascade,
   "org_id" uuid not null,
   "payload" bytea not null,
-  "summary" text check (length("summary") >= 1 and length("summary") <= 500),
-  "status" text not null default 'open' check ("status" in ('open', 'accepted', 'rejected', 'withdrawn')),
+  "summary" text constraint bsb_document_suggestions_summary_check check (length("summary") >= 1 and length("summary") <= 500),
+  "status" text not null default 'open' constraint bsb_document_suggestions_status_check check ("status" in ('open', 'accepted', 'rejected', 'withdrawn')),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "decided_by" uuid,
   "decided_at" timestamptz,
-  "note" text check (length("note") >= 1 and length("note") <= 500)
+  "note" text constraint bsb_document_suggestions_note_check check (length("note") >= 1 and length("note") <= 500)
 );
 create index "document_suggestions_document_idx" on "better_supabase"."document_suggestions" ("document_id", "status", "created_at");
 alter table "better_supabase"."document_suggestions" enable row level security;

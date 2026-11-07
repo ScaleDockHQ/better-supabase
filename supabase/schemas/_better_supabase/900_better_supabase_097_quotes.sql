@@ -1,6 +1,6 @@
 -- better-supabase module: quotes
 -- @bsb-block quotes@3 managed
--- @bsb-hash sha256:ca9ab777e777d51d503c1c4bc7428b267d82531126673b9f31d587b651d122f1
+-- @bsb-hash sha256:da7e4818fe4a0fd68eb6c64c91ba10f125158179d5dec169547ec43ccd5a5c79
 -- Quotes with sections, optional lines, discounts, prices with or without tax, tax per rate and a deposit; published versions; a public link or the signed-in portal the customer accepts, rejects or asks changes through; expiry; and quotes from deals. With catalog, a line that names a product variant takes its price and title.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,14 +15,14 @@ create table "better_supabase"."quotes" (
   "number" bigint not null,
   "identifier" text not null,
   "revision" integer not null default 1,
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
+  "title" text not null constraint bsb_quotes_title_check check (length("title") >= 1 and length("title") <= 300),
   "company_type" text,
   "company_id" text,
   "contact_type" text,
   "contact_id" text,
   "owner_user_id" uuid,
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
-  "status" text not null default 'draft' check ("status" in ('draft', 'sent', 'viewed', 'accepted', 'rejected', 'changes_requested', 'expired', 'withdrawn')),
+  "currency" char(3) not null constraint bsb_quotes_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "status" text not null default 'draft' constraint bsb_quotes_status_check check ("status" in ('draft', 'sent', 'viewed', 'accepted', 'rejected', 'changes_requested', 'expired', 'withdrawn')),
   "valid_until" date,
   "terms" text,
   "note" text,
@@ -38,16 +38,16 @@ create table "better_supabase"."quotes" (
   "decided_ip" text,
   "decided_user_agent" text,
   "prices_include_tax" boolean not null default false,
-  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
-  "discount_amount" bigint not null default 0 check ("discount_amount" >= 0),
-  "deposit_bps" integer check ("deposit_bps" > 0 and "deposit_bps" < 10000),
-  "deposit_amount" bigint check ("deposit_amount" > 0),
+  "discount_bps" integer not null default 0 constraint bsb_quotes_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_amount" bigint not null default 0 constraint bsb_quotes_discount_amount_check check ("discount_amount" >= 0),
+  "deposit_bps" integer constraint bsb_quotes_deposit_bps_check check ("deposit_bps" > 0 and "deposit_bps" < 10000),
+  "deposit_amount" bigint constraint bsb_quotes_deposit_amount_check check ("deposit_amount" > 0),
   "deposit_required" boolean not null default false,
   "deposit_due" bigint not null default 0,
   "unpublished_changes" boolean not null default false,
   "buyer" jsonb,
   "variant_of" uuid,
-  "variant_label" text check (length("variant_label") >= 1 and length("variant_label") <= 100),
+  "variant_label" text constraint bsb_quotes_variant_label_check check (length("variant_label") >= 1 and length("variant_label") <= 100),
   "is_selected" boolean not null default false,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -58,8 +58,8 @@ create table "better_supabase"."quotes" (
   "tax_total" bigint not null default 0,
   "total" bigint not null default 0,
   unique ("tenant_id", "number", "revision"),
-  check (("company_type" is null) = ("company_id" is null)),
-  check (("origin_type" is null) = ("origin_id" is null))
+  constraint bsb_quotes_check check (("company_type" is null) = ("company_id" is null)),
+  constraint bsb_quotes_check1 check (("origin_type" is null) = ("origin_id" is null))
 );
 create index quotes_tenant_status_idx on "better_supabase"."quotes" ("tenant_id", "status", "created_at" desc);
 create index quotes_variant_idx on "better_supabase"."quotes" ("variant_of") where "variant_of" is not null;
@@ -519,28 +519,28 @@ create table "better_supabase"."quote_lines" (
   "parent_id" uuid not null references "better_supabase"."quotes" ("id") on delete cascade,
   "product_type" text,
   "product_id" text,
-  "description" text not null check (length("description") >= 1 and length("description") <= 2000),
-  "quantity" numeric(18, 4) not null check ("quantity" > 0),
+  "description" text not null constraint bsb_quote_lines_description_check check (length("description") >= 1 and length("description") <= 2000),
+  "quantity" numeric(18, 4) not null constraint bsb_quote_lines_quantity_check check ("quantity" > 0),
   "unit_amount" bigint not null,
-  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
-  "tax_rate_bps" integer not null default 0 check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
+  "discount_bps" integer not null default 0 constraint bsb_quote_lines_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "tax_rate_bps" integer not null default 0 constraint bsb_quote_lines_tax_rate_bps_check check ("tax_rate_bps" >= 0 and "tax_rate_bps" <= 100000),
   "tax_code" text,
   "tax_code_id" uuid,
   "unit_cost" bigint,
-  "discount_amount" bigint not null default 0 check ("discount_amount" >= 0),
-  "cost_source" text check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
+  "discount_amount" bigint not null default 0 constraint bsb_quote_lines_discount_amount_check check ("discount_amount" >= 0),
+  "cost_source" text constraint bsb_quote_lines_cost_source_check check ("cost_source" in ('catalog', 'average', 'manual', 'imported')),
   "location_id" uuid,
   "bin_id" uuid,
-  "billing_party" text not null default 'customer' check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
+  "billing_party" text not null default 'customer' constraint bsb_quote_lines_billing_party_check check ("billing_party" in ('customer', 'internal', 'own_warranty', 'supplier_warranty', 'cost_account')),
   "billing_party_id" text,
   "billing_account_id" uuid,
-  "section" text check (length("section") >= 1 and length("section") <= 300),
+  "section" text constraint bsb_quote_lines_section_check check (length("section") >= 1 and length("section") <= 300),
   "optional" boolean not null default false,
   "selected" boolean not null default true,
-  "periods" integer default 1 check ("periods" > 0),
+  "periods" integer default 1 constraint bsb_quote_lines_periods_check check ("periods" > 0),
   "position" integer not null,
   "created_at" timestamptz not null default now(),
-  check (("product_type" is null) = ("product_id" is null))
+  constraint bsb_quote_lines_check check (("product_type" is null) = ("product_id" is null))
 );
 alter table "better_supabase"."quote_lines" add column "unit" text constraint "bsb_quote_lines_unit" check (length("unit") >= 1 and length("unit") <= 40);
 alter table "better_supabase"."quote_lines" add column "discount_kind" text constraint "bsb_quote_lines_discount_kind" check ("discount_kind" in ('percentage', 'fixed'));

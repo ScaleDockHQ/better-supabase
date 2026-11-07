@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_077_approvals.sql
 -- better-supabase module: approvals
 -- @bsb-block approvals@5 managed
--- @bsb-hash sha256:d52314e85d06af2878c996d40234f4611bb920c0c33ea9ddb462cae1a1a517c6
+-- @bsb-hash sha256:38bc2c21e375a8096a98f3806d97639d4caf02e5d0f1cee69def58a97ac04601
 -- Approval requests with steps per subject type and action: approvers by permission, role, team, user or the requester's manager, a required count, delegation, expiry and reminders. Tenants tighten the configured policies with conditions and a confirm or authorize mode, and an approval is consumed once against a request fingerprint. The final approval runs a state-machine transition or a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,15 +13,15 @@ create table "better_supabase"."approval_requests" (
   "subject_id" text not null,
   "action" text not null,
   "policy" jsonb not null,
-  "step" integer not null default 0 check ("step" >= 0),
-  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected', 'cancelled', 'expired')),
+  "step" integer not null default 0 constraint bsb_approval_requests_step_check check ("step" >= 0),
+  "status" text not null default 'pending' constraint bsb_approval_requests_status_check check ("status" in ('pending', 'approved', 'rejected', 'cancelled', 'expired')),
   "requested_by" uuid,
-  "reason" text check ("reason" is null or length("reason") <= 2000),
+  "reason" text constraint bsb_approval_requests_reason_check check ("reason" is null or length("reason") <= 2000),
   "payload" jsonb not null default '{}'::jsonb,
   "expires_at" timestamptz,
   "reminded_at" timestamptz,
   "decided_at" timestamptz,
-  "fingerprint" text check ("fingerprint" is null or "fingerprint" ~ '^[0-9a-f]{64}$'),
+  "fingerprint" text constraint bsb_approval_requests_fingerprint_check check ("fingerprint" is null or "fingerprint" ~ '^[0-9a-f]{64}$'),
   "consumed_at" timestamptz,
   "created_at" timestamptz not null default now()
 );
@@ -41,11 +41,11 @@ create table "better_supabase"."approval_decisions" (
   "tenant_id" uuid not null,
   "step" integer not null,
   "approver" uuid,
-  "decision" text not null check ("decision" in ('approved', 'rejected', 'delegated')),
+  "decision" text not null constraint bsb_approval_decisions_decision_check check ("decision" in ('approved', 'rejected', 'delegated')),
   "delegate_to" uuid,
-  "comment" text check ("comment" is null or length("comment") <= 2000),
+  "comment" text constraint bsb_approval_decisions_comment_check check ("comment" is null or length("comment") <= 2000),
   "created_at" timestamptz not null default clock_timestamp(),
-  check (("decision" = 'delegated') = ("delegate_to" is not null)),
+  constraint bsb_approval_decisions_check check (("decision" = 'delegated') = ("delegate_to" is not null)),
   unique ("request_id", "step", "approver")
 );
 create index "approval_decisions_delegate_idx" on "better_supabase"."approval_decisions" ("delegate_to") where "delegate_to" is not null;
@@ -61,19 +61,19 @@ create table "better_supabase"."approval_items" (
   "id" uuid primary key default gen_random_uuid(),
   "request_id" uuid not null references "better_supabase"."approval_requests" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "key" text not null check (length("key") >= 1 and length("key") <= 200),
-  "label" text check ("label" is null or length("label") <= 500),
+  "key" text not null constraint bsb_approval_items_key_check check (length("key") >= 1 and length("key") <= 200),
+  "label" text constraint bsb_approval_items_label_check check ("label" is null or length("label") <= 500),
   "payload" jsonb not null default '{}'::jsonb,
   "permission" text,
   "depends_on" text[] not null default '{}',
-  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected')),
+  "status" text not null default 'pending' constraint bsb_approval_items_status_check check ("status" in ('pending', 'approved', 'rejected')),
   "created_type" text,
   "created_id" text,
   "decided_by" uuid,
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("request_id", "key"),
-  check (("created_type" is null) = ("created_id" is null))
+  constraint bsb_approval_items_check check (("created_type" is null) = ("created_id" is null))
 );
 create index "approval_items_tenant_idx" on "better_supabase"."approval_items" ("tenant_id", "status");
 alter table "better_supabase"."approval_items" enable row level security;

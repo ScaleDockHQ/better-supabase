@@ -118,9 +118,9 @@ describe("memory module", () => {
     expect(sql).toContain('"subject_type" text,');
     expect(sql).toContain('"subject_id" text,');
     expect(sql).toContain(
-      "constraint memories_owner_check check (\"scope\" in ('organization', 'record') or \"owner_id\" is not null)",
+      "constraint bsb_memories_owner_check check (\"scope\" in ('organization', 'record') or \"owner_id\" is not null)",
     );
-    expect(sql).toContain("constraint memories_subject_check");
+    expect(sql).toContain("constraint bsb_memories_subject_check");
     expect(sql).toContain(
       "v_subject_id := nullif(memory_view.ns ->> 'subject_id', '');",
     );

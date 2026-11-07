@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:e51d7a32d63de3ec93f84f437271a6a67b9fff11af16b6776591dac9579b8124
+-- @bsb-hash sha256:29d701bfe21ddfbefd9574b04ef0cd47fac1ee47fb56c157d27741f147273bb5
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,8 +12,8 @@
 -- linked cus_ id at the first checkout, and the webhook records it.
 create table "better_supabase"."billing_customers" (
   "organization_id" uuid primary key,
-  "stripe_customer_id" text unique check ("stripe_customer_id" ~ '^cus_'),
-  "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_'),
+  "stripe_customer_id" text unique constraint bsb_billing_customers_stripe_customer_id_check check ("stripe_customer_id" ~ '^cus_'),
+  "stripe_customer_account_id" text unique constraint bsb_billing_customers_stripe_customer_account_id_check check ("stripe_customer_account_id" ~ '^acct_'),
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."billing_customers" alter column "stripe_customer_id" drop not null;
@@ -655,18 +655,18 @@ grant execute on function "better_supabase"."billing_overview"(uuid, integer) to
 create table "better_supabase"."billing_native_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "plan" text not null check (length("plan") >= 1 and length("plan") <= 100),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
-  "unit_amount" bigint not null check ("unit_amount" >= 0),
-  "quantity" integer not null default 1 check ("quantity" >= 0),
+  "plan" text not null constraint bsb_billing_native_subscriptions_plan_check check (length("plan") >= 1 and length("plan") <= 100),
+  "currency" text not null constraint bsb_billing_native_subscriptions_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "unit_amount" bigint not null constraint bsb_billing_native_subscriptions_unit_amount_check check ("unit_amount" >= 0),
+  "quantity" integer not null default 1 constraint bsb_billing_native_subscriptions_quantity_check check ("quantity" >= 0),
   "billing_interval" text not null default 'month',
-  "status" text not null default 'active' check ("status" in ('active', 'canceled')),
+  "status" text not null default 'active' constraint bsb_billing_native_subscriptions_status_check check ("status" in ('active', 'canceled')),
   "period_start" timestamptz not null,
   "period_end" timestamptz not null,
   "canceled_at" timestamptz,
   "created_at" timestamptz not null default now(),
   constraint "bsb_billing_native_subscriptions_interval_check" check ("billing_interval" in ('week', 'month', 'year')),
-  check ("period_end" > "period_start")
+  constraint bsb_billing_native_subscriptions_check check ("period_end" > "period_start")
 );
 create index "billing_native_subscriptions_tenant_idx" on "better_supabase"."billing_native_subscriptions" ("organization_id", "status");
 alter table "better_supabase"."billing_native_subscriptions" enable row level security;
@@ -812,7 +812,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:ee71cd7744126ad1f22741b3c9fb17e841652c1a16b5c58f2f298bca5c245168
+-- @bsb-hash sha256:ea25dc26f67c7152ac9a5c0f8310c0612e58c3c3d02f3fd9499edac8fa4ca75b
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -823,8 +823,8 @@ on conflict (name) do update
 -- linked cus_ id at the first checkout, and the webhook records it.
 create table "better_supabase"."billing_customers" (
   "organization_id" uuid primary key,
-  "stripe_customer_id" text unique check ("stripe_customer_id" ~ '^cus_'),
-  "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_'),
+  "stripe_customer_id" text unique constraint bsb_billing_customers_stripe_customer_id_check check ("stripe_customer_id" ~ '^cus_'),
+  "stripe_customer_account_id" text unique constraint bsb_billing_customers_stripe_customer_account_id_check check ("stripe_customer_account_id" ~ '^acct_'),
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."billing_customers" alter column "stripe_customer_id" drop not null;
@@ -1486,18 +1486,18 @@ grant execute on function "better_supabase"."billing_overview"(uuid, integer) to
 create table "better_supabase"."billing_native_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "plan" text not null check (length("plan") >= 1 and length("plan") <= 100),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
-  "unit_amount" bigint not null check ("unit_amount" >= 0),
-  "quantity" integer not null default 1 check ("quantity" >= 0),
+  "plan" text not null constraint bsb_billing_native_subscriptions_plan_check check (length("plan") >= 1 and length("plan") <= 100),
+  "currency" text not null constraint bsb_billing_native_subscriptions_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "unit_amount" bigint not null constraint bsb_billing_native_subscriptions_unit_amount_check check ("unit_amount" >= 0),
+  "quantity" integer not null default 1 constraint bsb_billing_native_subscriptions_quantity_check check ("quantity" >= 0),
   "billing_interval" text not null default 'month',
-  "status" text not null default 'active' check ("status" in ('active', 'canceled')),
+  "status" text not null default 'active' constraint bsb_billing_native_subscriptions_status_check check ("status" in ('active', 'canceled')),
   "period_start" timestamptz not null,
   "period_end" timestamptz not null,
   "canceled_at" timestamptz,
   "created_at" timestamptz not null default now(),
   constraint "bsb_billing_native_subscriptions_interval_check" check ("billing_interval" in ('week', 'month', 'year')),
-  check ("period_end" > "period_start")
+  constraint bsb_billing_native_subscriptions_check check ("period_end" > "period_start")
 );
 create index "billing_native_subscriptions_tenant_idx" on "better_supabase"."billing_native_subscriptions" ("organization_id", "status");
 alter table "better_supabase"."billing_native_subscriptions" enable row level security;
@@ -1654,7 +1654,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:f537d2321da8dc393ea03f05eac0b2ff51fa7031c93ee42261d317496a27636f
+-- @bsb-hash sha256:068bd12c8f046ef4af1912674d3893960b0f63d6b9cd5b88c7d005e7f99e0ede
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1670,8 +1670,8 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- linked cus_ id at the first checkout, and the webhook records it.
 create table "app_private"."billing_customers" (
   "organization_id" uuid primary key,
-  "stripe_customer_id" text unique check ("stripe_customer_id" ~ '^cus_'),
-  "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_'),
+  "stripe_customer_id" text unique constraint bsb_billing_customers_stripe_customer_id_check check ("stripe_customer_id" ~ '^cus_'),
+  "stripe_customer_account_id" text unique constraint bsb_billing_customers_stripe_customer_account_id_check check ("stripe_customer_account_id" ~ '^acct_'),
   "created_at" timestamptz not null default now()
 );
 alter table "app_private"."billing_customers" alter column "stripe_customer_id" drop not null;
@@ -2313,18 +2313,18 @@ grant execute on function "app_private"."billing_overview"(uuid, integer) to aut
 create table "app_private"."billing_native_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "plan" text not null check (length("plan") >= 1 and length("plan") <= 100),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
-  "unit_amount" bigint not null check ("unit_amount" >= 0),
-  "quantity" integer not null default 1 check ("quantity" >= 0),
+  "plan" text not null constraint bsb_billing_native_subscriptions_plan_check check (length("plan") >= 1 and length("plan") <= 100),
+  "currency" text not null constraint bsb_billing_native_subscriptions_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "unit_amount" bigint not null constraint bsb_billing_native_subscriptions_unit_amount_check check ("unit_amount" >= 0),
+  "quantity" integer not null default 1 constraint bsb_billing_native_subscriptions_quantity_check check ("quantity" >= 0),
   "billing_interval" text not null default 'month',
-  "status" text not null default 'active' check ("status" in ('active', 'canceled')),
+  "status" text not null default 'active' constraint bsb_billing_native_subscriptions_status_check check ("status" in ('active', 'canceled')),
   "period_start" timestamptz not null,
   "period_end" timestamptz not null,
   "canceled_at" timestamptz,
   "created_at" timestamptz not null default now(),
   constraint "bsb_billing_native_subscriptions_interval_check" check ("billing_interval" in ('week', 'month', 'year')),
-  check ("period_end" > "period_start")
+  constraint bsb_billing_native_subscriptions_check check ("period_end" > "period_start")
 );
 create index "billing_native_subscriptions_tenant_idx" on "app_private"."billing_native_subscriptions" ("organization_id", "status");
 alter table "app_private"."billing_native_subscriptions" enable row level security;
@@ -2470,7 +2470,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:622f56c3b8be57521dd258252514c2932d8aa6602854f1355df8310785c7c733
+-- @bsb-hash sha256:db0a01cb0e6c14192633b8d780007bfe157751ee40529ef1e35399dd223e0172
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2481,8 +2481,8 @@ on conflict (name) do update
 -- linked cus_ id at the first checkout, and the webhook records it.
 create table "better_supabase"."billing_customers" (
   "organization_id" uuid primary key,
-  "stripe_customer_id" text unique check ("stripe_customer_id" ~ '^cus_'),
-  "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_'),
+  "stripe_customer_id" text unique constraint bsb_billing_customers_stripe_customer_id_check check ("stripe_customer_id" ~ '^cus_'),
+  "stripe_customer_account_id" text unique constraint bsb_billing_customers_stripe_customer_account_id_check check ("stripe_customer_account_id" ~ '^acct_'),
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."billing_customers" alter column "stripe_customer_id" drop not null;
@@ -3124,18 +3124,18 @@ grant execute on function "better_supabase"."billing_overview"(uuid, integer) to
 create table "better_supabase"."billing_native_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "plan" text not null check (length("plan") >= 1 and length("plan") <= 100),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
-  "unit_amount" bigint not null check ("unit_amount" >= 0),
-  "quantity" integer not null default 1 check ("quantity" >= 0),
+  "plan" text not null constraint bsb_billing_native_subscriptions_plan_check check (length("plan") >= 1 and length("plan") <= 100),
+  "currency" text not null constraint bsb_billing_native_subscriptions_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "unit_amount" bigint not null constraint bsb_billing_native_subscriptions_unit_amount_check check ("unit_amount" >= 0),
+  "quantity" integer not null default 1 constraint bsb_billing_native_subscriptions_quantity_check check ("quantity" >= 0),
   "billing_interval" text not null default 'month',
-  "status" text not null default 'active' check ("status" in ('active', 'canceled')),
+  "status" text not null default 'active' constraint bsb_billing_native_subscriptions_status_check check ("status" in ('active', 'canceled')),
   "period_start" timestamptz not null,
   "period_end" timestamptz not null,
   "canceled_at" timestamptz,
   "created_at" timestamptz not null default now(),
   constraint "bsb_billing_native_subscriptions_interval_check" check ("billing_interval" in ('week', 'month', 'year')),
-  check ("period_end" > "period_start")
+  constraint bsb_billing_native_subscriptions_check check ("period_end" > "period_start")
 );
 create index "billing_native_subscriptions_tenant_idx" on "better_supabase"."billing_native_subscriptions" ("organization_id", "status");
 alter table "better_supabase"."billing_native_subscriptions" enable row level security;
@@ -3575,7 +3575,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:ef47d2429da1d9f5ea9a6141ba53ed1e0e120af62a3abf761476e806f3056458
+-- @bsb-hash sha256:567a12d2c1280bdac4af60bde20d641096a62e2e6eaebce969a7ab1d4dea1563
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3586,8 +3586,8 @@ on conflict (name) do update
 -- linked cus_ id at the first checkout, and the webhook records it.
 -- better_supabase.billing_customers is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."billing_customers" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."billing_customers" add column if not exists "stripe_customer_id" text check ("stripe_customer_id" ~ '^cus_');
-alter table "better_supabase"."billing_customers" add column if not exists "stripe_customer_account_id" text check ("stripe_customer_account_id" ~ '^acct_');
+alter table "better_supabase"."billing_customers" add column if not exists "stripe_customer_id" text constraint bsb_billing_customers_stripe_customer_id_check check ("stripe_customer_id" ~ '^cus_');
+alter table "better_supabase"."billing_customers" add column if not exists "stripe_customer_account_id" text constraint bsb_billing_customers_stripe_customer_account_id_check check ("stripe_customer_account_id" ~ '^acct_');
 alter table "better_supabase"."billing_customers" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_billing_customers_tenant_key" on "better_supabase"."billing_customers" ("organization_id");
 alter table "better_supabase"."billing_customers" enable row level security;
@@ -4226,12 +4226,12 @@ grant execute on function "better_supabase"."billing_overview"(uuid, integer) to
 -- better_supabase.billing_native_subscriptions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."billing_native_subscriptions" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."billing_native_subscriptions" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."billing_native_subscriptions" add column if not exists "plan" text check (length("plan") >= 1 and length("plan") <= 100);
-alter table "better_supabase"."billing_native_subscriptions" add column if not exists "currency" text check ("currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."billing_native_subscriptions" add column if not exists "unit_amount" bigint check ("unit_amount" >= 0);
-alter table "better_supabase"."billing_native_subscriptions" add column if not exists "quantity" integer not null default 1 check ("quantity" >= 0);
+alter table "better_supabase"."billing_native_subscriptions" add column if not exists "plan" text constraint bsb_billing_native_subscriptions_plan_check check (length("plan") >= 1 and length("plan") <= 100);
+alter table "better_supabase"."billing_native_subscriptions" add column if not exists "currency" text constraint bsb_billing_native_subscriptions_currency_check check ("currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."billing_native_subscriptions" add column if not exists "unit_amount" bigint constraint bsb_billing_native_subscriptions_unit_amount_check check ("unit_amount" >= 0);
+alter table "better_supabase"."billing_native_subscriptions" add column if not exists "quantity" integer not null default 1 constraint bsb_billing_native_subscriptions_quantity_check check ("quantity" >= 0);
 alter table "better_supabase"."billing_native_subscriptions" add column if not exists "billing_interval" text not null default 'month';
-alter table "better_supabase"."billing_native_subscriptions" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'canceled'));
+alter table "better_supabase"."billing_native_subscriptions" add column if not exists "status" text not null default 'active' constraint bsb_billing_native_subscriptions_status_check check ("status" in ('active', 'canceled'));
 alter table "better_supabase"."billing_native_subscriptions" add column if not exists "period_start" timestamptz;
 alter table "better_supabase"."billing_native_subscriptions" add column if not exists "period_end" timestamptz;
 alter table "better_supabase"."billing_native_subscriptions" add column if not exists "canceled_at" timestamptz;
@@ -4379,7 +4379,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:1943300d89fe9a7f932e771bad09731e1e440133e84eeb9e3024bb8184bbb814
+-- @bsb-hash sha256:f5f0e14d53cec74c42a69434229f50bc74c585210b7cf22d9e56c0001220d77d
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4390,8 +4390,8 @@ on conflict (name) do update
 -- linked cus_ id at the first checkout, and the webhook records it.
 create table "better_supabase"."billing_customers" (
   "org_id" uuid primary key,
-  "stripe_customer_id" text unique check ("stripe_customer_id" ~ '^cus_'),
-  "stripe_customer_account_id" text unique check ("stripe_customer_account_id" ~ '^acct_'),
+  "stripe_customer_id" text unique constraint bsb_billing_customers_stripe_customer_id_check check ("stripe_customer_id" ~ '^cus_'),
+  "stripe_customer_account_id" text unique constraint bsb_billing_customers_stripe_customer_account_id_check check ("stripe_customer_account_id" ~ '^acct_'),
   "created_at" timestamptz not null default now()
 );
 alter table "better_supabase"."billing_customers" alter column "stripe_customer_id" drop not null;
@@ -5033,18 +5033,18 @@ grant execute on function "better_supabase"."billing_overview"(uuid, integer) to
 create table "better_supabase"."billing_native_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "plan" text not null check (length("plan") >= 1 and length("plan") <= 100),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
-  "unit_amount" bigint not null check ("unit_amount" >= 0),
-  "quantity" integer not null default 1 check ("quantity" >= 0),
+  "plan" text not null constraint bsb_billing_native_subscriptions_plan_check check (length("plan") >= 1 and length("plan") <= 100),
+  "currency" text not null constraint bsb_billing_native_subscriptions_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "unit_amount" bigint not null constraint bsb_billing_native_subscriptions_unit_amount_check check ("unit_amount" >= 0),
+  "quantity" integer not null default 1 constraint bsb_billing_native_subscriptions_quantity_check check ("quantity" >= 0),
   "billing_interval" text not null default 'month',
-  "status" text not null default 'active' check ("status" in ('active', 'canceled')),
+  "status" text not null default 'active' constraint bsb_billing_native_subscriptions_status_check check ("status" in ('active', 'canceled')),
   "period_start" timestamptz not null,
   "period_end" timestamptz not null,
   "canceled_at" timestamptz,
   "created_at" timestamptz not null default now(),
   constraint "bsb_billing_native_subscriptions_interval_check" check ("billing_interval" in ('week', 'month', 'year')),
-  check ("period_end" > "period_start")
+  constraint bsb_billing_native_subscriptions_check check ("period_end" > "period_start")
 );
 create index "billing_native_subscriptions_tenant_idx" on "better_supabase"."billing_native_subscriptions" ("org_id", "status");
 alter table "better_supabase"."billing_native_subscriptions" enable row level security;

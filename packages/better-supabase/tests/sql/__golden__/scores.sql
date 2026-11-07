@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:f321bda218eed1b5881ac78a67b4796b68882295b88615de7589b64167a44439
+-- @bsb-hash sha256:7fe27775ce03a08e13f0230d2f9eeb8e08a7cc641bfe1fb5316bde97b81a34e2
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,17 +10,17 @@ create table "better_supabase"."score_models" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- lead, health, or the app's own key.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text check ("description" is null or length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_score_models_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_score_models_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_score_models_description_check check ("description" is null or length("description") <= 2000),
+  "subject_type" text not null constraint bsb_score_models_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   -- [{ id, label, conditions, points }]: a filter tree over the rules field
   -- catalog and the points a match adds.
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_score_models_rules_check check (jsonb_typeof("rules") = 'array'),
   -- [{ id, label, source, field, weight, cap }]: a number times its weight.
-  "metrics" jsonb not null default '[]'::jsonb check (jsonb_typeof("metrics") = 'array'),
+  "metrics" jsonb not null default '[]'::jsonb constraint bsb_score_models_metrics_check check (jsonb_typeof("metrics") = 'array'),
   -- [{ label, min }], highest min first: the first band the score reaches.
-  "bands" jsonb not null default '[]'::jsonb check (jsonb_typeof("bands") = 'array'),
+  "bands" jsonb not null default '[]'::jsonb constraint bsb_score_models_bands_check check (jsonb_typeof("bands") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
   "created_by" uuid,
@@ -34,9 +34,9 @@ create table "better_supabase"."score_model_versions" (
   "model_id" uuid not null references "better_supabase"."score_models" ("id") on delete cascade,
   "version" integer not null,
   "tenant_id" uuid not null,
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
-  "metrics" jsonb not null default '[]'::jsonb check (jsonb_typeof("metrics") = 'array'),
-  "bands" jsonb not null default '[]'::jsonb check (jsonb_typeof("bands") = 'array'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_rules_check check (jsonb_typeof("rules") = 'array'),
+  "metrics" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_metrics_check check (jsonb_typeof("metrics") = 'array'),
+  "bands" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_bands_check check (jsonb_typeof("bands") = 'array'),
   "saved_by" uuid,
   "saved_at" timestamptz not null default now(),
   primary key ("model_id", "version")
@@ -52,7 +52,7 @@ create table "better_supabase"."scores" (
   "score" numeric not null,
   "band" text,
   -- { rules: [{ id, label, matched, points }], metrics: [{ id, label, value, points }] }
-  "breakdown" jsonb not null default '{}'::jsonb check (jsonb_typeof("breakdown") = 'object'),
+  "breakdown" jsonb not null default '{}'::jsonb constraint bsb_scores_breakdown_check check (jsonb_typeof("breakdown") = 'object'),
   "is_current" boolean not null default true,
   "computed_at" timestamptz not null default now()
 );
@@ -550,7 +550,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:e246a3e941a05691ea768fbb2ceed11909ad4a3829b0fb049f255c649750b411
+-- @bsb-hash sha256:2c60db8dd471db1340dc25f9c6f4a78074b277405533c9d6c2b6cb772782cf76
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -559,17 +559,17 @@ create table "better_supabase"."score_models" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- lead, health, or the app's own key.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text check ("description" is null or length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_score_models_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_score_models_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_score_models_description_check check ("description" is null or length("description") <= 2000),
+  "subject_type" text not null constraint bsb_score_models_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   -- [{ id, label, conditions, points }]: a filter tree over the rules field
   -- catalog and the points a match adds.
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_score_models_rules_check check (jsonb_typeof("rules") = 'array'),
   -- [{ id, label, source, field, weight, cap }]: a number times its weight.
-  "metrics" jsonb not null default '[]'::jsonb check (jsonb_typeof("metrics") = 'array'),
+  "metrics" jsonb not null default '[]'::jsonb constraint bsb_score_models_metrics_check check (jsonb_typeof("metrics") = 'array'),
   -- [{ label, min }], highest min first: the first band the score reaches.
-  "bands" jsonb not null default '[]'::jsonb check (jsonb_typeof("bands") = 'array'),
+  "bands" jsonb not null default '[]'::jsonb constraint bsb_score_models_bands_check check (jsonb_typeof("bands") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
   "created_by" uuid,
@@ -583,9 +583,9 @@ create table "better_supabase"."score_model_versions" (
   "model_id" uuid not null references "better_supabase"."score_models" ("id") on delete cascade,
   "version" integer not null,
   "tenant_id" uuid not null,
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
-  "metrics" jsonb not null default '[]'::jsonb check (jsonb_typeof("metrics") = 'array'),
-  "bands" jsonb not null default '[]'::jsonb check (jsonb_typeof("bands") = 'array'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_rules_check check (jsonb_typeof("rules") = 'array'),
+  "metrics" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_metrics_check check (jsonb_typeof("metrics") = 'array'),
+  "bands" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_bands_check check (jsonb_typeof("bands") = 'array'),
   "saved_by" uuid,
   "saved_at" timestamptz not null default now(),
   primary key ("model_id", "version")
@@ -601,7 +601,7 @@ create table "better_supabase"."scores" (
   "score" numeric not null,
   "band" text,
   -- { rules: [{ id, label, matched, points }], metrics: [{ id, label, value, points }] }
-  "breakdown" jsonb not null default '{}'::jsonb check (jsonb_typeof("breakdown") = 'object'),
+  "breakdown" jsonb not null default '{}'::jsonb constraint bsb_scores_breakdown_check check (jsonb_typeof("breakdown") = 'object'),
   "is_current" boolean not null default true,
   "computed_at" timestamptz not null default now()
 );
@@ -1132,7 +1132,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:f9dbcdd68b56d54b824766c0c49328316c8cabbf823ff7626c5154df955aa26c
+-- @bsb-hash sha256:cf85257c2bfa5003ee582b12b4a670b246fdb4a2e85a5ad9eaa88a948d6d769a
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1146,17 +1146,17 @@ create table "app_private"."score_models" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- lead, health, or the app's own key.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text check ("description" is null or length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_score_models_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_score_models_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_score_models_description_check check ("description" is null or length("description") <= 2000),
+  "subject_type" text not null constraint bsb_score_models_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   -- [{ id, label, conditions, points }]: a filter tree over the rules field
   -- catalog and the points a match adds.
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_score_models_rules_check check (jsonb_typeof("rules") = 'array'),
   -- [{ id, label, source, field, weight, cap }]: a number times its weight.
-  "metrics" jsonb not null default '[]'::jsonb check (jsonb_typeof("metrics") = 'array'),
+  "metrics" jsonb not null default '[]'::jsonb constraint bsb_score_models_metrics_check check (jsonb_typeof("metrics") = 'array'),
   -- [{ label, min }], highest min first: the first band the score reaches.
-  "bands" jsonb not null default '[]'::jsonb check (jsonb_typeof("bands") = 'array'),
+  "bands" jsonb not null default '[]'::jsonb constraint bsb_score_models_bands_check check (jsonb_typeof("bands") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
   "created_by" uuid,
@@ -1170,9 +1170,9 @@ create table "app_private"."score_model_versions" (
   "model_id" uuid not null references "app_private"."score_models" ("id") on delete cascade,
   "version" integer not null,
   "tenant_id" uuid not null,
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
-  "metrics" jsonb not null default '[]'::jsonb check (jsonb_typeof("metrics") = 'array'),
-  "bands" jsonb not null default '[]'::jsonb check (jsonb_typeof("bands") = 'array'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_rules_check check (jsonb_typeof("rules") = 'array'),
+  "metrics" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_metrics_check check (jsonb_typeof("metrics") = 'array'),
+  "bands" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_bands_check check (jsonb_typeof("bands") = 'array'),
   "saved_by" uuid,
   "saved_at" timestamptz not null default now(),
   primary key ("model_id", "version")
@@ -1188,7 +1188,7 @@ create table "app_private"."scores" (
   "score" numeric not null,
   "band" text,
   -- { rules: [{ id, label, matched, points }], metrics: [{ id, label, value, points }] }
-  "breakdown" jsonb not null default '{}'::jsonb check (jsonb_typeof("breakdown") = 'object'),
+  "breakdown" jsonb not null default '{}'::jsonb constraint bsb_scores_breakdown_check check (jsonb_typeof("breakdown") = 'object'),
   "is_current" boolean not null default true,
   "computed_at" timestamptz not null default now()
 );
@@ -1686,7 +1686,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:5b7984dd4041f8fbde2eaf6ad63f8b2344c0d150942a51ab368d7c3430c33803
+-- @bsb-hash sha256:93ee36ffdbdb28b8dc281c5b2818aa0af07f21898533d21af4378b5a21d282ae
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1695,17 +1695,17 @@ create table "better_supabase"."score_models" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- lead, health, or the app's own key.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text check ("description" is null or length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_score_models_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_score_models_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_score_models_description_check check ("description" is null or length("description") <= 2000),
+  "subject_type" text not null constraint bsb_score_models_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   -- [{ id, label, conditions, points }]: a filter tree over the rules field
   -- catalog and the points a match adds.
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_score_models_rules_check check (jsonb_typeof("rules") = 'array'),
   -- [{ id, label, source, field, weight, cap }]: a number times its weight.
-  "metrics" jsonb not null default '[]'::jsonb check (jsonb_typeof("metrics") = 'array'),
+  "metrics" jsonb not null default '[]'::jsonb constraint bsb_score_models_metrics_check check (jsonb_typeof("metrics") = 'array'),
   -- [{ label, min }], highest min first: the first band the score reaches.
-  "bands" jsonb not null default '[]'::jsonb check (jsonb_typeof("bands") = 'array'),
+  "bands" jsonb not null default '[]'::jsonb constraint bsb_score_models_bands_check check (jsonb_typeof("bands") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
   "created_by" uuid,
@@ -1719,9 +1719,9 @@ create table "better_supabase"."score_model_versions" (
   "model_id" uuid not null references "better_supabase"."score_models" ("id") on delete cascade,
   "version" integer not null,
   "tenant_id" uuid not null,
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
-  "metrics" jsonb not null default '[]'::jsonb check (jsonb_typeof("metrics") = 'array'),
-  "bands" jsonb not null default '[]'::jsonb check (jsonb_typeof("bands") = 'array'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_rules_check check (jsonb_typeof("rules") = 'array'),
+  "metrics" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_metrics_check check (jsonb_typeof("metrics") = 'array'),
+  "bands" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_bands_check check (jsonb_typeof("bands") = 'array'),
   "saved_by" uuid,
   "saved_at" timestamptz not null default now(),
   primary key ("model_id", "version")
@@ -1737,7 +1737,7 @@ create table "better_supabase"."scores" (
   "score" numeric not null,
   "band" text,
   -- { rules: [{ id, label, matched, points }], metrics: [{ id, label, value, points }] }
-  "breakdown" jsonb not null default '{}'::jsonb check (jsonb_typeof("breakdown") = 'object'),
+  "breakdown" jsonb not null default '{}'::jsonb constraint bsb_scores_breakdown_check check (jsonb_typeof("breakdown") = 'object'),
   "is_current" boolean not null default true,
   "computed_at" timestamptz not null default now()
 );
@@ -2316,7 +2316,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:c759c0bf35427a468bdb1d05434d8a63f1a4b95a6bfa8950635877b7b034f978
+-- @bsb-hash sha256:0d8eaf23e1c0650d3e6d1dcc706de2e9a5a052e8a2857557f157420b4a61fe52
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2324,13 +2324,13 @@ on conflict (name) do update
 -- better_supabase.score_models is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."score_models" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."score_models" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."score_models" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."score_models" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."score_models" add column if not exists "description" text check ("description" is null or length("description") <= 2000);
-alter table "better_supabase"."score_models" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."score_models" add column if not exists "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array');
-alter table "better_supabase"."score_models" add column if not exists "metrics" jsonb not null default '[]'::jsonb check (jsonb_typeof("metrics") = 'array');
-alter table "better_supabase"."score_models" add column if not exists "bands" jsonb not null default '[]'::jsonb check (jsonb_typeof("bands") = 'array');
+alter table "better_supabase"."score_models" add column if not exists "key" text constraint bsb_score_models_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."score_models" add column if not exists "name" text constraint bsb_score_models_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."score_models" add column if not exists "description" text constraint bsb_score_models_description_check check ("description" is null or length("description") <= 2000);
+alter table "better_supabase"."score_models" add column if not exists "subject_type" text constraint bsb_score_models_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."score_models" add column if not exists "rules" jsonb not null default '[]'::jsonb constraint bsb_score_models_rules_check check (jsonb_typeof("rules") = 'array');
+alter table "better_supabase"."score_models" add column if not exists "metrics" jsonb not null default '[]'::jsonb constraint bsb_score_models_metrics_check check (jsonb_typeof("metrics") = 'array');
+alter table "better_supabase"."score_models" add column if not exists "bands" jsonb not null default '[]'::jsonb constraint bsb_score_models_bands_check check (jsonb_typeof("bands") = 'array');
 alter table "better_supabase"."score_models" add column if not exists "enabled" boolean not null default true;
 alter table "better_supabase"."score_models" add column if not exists "version" integer not null default 1;
 alter table "better_supabase"."score_models" add column if not exists "created_by" uuid;
@@ -2342,9 +2342,9 @@ create index if not exists "score_models_subject_idx" on "better_supabase"."scor
 alter table "better_supabase"."score_model_versions" add column if not exists "model_id" uuid references "better_supabase"."score_models" ("id") on delete cascade;
 alter table "better_supabase"."score_model_versions" add column if not exists "version" integer;
 alter table "better_supabase"."score_model_versions" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."score_model_versions" add column if not exists "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array');
-alter table "better_supabase"."score_model_versions" add column if not exists "metrics" jsonb not null default '[]'::jsonb check (jsonb_typeof("metrics") = 'array');
-alter table "better_supabase"."score_model_versions" add column if not exists "bands" jsonb not null default '[]'::jsonb check (jsonb_typeof("bands") = 'array');
+alter table "better_supabase"."score_model_versions" add column if not exists "rules" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_rules_check check (jsonb_typeof("rules") = 'array');
+alter table "better_supabase"."score_model_versions" add column if not exists "metrics" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_metrics_check check (jsonb_typeof("metrics") = 'array');
+alter table "better_supabase"."score_model_versions" add column if not exists "bands" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_bands_check check (jsonb_typeof("bands") = 'array');
 alter table "better_supabase"."score_model_versions" add column if not exists "saved_by" uuid;
 alter table "better_supabase"."score_model_versions" add column if not exists "saved_at" timestamptz not null default now();
 create unique index if not exists "bsb_score_model_versions_version_key" on "better_supabase"."score_model_versions" ("model_id", "version");
@@ -2358,7 +2358,7 @@ alter table "better_supabase"."scores" add column if not exists "subject_type" t
 alter table "better_supabase"."scores" add column if not exists "subject_id" text;
 alter table "better_supabase"."scores" add column if not exists "score" numeric;
 alter table "better_supabase"."scores" add column if not exists "band" text;
-alter table "better_supabase"."scores" add column if not exists "breakdown" jsonb not null default '{}'::jsonb check (jsonb_typeof("breakdown") = 'object');
+alter table "better_supabase"."scores" add column if not exists "breakdown" jsonb not null default '{}'::jsonb constraint bsb_scores_breakdown_check check (jsonb_typeof("breakdown") = 'object');
 alter table "better_supabase"."scores" add column if not exists "is_current" boolean not null default true;
 alter table "better_supabase"."scores" add column if not exists "computed_at" timestamptz not null default now();
 create unique index if not exists "scores_current_idx" on "better_supabase"."scores" ("model_id", "subject_type", "subject_id") where "is_current";
@@ -2852,7 +2852,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_115_scores.sql
 -- better-supabase module: scores
 -- @bsb-block scores@1 managed
--- @bsb-hash sha256:95b1d0c8650bfd08fad9c000fe45880b72fcf2eeaa0ee3935e02d4350e3f5d46
+-- @bsb-hash sha256:40229555c9d1c5db19bdfe492a201f75173b5e12ec94ecb1b6b55b7b07afac76
 -- Tenant-editable scoring models: rules (a filter tree over the rules field catalog worth points) and metrics (a number times a weight, or a record's vote score) that write versioned scores with bands to any subject. Lead scoring and health scoring are models.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2861,17 +2861,17 @@ create table "better_supabase"."score_models" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- lead, health, or the app's own key.
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text check ("description" is null or length("description") <= 2000),
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_score_models_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_score_models_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_score_models_description_check check ("description" is null or length("description") <= 2000),
+  "subject_type" text not null constraint bsb_score_models_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   -- [{ id, label, conditions, points }]: a filter tree over the rules field
   -- catalog and the points a match adds.
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_score_models_rules_check check (jsonb_typeof("rules") = 'array'),
   -- [{ id, label, source, field, weight, cap }]: a number times its weight.
-  "metrics" jsonb not null default '[]'::jsonb check (jsonb_typeof("metrics") = 'array'),
+  "metrics" jsonb not null default '[]'::jsonb constraint bsb_score_models_metrics_check check (jsonb_typeof("metrics") = 'array'),
   -- [{ label, min }], highest min first: the first band the score reaches.
-  "bands" jsonb not null default '[]'::jsonb check (jsonb_typeof("bands") = 'array'),
+  "bands" jsonb not null default '[]'::jsonb constraint bsb_score_models_bands_check check (jsonb_typeof("bands") = 'array'),
   "enabled" boolean not null default true,
   "version" integer not null default 1,
   "created_by" uuid,
@@ -2885,9 +2885,9 @@ create table "better_supabase"."score_model_versions" (
   "model_id" uuid not null references "better_supabase"."score_models" ("id") on delete cascade,
   "version" integer not null,
   "org_id" uuid not null,
-  "rules" jsonb not null default '[]'::jsonb check (jsonb_typeof("rules") = 'array'),
-  "metrics" jsonb not null default '[]'::jsonb check (jsonb_typeof("metrics") = 'array'),
-  "bands" jsonb not null default '[]'::jsonb check (jsonb_typeof("bands") = 'array'),
+  "rules" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_rules_check check (jsonb_typeof("rules") = 'array'),
+  "metrics" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_metrics_check check (jsonb_typeof("metrics") = 'array'),
+  "bands" jsonb not null default '[]'::jsonb constraint bsb_score_model_versions_bands_check check (jsonb_typeof("bands") = 'array'),
   "saved_by" uuid,
   "saved_at" timestamptz not null default now(),
   primary key ("model_id", "version")
@@ -2903,7 +2903,7 @@ create table "better_supabase"."scores" (
   "score" numeric not null,
   "band" text,
   -- { rules: [{ id, label, matched, points }], metrics: [{ id, label, value, points }] }
-  "breakdown" jsonb not null default '{}'::jsonb check (jsonb_typeof("breakdown") = 'object'),
+  "breakdown" jsonb not null default '{}'::jsonb constraint bsb_scores_breakdown_check check (jsonb_typeof("breakdown") = 'object'),
   "is_current" boolean not null default true,
   "computed_at" timestamptz not null default now()
 );

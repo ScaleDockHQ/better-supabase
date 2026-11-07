@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:d4e205eaf42f16dfe84d128fbc5f9e986719811206082f6093ffbc90d91bc8cf
+-- @bsb-hash sha256:29f37bc7531cd96bcfcf904b63ac96469fb1d4745b1f18c9fd3a69f2c3eb3857
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,12 +11,12 @@
 create table "better_supabase"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
-  "days" integer not null default 30 check ("days" >= 0 and "days" <= 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
-  "discount_days" integer not null default 0 check ("discount_days" >= 0 and "discount_days" <= 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
+  "code" text not null constraint bsb_payment_terms_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_payment_terms_name_check check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 constraint bsb_payment_terms_days_check check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 constraint bsb_payment_terms_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 constraint bsb_payment_terms_discount_days_check check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 constraint bsb_payment_terms_credit_restriction_bps_check check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
@@ -32,8 +32,8 @@ create policy bsb_payment_terms_read on "better_supabase"."payment_terms"
 create table "better_supabase"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
-  "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
+  "name" text not null constraint bsb_companies_name_check check (length("name") >= 1 and length("name") <= 300),
+  "domain" text constraint bsb_companies_domain_check check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
   "legal_name" text constraint bsb_companies_legal_name check (length("legal_name") >= 1 and length("legal_name") <= 300),
@@ -41,15 +41,15 @@ create table "better_supabase"."companies" (
   "phone" text,
   "lifecycle" text not null,
   "owner_user_id" uuid,
-  "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object'),
+  "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_companies_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_companies_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_companies_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_companies_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_companies_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."companies" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -76,8 +76,8 @@ create policy bsb_companies_read on "better_supabase"."companies"
 create table "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "name" text not null constraint bsb_people_name_check check (length("name") >= 1 and length("name") <= 300),
+  "email" text constraint bsb_people_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
   "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null)),
@@ -85,15 +85,15 @@ create table "better_supabase"."people" (
   "owner_user_id" uuid,
   "user_id" uuid,
   "avatar_url" text,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_people_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_people_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_people_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_people_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_people_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -141,10 +141,10 @@ create table "better_supabase"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") >= 1 and length("document_type") <= 100),
-  "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" >= 1 and "copies" <= 20),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "document_type" text not null constraint bsb_document_delivery_preferences_document_type_check check (length("document_type") >= 1 and length("document_type") <= 100),
+  "channel" text not null constraint bsb_document_delivery_preferences_channel_check check ("channel" in ('email', 'post', 'portal')),
+  "copies" integer not null default 1 constraint bsb_document_delivery_preferences_copies_check check ("copies" >= 1 and "copies" <= 20),
+  "email" text constraint bsb_document_delivery_preferences_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "party_id", "document_type", "channel")
@@ -162,8 +162,8 @@ create table "better_supabase"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") >= 1 and length("channel") <= 50),
-  "address" text not null check (length("address") >= 1 and length("address") <= 500),
+  "channel" text not null constraint bsb_person_identities_channel_check check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null constraint bsb_person_identities_address_check check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "address")
@@ -1463,7 +1463,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:e1ef36dac5d58fec1a7cd24cb994457782751241e11379b797413f1151efeb2d
+-- @bsb-hash sha256:18cc55bb4f55dc05bf1ce8473af1d6de4b3b312fc2fc666b5618570553a79d19
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1473,12 +1473,12 @@ on conflict (name) do update
 create table "better_supabase"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
-  "days" integer not null default 30 check ("days" >= 0 and "days" <= 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
-  "discount_days" integer not null default 0 check ("discount_days" >= 0 and "discount_days" <= 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
+  "code" text not null constraint bsb_payment_terms_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_payment_terms_name_check check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 constraint bsb_payment_terms_days_check check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 constraint bsb_payment_terms_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 constraint bsb_payment_terms_discount_days_check check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 constraint bsb_payment_terms_credit_restriction_bps_check check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
@@ -1494,8 +1494,8 @@ create policy bsb_payment_terms_read on "better_supabase"."payment_terms"
 create table "better_supabase"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
-  "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
+  "name" text not null constraint bsb_companies_name_check check (length("name") >= 1 and length("name") <= 300),
+  "domain" text constraint bsb_companies_domain_check check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
   "legal_name" text constraint bsb_companies_legal_name check (length("legal_name") >= 1 and length("legal_name") <= 300),
@@ -1503,15 +1503,15 @@ create table "better_supabase"."companies" (
   "phone" text,
   "lifecycle" text not null,
   "owner_user_id" uuid,
-  "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object'),
+  "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_companies_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_companies_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_companies_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_companies_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_companies_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."companies" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -1538,8 +1538,8 @@ create policy bsb_companies_read on "better_supabase"."companies"
 create table "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "name" text not null constraint bsb_people_name_check check (length("name") >= 1 and length("name") <= 300),
+  "email" text constraint bsb_people_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
   "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null)),
@@ -1547,15 +1547,15 @@ create table "better_supabase"."people" (
   "owner_user_id" uuid,
   "user_id" uuid,
   "avatar_url" text,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_people_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_people_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_people_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_people_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_people_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -1603,10 +1603,10 @@ create table "better_supabase"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") >= 1 and length("document_type") <= 100),
-  "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" >= 1 and "copies" <= 20),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "document_type" text not null constraint bsb_document_delivery_preferences_document_type_check check (length("document_type") >= 1 and length("document_type") <= 100),
+  "channel" text not null constraint bsb_document_delivery_preferences_channel_check check ("channel" in ('email', 'post', 'portal')),
+  "copies" integer not null default 1 constraint bsb_document_delivery_preferences_copies_check check ("copies" >= 1 and "copies" <= 20),
+  "email" text constraint bsb_document_delivery_preferences_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "party_id", "document_type", "channel")
@@ -1624,8 +1624,8 @@ create table "better_supabase"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") >= 1 and length("channel") <= 50),
-  "address" text not null check (length("address") >= 1 and length("address") <= 500),
+  "channel" text not null constraint bsb_person_identities_channel_check check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null constraint bsb_person_identities_address_check check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "address")
@@ -3085,7 +3085,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:8bb4e4161c1483e09b9e13c9b3f14274a5e12c294b4fabb6493b59e8af7db784
+-- @bsb-hash sha256:f5a8d8ff598c1cffc3ccce1b003b725d98a4faeae39017192b48edb44bf53985
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3100,12 +3100,12 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
-  "days" integer not null default 30 check ("days" >= 0 and "days" <= 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
-  "discount_days" integer not null default 0 check ("discount_days" >= 0 and "discount_days" <= 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
+  "code" text not null constraint bsb_payment_terms_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_payment_terms_name_check check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 constraint bsb_payment_terms_days_check check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 constraint bsb_payment_terms_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 constraint bsb_payment_terms_discount_days_check check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 constraint bsb_payment_terms_credit_restriction_bps_check check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
@@ -3121,8 +3121,8 @@ create policy bsb_payment_terms_read on "app_private"."payment_terms"
 create table "app_private"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
-  "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
+  "name" text not null constraint bsb_companies_name_check check (length("name") >= 1 and length("name") <= 300),
+  "domain" text constraint bsb_companies_domain_check check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
   "legal_name" text constraint bsb_companies_legal_name check (length("legal_name") >= 1 and length("legal_name") <= 300),
@@ -3130,15 +3130,15 @@ create table "app_private"."companies" (
   "phone" text,
   "lifecycle" text not null,
   "owner_user_id" uuid,
-  "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object'),
+  "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "app_private"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "app_private"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_companies_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_companies_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_companies_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_companies_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_companies_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "app_private"."companies" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -3165,8 +3165,8 @@ create policy bsb_companies_read on "app_private"."companies"
 create table "app_private"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "name" text not null constraint bsb_people_name_check check (length("name") >= 1 and length("name") <= 300),
+  "email" text constraint bsb_people_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
   "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null)),
@@ -3174,15 +3174,15 @@ create table "app_private"."people" (
   "owner_user_id" uuid,
   "user_id" uuid,
   "avatar_url" text,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "app_private"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "app_private"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_people_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_people_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_people_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_people_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_people_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "app_private"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -3230,10 +3230,10 @@ create table "app_private"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") >= 1 and length("document_type") <= 100),
-  "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" >= 1 and "copies" <= 20),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "document_type" text not null constraint bsb_document_delivery_preferences_document_type_check check (length("document_type") >= 1 and length("document_type") <= 100),
+  "channel" text not null constraint bsb_document_delivery_preferences_channel_check check ("channel" in ('email', 'post', 'portal')),
+  "copies" integer not null default 1 constraint bsb_document_delivery_preferences_copies_check check ("copies" >= 1 and "copies" <= 20),
+  "email" text constraint bsb_document_delivery_preferences_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "party_id", "document_type", "channel")
@@ -3251,8 +3251,8 @@ create table "app_private"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "person_id" uuid not null references "app_private"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") >= 1 and length("channel") <= 50),
-  "address" text not null check (length("address") >= 1 and length("address") <= 500),
+  "channel" text not null constraint bsb_person_identities_channel_check check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null constraint bsb_person_identities_address_check check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "address")
@@ -4552,7 +4552,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:3c48b8924fd8276bfc2eb3e24cf64705185d2e30653403f22a235d62e509ad3d
+-- @bsb-hash sha256:285a51a0040b165aefff4596eb94ab471365b8998cfa0642c920d6a292470f23
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4562,12 +4562,12 @@ on conflict (name) do update
 create table "better_supabase"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
-  "days" integer not null default 30 check ("days" >= 0 and "days" <= 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
-  "discount_days" integer not null default 0 check ("discount_days" >= 0 and "discount_days" <= 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
+  "code" text not null constraint bsb_payment_terms_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_payment_terms_name_check check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 constraint bsb_payment_terms_days_check check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 constraint bsb_payment_terms_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 constraint bsb_payment_terms_discount_days_check check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 constraint bsb_payment_terms_credit_restriction_bps_check check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "code")
@@ -4583,8 +4583,8 @@ create policy bsb_payment_terms_read on "better_supabase"."payment_terms"
 create table "better_supabase"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
-  "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
+  "name" text not null constraint bsb_companies_name_check check (length("name") >= 1 and length("name") <= 300),
+  "domain" text constraint bsb_companies_domain_check check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
   "legal_name" text constraint bsb_companies_legal_name check (length("legal_name") >= 1 and length("legal_name") <= 300),
@@ -4592,15 +4592,15 @@ create table "better_supabase"."companies" (
   "phone" text,
   "lifecycle" text not null,
   "owner_user_id" uuid,
-  "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object'),
+  "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_companies_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_companies_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_companies_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_companies_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_companies_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."companies" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -4627,8 +4627,8 @@ create policy bsb_companies_read on "better_supabase"."companies"
 create table "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "name" text not null constraint bsb_people_name_check check (length("name") >= 1 and length("name") <= 300),
+  "email" text constraint bsb_people_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
   "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null)),
@@ -4636,15 +4636,15 @@ create table "better_supabase"."people" (
   "owner_user_id" uuid,
   "user_id" uuid,
   "avatar_url" text,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_people_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_people_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_people_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_people_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_people_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -4692,10 +4692,10 @@ create table "better_supabase"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") >= 1 and length("document_type") <= 100),
-  "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" >= 1 and "copies" <= 20),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "document_type" text not null constraint bsb_document_delivery_preferences_document_type_check check (length("document_type") >= 1 and length("document_type") <= 100),
+  "channel" text not null constraint bsb_document_delivery_preferences_channel_check check ("channel" in ('email', 'post', 'portal')),
+  "copies" integer not null default 1 constraint bsb_document_delivery_preferences_copies_check check ("copies" >= 1 and "copies" <= 20),
+  "email" text constraint bsb_document_delivery_preferences_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "party_id", "document_type", "channel")
@@ -4713,8 +4713,8 @@ create table "better_supabase"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") >= 1 and length("channel") <= 50),
-  "address" text not null check (length("address") >= 1 and length("address") <= 500),
+  "channel" text not null constraint bsb_person_identities_channel_check check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null constraint bsb_person_identities_address_check check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "channel", "address")
@@ -6264,7 +6264,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:8a14683eb911d7c6a3b44000cfb57aa874cc8e755dfa42519c483124fe0bb91b
+-- @bsb-hash sha256:875759bffa72b1298baff48b647d04e5983725c3533a7b61cf865405afdb77ab
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6274,12 +6274,12 @@ on conflict (name) do update
 -- better_supabase.payment_terms is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."payment_terms" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."payment_terms" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."payment_terms" add column if not exists "code" text check (length("code") >= 1 and length("code") <= 50);
-alter table "better_supabase"."payment_terms" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 300);
-alter table "better_supabase"."payment_terms" add column if not exists "days" integer not null default 30 check ("days" >= 0 and "days" <= 3650);
-alter table "better_supabase"."payment_terms" add column if not exists "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000);
-alter table "better_supabase"."payment_terms" add column if not exists "discount_days" integer not null default 0 check ("discount_days" >= 0 and "discount_days" <= 3650);
-alter table "better_supabase"."payment_terms" add column if not exists "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000);
+alter table "better_supabase"."payment_terms" add column if not exists "code" text constraint bsb_payment_terms_code_check check (length("code") >= 1 and length("code") <= 50);
+alter table "better_supabase"."payment_terms" add column if not exists "name" text constraint bsb_payment_terms_name_check check (length("name") >= 1 and length("name") <= 300);
+alter table "better_supabase"."payment_terms" add column if not exists "days" integer not null default 30 constraint bsb_payment_terms_days_check check ("days" >= 0 and "days" <= 3650);
+alter table "better_supabase"."payment_terms" add column if not exists "discount_bps" integer not null default 0 constraint bsb_payment_terms_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000);
+alter table "better_supabase"."payment_terms" add column if not exists "discount_days" integer not null default 0 constraint bsb_payment_terms_discount_days_check check ("discount_days" >= 0 and "discount_days" <= 3650);
+alter table "better_supabase"."payment_terms" add column if not exists "credit_restriction_bps" integer not null default 0 constraint bsb_payment_terms_credit_restriction_bps_check check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000);
 alter table "better_supabase"."payment_terms" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."payment_terms" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "payment_terms_tenant_id_code_key" on "better_supabase"."payment_terms" ("tenant_id", "code");
@@ -6293,8 +6293,8 @@ create policy bsb_payment_terms_select on "better_supabase"."payment_terms"
 -- better_supabase.companies is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."companies" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."companies" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."companies" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 300);
-alter table "better_supabase"."companies" add column if not exists "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$');
+alter table "better_supabase"."companies" add column if not exists "name" text constraint bsb_companies_name_check check (length("name") >= 1 and length("name") <= 300);
+alter table "better_supabase"."companies" add column if not exists "domain" text constraint bsb_companies_domain_check check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$');
 alter table "better_supabase"."companies" add column if not exists "website" text;
 alter table "better_supabase"."companies" add column if not exists "vat_id" text;
 alter table "better_supabase"."companies" add column if not exists "legal_name" text constraint bsb_companies_legal_name check (length("legal_name") >= 1 and length("legal_name") <= 300);
@@ -6302,15 +6302,15 @@ alter table "better_supabase"."companies" add column if not exists "registration
 alter table "better_supabase"."companies" add column if not exists "phone" text;
 alter table "better_supabase"."companies" add column if not exists "lifecycle" text;
 alter table "better_supabase"."companies" add column if not exists "owner_user_id" uuid;
-alter table "better_supabase"."companies" add column if not exists "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object');
+alter table "better_supabase"."companies" add column if not exists "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object');
 alter table "better_supabase"."companies" add column if not exists "roles" text[] not null default '{}'::text[];
 alter table "better_supabase"."companies" add column if not exists "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null;
 alter table "better_supabase"."companies" add column if not exists "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null;
-alter table "better_supabase"."companies" add column if not exists "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."companies" add column if not exists "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1);
-alter table "better_supabase"."companies" add column if not exists "credit_block" text check ("credit_block" in ('none', 'soft', 'hard'));
-alter table "better_supabase"."companies" add column if not exists "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked'));
-alter table "better_supabase"."companies" add column if not exists "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$');
+alter table "better_supabase"."companies" add column if not exists "credit_currency" text constraint bsb_companies_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."companies" add column if not exists "credit_limit" bigint constraint bsb_companies_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1);
+alter table "better_supabase"."companies" add column if not exists "credit_block" text constraint bsb_companies_credit_block_check check ("credit_block" in ('none', 'soft', 'hard'));
+alter table "better_supabase"."companies" add column if not exists "supplier_status" text constraint bsb_companies_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked'));
+alter table "better_supabase"."companies" add column if not exists "language" text constraint bsb_companies_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$');
 alter table "better_supabase"."companies" add column if not exists "merged_into" uuid references "better_supabase"."companies" ("id");
 alter table "better_supabase"."companies" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."companies" add column if not exists "created_by" uuid;
@@ -6335,8 +6335,8 @@ create policy bsb_companies_select on "better_supabase"."companies"
 -- better_supabase.people is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."people" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."people" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."people" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 300);
-alter table "better_supabase"."people" add column if not exists "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$');
+alter table "better_supabase"."people" add column if not exists "name" text constraint bsb_people_name_check check (length("name") >= 1 and length("name") <= 300);
+alter table "better_supabase"."people" add column if not exists "email" text constraint bsb_people_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$');
 alter table "better_supabase"."people" add column if not exists "phone" text;
 alter table "better_supabase"."people" add column if not exists "title" text;
 alter table "better_supabase"."people" add column if not exists "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null));
@@ -6344,15 +6344,15 @@ alter table "better_supabase"."people" add column if not exists "lifecycle" text
 alter table "better_supabase"."people" add column if not exists "owner_user_id" uuid;
 alter table "better_supabase"."people" add column if not exists "user_id" uuid;
 alter table "better_supabase"."people" add column if not exists "avatar_url" text;
-alter table "better_supabase"."people" add column if not exists "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object');
+alter table "better_supabase"."people" add column if not exists "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object');
 alter table "better_supabase"."people" add column if not exists "roles" text[] not null default '{}'::text[];
 alter table "better_supabase"."people" add column if not exists "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null;
 alter table "better_supabase"."people" add column if not exists "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null;
-alter table "better_supabase"."people" add column if not exists "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."people" add column if not exists "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1);
-alter table "better_supabase"."people" add column if not exists "credit_block" text check ("credit_block" in ('none', 'soft', 'hard'));
-alter table "better_supabase"."people" add column if not exists "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked'));
-alter table "better_supabase"."people" add column if not exists "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$');
+alter table "better_supabase"."people" add column if not exists "credit_currency" text constraint bsb_people_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."people" add column if not exists "credit_limit" bigint constraint bsb_people_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1);
+alter table "better_supabase"."people" add column if not exists "credit_block" text constraint bsb_people_credit_block_check check ("credit_block" in ('none', 'soft', 'hard'));
+alter table "better_supabase"."people" add column if not exists "supplier_status" text constraint bsb_people_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked'));
+alter table "better_supabase"."people" add column if not exists "language" text constraint bsb_people_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$');
 alter table "better_supabase"."people" add column if not exists "merged_into" uuid references "better_supabase"."people" ("id");
 alter table "better_supabase"."people" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."people" add column if not exists "created_by" uuid;
@@ -6396,10 +6396,10 @@ create policy bsb_company_people_select on "better_supabase"."company_people"
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "party_id" uuid;
-alter table "better_supabase"."document_delivery_preferences" add column if not exists "document_type" text check (length("document_type") >= 1 and length("document_type") <= 100);
-alter table "better_supabase"."document_delivery_preferences" add column if not exists "channel" text check ("channel" in ('email', 'post', 'portal'));
-alter table "better_supabase"."document_delivery_preferences" add column if not exists "copies" integer not null default 1 check ("copies" >= 1 and "copies" <= 20);
-alter table "better_supabase"."document_delivery_preferences" add column if not exists "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$');
+alter table "better_supabase"."document_delivery_preferences" add column if not exists "document_type" text constraint bsb_document_delivery_preferences_document_type_check check (length("document_type") >= 1 and length("document_type") <= 100);
+alter table "better_supabase"."document_delivery_preferences" add column if not exists "channel" text constraint bsb_document_delivery_preferences_channel_check check ("channel" in ('email', 'post', 'portal'));
+alter table "better_supabase"."document_delivery_preferences" add column if not exists "copies" integer not null default 1 constraint bsb_document_delivery_preferences_copies_check check ("copies" >= 1 and "copies" <= 20);
+alter table "better_supabase"."document_delivery_preferences" add column if not exists "email" text constraint bsb_document_delivery_preferences_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$');
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."document_delivery_preferences" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "document_delivery_preferences_tenant_id_party_id_document_type_" on "better_supabase"."document_delivery_preferences" ("tenant_id", "party_id", "document_type", "channel");
@@ -6415,8 +6415,8 @@ create policy bsb_document_delivery_preferences_select on "better_supabase"."doc
 alter table "better_supabase"."person_identities" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."person_identities" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."person_identities" add column if not exists "person_id" uuid references "better_supabase"."people" ("id") on delete cascade;
-alter table "better_supabase"."person_identities" add column if not exists "channel" text check (length("channel") >= 1 and length("channel") <= 50);
-alter table "better_supabase"."person_identities" add column if not exists "address" text check (length("address") >= 1 and length("address") <= 500);
+alter table "better_supabase"."person_identities" add column if not exists "channel" text constraint bsb_person_identities_channel_check check (length("channel") >= 1 and length("channel") <= 50);
+alter table "better_supabase"."person_identities" add column if not exists "address" text constraint bsb_person_identities_address_check check (length("address") >= 1 and length("address") <= 500);
 alter table "better_supabase"."person_identities" add column if not exists "verified_at" timestamptz;
 alter table "better_supabase"."person_identities" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "person_identities_tenant_id_channel_address_key" on "better_supabase"."person_identities" ("tenant_id", "channel", "address");
@@ -7714,7 +7714,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_093_contacts.sql
 -- better-supabase module: contacts
 -- @bsb-block contacts@3 managed
--- @bsb-hash sha256:c8ca0d657af294f32ca9dfc920cb7ef365878a0ec74ec4cd29bc0d38bd41fb7d
+-- @bsb-hash sha256:92d5fd28fe690e83b32d7d91e818316a5cf7420469dfbc99fb995a2a08a4698e
 -- Companies and people an organization works with: lifecycle stages, owners, party roles (customer, supplier and so on), payment terms with early-payment discounts and credit restrictions, credit limits with a soft or hard block, a language, delivery preferences per document type and a supplier status, who works where with a role and a primary contact, each person's addresses on channels (the inbox's contacts), domain and email dedupe, merges and keyset-paged search.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7724,12 +7724,12 @@ on conflict (name) do update
 create table "better_supabase"."payment_terms" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "code" text not null check (length("code") >= 1 and length("code") <= 50),
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
-  "days" integer not null default 30 check ("days" >= 0 and "days" <= 3650),
-  "discount_bps" integer not null default 0 check ("discount_bps" >= 0 and "discount_bps" <= 10000),
-  "discount_days" integer not null default 0 check ("discount_days" >= 0 and "discount_days" <= 3650),
-  "credit_restriction_bps" integer not null default 0 check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
+  "code" text not null constraint bsb_payment_terms_code_check check (length("code") >= 1 and length("code") <= 50),
+  "name" text not null constraint bsb_payment_terms_name_check check (length("name") >= 1 and length("name") <= 300),
+  "days" integer not null default 30 constraint bsb_payment_terms_days_check check ("days" >= 0 and "days" <= 3650),
+  "discount_bps" integer not null default 0 constraint bsb_payment_terms_discount_bps_check check ("discount_bps" >= 0 and "discount_bps" <= 10000),
+  "discount_days" integer not null default 0 constraint bsb_payment_terms_discount_days_check check ("discount_days" >= 0 and "discount_days" <= 3650),
+  "credit_restriction_bps" integer not null default 0 constraint bsb_payment_terms_credit_restriction_bps_check check ("credit_restriction_bps" >= 0 and "credit_restriction_bps" <= 10000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "code")
@@ -7745,8 +7745,8 @@ create policy bsb_payment_terms_read on "better_supabase"."payment_terms"
 create table "better_supabase"."companies" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
-  "domain" text check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
+  "name" text not null constraint bsb_companies_name_check check (length("name") >= 1 and length("name") <= 300),
+  "domain" text constraint bsb_companies_domain_check check ("domain" = lower("domain") and "domain" ~ '^[a-z0-9.-]+\.[a-z]{2,}$'),
   "website" text,
   "vat_id" text,
   "legal_name" text constraint bsb_companies_legal_name check (length("legal_name") >= 1 and length("legal_name") <= 300),
@@ -7754,15 +7754,15 @@ create table "better_supabase"."companies" (
   "phone" text,
   "lifecycle" text not null,
   "owner_user_id" uuid,
-  "address" jsonb check ("address" is null or jsonb_typeof("address") = 'object'),
+  "address" jsonb constraint bsb_companies_address_check check ("address" is null or jsonb_typeof("address") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_companies_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_companies_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_companies_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_companies_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_companies_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."companies" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -7789,8 +7789,8 @@ create policy bsb_companies_read on "better_supabase"."companies"
 create table "better_supabase"."people" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "name" text not null constraint bsb_people_name_check check (length("name") >= 1 and length("name") <= 300),
+  "email" text constraint bsb_people_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "phone" text,
   "title" text,
   "mode" text not null default 'external' constraint bsb_people_mode check ("mode" in ('external', 'tenant') and ("mode" = 'external' or "user_id" is not null)),
@@ -7798,15 +7798,15 @@ create table "better_supabase"."people" (
   "owner_user_id" uuid,
   "user_id" uuid,
   "avatar_url" text,
-  "metadata" jsonb not null default '{}'::jsonb check (jsonb_typeof("metadata") = 'object'),
+  "metadata" jsonb not null default '{}'::jsonb constraint bsb_people_metadata_check check (jsonb_typeof("metadata") = 'object'),
   "roles" text[] not null default '{}'::text[],
   "customer_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
   "supplier_terms_id" uuid references "better_supabase"."payment_terms" ("id") on delete set null,
-  "credit_currency" text check ("credit_currency" ~ '^[A-Z]{3}$'),
-  "credit_limit" bigint check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
-  "credit_block" text check ("credit_block" in ('none', 'soft', 'hard')),
-  "supplier_status" text check ("supplier_status" in ('approved', 'conditional', 'blocked')),
-  "language" text check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
+  "credit_currency" text constraint bsb_people_credit_currency_check check ("credit_currency" ~ '^[A-Z]{3}$'),
+  "credit_limit" bigint constraint bsb_people_check check ("credit_limit" >= 0 and num_nulls("credit_limit", "credit_currency") <> 1),
+  "credit_block" text constraint bsb_people_credit_block_check check ("credit_block" in ('none', 'soft', 'hard')),
+  "supplier_status" text constraint bsb_people_supplier_status_check check ("supplier_status" in ('approved', 'conditional', 'blocked')),
+  "language" text constraint bsb_people_language_check check ("language" ~ '^[a-z]{2,3}(-[A-Za-z0-9]{2,8})*$'),
   "merged_into" uuid references "better_supabase"."people" ("id"),
   "archived_at" timestamptz,
   "created_by" uuid,
@@ -7854,10 +7854,10 @@ create table "better_supabase"."document_delivery_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "party_id" uuid not null,
-  "document_type" text not null check (length("document_type") >= 1 and length("document_type") <= 100),
-  "channel" text not null check ("channel" in ('email', 'post', 'portal')),
-  "copies" integer not null default 1 check ("copies" >= 1 and "copies" <= 20),
-  "email" text check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
+  "document_type" text not null constraint bsb_document_delivery_preferences_document_type_check check (length("document_type") >= 1 and length("document_type") <= 100),
+  "channel" text not null constraint bsb_document_delivery_preferences_channel_check check ("channel" in ('email', 'post', 'portal')),
+  "copies" integer not null default 1 constraint bsb_document_delivery_preferences_copies_check check ("copies" >= 1 and "copies" <= 20),
+  "email" text constraint bsb_document_delivery_preferences_email_check check ("email" = lower("email") and "email" ~ '^[^@[:space:]]+@[^@[:space:]]+$'),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "party_id", "document_type", "channel")
@@ -7875,8 +7875,8 @@ create table "better_supabase"."person_identities" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "person_id" uuid not null references "better_supabase"."people" ("id") on delete cascade,
-  "channel" text not null check (length("channel") >= 1 and length("channel") <= 50),
-  "address" text not null check (length("address") >= 1 and length("address") <= 500),
+  "channel" text not null constraint bsb_person_identities_channel_check check (length("channel") >= 1 and length("channel") <= 50),
+  "address" text not null constraint bsb_person_identities_address_check check (length("address") >= 1 and length("address") <= 500),
   "verified_at" timestamptz,
   "created_at" timestamptz not null default now(),
   unique ("org_id", "channel", "address")

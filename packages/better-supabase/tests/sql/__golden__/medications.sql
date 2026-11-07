@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:2e24518b182326e6433e30749d79a8a59d45580ff3bf4435bca2eb203e710cb9
+-- @bsb-hash sha256:a5d93167825320d40f578c235f19168a5c0b4f0e08e24a8e7660ce3ab1f59f27
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,13 +13,13 @@
 create table "better_supabase"."medications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
+  "name" text not null constraint bsb_medications_name_check check (length("name") >= 1 and length("name") <= 300),
   -- The catalog the code is from; custom is the organization's own entry.
-  "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
-  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 100),
-  "form" text check ("form" is null or length("form") <= 100),
-  "strength" text check ("strength" is null or length("strength") <= 100),
-  "unit" text not null check (length("unit") >= 1 and length("unit") <= 50),
+  "code_system" text not null default 'custom' constraint bsb_medications_code_system_check check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
+  "code" text constraint bsb_medications_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "form" text constraint bsb_medications_form_check check ("form" is null or length("form") <= 100),
+  "strength" text constraint bsb_medications_strength_check check ("strength" is null or length("strength") <= 100),
+  "unit" text not null constraint bsb_medications_unit_check check (length("unit") >= 1 and length("unit") <= 50),
   -- A dose of a high-risk medication needs a second member to check it.
   "high_risk" boolean not null default false,
   "archived_at" timestamptz,
@@ -41,31 +41,31 @@ create table "better_supabase"."medication_orders" (
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,
-  "dose" numeric not null check ("dose" > 0),
-  "dose_unit" text not null check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
-  "route" text check ("route" is null or length("route") <= 100),
+  "dose" numeric not null constraint bsb_medication_orders_dose_check check ("dose" > 0),
+  "dose_unit" text not null constraint bsb_medication_orders_dose_unit_check check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
+  "route" text constraint bsb_medication_orders_route_check check ("route" is null or length("route") <= 100),
   -- {times: ["08:00"]} or {everyHours: 8, startTime: "06:00"}, with optional
   -- ISO weekdays; null for an order given only as needed.
   "schedule" jsonb,
   "as_needed" boolean not null default false,
-  "as_needed_reason" text check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
+  "as_needed_reason" text constraint bsb_medication_orders_as_needed_reason_check check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
   -- The most of the dose unit given in any 24 hours, for an as-needed order.
-  "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0),
+  "max_per_day" numeric constraint bsb_medication_orders_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0),
   "starts_on" date not null,
   "ends_on" date,
-  "prescriber" text check ("prescriber" is null or length("prescriber") <= 300),
-  "source" text not null default 'prescriber' check ("source" in ('prescriber', 'pharmacy', 'import')),
+  "prescriber" text constraint bsb_medication_orders_prescriber_check check ("prescriber" is null or length("prescriber") <= 300),
+  "source" text not null default 'prescriber' constraint bsb_medication_orders_source_check check ("source" in ('prescriber', 'pharmacy', 'import')),
   -- The order's id in the pharmacy or prescribing system it was imported from.
-  "external_id" text check ("external_id" is null or length("external_id") <= 200),
+  "external_id" text constraint bsb_medication_orders_external_id_check check ("external_id" is null or length("external_id") <= 200),
   "requires_double_check" boolean not null default false,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'stopped')),
-  "stopped_reason" text check ("stopped_reason" is null or length("stopped_reason") <= 1000),
+  "status" text not null default 'active' constraint bsb_medication_orders_status_check check ("status" in ('active', 'paused', 'stopped')),
+  "stopped_reason" text constraint bsb_medication_orders_stopped_reason_check check ("stopped_reason" is null or length("stopped_reason") <= 1000),
   "signature_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
-  check ("as_needed" or "schedule" is not null),
+  constraint bsb_medication_orders_check check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_medication_orders_check1 check ("as_needed" or "schedule" is not null),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "medication_id") references "better_supabase"."medications" ("tenant_id", "id")
 );
@@ -91,15 +91,15 @@ create table "better_supabase"."medication_administrations" (
   -- The planned time; null for an as-needed dose.
   "scheduled_at" timestamptz,
   "administered_at" timestamptz,
-  "status" text not null default 'planned' check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
-  "dose" numeric check ("dose" is null or "dose" > 0),
+  "status" text not null default 'planned' constraint bsb_medication_administrations_status_check check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
+  "dose" numeric constraint bsb_medication_administrations_dose_check check ("dose" is null or "dose" > 0),
   "performer_id" uuid,
   -- The second member who checked a high-risk dose.
   "checked_by" uuid,
-  "reason" text check ("reason" is null or length("reason") <= 1000),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "reason" text constraint bsb_medication_administrations_reason_check check ("reason" is null or length("reason") <= 1000),
+  "note" text constraint bsb_medication_administrations_note_check check ("note" is null or length("note") <= 2000),
   "signature_id" uuid,
-  check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
+  constraint bsb_medication_administrations_check check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
   unique ("order_id", "scheduled_at"),
   foreign key ("tenant_id", "order_id") references "better_supabase"."medication_orders" ("tenant_id", "id") on delete cascade
 );
@@ -1319,7 +1319,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:65c256963b0ba6f41509ace6953831330e406be6d567b105a8bede29926441ca
+-- @bsb-hash sha256:f17b7c30ddb63622d830c2f146e9568882b2419bd31868e7f49844a18a2b4707
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1331,13 +1331,13 @@ on conflict (name) do update
 create table "better_supabase"."medications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
+  "name" text not null constraint bsb_medications_name_check check (length("name") >= 1 and length("name") <= 300),
   -- The catalog the code is from; custom is the organization's own entry.
-  "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
-  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 100),
-  "form" text check ("form" is null or length("form") <= 100),
-  "strength" text check ("strength" is null or length("strength") <= 100),
-  "unit" text not null check (length("unit") >= 1 and length("unit") <= 50),
+  "code_system" text not null default 'custom' constraint bsb_medications_code_system_check check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
+  "code" text constraint bsb_medications_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "form" text constraint bsb_medications_form_check check ("form" is null or length("form") <= 100),
+  "strength" text constraint bsb_medications_strength_check check ("strength" is null or length("strength") <= 100),
+  "unit" text not null constraint bsb_medications_unit_check check (length("unit") >= 1 and length("unit") <= 50),
   -- A dose of a high-risk medication needs a second member to check it.
   "high_risk" boolean not null default false,
   "archived_at" timestamptz,
@@ -1359,31 +1359,31 @@ create table "better_supabase"."medication_orders" (
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,
-  "dose" numeric not null check ("dose" > 0),
-  "dose_unit" text not null check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
-  "route" text check ("route" is null or length("route") <= 100),
+  "dose" numeric not null constraint bsb_medication_orders_dose_check check ("dose" > 0),
+  "dose_unit" text not null constraint bsb_medication_orders_dose_unit_check check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
+  "route" text constraint bsb_medication_orders_route_check check ("route" is null or length("route") <= 100),
   -- {times: ["08:00"]} or {everyHours: 8, startTime: "06:00"}, with optional
   -- ISO weekdays; null for an order given only as needed.
   "schedule" jsonb,
   "as_needed" boolean not null default false,
-  "as_needed_reason" text check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
+  "as_needed_reason" text constraint bsb_medication_orders_as_needed_reason_check check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
   -- The most of the dose unit given in any 24 hours, for an as-needed order.
-  "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0),
+  "max_per_day" numeric constraint bsb_medication_orders_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0),
   "starts_on" date not null,
   "ends_on" date,
-  "prescriber" text check ("prescriber" is null or length("prescriber") <= 300),
-  "source" text not null default 'prescriber' check ("source" in ('prescriber', 'pharmacy', 'import')),
+  "prescriber" text constraint bsb_medication_orders_prescriber_check check ("prescriber" is null or length("prescriber") <= 300),
+  "source" text not null default 'prescriber' constraint bsb_medication_orders_source_check check ("source" in ('prescriber', 'pharmacy', 'import')),
   -- The order's id in the pharmacy or prescribing system it was imported from.
-  "external_id" text check ("external_id" is null or length("external_id") <= 200),
+  "external_id" text constraint bsb_medication_orders_external_id_check check ("external_id" is null or length("external_id") <= 200),
   "requires_double_check" boolean not null default false,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'stopped')),
-  "stopped_reason" text check ("stopped_reason" is null or length("stopped_reason") <= 1000),
+  "status" text not null default 'active' constraint bsb_medication_orders_status_check check ("status" in ('active', 'paused', 'stopped')),
+  "stopped_reason" text constraint bsb_medication_orders_stopped_reason_check check ("stopped_reason" is null or length("stopped_reason") <= 1000),
   "signature_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
-  check ("as_needed" or "schedule" is not null),
+  constraint bsb_medication_orders_check check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_medication_orders_check1 check ("as_needed" or "schedule" is not null),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "medication_id") references "better_supabase"."medications" ("tenant_id", "id")
 );
@@ -1409,15 +1409,15 @@ create table "better_supabase"."medication_administrations" (
   -- The planned time; null for an as-needed dose.
   "scheduled_at" timestamptz,
   "administered_at" timestamptz,
-  "status" text not null default 'planned' check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
-  "dose" numeric check ("dose" is null or "dose" > 0),
+  "status" text not null default 'planned' constraint bsb_medication_administrations_status_check check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
+  "dose" numeric constraint bsb_medication_administrations_dose_check check ("dose" is null or "dose" > 0),
   "performer_id" uuid,
   -- The second member who checked a high-risk dose.
   "checked_by" uuid,
-  "reason" text check ("reason" is null or length("reason") <= 1000),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "reason" text constraint bsb_medication_administrations_reason_check check ("reason" is null or length("reason") <= 1000),
+  "note" text constraint bsb_medication_administrations_note_check check ("note" is null or length("note") <= 2000),
   "signature_id" uuid,
-  check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
+  constraint bsb_medication_administrations_check check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
   unique ("order_id", "scheduled_at"),
   foreign key ("tenant_id", "order_id") references "better_supabase"."medication_orders" ("tenant_id", "id") on delete cascade
 );
@@ -2767,7 +2767,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:5a1d7baebac89bce808b3e675fd733cce675a8dc6ff2eafb5129af381821591e
+-- @bsb-hash sha256:335447f08875f174f304a693dcf10ccf429f873d80acd0e68e3d935ec994a5be
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2784,13 +2784,13 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."medications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
+  "name" text not null constraint bsb_medications_name_check check (length("name") >= 1 and length("name") <= 300),
   -- The catalog the code is from; custom is the organization's own entry.
-  "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
-  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 100),
-  "form" text check ("form" is null or length("form") <= 100),
-  "strength" text check ("strength" is null or length("strength") <= 100),
-  "unit" text not null check (length("unit") >= 1 and length("unit") <= 50),
+  "code_system" text not null default 'custom' constraint bsb_medications_code_system_check check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
+  "code" text constraint bsb_medications_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "form" text constraint bsb_medications_form_check check ("form" is null or length("form") <= 100),
+  "strength" text constraint bsb_medications_strength_check check ("strength" is null or length("strength") <= 100),
+  "unit" text not null constraint bsb_medications_unit_check check (length("unit") >= 1 and length("unit") <= 50),
   -- A dose of a high-risk medication needs a second member to check it.
   "high_risk" boolean not null default false,
   "archived_at" timestamptz,
@@ -2812,31 +2812,31 @@ create table "app_private"."medication_orders" (
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,
-  "dose" numeric not null check ("dose" > 0),
-  "dose_unit" text not null check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
-  "route" text check ("route" is null or length("route") <= 100),
+  "dose" numeric not null constraint bsb_medication_orders_dose_check check ("dose" > 0),
+  "dose_unit" text not null constraint bsb_medication_orders_dose_unit_check check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
+  "route" text constraint bsb_medication_orders_route_check check ("route" is null or length("route") <= 100),
   -- {times: ["08:00"]} or {everyHours: 8, startTime: "06:00"}, with optional
   -- ISO weekdays; null for an order given only as needed.
   "schedule" jsonb,
   "as_needed" boolean not null default false,
-  "as_needed_reason" text check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
+  "as_needed_reason" text constraint bsb_medication_orders_as_needed_reason_check check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
   -- The most of the dose unit given in any 24 hours, for an as-needed order.
-  "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0),
+  "max_per_day" numeric constraint bsb_medication_orders_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0),
   "starts_on" date not null,
   "ends_on" date,
-  "prescriber" text check ("prescriber" is null or length("prescriber") <= 300),
-  "source" text not null default 'prescriber' check ("source" in ('prescriber', 'pharmacy', 'import')),
+  "prescriber" text constraint bsb_medication_orders_prescriber_check check ("prescriber" is null or length("prescriber") <= 300),
+  "source" text not null default 'prescriber' constraint bsb_medication_orders_source_check check ("source" in ('prescriber', 'pharmacy', 'import')),
   -- The order's id in the pharmacy or prescribing system it was imported from.
-  "external_id" text check ("external_id" is null or length("external_id") <= 200),
+  "external_id" text constraint bsb_medication_orders_external_id_check check ("external_id" is null or length("external_id") <= 200),
   "requires_double_check" boolean not null default false,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'stopped')),
-  "stopped_reason" text check ("stopped_reason" is null or length("stopped_reason") <= 1000),
+  "status" text not null default 'active' constraint bsb_medication_orders_status_check check ("status" in ('active', 'paused', 'stopped')),
+  "stopped_reason" text constraint bsb_medication_orders_stopped_reason_check check ("stopped_reason" is null or length("stopped_reason") <= 1000),
   "signature_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
-  check ("as_needed" or "schedule" is not null),
+  constraint bsb_medication_orders_check check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_medication_orders_check1 check ("as_needed" or "schedule" is not null),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "medication_id") references "app_private"."medications" ("tenant_id", "id")
 );
@@ -2862,15 +2862,15 @@ create table "app_private"."medication_administrations" (
   -- The planned time; null for an as-needed dose.
   "scheduled_at" timestamptz,
   "administered_at" timestamptz,
-  "status" text not null default 'planned' check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
-  "dose" numeric check ("dose" is null or "dose" > 0),
+  "status" text not null default 'planned' constraint bsb_medication_administrations_status_check check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
+  "dose" numeric constraint bsb_medication_administrations_dose_check check ("dose" is null or "dose" > 0),
   "performer_id" uuid,
   -- The second member who checked a high-risk dose.
   "checked_by" uuid,
-  "reason" text check ("reason" is null or length("reason") <= 1000),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "reason" text constraint bsb_medication_administrations_reason_check check ("reason" is null or length("reason") <= 1000),
+  "note" text constraint bsb_medication_administrations_note_check check ("note" is null or length("note") <= 2000),
   "signature_id" uuid,
-  check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
+  constraint bsb_medication_administrations_check check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
   unique ("order_id", "scheduled_at"),
   foreign key ("tenant_id", "order_id") references "app_private"."medication_orders" ("tenant_id", "id") on delete cascade
 );
@@ -4090,7 +4090,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:a0df5a5491c88217d6f629dc22005f575dd5dad3a218bc48a17a296d86d13043
+-- @bsb-hash sha256:3042792ccf089542e7b77c53590567ab28f71645d329c0485c45fbfe990d328c
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4102,13 +4102,13 @@ on conflict (name) do update
 create table "better_supabase"."medications" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
+  "name" text not null constraint bsb_medications_name_check check (length("name") >= 1 and length("name") <= 300),
   -- The catalog the code is from; custom is the organization's own entry.
-  "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
-  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 100),
-  "form" text check ("form" is null or length("form") <= 100),
-  "strength" text check ("strength" is null or length("strength") <= 100),
-  "unit" text not null check (length("unit") >= 1 and length("unit") <= 50),
+  "code_system" text not null default 'custom' constraint bsb_medications_code_system_check check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
+  "code" text constraint bsb_medications_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "form" text constraint bsb_medications_form_check check ("form" is null or length("form") <= 100),
+  "strength" text constraint bsb_medications_strength_check check ("strength" is null or length("strength") <= 100),
+  "unit" text not null constraint bsb_medications_unit_check check (length("unit") >= 1 and length("unit") <= 50),
   -- A dose of a high-risk medication needs a second member to check it.
   "high_risk" boolean not null default false,
   "archived_at" timestamptz,
@@ -4130,31 +4130,31 @@ create table "better_supabase"."medication_orders" (
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,
-  "dose" numeric not null check ("dose" > 0),
-  "dose_unit" text not null check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
-  "route" text check ("route" is null or length("route") <= 100),
+  "dose" numeric not null constraint bsb_medication_orders_dose_check check ("dose" > 0),
+  "dose_unit" text not null constraint bsb_medication_orders_dose_unit_check check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
+  "route" text constraint bsb_medication_orders_route_check check ("route" is null or length("route") <= 100),
   -- {times: ["08:00"]} or {everyHours: 8, startTime: "06:00"}, with optional
   -- ISO weekdays; null for an order given only as needed.
   "schedule" jsonb,
   "as_needed" boolean not null default false,
-  "as_needed_reason" text check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
+  "as_needed_reason" text constraint bsb_medication_orders_as_needed_reason_check check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
   -- The most of the dose unit given in any 24 hours, for an as-needed order.
-  "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0),
+  "max_per_day" numeric constraint bsb_medication_orders_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0),
   "starts_on" date not null,
   "ends_on" date,
-  "prescriber" text check ("prescriber" is null or length("prescriber") <= 300),
-  "source" text not null default 'prescriber' check ("source" in ('prescriber', 'pharmacy', 'import')),
+  "prescriber" text constraint bsb_medication_orders_prescriber_check check ("prescriber" is null or length("prescriber") <= 300),
+  "source" text not null default 'prescriber' constraint bsb_medication_orders_source_check check ("source" in ('prescriber', 'pharmacy', 'import')),
   -- The order's id in the pharmacy or prescribing system it was imported from.
-  "external_id" text check ("external_id" is null or length("external_id") <= 200),
+  "external_id" text constraint bsb_medication_orders_external_id_check check ("external_id" is null or length("external_id") <= 200),
   "requires_double_check" boolean not null default false,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'stopped')),
-  "stopped_reason" text check ("stopped_reason" is null or length("stopped_reason") <= 1000),
+  "status" text not null default 'active' constraint bsb_medication_orders_status_check check ("status" in ('active', 'paused', 'stopped')),
+  "stopped_reason" text constraint bsb_medication_orders_stopped_reason_check check ("stopped_reason" is null or length("stopped_reason") <= 1000),
   "signature_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
-  check ("as_needed" or "schedule" is not null),
+  constraint bsb_medication_orders_check check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_medication_orders_check1 check ("as_needed" or "schedule" is not null),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "medication_id") references "better_supabase"."medications" ("tenant_id", "id")
 );
@@ -4180,15 +4180,15 @@ create table "better_supabase"."medication_administrations" (
   -- The planned time; null for an as-needed dose.
   "scheduled_at" timestamptz,
   "administered_at" timestamptz,
-  "status" text not null default 'planned' check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
-  "dose" numeric check ("dose" is null or "dose" > 0),
+  "status" text not null default 'planned' constraint bsb_medication_administrations_status_check check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
+  "dose" numeric constraint bsb_medication_administrations_dose_check check ("dose" is null or "dose" > 0),
   "performer_id" uuid,
   -- The second member who checked a high-risk dose.
   "checked_by" uuid,
-  "reason" text check ("reason" is null or length("reason") <= 1000),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "reason" text constraint bsb_medication_administrations_reason_check check ("reason" is null or length("reason") <= 1000),
+  "note" text constraint bsb_medication_administrations_note_check check ("note" is null or length("note") <= 2000),
   "signature_id" uuid,
-  check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
+  constraint bsb_medication_administrations_check check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
   unique ("order_id", "scheduled_at"),
   foreign key ("tenant_id", "order_id") references "better_supabase"."medication_orders" ("tenant_id", "id") on delete cascade
 );
@@ -5559,7 +5559,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:e980c47adec333aed0fbe76d55e67d65e88f20effce8645a57c266d183b2b678
+-- @bsb-hash sha256:44d1ded7c0434761b01185421e0ed568db987aff72eee137f3681242002a8abd
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5571,12 +5571,12 @@ on conflict (name) do update
 -- better_supabase.medications is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."medications" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."medications" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."medications" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 300);
-alter table "better_supabase"."medications" add column if not exists "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom'));
-alter table "better_supabase"."medications" add column if not exists "code" text check ("code" is null or length("code") >= 1 and length("code") <= 100);
-alter table "better_supabase"."medications" add column if not exists "form" text check ("form" is null or length("form") <= 100);
-alter table "better_supabase"."medications" add column if not exists "strength" text check ("strength" is null or length("strength") <= 100);
-alter table "better_supabase"."medications" add column if not exists "unit" text check (length("unit") >= 1 and length("unit") <= 50);
+alter table "better_supabase"."medications" add column if not exists "name" text constraint bsb_medications_name_check check (length("name") >= 1 and length("name") <= 300);
+alter table "better_supabase"."medications" add column if not exists "code_system" text not null default 'custom' constraint bsb_medications_code_system_check check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom'));
+alter table "better_supabase"."medications" add column if not exists "code" text constraint bsb_medications_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100);
+alter table "better_supabase"."medications" add column if not exists "form" text constraint bsb_medications_form_check check ("form" is null or length("form") <= 100);
+alter table "better_supabase"."medications" add column if not exists "strength" text constraint bsb_medications_strength_check check ("strength" is null or length("strength") <= 100);
+alter table "better_supabase"."medications" add column if not exists "unit" text constraint bsb_medications_unit_check check (length("unit") >= 1 and length("unit") <= 50);
 alter table "better_supabase"."medications" add column if not exists "high_risk" boolean not null default false;
 alter table "better_supabase"."medications" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."medications" add column if not exists "created_at" timestamptz not null default now();
@@ -5594,21 +5594,21 @@ alter table "better_supabase"."medication_orders" add column if not exists "tena
 alter table "better_supabase"."medication_orders" add column if not exists "subject_type" text;
 alter table "better_supabase"."medication_orders" add column if not exists "subject_id" text;
 alter table "better_supabase"."medication_orders" add column if not exists "medication_id" uuid;
-alter table "better_supabase"."medication_orders" add column if not exists "dose" numeric check ("dose" > 0);
-alter table "better_supabase"."medication_orders" add column if not exists "dose_unit" text check (length("dose_unit") >= 1 and length("dose_unit") <= 50);
-alter table "better_supabase"."medication_orders" add column if not exists "route" text check ("route" is null or length("route") <= 100);
+alter table "better_supabase"."medication_orders" add column if not exists "dose" numeric constraint bsb_medication_orders_dose_check check ("dose" > 0);
+alter table "better_supabase"."medication_orders" add column if not exists "dose_unit" text constraint bsb_medication_orders_dose_unit_check check (length("dose_unit") >= 1 and length("dose_unit") <= 50);
+alter table "better_supabase"."medication_orders" add column if not exists "route" text constraint bsb_medication_orders_route_check check ("route" is null or length("route") <= 100);
 alter table "better_supabase"."medication_orders" add column if not exists "schedule" jsonb;
 alter table "better_supabase"."medication_orders" add column if not exists "as_needed" boolean not null default false;
-alter table "better_supabase"."medication_orders" add column if not exists "as_needed_reason" text check ("as_needed_reason" is null or length("as_needed_reason") <= 500);
-alter table "better_supabase"."medication_orders" add column if not exists "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0);
+alter table "better_supabase"."medication_orders" add column if not exists "as_needed_reason" text constraint bsb_medication_orders_as_needed_reason_check check ("as_needed_reason" is null or length("as_needed_reason") <= 500);
+alter table "better_supabase"."medication_orders" add column if not exists "max_per_day" numeric constraint bsb_medication_orders_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0);
 alter table "better_supabase"."medication_orders" add column if not exists "starts_on" date;
 alter table "better_supabase"."medication_orders" add column if not exists "ends_on" date;
-alter table "better_supabase"."medication_orders" add column if not exists "prescriber" text check ("prescriber" is null or length("prescriber") <= 300);
-alter table "better_supabase"."medication_orders" add column if not exists "source" text not null default 'prescriber' check ("source" in ('prescriber', 'pharmacy', 'import'));
-alter table "better_supabase"."medication_orders" add column if not exists "external_id" text check ("external_id" is null or length("external_id") <= 200);
+alter table "better_supabase"."medication_orders" add column if not exists "prescriber" text constraint bsb_medication_orders_prescriber_check check ("prescriber" is null or length("prescriber") <= 300);
+alter table "better_supabase"."medication_orders" add column if not exists "source" text not null default 'prescriber' constraint bsb_medication_orders_source_check check ("source" in ('prescriber', 'pharmacy', 'import'));
+alter table "better_supabase"."medication_orders" add column if not exists "external_id" text constraint bsb_medication_orders_external_id_check check ("external_id" is null or length("external_id") <= 200);
 alter table "better_supabase"."medication_orders" add column if not exists "requires_double_check" boolean not null default false;
-alter table "better_supabase"."medication_orders" add column if not exists "status" text not null default 'active' check ("status" in ('active', 'paused', 'stopped'));
-alter table "better_supabase"."medication_orders" add column if not exists "stopped_reason" text check ("stopped_reason" is null or length("stopped_reason") <= 1000);
+alter table "better_supabase"."medication_orders" add column if not exists "status" text not null default 'active' constraint bsb_medication_orders_status_check check ("status" in ('active', 'paused', 'stopped'));
+alter table "better_supabase"."medication_orders" add column if not exists "stopped_reason" text constraint bsb_medication_orders_stopped_reason_check check ("stopped_reason" is null or length("stopped_reason") <= 1000);
 alter table "better_supabase"."medication_orders" add column if not exists "signature_id" uuid;
 alter table "better_supabase"."medication_orders" add column if not exists "created_by" uuid;
 alter table "better_supabase"."medication_orders" add column if not exists "created_at" timestamptz not null default now();
@@ -5634,12 +5634,12 @@ alter table "better_supabase"."medication_administrations" add column if not exi
 alter table "better_supabase"."medication_administrations" add column if not exists "order_id" uuid;
 alter table "better_supabase"."medication_administrations" add column if not exists "scheduled_at" timestamptz;
 alter table "better_supabase"."medication_administrations" add column if not exists "administered_at" timestamptz;
-alter table "better_supabase"."medication_administrations" add column if not exists "status" text not null default 'planned' check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed'));
-alter table "better_supabase"."medication_administrations" add column if not exists "dose" numeric check ("dose" is null or "dose" > 0);
+alter table "better_supabase"."medication_administrations" add column if not exists "status" text not null default 'planned' constraint bsb_medication_administrations_status_check check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed'));
+alter table "better_supabase"."medication_administrations" add column if not exists "dose" numeric constraint bsb_medication_administrations_dose_check check ("dose" is null or "dose" > 0);
 alter table "better_supabase"."medication_administrations" add column if not exists "performer_id" uuid;
 alter table "better_supabase"."medication_administrations" add column if not exists "checked_by" uuid;
-alter table "better_supabase"."medication_administrations" add column if not exists "reason" text check ("reason" is null or length("reason") <= 1000);
-alter table "better_supabase"."medication_administrations" add column if not exists "note" text check ("note" is null or length("note") <= 2000);
+alter table "better_supabase"."medication_administrations" add column if not exists "reason" text constraint bsb_medication_administrations_reason_check check ("reason" is null or length("reason") <= 1000);
+alter table "better_supabase"."medication_administrations" add column if not exists "note" text constraint bsb_medication_administrations_note_check check ("note" is null or length("note") <= 2000);
 alter table "better_supabase"."medication_administrations" add column if not exists "signature_id" uuid;
 create unique index if not exists "bsb_medication_administrations_order_time_key_key" on "better_supabase"."medication_administrations" ("order_id", "scheduled_at");
 create index if not exists "medication_administrations_order_idx" on "better_supabase"."medication_administrations" ("tenant_id", "order_id");
@@ -6857,7 +6857,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_150_medications.sql
 -- better-supabase module: medications
 -- @bsb-block medications@1 managed
--- @bsb-hash sha256:10b777b8048a24c030a9b901d35ac1cd47db77fbdca27fccf6708d53897659d5
+-- @bsb-hash sha256:ae9c02f2f7ec604668ffabf1c1d6ea98f66ca4542f505093901e7ff54a37dc5a
 -- A medication catalog per organization, orders for a record with a dose, route, schedule and an as-needed maximum, orders imported from a pharmacy, planned doses, each dose recorded as given, refused, skipped or missed with a second check for high-risk medication, and a medication chart per record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6869,13 +6869,13 @@ on conflict (name) do update
 create table "better_supabase"."medications" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 300),
+  "name" text not null constraint bsb_medications_name_check check (length("name") >= 1 and length("name") <= 300),
   -- The catalog the code is from; custom is the organization's own entry.
-  "code_system" text not null default 'custom' check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
-  "code" text check ("code" is null or length("code") >= 1 and length("code") <= 100),
-  "form" text check ("form" is null or length("form") <= 100),
-  "strength" text check ("strength" is null or length("strength") <= 100),
-  "unit" text not null check (length("unit") >= 1 and length("unit") <= 50),
+  "code_system" text not null default 'custom' constraint bsb_medications_code_system_check check ("code_system" in ('gtin', 'hpk', 'atc', 'rxnorm', 'custom')),
+  "code" text constraint bsb_medications_code_check check ("code" is null or length("code") >= 1 and length("code") <= 100),
+  "form" text constraint bsb_medications_form_check check ("form" is null or length("form") <= 100),
+  "strength" text constraint bsb_medications_strength_check check ("strength" is null or length("strength") <= 100),
+  "unit" text not null constraint bsb_medications_unit_check check (length("unit") >= 1 and length("unit") <= 50),
   -- A dose of a high-risk medication needs a second member to check it.
   "high_risk" boolean not null default false,
   "archived_at" timestamptz,
@@ -6897,31 +6897,31 @@ create table "better_supabase"."medication_orders" (
   "subject_type" text not null,
   "subject_id" text not null,
   "medication_id" uuid not null,
-  "dose" numeric not null check ("dose" > 0),
-  "dose_unit" text not null check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
-  "route" text check ("route" is null or length("route") <= 100),
+  "dose" numeric not null constraint bsb_medication_orders_dose_check check ("dose" > 0),
+  "dose_unit" text not null constraint bsb_medication_orders_dose_unit_check check (length("dose_unit") >= 1 and length("dose_unit") <= 50),
+  "route" text constraint bsb_medication_orders_route_check check ("route" is null or length("route") <= 100),
   -- {times: ["08:00"]} or {everyHours: 8, startTime: "06:00"}, with optional
   -- ISO weekdays; null for an order given only as needed.
   "schedule" jsonb,
   "as_needed" boolean not null default false,
-  "as_needed_reason" text check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
+  "as_needed_reason" text constraint bsb_medication_orders_as_needed_reason_check check ("as_needed_reason" is null or length("as_needed_reason") <= 500),
   -- The most of the dose unit given in any 24 hours, for an as-needed order.
-  "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0),
+  "max_per_day" numeric constraint bsb_medication_orders_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0),
   "starts_on" date not null,
   "ends_on" date,
-  "prescriber" text check ("prescriber" is null or length("prescriber") <= 300),
-  "source" text not null default 'prescriber' check ("source" in ('prescriber', 'pharmacy', 'import')),
+  "prescriber" text constraint bsb_medication_orders_prescriber_check check ("prescriber" is null or length("prescriber") <= 300),
+  "source" text not null default 'prescriber' constraint bsb_medication_orders_source_check check ("source" in ('prescriber', 'pharmacy', 'import')),
   -- The order's id in the pharmacy or prescribing system it was imported from.
-  "external_id" text check ("external_id" is null or length("external_id") <= 200),
+  "external_id" text constraint bsb_medication_orders_external_id_check check ("external_id" is null or length("external_id") <= 200),
   "requires_double_check" boolean not null default false,
-  "status" text not null default 'active' check ("status" in ('active', 'paused', 'stopped')),
-  "stopped_reason" text check ("stopped_reason" is null or length("stopped_reason") <= 1000),
+  "status" text not null default 'active' constraint bsb_medication_orders_status_check check ("status" in ('active', 'paused', 'stopped')),
+  "stopped_reason" text constraint bsb_medication_orders_stopped_reason_check check ("stopped_reason" is null or length("stopped_reason") <= 1000),
   "signature_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
-  check ("as_needed" or "schedule" is not null),
+  constraint bsb_medication_orders_check check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_medication_orders_check1 check ("as_needed" or "schedule" is not null),
   unique ("org_id", "id"),
   foreign key ("org_id", "medication_id") references "better_supabase"."medications" ("org_id", "id")
 );
@@ -6947,15 +6947,15 @@ create table "better_supabase"."medication_administrations" (
   -- The planned time; null for an as-needed dose.
   "scheduled_at" timestamptz,
   "administered_at" timestamptz,
-  "status" text not null default 'planned' check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
-  "dose" numeric check ("dose" is null or "dose" > 0),
+  "status" text not null default 'planned' constraint bsb_medication_administrations_status_check check ("status" in ('planned', 'given', 'refused', 'skipped', 'missed')),
+  "dose" numeric constraint bsb_medication_administrations_dose_check check ("dose" is null or "dose" > 0),
   "performer_id" uuid,
   -- The second member who checked a high-risk dose.
   "checked_by" uuid,
-  "reason" text check ("reason" is null or length("reason") <= 1000),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "reason" text constraint bsb_medication_administrations_reason_check check ("reason" is null or length("reason") <= 1000),
+  "note" text constraint bsb_medication_administrations_note_check check ("note" is null or length("note") <= 2000),
   "signature_id" uuid,
-  check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
+  constraint bsb_medication_administrations_check check ("checked_by" is null or "checked_by" is distinct from "performer_id"),
   unique ("order_id", "scheduled_at"),
   foreign key ("org_id", "order_id") references "better_supabase"."medication_orders" ("org_id", "id") on delete cascade
 );

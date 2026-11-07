@@ -8,6 +8,7 @@ import {
   renderBlocks,
 } from "../../../src/sql/render.ts";
 import { upgradePlan } from "../../../src/sql/upgrade.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const body = (modules: AnyBlocksConfig = {}) =>
   moduleBody("ai-chat", { modules })!;
@@ -108,7 +109,7 @@ describe("ai-chat module", () => {
   it("keeps every sandbox, a harness session's included, in ai_sandboxes", () => {
     const sql = body();
     expect(sql).toContain('create table "better_supabase"."ai_sandboxes" (');
-    expect(sql).toMatch(/"harness_id" text check/);
+    expect(unnamedChecks(sql)).toMatch(/"harness_id" text check/);
     expect(sql).not.toMatch(/ai_harness_sessions" \([^;]*"sandbox_id"/);
     expect(sql).toContain("default 600");
 

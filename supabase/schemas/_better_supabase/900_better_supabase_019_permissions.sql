@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:680c329cba2042abf4a7e7c24274ec0a1c9af47f2cdb262f46624f8941ca8763
+-- @bsb-hash sha256:31d16171dbe41eacf0fcf1a9dcfb522f0dab1e32f15714f90e5ae7ff71564900
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -507,7 +507,7 @@ create table "better_supabase"."roles" (
 );
 -- A tenant role goes in memberships, a platform role in platform assignments.
 alter table "better_supabase"."roles" add column "scope" text not null default 'tenant';
-alter table "better_supabase"."roles" add constraint "roles_scope_check"
+alter table "better_supabase"."roles" add constraint bsb_roles_scope_check
   check ("scope" in ('tenant', 'platform'));
 create table "better_supabase"."permissions" (
   "id" uuid primary key default gen_random_uuid(),

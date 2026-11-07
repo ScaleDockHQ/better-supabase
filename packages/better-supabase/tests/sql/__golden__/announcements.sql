@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:5bf8c2b06310be6c7cd08348b9da6af97557dd79344ae908cd79b409e7ad7740
+-- @bsb-hash sha256:c48a81e485399fb70e2fd83e41ae881c2903b14127b1c0e1596c2865e0208419
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,10 +11,10 @@
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
 create table "better_supabase"."announcements" (
   "id" uuid primary key default gen_random_uuid(),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "body" text not null default '' check (length("body") <= 10000),
-  "severity" text not null default 'info' check ("severity" in ('info', 'success', 'warning', 'critical')),
-  "href" text check ("href" ~ '^(https://|/)'),
+  "title" text not null constraint bsb_announcements_title_check check (length("title") >= 1 and length("title") <= 200),
+  "body" text not null default '' constraint bsb_announcements_body_check check (length("body") <= 10000),
+  "severity" text not null default 'info' constraint bsb_announcements_severity_check check ("severity" in ('info', 'success', 'warning', 'critical')),
+  "href" text constraint bsb_announcements_href_check check ("href" ~ '^(https://|/)'),
   "audience" text not null default 'all',
   "targets" text[] not null default '{}',
   "starts_at" timestamptz not null default now(),
@@ -23,8 +23,8 @@ create table "better_supabase"."announcements" (
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_at" is null or "ends_at" > "starts_at"),
-  check (("audience" = 'all') = (cardinality("targets") = 0))
+  constraint bsb_announcements_check check ("ends_at" is null or "ends_at" > "starts_at"),
+  constraint bsb_announcements_check1 check (("audience" = 'all') = (cardinality("targets") = 0))
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
@@ -268,7 +268,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:266e73fe9cc5652eeefa3d59c2415f73d2f445e139c125455ac3312176016aa3
+-- @bsb-hash sha256:fc6c8f55de4a86a8c83ed421eea9c090c689814d2c10660dab3767fdc0c9487f
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -278,10 +278,10 @@ on conflict (name) do update
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
 create table "better_supabase"."announcements" (
   "id" uuid primary key default gen_random_uuid(),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "body" text not null default '' check (length("body") <= 10000),
-  "severity" text not null default 'info' check ("severity" in ('info', 'success', 'warning', 'critical')),
-  "href" text check ("href" ~ '^(https://|/)'),
+  "title" text not null constraint bsb_announcements_title_check check (length("title") >= 1 and length("title") <= 200),
+  "body" text not null default '' constraint bsb_announcements_body_check check (length("body") <= 10000),
+  "severity" text not null default 'info' constraint bsb_announcements_severity_check check ("severity" in ('info', 'success', 'warning', 'critical')),
+  "href" text constraint bsb_announcements_href_check check ("href" ~ '^(https://|/)'),
   "audience" text not null default 'all',
   "targets" text[] not null default '{}',
   "starts_at" timestamptz not null default now(),
@@ -290,8 +290,8 @@ create table "better_supabase"."announcements" (
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_at" is null or "ends_at" > "starts_at"),
-  check (("audience" = 'all') = (cardinality("targets") = 0))
+  constraint bsb_announcements_check check ("ends_at" is null or "ends_at" > "starts_at"),
+  constraint bsb_announcements_check1 check (("audience" = 'all') = (cardinality("targets") = 0))
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
@@ -559,7 +559,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:97b29c7f672d0fcf8f2efe1fcd393b08c4499e1c7955c9f10fd519bf855e84e8
+-- @bsb-hash sha256:c48054c1e589e3e976d2d498d89011e24e2eca694729db72896d67eb142c4722
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -574,10 +574,10 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
 create table "app_private"."announcements" (
   "id" uuid primary key default gen_random_uuid(),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "body" text not null default '' check (length("body") <= 10000),
-  "severity" text not null default 'info' check ("severity" in ('info', 'success', 'warning', 'critical')),
-  "href" text check ("href" ~ '^(https://|/)'),
+  "title" text not null constraint bsb_announcements_title_check check (length("title") >= 1 and length("title") <= 200),
+  "body" text not null default '' constraint bsb_announcements_body_check check (length("body") <= 10000),
+  "severity" text not null default 'info' constraint bsb_announcements_severity_check check ("severity" in ('info', 'success', 'warning', 'critical')),
+  "href" text constraint bsb_announcements_href_check check ("href" ~ '^(https://|/)'),
   "audience" text not null default 'all',
   "targets" text[] not null default '{}',
   "starts_at" timestamptz not null default now(),
@@ -586,8 +586,8 @@ create table "app_private"."announcements" (
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_at" is null or "ends_at" > "starts_at"),
-  check (("audience" = 'all') = (cardinality("targets") = 0))
+  constraint bsb_announcements_check check ("ends_at" is null or "ends_at" > "starts_at"),
+  constraint bsb_announcements_check1 check (("audience" = 'all') = (cardinality("targets") = 0))
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
@@ -831,7 +831,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:365c6452ea240ac89260a8a4f8c11cba71a50961d31db8d3d2299cb99e9d8301
+-- @bsb-hash sha256:b7e50e926ccd953539492383acfac7115238849c369a8f6605f5410b0d453d1c
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -841,10 +841,10 @@ on conflict (name) do update
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
 create table "better_supabase"."announcements" (
   "id" uuid primary key default gen_random_uuid(),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "body" text not null default '' check (length("body") <= 10000),
-  "severity" text not null default 'info' check ("severity" in ('info', 'success', 'warning', 'critical')),
-  "href" text check ("href" ~ '^(https://|/)'),
+  "title" text not null constraint bsb_announcements_title_check check (length("title") >= 1 and length("title") <= 200),
+  "body" text not null default '' constraint bsb_announcements_body_check check (length("body") <= 10000),
+  "severity" text not null default 'info' constraint bsb_announcements_severity_check check ("severity" in ('info', 'success', 'warning', 'critical')),
+  "href" text constraint bsb_announcements_href_check check ("href" ~ '^(https://|/)'),
   "audience" text not null default 'all',
   "targets" text[] not null default '{}',
   "starts_at" timestamptz not null default now(),
@@ -853,8 +853,8 @@ create table "better_supabase"."announcements" (
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_at" is null or "ends_at" > "starts_at"),
-  check (("audience" = 'all') = (cardinality("targets") = 0))
+  constraint bsb_announcements_check check ("ends_at" is null or "ends_at" > "starts_at"),
+  constraint bsb_announcements_check1 check (("audience" = 'all') = (cardinality("targets") = 0))
 );
 -- The plan audience depends on the entitlements module, so a re-run replaces
 -- the check.
@@ -1149,7 +1149,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_039_announcements.sql
 -- better-supabase module: announcements
 -- @bsb-block announcements@1 managed
--- @bsb-hash sha256:3af6462a01f230f4631c9241966051397d15a1a5fa6b88765dee168e119c6068
+-- @bsb-hash sha256:decdc704164133c4466f58aaf10432490b9f1c0aef200b42a8c550d93126dfa9
 -- In-app announcements for everyone, tenants, roles or plans within a time window, with per-user dismissals and a Realtime broadcast when they change. Staff manage them with announcements.manage on the platform.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1159,10 +1159,10 @@ on conflict (name) do update
 -- ends_at. targets holds the tenant ids, roles or plan lookup keys.
 -- better_supabase.announcements is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."announcements" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."announcements" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
-alter table "better_supabase"."announcements" add column if not exists "body" text not null default '' check (length("body") <= 10000);
-alter table "better_supabase"."announcements" add column if not exists "severity" text not null default 'info' check ("severity" in ('info', 'success', 'warning', 'critical'));
-alter table "better_supabase"."announcements" add column if not exists "href" text check ("href" ~ '^(https://|/)');
+alter table "better_supabase"."announcements" add column if not exists "title" text constraint bsb_announcements_title_check check (length("title") >= 1 and length("title") <= 200);
+alter table "better_supabase"."announcements" add column if not exists "body" text not null default '' constraint bsb_announcements_body_check check (length("body") <= 10000);
+alter table "better_supabase"."announcements" add column if not exists "severity" text not null default 'info' constraint bsb_announcements_severity_check check ("severity" in ('info', 'success', 'warning', 'critical'));
+alter table "better_supabase"."announcements" add column if not exists "href" text constraint bsb_announcements_href_check check ("href" ~ '^(https://|/)');
 alter table "better_supabase"."announcements" add column if not exists "audience" text not null default 'all';
 alter table "better_supabase"."announcements" add column if not exists "targets" text[] not null default '{}';
 alter table "better_supabase"."announcements" add column if not exists "starts_at" timestamptz not null default now();

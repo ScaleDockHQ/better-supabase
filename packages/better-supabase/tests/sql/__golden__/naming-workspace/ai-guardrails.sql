@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:c1804a829be0f9c3064664ab4e18d985cb98a430079d825d10273d445d8616cf
+-- @bsb-hash sha256:f9228e817bfd213ee8cc26ffab9270d220e427ff9d0659d83e4abaadb751ddc8
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,9 +15,9 @@
 create table "better_supabase"."guardrail_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid,
-  "agent" text not null check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
-  "stage" text not null check ("stage" in ('input', 'output')),
-  "config" jsonb not null default '{}'::jsonb check (jsonb_typeof("config") = 'object'),
+  "agent" text not null constraint bsb_guardrail_policies_agent_check check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
+  "stage" text not null constraint bsb_guardrail_policies_stage_check check ("stage" in ('input', 'output')),
+  "config" jsonb not null default '{}'::jsonb constraint bsb_guardrail_policies_config_check check (jsonb_typeof("config") = 'object'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
@@ -30,9 +30,9 @@ create table "better_supabase"."guardrail_decisions" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid,
   "agent" text not null,
-  "stage" text not null check ("stage" in ('input', 'output')),
-  "decision" text not null check ("decision" in ('allow', 'redact', 'block')),
-  "reasons" jsonb not null default '[]'::jsonb check (jsonb_typeof("reasons") = 'array'),
+  "stage" text not null constraint bsb_guardrail_decisions_stage_check check ("stage" in ('input', 'output')),
+  "decision" text not null constraint bsb_guardrail_decisions_decision_check check ("decision" in ('allow', 'redact', 'block')),
+  "reasons" jsonb not null default '[]'::jsonb constraint bsb_guardrail_decisions_reasons_check check (jsonb_typeof("reasons") = 'array'),
   "chat_id" text,
   "content_hash" text,
   "created_at" timestamptz not null default now()

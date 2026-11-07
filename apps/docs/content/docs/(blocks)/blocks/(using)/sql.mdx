@@ -2008,6 +2008,11 @@ generated policy carries for the name a module wrote, and `codemod naming`
 uses it to write one `alter policy ... rename to` for each policy of an
 installed block, so no row moves.
 
+Checks follow the same rule. A check a block adds is named
+`bsb_<table>_<column>_check` (`bsb_<table>_check` when it reads several
+columns), and `codemod naming` renames the checks of an installed block with
+one loop over the catalog.
+
 ### The rule DSL
 
 A `Rule` is a small tree: `public`, `owner`, `member`, `can`, `compare`,

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_103_collections.sql
 -- better-supabase module: collections
 -- @bsb-block collections@2 managed
--- @bsb-hash sha256:98879e2db93a94c5383c20515ab319c8ff39674b0752f3a014bd90ee83575390
+-- @bsb-hash sha256:11827c1417f2f7b2223db7bf5ee1ad435ea64384cbc287faf9c6c96bbab6c0fc
 -- Favorites (a member's ranked stars on any registered record), lists (named, static collections of one subject type owned by a user, a team or the organization) and saved items (a member's records to come back to, with a note and a reminder), with entries hidden unless the caller can read their record.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,17 +14,17 @@ create table "better_supabase"."subject_collections" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "scope" text not null default 'user' check ("scope" in ('user', 'team', 'tenant')),
+  "scope" text not null default 'user' constraint bsb_subject_collections_scope_check check ("scope" in ('user', 'team', 'tenant')),
   "owner_id" uuid references auth.users (id) on delete cascade,
   "team_id" text,
-  "name" text not null check (length("name") >= 1 and length("name") <= 120),
-  "description" text check (length("description") <= 2000),
+  "name" text not null constraint bsb_subject_collections_name_check check (length("name") >= 1 and length("name") <= 120),
+  "description" text constraint bsb_subject_collections_description_check check (length("description") <= 2000),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("scope" <> 'user' or "owner_id" is not null),
-  check ("scope" <> 'team' or "team_id" is not null)
+  constraint bsb_subject_collections_check check ("scope" <> 'user' or "owner_id" is not null),
+  constraint bsb_subject_collections_check1 check ("scope" <> 'team' or "team_id" is not null)
 );
 create index subject_collections_tenant_type_idx on "better_supabase"."subject_collections" ("tenant_id", "subject_type", lower("name"));
 create index subject_collections_owner_idx on "better_supabase"."subject_collections" ("owner_id") where "owner_id" is not null;
@@ -72,7 +72,7 @@ create table "better_supabase"."saved_items" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "note" text check (length("note") <= 1000),
+  "note" text constraint bsb_saved_items_note_check check (length("note") <= 1000),
   "remind_at" timestamptz,
   "reminded_at" timestamptz,
   "completed_at" timestamptz,

@@ -1,6 +1,6 @@
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:c8b12f445ca4cd79b6dd0853b67c172e26255ad0ac0134cd04d0b544cccc6588
+-- @bsb-hash sha256:8aba899a2134121ac83eb9154a0c02227802cb8f40de99ae1baf96b96ef7ee0f
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -190,7 +190,7 @@ create index workflow_waits_run_id_index ON workflow.workflow_waits USING btree 
 -- a run, so two concurrent starts with one key start one run. run_id is null
 -- while the start that claimed it is still running.
 create table workflow.workflow_run_keys (
-  key text primary key check (length(key) >= 1 and length(key) <= 500),
+  key text primary key constraint bsb_workflow_run_keys_key_check check (length(key) >= 1 and length(key) <= 500),
   run_id character varying,
   claimed_at timestamptz not null default now()
 );

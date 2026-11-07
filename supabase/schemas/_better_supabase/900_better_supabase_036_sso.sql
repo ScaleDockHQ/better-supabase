@@ -1,6 +1,6 @@
 -- better-supabase module: sso
 -- @bsb-block sso@2 managed
--- @bsb-hash sha256:8894d9ad64c54fe029b95afa8139065ee32b0502fa0539b168e07bfd05da9741
+-- @bsb-hash sha256:29c7a5e0bae45ad94a0620422d3b539f2f9e468a5f7448f5f0fd95d9c4a23ff2
 -- Verified email domains with auto-join and SSO enforcement, SAML providers per organization registered with Supabase Auth, and SCIM 2.0 users and groups that provision memberships and map groups to roles.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,15 +13,15 @@ grant usage on schema better_supabase to supabase_auth_admin;
 create table "better_supabase"."sso_domains" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "domain" text not null check ("domain" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
+  "domain" text not null constraint bsb_sso_domains_domain_check check ("domain" ~ '^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?[.])+[a-z]{2,63}$'),
   "verification_token" text not null default replace(gen_random_uuid()::text, '-', ''),
   "verified_at" timestamptz,
-  "auto_join_role" text check ("auto_join_role" = any (array['admin', 'member', 'viewer']::text[])),
+  "auto_join_role" text constraint bsb_sso_domains_auto_join_role_check check ("auto_join_role" = any (array['admin', 'member', 'viewer']::text[])),
   "enforce_sso" boolean not null default false,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("organization_id", "domain"),
-  check (not "enforce_sso" or "verified_at" is not null)
+  constraint bsb_sso_domains_check check (not "enforce_sso" or "verified_at" is not null)
 );
 create unique index "sso_domains_verified_idx" on "better_supabase"."sso_domains" ("domain") where "verified_at" is not null;
 create index "sso_domains_created_by_idx" on "better_supabase"."sso_domains" ("created_by") where "created_by" is not null;
@@ -33,7 +33,7 @@ grant all on "better_supabase"."sso_domains" to service_role;
 create table "better_supabase"."sso_providers" (
   "id" uuid primary key,
   "organization_id" uuid not null,
-  "type" text not null default 'saml' check ("type" = 'saml'),
+  "type" text not null default 'saml' constraint bsb_sso_providers_type_check check ("type" = 'saml'),
   "metadata_url" text,
   "domains" text[] not null default '{}',
   "created_at" timestamptz not null default now()
@@ -51,12 +51,12 @@ create table "better_supabase"."scim_users" (
   "organization_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete set null,
   "external_id" text,
-  "user_name" text not null check (length("user_name") >= 1 and length("user_name") <= 320),
+  "user_name" text not null constraint bsb_scim_users_user_name_check check (length("user_name") >= 1 and length("user_name") <= 320),
   "display_name" text,
   "given_name" text,
   "family_name" text,
   "email" text,
-  "emails" jsonb not null default '[]'::jsonb check (jsonb_typeof("emails") = 'array'),
+  "emails" jsonb not null default '[]'::jsonb constraint bsb_scim_users_emails_check check (jsonb_typeof("emails") = 'array'),
   "active" boolean not null default true,
   "version" integer not null default 1,
   "created_at" timestamptz not null default now(),
@@ -74,7 +74,7 @@ grant all on "better_supabase"."scim_users" to service_role;
 create table "better_supabase"."scim_groups" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid not null,
-  "display_name" text not null check (length("display_name") >= 1 and length("display_name") <= 256),
+  "display_name" text not null constraint bsb_scim_groups_display_name_check check (length("display_name") >= 1 and length("display_name") <= 256),
   "external_id" text,
   "role" text,
   "version" integer not null default 1,

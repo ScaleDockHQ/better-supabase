@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:7666e205c804c5d313db2fa2126023dbca2dded203af8edff72174ae6c8d7500
+-- @bsb-hash sha256:29606b212a16f74d7bc4b1cc7d30e2fbd247fcd05fa9100f8fe118276164679b
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,21 +12,21 @@
 create table "better_supabase"."projects" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_projects_key_check check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
+  "name" text not null constraint bsb_projects_name_check check (length("name") >= 1 and length("name") <= 200),
   "owner_user_id" uuid,
-  "status" text not null default 'planned' check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
+  "status" text not null default 'planned' constraint bsb_projects_status_check check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
   "start_on" date,
   "target_on" date,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
-  check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
+  constraint bsb_projects_check check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
-alter table "better_supabase"."projects" add column "budget_amount" bigint check ("budget_amount" >= 0);
-alter table "better_supabase"."projects" add column "budget_currency" text check ("budget_currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."projects" add column "budget_hours" numeric(12, 2) check ("budget_hours" >= 0);
+alter table "better_supabase"."projects" add column "budget_amount" bigint constraint bsb_projects_budget_amount_check check ("budget_amount" >= 0);
+alter table "better_supabase"."projects" add column "budget_currency" text constraint bsb_projects_budget_currency_check check ("budget_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."projects" add column "budget_hours" numeric(12, 2) constraint bsb_projects_budget_hours_check check ("budget_hours" >= 0);
 alter table "better_supabase"."projects" enable row level security;
 revoke all on "better_supabase"."projects" from public, anon, authenticated;
 grant select on "better_supabase"."projects" to authenticated;
@@ -39,11 +39,11 @@ create table "better_supabase"."iterations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "team_id" uuid,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_iterations_name_check check (length("name") >= 1 and length("name") <= 200),
   "starts_on" date not null,
   "ends_on" date not null,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on")
+  constraint bsb_iterations_check check ("ends_on" >= "starts_on")
 );
 create index iterations_tenant_idx on "better_supabase"."iterations" ("tenant_id", "team_id", "starts_on");
 alter table "better_supabase"."iterations" enable row level security;
@@ -59,23 +59,23 @@ create table "better_supabase"."tasks" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
+  "title" text not null constraint bsb_tasks_title_check check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "parent_id" uuid references "better_supabase"."tasks" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid references "better_supabase"."projects" ("id") on delete set null,
   "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null,
-  "priority" smallint not null default 0 check ("priority" >= 0 and "priority" <= 4),
-  "estimate" numeric(10, 2) check ("estimate" >= 0),
-  "progress" smallint check ("progress" >= 0 and "progress" <= 100),
+  "priority" smallint not null default 0 constraint bsb_tasks_priority_check check ("priority" >= 0 and "priority" <= 4),
+  "estimate" numeric(10, 2) constraint bsb_tasks_estimate_check check ("estimate" >= 0),
+  "progress" smallint constraint bsb_tasks_progress_check check ("progress" >= 0 and "progress" <= 100),
   "start_at" timestamptz,
   "end_at" timestamptz,
   "due_at" timestamptz,
   "pipeline_id" uuid,
   "stage_id" uuid,
   "stage_entered_at" timestamptz,
-  "state" text not null default 'backlog' check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled')),
-  "close_reason" text check ("close_reason" in ('completed', 'not_planned', 'duplicate')),
+  "state" text not null default 'backlog' constraint bsb_tasks_state_check check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled')),
+  "close_reason" text constraint bsb_tasks_close_reason_check check ("close_reason" in ('completed', 'not_planned', 'duplicate')),
   "closed_at" timestamptz,
   "locked" boolean not null default false,
   "rank" text collate "C" not null default 'V',
@@ -84,7 +84,7 @@ create table "better_supabase"."tasks" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
-  check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
+  constraint bsb_tasks_check check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
 );
 create index "tasks_board_idx" on "better_supabase"."tasks" ("pipeline_id", "stage_id", "rank");
 create index "tasks_parent_idx" on "better_supabase"."tasks" ("parent_id");
@@ -122,11 +122,11 @@ create table "better_supabase"."task_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "task_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
+  "title" text not null constraint bsb_task_checklist_items_title_check check (length("title") >= 1 and length("title") <= 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
   "done_by" uuid,
-  "rank" text collate "C" not null check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "rank" text collate "C" not null constraint bsb_task_checklist_items_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
@@ -999,7 +999,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:24fdd3567538f549dc32f70e03a9d8f3da846e68487e33bf1e65dbdd43d9196c
+-- @bsb-hash sha256:10260922c59e37c096c251ac833cb62147e2a58a7b2a6adf23843101a40992d9
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1010,21 +1010,21 @@ on conflict (name) do update
 create table "better_supabase"."projects" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_projects_key_check check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
+  "name" text not null constraint bsb_projects_name_check check (length("name") >= 1 and length("name") <= 200),
   "owner_user_id" uuid,
-  "status" text not null default 'planned' check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
+  "status" text not null default 'planned' constraint bsb_projects_status_check check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
   "start_on" date,
   "target_on" date,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
-  check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
+  constraint bsb_projects_check check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
-alter table "better_supabase"."projects" add column "budget_amount" bigint check ("budget_amount" >= 0);
-alter table "better_supabase"."projects" add column "budget_currency" text check ("budget_currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."projects" add column "budget_hours" numeric(12, 2) check ("budget_hours" >= 0);
+alter table "better_supabase"."projects" add column "budget_amount" bigint constraint bsb_projects_budget_amount_check check ("budget_amount" >= 0);
+alter table "better_supabase"."projects" add column "budget_currency" text constraint bsb_projects_budget_currency_check check ("budget_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."projects" add column "budget_hours" numeric(12, 2) constraint bsb_projects_budget_hours_check check ("budget_hours" >= 0);
 alter table "better_supabase"."projects" enable row level security;
 revoke all on "better_supabase"."projects" from public, anon, authenticated;
 grant select on "better_supabase"."projects" to authenticated;
@@ -1037,11 +1037,11 @@ create table "better_supabase"."iterations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "team_id" uuid,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_iterations_name_check check (length("name") >= 1 and length("name") <= 200),
   "starts_on" date not null,
   "ends_on" date not null,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on")
+  constraint bsb_iterations_check check ("ends_on" >= "starts_on")
 );
 create index iterations_tenant_idx on "better_supabase"."iterations" ("tenant_id", "team_id", "starts_on");
 alter table "better_supabase"."iterations" enable row level security;
@@ -1057,23 +1057,23 @@ create table "better_supabase"."tasks" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
+  "title" text not null constraint bsb_tasks_title_check check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "parent_id" uuid references "better_supabase"."tasks" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid references "better_supabase"."projects" ("id") on delete set null,
   "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null,
-  "priority" smallint not null default 0 check ("priority" >= 0 and "priority" <= 4),
-  "estimate" numeric(10, 2) check ("estimate" >= 0),
-  "progress" smallint check ("progress" >= 0 and "progress" <= 100),
+  "priority" smallint not null default 0 constraint bsb_tasks_priority_check check ("priority" >= 0 and "priority" <= 4),
+  "estimate" numeric(10, 2) constraint bsb_tasks_estimate_check check ("estimate" >= 0),
+  "progress" smallint constraint bsb_tasks_progress_check check ("progress" >= 0 and "progress" <= 100),
   "start_at" timestamptz,
   "end_at" timestamptz,
   "due_at" timestamptz,
   "pipeline_id" uuid,
   "stage_id" uuid,
   "stage_entered_at" timestamptz,
-  "state" text not null default 'backlog' check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled')),
-  "close_reason" text check ("close_reason" in ('completed', 'not_planned', 'duplicate')),
+  "state" text not null default 'backlog' constraint bsb_tasks_state_check check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled')),
+  "close_reason" text constraint bsb_tasks_close_reason_check check ("close_reason" in ('completed', 'not_planned', 'duplicate')),
   "closed_at" timestamptz,
   "locked" boolean not null default false,
   "rank" text collate "C" not null default 'V',
@@ -1082,7 +1082,7 @@ create table "better_supabase"."tasks" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
-  check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
+  constraint bsb_tasks_check check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
 );
 create index "tasks_board_idx" on "better_supabase"."tasks" ("pipeline_id", "stage_id", "rank");
 create index "tasks_parent_idx" on "better_supabase"."tasks" ("parent_id");
@@ -1120,11 +1120,11 @@ create table "better_supabase"."task_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "task_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
+  "title" text not null constraint bsb_task_checklist_items_title_check check (length("title") >= 1 and length("title") <= 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
   "done_by" uuid,
-  "rank" text collate "C" not null check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "rank" text collate "C" not null constraint bsb_task_checklist_items_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
@@ -2193,7 +2193,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:ab611c424eeca7b5911eb168276b38a68d06eff3a20f68bc57b397a777a3054a
+-- @bsb-hash sha256:943acbc247f6a5849ba977b987e44a16400e3ef2815c6ad9a23ad9a98af66343
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2209,21 +2209,21 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."projects" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_projects_key_check check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
+  "name" text not null constraint bsb_projects_name_check check (length("name") >= 1 and length("name") <= 200),
   "owner_user_id" uuid,
-  "status" text not null default 'planned' check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
+  "status" text not null default 'planned' constraint bsb_projects_status_check check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
   "start_on" date,
   "target_on" date,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
-  check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
+  constraint bsb_projects_check check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
-alter table "app_private"."projects" add column "budget_amount" bigint check ("budget_amount" >= 0);
-alter table "app_private"."projects" add column "budget_currency" text check ("budget_currency" ~ '^[A-Z]{3}$');
-alter table "app_private"."projects" add column "budget_hours" numeric(12, 2) check ("budget_hours" >= 0);
+alter table "app_private"."projects" add column "budget_amount" bigint constraint bsb_projects_budget_amount_check check ("budget_amount" >= 0);
+alter table "app_private"."projects" add column "budget_currency" text constraint bsb_projects_budget_currency_check check ("budget_currency" ~ '^[A-Z]{3}$');
+alter table "app_private"."projects" add column "budget_hours" numeric(12, 2) constraint bsb_projects_budget_hours_check check ("budget_hours" >= 0);
 alter table "app_private"."projects" enable row level security;
 revoke all on "app_private"."projects" from public, anon, authenticated;
 grant select on "app_private"."projects" to authenticated;
@@ -2236,11 +2236,11 @@ create table "app_private"."iterations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "team_id" uuid,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_iterations_name_check check (length("name") >= 1 and length("name") <= 200),
   "starts_on" date not null,
   "ends_on" date not null,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on")
+  constraint bsb_iterations_check check ("ends_on" >= "starts_on")
 );
 create index iterations_tenant_idx on "app_private"."iterations" ("tenant_id", "team_id", "starts_on");
 alter table "app_private"."iterations" enable row level security;
@@ -2256,23 +2256,23 @@ create table "app_private"."tasks" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
+  "title" text not null constraint bsb_tasks_title_check check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "parent_id" uuid references "app_private"."tasks" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid references "app_private"."projects" ("id") on delete set null,
   "iteration_id" uuid references "app_private"."iterations" ("id") on delete set null,
-  "priority" smallint not null default 0 check ("priority" >= 0 and "priority" <= 4),
-  "estimate" numeric(10, 2) check ("estimate" >= 0),
-  "progress" smallint check ("progress" >= 0 and "progress" <= 100),
+  "priority" smallint not null default 0 constraint bsb_tasks_priority_check check ("priority" >= 0 and "priority" <= 4),
+  "estimate" numeric(10, 2) constraint bsb_tasks_estimate_check check ("estimate" >= 0),
+  "progress" smallint constraint bsb_tasks_progress_check check ("progress" >= 0 and "progress" <= 100),
   "start_at" timestamptz,
   "end_at" timestamptz,
   "due_at" timestamptz,
   "pipeline_id" uuid,
   "stage_id" uuid,
   "stage_entered_at" timestamptz,
-  "state" text not null default 'backlog' check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled')),
-  "close_reason" text check ("close_reason" in ('completed', 'not_planned', 'duplicate')),
+  "state" text not null default 'backlog' constraint bsb_tasks_state_check check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled')),
+  "close_reason" text constraint bsb_tasks_close_reason_check check ("close_reason" in ('completed', 'not_planned', 'duplicate')),
   "closed_at" timestamptz,
   "locked" boolean not null default false,
   "rank" text collate "C" not null default 'V',
@@ -2281,7 +2281,7 @@ create table "app_private"."tasks" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
-  check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
+  constraint bsb_tasks_check check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
 );
 create index "tasks_board_idx" on "app_private"."tasks" ("pipeline_id", "stage_id", "rank");
 create index "tasks_parent_idx" on "app_private"."tasks" ("parent_id");
@@ -2319,11 +2319,11 @@ create table "app_private"."task_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "task_id" uuid not null references "app_private"."tasks" ("id") on delete cascade,
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
+  "title" text not null constraint bsb_task_checklist_items_title_check check (length("title") >= 1 and length("title") <= 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
   "done_by" uuid,
-  "rank" text collate "C" not null check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "rank" text collate "C" not null constraint bsb_task_checklist_items_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
@@ -3196,7 +3196,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:3e5b15b2f6370457103d1ec094b91a38d22854072408cd503c8b5910c6728b91
+-- @bsb-hash sha256:59fc27b92b1e38f1d8eee83edb30fc2122b748d0095ad0305a6de63ec4508737
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3207,21 +3207,21 @@ on conflict (name) do update
 create table "better_supabase"."projects" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_projects_key_check check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
+  "name" text not null constraint bsb_projects_name_check check (length("name") >= 1 and length("name") <= 200),
   "owner_user_id" uuid,
-  "status" text not null default 'planned' check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
+  "status" text not null default 'planned' constraint bsb_projects_status_check check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
   "start_on" date,
   "target_on" date,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "key"),
-  check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
+  constraint bsb_projects_check check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
-alter table "better_supabase"."projects" add column "budget_amount" bigint check ("budget_amount" >= 0);
-alter table "better_supabase"."projects" add column "budget_currency" text check ("budget_currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."projects" add column "budget_hours" numeric(12, 2) check ("budget_hours" >= 0);
+alter table "better_supabase"."projects" add column "budget_amount" bigint constraint bsb_projects_budget_amount_check check ("budget_amount" >= 0);
+alter table "better_supabase"."projects" add column "budget_currency" text constraint bsb_projects_budget_currency_check check ("budget_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."projects" add column "budget_hours" numeric(12, 2) constraint bsb_projects_budget_hours_check check ("budget_hours" >= 0);
 alter table "better_supabase"."projects" enable row level security;
 revoke all on "better_supabase"."projects" from public, anon, authenticated;
 grant select on "better_supabase"."projects" to authenticated;
@@ -3234,11 +3234,11 @@ create table "better_supabase"."iterations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "team_id" uuid,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_iterations_name_check check (length("name") >= 1 and length("name") <= 200),
   "starts_on" date not null,
   "ends_on" date not null,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on")
+  constraint bsb_iterations_check check ("ends_on" >= "starts_on")
 );
 create index iterations_tenant_idx on "better_supabase"."iterations" ("tenant_id", "team_id", "starts_on");
 alter table "better_supabase"."iterations" enable row level security;
@@ -3254,23 +3254,23 @@ create table "better_supabase"."tasks" (
   "tenant_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
+  "title" text not null constraint bsb_tasks_title_check check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "parent_id" uuid references "better_supabase"."tasks" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid references "better_supabase"."projects" ("id") on delete set null,
   "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null,
-  "priority" smallint not null default 0 check ("priority" >= 0 and "priority" <= 4),
-  "estimate" numeric(10, 2) check ("estimate" >= 0),
-  "progress" smallint check ("progress" >= 0 and "progress" <= 100),
+  "priority" smallint not null default 0 constraint bsb_tasks_priority_check check ("priority" >= 0 and "priority" <= 4),
+  "estimate" numeric(10, 2) constraint bsb_tasks_estimate_check check ("estimate" >= 0),
+  "progress" smallint constraint bsb_tasks_progress_check check ("progress" >= 0 and "progress" <= 100),
   "start_at" timestamptz,
   "end_at" timestamptz,
   "due_at" timestamptz,
   "pipeline_id" uuid,
   "stage_id" uuid,
   "stage_entered_at" timestamptz,
-  "state" text not null default 'backlog' check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled')),
-  "close_reason" text check ("close_reason" in ('completed', 'not_planned', 'duplicate')),
+  "state" text not null default 'backlog' constraint bsb_tasks_state_check check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled')),
+  "close_reason" text constraint bsb_tasks_close_reason_check check ("close_reason" in ('completed', 'not_planned', 'duplicate')),
   "closed_at" timestamptz,
   "locked" boolean not null default false,
   "rank" text collate "C" not null default 'V',
@@ -3279,7 +3279,7 @@ create table "better_supabase"."tasks" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "number"),
-  check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
+  constraint bsb_tasks_check check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
 );
 create index "tasks_board_idx" on "better_supabase"."tasks" ("pipeline_id", "stage_id", "rank");
 create index "tasks_parent_idx" on "better_supabase"."tasks" ("parent_id");
@@ -3317,11 +3317,11 @@ create table "better_supabase"."task_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "task_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
+  "title" text not null constraint bsb_task_checklist_items_title_check check (length("title") >= 1 and length("title") <= 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
   "done_by" uuid,
-  "rank" text collate "C" not null check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "rank" text collate "C" not null constraint bsb_task_checklist_items_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );
@@ -4346,7 +4346,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:ecc63ef9ca768f8ce7c0dfc82570c918946ad52e93e21b8db813913d424fb523
+-- @bsb-hash sha256:0240db26ca086b903129d4abd31c1c5109e96473dd1e6ff32839204a4eee7a65
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4357,19 +4357,19 @@ on conflict (name) do update
 -- better_supabase.projects is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."projects" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."projects" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."projects" add column if not exists "key" text check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$');
-alter table "better_supabase"."projects" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."projects" add column if not exists "key" text constraint bsb_projects_key_check check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$');
+alter table "better_supabase"."projects" add column if not exists "name" text constraint bsb_projects_name_check check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."projects" add column if not exists "owner_user_id" uuid;
-alter table "better_supabase"."projects" add column if not exists "status" text not null default 'planned' check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled'));
+alter table "better_supabase"."projects" add column if not exists "status" text not null default 'planned' constraint bsb_projects_status_check check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled'));
 alter table "better_supabase"."projects" add column if not exists "start_on" date;
 alter table "better_supabase"."projects" add column if not exists "target_on" date;
 alter table "better_supabase"."projects" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."projects" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."projects" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "projects_tenant_id_key_key" on "better_supabase"."projects" ("tenant_id", "key");
-alter table "better_supabase"."projects" add column if not exists "budget_amount" bigint check ("budget_amount" >= 0);
-alter table "better_supabase"."projects" add column if not exists "budget_currency" text check ("budget_currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."projects" add column if not exists "budget_hours" numeric(12, 2) check ("budget_hours" >= 0);
+alter table "better_supabase"."projects" add column if not exists "budget_amount" bigint constraint bsb_projects_budget_amount_check check ("budget_amount" >= 0);
+alter table "better_supabase"."projects" add column if not exists "budget_currency" text constraint bsb_projects_budget_currency_check check ("budget_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."projects" add column if not exists "budget_hours" numeric(12, 2) constraint bsb_projects_budget_hours_check check ("budget_hours" >= 0);
 alter table "better_supabase"."projects" enable row level security;
 grant select on "better_supabase"."projects" to authenticated;
 grant all on "better_supabase"."projects" to service_role;
@@ -4381,7 +4381,7 @@ create policy bsb_projects_select on "better_supabase"."projects"
 alter table "better_supabase"."iterations" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."iterations" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."iterations" add column if not exists "team_id" uuid;
-alter table "better_supabase"."iterations" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."iterations" add column if not exists "name" text constraint bsb_iterations_name_check check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."iterations" add column if not exists "starts_on" date;
 alter table "better_supabase"."iterations" add column if not exists "ends_on" date;
 alter table "better_supabase"."iterations" add column if not exists "created_at" timestamptz not null default now();
@@ -4398,23 +4398,23 @@ alter table "better_supabase"."tasks" add column if not exists "id" uuid default
 alter table "better_supabase"."tasks" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."tasks" add column if not exists "number" bigint;
 alter table "better_supabase"."tasks" add column if not exists "identifier" text;
-alter table "better_supabase"."tasks" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 500);
+alter table "better_supabase"."tasks" add column if not exists "title" text constraint bsb_tasks_title_check check (length("title") >= 1 and length("title") <= 500);
 alter table "better_supabase"."tasks" add column if not exists "body" text;
 alter table "better_supabase"."tasks" add column if not exists "parent_id" uuid references "better_supabase"."tasks" ("id") on delete cascade;
 alter table "better_supabase"."tasks" add column if not exists "team_id" uuid;
 alter table "better_supabase"."tasks" add column if not exists "project_id" uuid references "better_supabase"."projects" ("id") on delete set null;
 alter table "better_supabase"."tasks" add column if not exists "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null;
-alter table "better_supabase"."tasks" add column if not exists "priority" smallint not null default 0 check ("priority" >= 0 and "priority" <= 4);
-alter table "better_supabase"."tasks" add column if not exists "estimate" numeric(10, 2) check ("estimate" >= 0);
-alter table "better_supabase"."tasks" add column if not exists "progress" smallint check ("progress" >= 0 and "progress" <= 100);
+alter table "better_supabase"."tasks" add column if not exists "priority" smallint not null default 0 constraint bsb_tasks_priority_check check ("priority" >= 0 and "priority" <= 4);
+alter table "better_supabase"."tasks" add column if not exists "estimate" numeric(10, 2) constraint bsb_tasks_estimate_check check ("estimate" >= 0);
+alter table "better_supabase"."tasks" add column if not exists "progress" smallint constraint bsb_tasks_progress_check check ("progress" >= 0 and "progress" <= 100);
 alter table "better_supabase"."tasks" add column if not exists "start_at" timestamptz;
 alter table "better_supabase"."tasks" add column if not exists "end_at" timestamptz;
 alter table "better_supabase"."tasks" add column if not exists "due_at" timestamptz;
 alter table "better_supabase"."tasks" add column if not exists "pipeline_id" uuid;
 alter table "better_supabase"."tasks" add column if not exists "stage_id" uuid;
 alter table "better_supabase"."tasks" add column if not exists "stage_entered_at" timestamptz;
-alter table "better_supabase"."tasks" add column if not exists "state" text not null default 'backlog' check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled'));
-alter table "better_supabase"."tasks" add column if not exists "close_reason" text check ("close_reason" in ('completed', 'not_planned', 'duplicate'));
+alter table "better_supabase"."tasks" add column if not exists "state" text not null default 'backlog' constraint bsb_tasks_state_check check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled'));
+alter table "better_supabase"."tasks" add column if not exists "close_reason" text constraint bsb_tasks_close_reason_check check ("close_reason" in ('completed', 'not_planned', 'duplicate'));
 alter table "better_supabase"."tasks" add column if not exists "closed_at" timestamptz;
 alter table "better_supabase"."tasks" add column if not exists "locked" boolean not null default false;
 alter table "better_supabase"."tasks" add column if not exists "rank" text collate "C" not null default 'V';
@@ -4456,11 +4456,11 @@ create unique index if not exists "tasks_recurs_from_idx" on "better_supabase"."
 alter table "better_supabase"."task_checklist_items" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."task_checklist_items" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."task_checklist_items" add column if not exists "task_id" uuid references "better_supabase"."tasks" ("id") on delete cascade;
-alter table "better_supabase"."task_checklist_items" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 500);
+alter table "better_supabase"."task_checklist_items" add column if not exists "title" text constraint bsb_task_checklist_items_title_check check (length("title") >= 1 and length("title") <= 500);
 alter table "better_supabase"."task_checklist_items" add column if not exists "done" boolean not null default false;
 alter table "better_supabase"."task_checklist_items" add column if not exists "done_at" timestamptz;
 alter table "better_supabase"."task_checklist_items" add column if not exists "done_by" uuid;
-alter table "better_supabase"."task_checklist_items" add column if not exists "rank" text collate "C" check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$');
+alter table "better_supabase"."task_checklist_items" add column if not exists "rank" text collate "C" constraint bsb_task_checklist_items_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$');
 alter table "better_supabase"."task_checklist_items" add column if not exists "created_by" uuid;
 alter table "better_supabase"."task_checklist_items" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists "task_checklist_item_idx" on "better_supabase"."task_checklist_items" ("task_id", "rank");
@@ -5331,7 +5331,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:0a2b92e293c022e97be5f994c1fdd51d1aaf229d67707b04659d688358b552e3
+-- @bsb-hash sha256:89fa942baaacfaf08a20513fb189f58d714fd9f6b30e0c117313f0e3129d050b
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5342,21 +5342,21 @@ on conflict (name) do update
 create table "better_supabase"."projects" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "key" text not null check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_projects_key_check check ("key" ~ '^[A-Z][A-Z0-9]{0,9}$'),
+  "name" text not null constraint bsb_projects_name_check check (length("name") >= 1 and length("name") <= 200),
   "owner_user_id" uuid,
-  "status" text not null default 'planned' check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
+  "status" text not null default 'planned' constraint bsb_projects_status_check check ("status" in ('planned', 'active', 'paused', 'completed', 'canceled')),
   "start_on" date,
   "target_on" date,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "key"),
-  check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
+  constraint bsb_projects_check check ("target_on" is null or "start_on" is null or "target_on" >= "start_on")
 );
-alter table "better_supabase"."projects" add column "budget_amount" bigint check ("budget_amount" >= 0);
-alter table "better_supabase"."projects" add column "budget_currency" text check ("budget_currency" ~ '^[A-Z]{3}$');
-alter table "better_supabase"."projects" add column "budget_hours" numeric(12, 2) check ("budget_hours" >= 0);
+alter table "better_supabase"."projects" add column "budget_amount" bigint constraint bsb_projects_budget_amount_check check ("budget_amount" >= 0);
+alter table "better_supabase"."projects" add column "budget_currency" text constraint bsb_projects_budget_currency_check check ("budget_currency" ~ '^[A-Z]{3}$');
+alter table "better_supabase"."projects" add column "budget_hours" numeric(12, 2) constraint bsb_projects_budget_hours_check check ("budget_hours" >= 0);
 alter table "better_supabase"."projects" enable row level security;
 revoke all on "better_supabase"."projects" from public, anon, authenticated;
 grant select on "better_supabase"."projects" to authenticated;
@@ -5369,11 +5369,11 @@ create table "better_supabase"."iterations" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "team_id" uuid,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_iterations_name_check check (length("name") >= 1 and length("name") <= 200),
   "starts_on" date not null,
   "ends_on" date not null,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on")
+  constraint bsb_iterations_check check ("ends_on" >= "starts_on")
 );
 create index iterations_tenant_idx on "better_supabase"."iterations" ("org_id", "team_id", "starts_on");
 alter table "better_supabase"."iterations" enable row level security;
@@ -5389,23 +5389,23 @@ create table "better_supabase"."tasks" (
   "org_id" uuid not null,
   "number" bigint not null,
   "identifier" text not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
+  "title" text not null constraint bsb_tasks_title_check check (length("title") >= 1 and length("title") <= 500),
   "body" text,
   "parent_id" uuid references "better_supabase"."tasks" ("id") on delete cascade,
   "team_id" uuid,
   "project_id" uuid references "better_supabase"."projects" ("id") on delete set null,
   "iteration_id" uuid references "better_supabase"."iterations" ("id") on delete set null,
-  "priority" smallint not null default 0 check ("priority" >= 0 and "priority" <= 4),
-  "estimate" numeric(10, 2) check ("estimate" >= 0),
-  "progress" smallint check ("progress" >= 0 and "progress" <= 100),
+  "priority" smallint not null default 0 constraint bsb_tasks_priority_check check ("priority" >= 0 and "priority" <= 4),
+  "estimate" numeric(10, 2) constraint bsb_tasks_estimate_check check ("estimate" >= 0),
+  "progress" smallint constraint bsb_tasks_progress_check check ("progress" >= 0 and "progress" <= 100),
   "start_at" timestamptz,
   "end_at" timestamptz,
   "due_at" timestamptz,
   "pipeline_id" uuid,
   "stage_id" uuid,
   "stage_entered_at" timestamptz,
-  "state" text not null default 'backlog' check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled')),
-  "close_reason" text check ("close_reason" in ('completed', 'not_planned', 'duplicate')),
+  "state" text not null default 'backlog' constraint bsb_tasks_state_check check ("state" in ('triage', 'backlog', 'unstarted', 'started', 'completed', 'canceled')),
+  "close_reason" text constraint bsb_tasks_close_reason_check check ("close_reason" in ('completed', 'not_planned', 'duplicate')),
   "closed_at" timestamptz,
   "locked" boolean not null default false,
   "rank" text collate "C" not null default 'V',
@@ -5414,7 +5414,7 @@ create table "better_supabase"."tasks" (
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("org_id", "number"),
-  check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
+  constraint bsb_tasks_check check ("end_at" is null or "start_at" is null or "end_at" >= "start_at")
 );
 create index "tasks_board_idx" on "better_supabase"."tasks" ("pipeline_id", "stage_id", "rank");
 create index "tasks_parent_idx" on "better_supabase"."tasks" ("parent_id");
@@ -5452,11 +5452,11 @@ create table "better_supabase"."task_checklist_items" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "task_id" uuid not null references "better_supabase"."tasks" ("id") on delete cascade,
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
+  "title" text not null constraint bsb_task_checklist_items_title_check check (length("title") >= 1 and length("title") <= 500),
   "done" boolean not null default false,
   "done_at" timestamptz,
   "done_by" uuid,
-  "rank" text collate "C" not null check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "rank" text collate "C" not null constraint bsb_task_checklist_items_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "created_by" uuid,
   "created_at" timestamptz not null default now()
 );

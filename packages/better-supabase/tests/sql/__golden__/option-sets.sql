@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:bcf31a95748e42a027850559af2d71c6613fd967e539f908cb9ce323b931aee9
+-- @bsb-hash sha256:8be428d280161c98d784e2afe1ff115b6efdb864374bf52ace99f2d59af71eeb
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,10 +14,10 @@ create table "better_supabase"."option_sets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "field" text not null check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "field" text not null constraint bsb_option_sets_field_check check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "scope_id" text,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_option_sets_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_option_sets_name_check check (length("name") >= 1 and length("name") <= 200),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -38,14 +38,14 @@ create table "better_supabase"."option_set_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "option_set_id" uuid not null references "better_supabase"."option_sets" ("id") on delete cascade,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_option_set_items_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "label" text not null check (length("label") >= 1 and length("label") <= 200),
-  "color" text check ("color" is null or length("color") <= 50),
-  "icon" text check ("icon" is null or length("icon") <= 100),
+  "label" text not null constraint bsb_option_set_items_label_check check (length("label") >= 1 and length("label") <= 200),
+  "color" text constraint bsb_option_set_items_color_check check ("color" is null or length("color") <= 50),
+  "icon" text constraint bsb_option_set_items_icon_check check ("icon" is null or length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "level" integer not null,
-  "description" text check ("description" is null or length("description") <= 1000),
+  "description" text constraint bsb_option_set_items_description_check check ("description" is null or length("description") <= 1000),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -429,7 +429,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:f2f956d766acb930e2a3b437a31da3ff9161161d98c03f1c3588a2ec3406e729
+-- @bsb-hash sha256:49973852f8c1f0ede6346fca3ba13a72bb3e607bb856c55cc4016425b5e87040
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -442,10 +442,10 @@ create table "better_supabase"."option_sets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "field" text not null check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "field" text not null constraint bsb_option_sets_field_check check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "scope_id" text,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_option_sets_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_option_sets_name_check check (length("name") >= 1 and length("name") <= 200),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -466,14 +466,14 @@ create table "better_supabase"."option_set_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "option_set_id" uuid not null references "better_supabase"."option_sets" ("id") on delete cascade,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_option_set_items_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "label" text not null check (length("label") >= 1 and length("label") <= 200),
-  "color" text check ("color" is null or length("color") <= 50),
-  "icon" text check ("icon" is null or length("icon") <= 100),
+  "label" text not null constraint bsb_option_set_items_label_check check (length("label") >= 1 and length("label") <= 200),
+  "color" text constraint bsb_option_set_items_color_check check ("color" is null or length("color") <= 50),
+  "icon" text constraint bsb_option_set_items_icon_check check ("icon" is null or length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "level" integer not null,
-  "description" text check ("description" is null or length("description") <= 1000),
+  "description" text constraint bsb_option_set_items_description_check check ("description" is null or length("description") <= 1000),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -990,7 +990,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:73b6efeaa69aee1fbcfb71578f6ed8d392a6351567d808de684c97f4467268d3
+-- @bsb-hash sha256:bba8edbe5548fa3fbe35b5d587df431127cf46a83cc40fd6c5fbcc42564fe8b8
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1008,10 +1008,10 @@ create table "app_private"."option_sets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "field" text not null check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "field" text not null constraint bsb_option_sets_field_check check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "scope_id" text,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_option_sets_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_option_sets_name_check check (length("name") >= 1 and length("name") <= 200),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -1032,14 +1032,14 @@ create table "app_private"."option_set_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "option_set_id" uuid not null references "app_private"."option_sets" ("id") on delete cascade,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_option_set_items_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "label" text not null check (length("label") >= 1 and length("label") <= 200),
-  "color" text check ("color" is null or length("color") <= 50),
-  "icon" text check ("icon" is null or length("icon") <= 100),
+  "label" text not null constraint bsb_option_set_items_label_check check (length("label") >= 1 and length("label") <= 200),
+  "color" text constraint bsb_option_set_items_color_check check ("color" is null or length("color") <= 50),
+  "icon" text constraint bsb_option_set_items_icon_check check ("icon" is null or length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "level" integer not null,
-  "description" text check ("description" is null or length("description") <= 1000),
+  "description" text constraint bsb_option_set_items_description_check check ("description" is null or length("description") <= 1000),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -1423,7 +1423,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:cc092c4f91822157e33168a9b5f0a46723fcf2ad3b568e75279306db1661c419
+-- @bsb-hash sha256:e212ed9d0d44e0e87fb6087c5e6a72095953ed90f9e509ee4c3ca3cb5d2c60e0
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1436,10 +1436,10 @@ create table "better_supabase"."option_sets" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "subject_type" text not null,
-  "field" text not null check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "field" text not null constraint bsb_option_sets_field_check check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "scope_id" text,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_option_sets_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_option_sets_name_check check (length("name") >= 1 and length("name") <= 200),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -1460,14 +1460,14 @@ create table "better_supabase"."option_set_items" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "option_set_id" uuid not null references "better_supabase"."option_sets" ("id") on delete cascade,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_option_set_items_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "label" text not null check (length("label") >= 1 and length("label") <= 200),
-  "color" text check ("color" is null or length("color") <= 50),
-  "icon" text check ("icon" is null or length("icon") <= 100),
+  "label" text not null constraint bsb_option_set_items_label_check check (length("label") >= 1 and length("label") <= 200),
+  "color" text constraint bsb_option_set_items_color_check check ("color" is null or length("color") <= 50),
+  "icon" text constraint bsb_option_set_items_icon_check check ("icon" is null or length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "level" integer not null,
-  "description" text check ("description" is null or length("description") <= 1000),
+  "description" text constraint bsb_option_set_items_description_check check ("description" is null or length("description") <= 1000),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -1919,7 +1919,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:98022fed2e085a4aef0ff9723bee3132acab2bd5941e69833d0c3ee583367978
+-- @bsb-hash sha256:9b1543a46ede976c8e06f23d19df2645834493705d659b87d1c8a2348edd611d
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1932,10 +1932,10 @@ on conflict (name) do update
 alter table "better_supabase"."option_sets" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."option_sets" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."option_sets" add column if not exists "subject_type" text;
-alter table "better_supabase"."option_sets" add column if not exists "field" text check ("field" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."option_sets" add column if not exists "field" text constraint bsb_option_sets_field_check check ("field" ~ '^[a-z][a-z0-9_]{0,62}$');
 alter table "better_supabase"."option_sets" add column if not exists "scope_id" text;
-alter table "better_supabase"."option_sets" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."option_sets" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."option_sets" add column if not exists "key" text constraint bsb_option_sets_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."option_sets" add column if not exists "name" text constraint bsb_option_sets_name_check check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."option_sets" add column if not exists "is_default" boolean not null default false;
 alter table "better_supabase"."option_sets" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."option_sets" add column if not exists "created_at" timestamptz not null default now();
@@ -1954,14 +1954,14 @@ create policy bsb_option_sets_select on "better_supabase"."option_sets"
 alter table "better_supabase"."option_set_items" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."option_set_items" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."option_set_items" add column if not exists "option_set_id" uuid references "better_supabase"."option_sets" ("id") on delete cascade;
-alter table "better_supabase"."option_set_items" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."option_set_items" add column if not exists "key" text constraint bsb_option_set_items_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."option_set_items" add column if not exists "system_key" text;
-alter table "better_supabase"."option_set_items" add column if not exists "label" text check (length("label") >= 1 and length("label") <= 200);
-alter table "better_supabase"."option_set_items" add column if not exists "color" text check ("color" is null or length("color") <= 50);
-alter table "better_supabase"."option_set_items" add column if not exists "icon" text check ("icon" is null or length("icon") <= 100);
+alter table "better_supabase"."option_set_items" add column if not exists "label" text constraint bsb_option_set_items_label_check check (length("label") >= 1 and length("label") <= 200);
+alter table "better_supabase"."option_set_items" add column if not exists "color" text constraint bsb_option_set_items_color_check check ("color" is null or length("color") <= 50);
+alter table "better_supabase"."option_set_items" add column if not exists "icon" text constraint bsb_option_set_items_icon_check check ("icon" is null or length("icon") <= 100);
 alter table "better_supabase"."option_set_items" add column if not exists "rank" text collate "C" not null default 'V';
 alter table "better_supabase"."option_set_items" add column if not exists "level" integer;
-alter table "better_supabase"."option_set_items" add column if not exists "description" text check ("description" is null or length("description") <= 1000);
+alter table "better_supabase"."option_set_items" add column if not exists "description" text constraint bsb_option_set_items_description_check check ("description" is null or length("description") <= 1000);
 alter table "better_supabase"."option_set_items" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."option_set_items" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."option_set_items" add column if not exists "updated_at" timestamptz not null default now();
@@ -2343,7 +2343,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_183_option_sets.sql
 -- better-supabase module: option-sets
 -- @bsb-block option-sets@1 managed
--- @bsb-hash sha256:b3f5861dfb0822a37b0281fee914e51238b35898a0a754562f1beff2f2117309
+-- @bsb-hash sha256:116bbf8385118be6d67c350c0d9cc68e87b2ac1dd1571a31f514e3cd2b4d6415
 -- Tenant-editable items for a field such as priority or severity: ordered items with a label, color, icon and a level written to the record's own column, replacement when an item is removed, and starter items per brand.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2356,10 +2356,10 @@ create table "better_supabase"."option_sets" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "subject_type" text not null,
-  "field" text not null check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "field" text not null constraint bsb_option_sets_field_check check ("field" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "scope_id" text,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_option_sets_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_option_sets_name_check check (length("name") >= 1 and length("name") <= 200),
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -2380,14 +2380,14 @@ create table "better_supabase"."option_set_items" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "option_set_id" uuid not null references "better_supabase"."option_sets" ("id") on delete cascade,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_option_set_items_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "label" text not null check (length("label") >= 1 and length("label") <= 200),
-  "color" text check ("color" is null or length("color") <= 50),
-  "icon" text check ("icon" is null or length("icon") <= 100),
+  "label" text not null constraint bsb_option_set_items_label_check check (length("label") >= 1 and length("label") <= 200),
+  "color" text constraint bsb_option_set_items_color_check check ("color" is null or length("color") <= 50),
+  "icon" text constraint bsb_option_set_items_icon_check check ("icon" is null or length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "level" integer not null,
-  "description" text check ("description" is null or length("description") <= 1000),
+  "description" text constraint bsb_option_set_items_description_check check ("description" is null or length("description") <= 1000),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),

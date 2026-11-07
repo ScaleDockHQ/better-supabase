@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:38ab813a04c74923db6562320a906d913b3267af9c5be54637fc10a0c5ded692
+-- @bsb-hash sha256:e7b68537d4616e48eb8d88e656df0eb0b497f1168c1f797519a3756d0efa8ec5
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,13 +12,13 @@ create table "better_supabase"."consent_purposes" (
   "id" uuid primary key default gen_random_uuid(),
   -- Null for a system purpose every organization uses.
   "tenant_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 4000),
-  "legal_basis" text not null default 'consent' check ("legal_basis" in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest')),
-  "version" text not null default '1' check (length("version") >= 1 and length("version") <= 40),
+  "key" text not null constraint bsb_consent_purposes_key_check check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
+  "title" text not null constraint bsb_consent_purposes_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_consent_purposes_description_check check ("description" is null or length("description") <= 4000),
+  "legal_basis" text not null default 'consent' constraint bsb_consent_purposes_legal_basis_check check ("legal_basis" in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest')),
+  "version" text not null default '1' constraint bsb_consent_purposes_version_check check (length("version") >= 1 and length("version") <= 40),
   "requires_signature" boolean not null default false,
-  "valid_months" integer check ("valid_months" is null or "valid_months" >= 1 and "valid_months" <= 1200),
+  "valid_months" integer constraint bsb_consent_purposes_valid_months_check check ("valid_months" is null or "valid_months" >= 1 and "valid_months" <= 1200),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -37,24 +37,24 @@ create table "better_supabase"."consents" (
   "purpose_id" uuid not null references "better_supabase"."consent_purposes" ("id") on delete restrict,
   "subject_type" text not null,
   "subject_id" text not null,
-  "given_by" text not null default 'self' check ("given_by" in ('self', 'representative')),
+  "given_by" text not null default 'self' constraint bsb_consents_given_by_check check ("given_by" in ('self', 'representative')),
   -- The contact person who decided for the record, when a representative did.
   "given_by_contact_id" uuid,
   "given_by_user_id" uuid,
-  "status" text not null check ("status" in ('granted', 'refused', 'withdrawn', 'expired')),
-  "scope" jsonb not null default '{}'::jsonb check (jsonb_typeof("scope") = 'object'),
+  "status" text not null constraint bsb_consents_status_check check ("status" in ('granted', 'refused', 'withdrawn', 'expired')),
+  "scope" jsonb not null default '{}'::jsonb constraint bsb_consents_scope_check check (jsonb_typeof("scope") = 'object'),
   -- When the decision was made, for a refusal too.
   "granted_at" timestamptz not null default now(),
   "valid_until" timestamptz,
   "withdrawn_at" timestamptz,
-  "withdrawn_reason" text check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
+  "withdrawn_reason" text constraint bsb_consents_withdrawn_reason_check check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
   "signature_id" uuid,
   "submission_id" uuid,
   "attachment_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("given_by" <> 'representative' or "given_by_contact_id" is not null),
-  check ("status" <> 'withdrawn' or "withdrawn_at" is not null)
+  constraint bsb_consents_check check ("given_by" <> 'representative' or "given_by_contact_id" is not null),
+  constraint bsb_consents_check1 check ("status" <> 'withdrawn' or "withdrawn_at" is not null)
 );
 -- One grant in force per record and purpose version.
 create unique index "consents_granted_idx" on "better_supabase"."consents" ("subject_type", "subject_id", "purpose_id") where "status" = 'granted';
@@ -77,9 +77,9 @@ create table "better_supabase"."consent_signals" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "kind" text not null check ("kind" in ('gpc', 'tcf', 'gpp')),
-  "raw" text not null check (length("raw") >= 1 and length("raw") <= 8192),
-  "parsed" jsonb not null default '{}'::jsonb check (jsonb_typeof("parsed") = 'object'),
+  "kind" text not null constraint bsb_consent_signals_kind_check check ("kind" in ('gpc', 'tcf', 'gpp')),
+  "raw" text not null constraint bsb_consent_signals_raw_check check (length("raw") >= 1 and length("raw") <= 8192),
+  "parsed" jsonb not null default '{}'::jsonb constraint bsb_consent_signals_parsed_check check (jsonb_typeof("parsed") = 'object'),
   "consent_ids" uuid[] not null default '{}',
   "created_by" uuid,
   "received_at" timestamptz not null default now()
@@ -102,8 +102,8 @@ create table "better_supabase"."consent_receipts" (
   "subject_id" text not null,
   "consent_id" uuid not null references "better_supabase"."consents" ("id") on delete cascade,
   "status" text not null,
-  "receipt" jsonb not null check (jsonb_typeof("receipt") = 'object'),
-  "digest" text not null check ("digest" ~ '^[0-9a-f]{64}$'),
+  "receipt" jsonb not null constraint bsb_consent_receipts_receipt_check check (jsonb_typeof("receipt") = 'object'),
+  "digest" text not null constraint bsb_consent_receipts_digest_check check ("digest" ~ '^[0-9a-f]{64}$'),
   "issued_at" timestamptz not null default now(),
   unique ("consent_id", "status")
 );
@@ -1042,7 +1042,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:78de5df6c71b69ea226b978b1d8806f6ddedc06091f44dec1c9b0c12d4cf6907
+-- @bsb-hash sha256:648341bffb98e200a5f8474cd6befcefa142b96afd7c19936472f569f9cb6122
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1053,13 +1053,13 @@ create table "better_supabase"."consent_purposes" (
   "id" uuid primary key default gen_random_uuid(),
   -- Null for a system purpose every organization uses.
   "tenant_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 4000),
-  "legal_basis" text not null default 'consent' check ("legal_basis" in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest')),
-  "version" text not null default '1' check (length("version") >= 1 and length("version") <= 40),
+  "key" text not null constraint bsb_consent_purposes_key_check check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
+  "title" text not null constraint bsb_consent_purposes_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_consent_purposes_description_check check ("description" is null or length("description") <= 4000),
+  "legal_basis" text not null default 'consent' constraint bsb_consent_purposes_legal_basis_check check ("legal_basis" in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest')),
+  "version" text not null default '1' constraint bsb_consent_purposes_version_check check (length("version") >= 1 and length("version") <= 40),
   "requires_signature" boolean not null default false,
-  "valid_months" integer check ("valid_months" is null or "valid_months" >= 1 and "valid_months" <= 1200),
+  "valid_months" integer constraint bsb_consent_purposes_valid_months_check check ("valid_months" is null or "valid_months" >= 1 and "valid_months" <= 1200),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -1078,24 +1078,24 @@ create table "better_supabase"."consents" (
   "purpose_id" uuid not null references "better_supabase"."consent_purposes" ("id") on delete restrict,
   "subject_type" text not null,
   "subject_id" text not null,
-  "given_by" text not null default 'self' check ("given_by" in ('self', 'representative')),
+  "given_by" text not null default 'self' constraint bsb_consents_given_by_check check ("given_by" in ('self', 'representative')),
   -- The contact person who decided for the record, when a representative did.
   "given_by_contact_id" uuid,
   "given_by_user_id" uuid,
-  "status" text not null check ("status" in ('granted', 'refused', 'withdrawn', 'expired')),
-  "scope" jsonb not null default '{}'::jsonb check (jsonb_typeof("scope") = 'object'),
+  "status" text not null constraint bsb_consents_status_check check ("status" in ('granted', 'refused', 'withdrawn', 'expired')),
+  "scope" jsonb not null default '{}'::jsonb constraint bsb_consents_scope_check check (jsonb_typeof("scope") = 'object'),
   -- When the decision was made, for a refusal too.
   "granted_at" timestamptz not null default now(),
   "valid_until" timestamptz,
   "withdrawn_at" timestamptz,
-  "withdrawn_reason" text check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
+  "withdrawn_reason" text constraint bsb_consents_withdrawn_reason_check check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
   "signature_id" uuid,
   "submission_id" uuid,
   "attachment_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("given_by" <> 'representative' or "given_by_contact_id" is not null),
-  check ("status" <> 'withdrawn' or "withdrawn_at" is not null)
+  constraint bsb_consents_check check ("given_by" <> 'representative' or "given_by_contact_id" is not null),
+  constraint bsb_consents_check1 check ("status" <> 'withdrawn' or "withdrawn_at" is not null)
 );
 -- One grant in force per record and purpose version.
 create unique index "consents_granted_idx" on "better_supabase"."consents" ("subject_type", "subject_id", "purpose_id") where "status" = 'granted';
@@ -1118,9 +1118,9 @@ create table "better_supabase"."consent_signals" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "kind" text not null check ("kind" in ('gpc', 'tcf', 'gpp')),
-  "raw" text not null check (length("raw") >= 1 and length("raw") <= 8192),
-  "parsed" jsonb not null default '{}'::jsonb check (jsonb_typeof("parsed") = 'object'),
+  "kind" text not null constraint bsb_consent_signals_kind_check check ("kind" in ('gpc', 'tcf', 'gpp')),
+  "raw" text not null constraint bsb_consent_signals_raw_check check (length("raw") >= 1 and length("raw") <= 8192),
+  "parsed" jsonb not null default '{}'::jsonb constraint bsb_consent_signals_parsed_check check (jsonb_typeof("parsed") = 'object'),
   "consent_ids" uuid[] not null default '{}',
   "created_by" uuid,
   "received_at" timestamptz not null default now()
@@ -1143,8 +1143,8 @@ create table "better_supabase"."consent_receipts" (
   "subject_id" text not null,
   "consent_id" uuid not null references "better_supabase"."consents" ("id") on delete cascade,
   "status" text not null,
-  "receipt" jsonb not null check (jsonb_typeof("receipt") = 'object'),
-  "digest" text not null check ("digest" ~ '^[0-9a-f]{64}$'),
+  "receipt" jsonb not null constraint bsb_consent_receipts_receipt_check check (jsonb_typeof("receipt") = 'object'),
+  "digest" text not null constraint bsb_consent_receipts_digest_check check ("digest" ~ '^[0-9a-f]{64}$'),
   "issued_at" timestamptz not null default now(),
   unique ("consent_id", "status")
 );
@@ -2304,7 +2304,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:68654a3760b25f4966f2013c389ca31ea7c15ec767f756db0143f7092bb03087
+-- @bsb-hash sha256:9f9b9983e75c0724b6a1fded171d1e0de60b949cb47e766c422f721a7f687c75
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2320,13 +2320,13 @@ create table "app_private"."consent_purposes" (
   "id" uuid primary key default gen_random_uuid(),
   -- Null for a system purpose every organization uses.
   "tenant_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 4000),
-  "legal_basis" text not null default 'consent' check ("legal_basis" in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest')),
-  "version" text not null default '1' check (length("version") >= 1 and length("version") <= 40),
+  "key" text not null constraint bsb_consent_purposes_key_check check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
+  "title" text not null constraint bsb_consent_purposes_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_consent_purposes_description_check check ("description" is null or length("description") <= 4000),
+  "legal_basis" text not null default 'consent' constraint bsb_consent_purposes_legal_basis_check check ("legal_basis" in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest')),
+  "version" text not null default '1' constraint bsb_consent_purposes_version_check check (length("version") >= 1 and length("version") <= 40),
   "requires_signature" boolean not null default false,
-  "valid_months" integer check ("valid_months" is null or "valid_months" >= 1 and "valid_months" <= 1200),
+  "valid_months" integer constraint bsb_consent_purposes_valid_months_check check ("valid_months" is null or "valid_months" >= 1 and "valid_months" <= 1200),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -2345,24 +2345,24 @@ create table "app_private"."consents" (
   "purpose_id" uuid not null references "app_private"."consent_purposes" ("id") on delete restrict,
   "subject_type" text not null,
   "subject_id" text not null,
-  "given_by" text not null default 'self' check ("given_by" in ('self', 'representative')),
+  "given_by" text not null default 'self' constraint bsb_consents_given_by_check check ("given_by" in ('self', 'representative')),
   -- The contact person who decided for the record, when a representative did.
   "given_by_contact_id" uuid,
   "given_by_user_id" uuid,
-  "status" text not null check ("status" in ('granted', 'refused', 'withdrawn', 'expired')),
-  "scope" jsonb not null default '{}'::jsonb check (jsonb_typeof("scope") = 'object'),
+  "status" text not null constraint bsb_consents_status_check check ("status" in ('granted', 'refused', 'withdrawn', 'expired')),
+  "scope" jsonb not null default '{}'::jsonb constraint bsb_consents_scope_check check (jsonb_typeof("scope") = 'object'),
   -- When the decision was made, for a refusal too.
   "granted_at" timestamptz not null default now(),
   "valid_until" timestamptz,
   "withdrawn_at" timestamptz,
-  "withdrawn_reason" text check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
+  "withdrawn_reason" text constraint bsb_consents_withdrawn_reason_check check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
   "signature_id" uuid,
   "submission_id" uuid,
   "attachment_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("given_by" <> 'representative' or "given_by_contact_id" is not null),
-  check ("status" <> 'withdrawn' or "withdrawn_at" is not null)
+  constraint bsb_consents_check check ("given_by" <> 'representative' or "given_by_contact_id" is not null),
+  constraint bsb_consents_check1 check ("status" <> 'withdrawn' or "withdrawn_at" is not null)
 );
 -- One grant in force per record and purpose version.
 create unique index "consents_granted_idx" on "app_private"."consents" ("subject_type", "subject_id", "purpose_id") where "status" = 'granted';
@@ -2385,9 +2385,9 @@ create table "app_private"."consent_signals" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "kind" text not null check ("kind" in ('gpc', 'tcf', 'gpp')),
-  "raw" text not null check (length("raw") >= 1 and length("raw") <= 8192),
-  "parsed" jsonb not null default '{}'::jsonb check (jsonb_typeof("parsed") = 'object'),
+  "kind" text not null constraint bsb_consent_signals_kind_check check ("kind" in ('gpc', 'tcf', 'gpp')),
+  "raw" text not null constraint bsb_consent_signals_raw_check check (length("raw") >= 1 and length("raw") <= 8192),
+  "parsed" jsonb not null default '{}'::jsonb constraint bsb_consent_signals_parsed_check check (jsonb_typeof("parsed") = 'object'),
   "consent_ids" uuid[] not null default '{}',
   "created_by" uuid,
   "received_at" timestamptz not null default now()
@@ -2410,8 +2410,8 @@ create table "app_private"."consent_receipts" (
   "subject_id" text not null,
   "consent_id" uuid not null references "app_private"."consents" ("id") on delete cascade,
   "status" text not null,
-  "receipt" jsonb not null check (jsonb_typeof("receipt") = 'object'),
-  "digest" text not null check ("digest" ~ '^[0-9a-f]{64}$'),
+  "receipt" jsonb not null constraint bsb_consent_receipts_receipt_check check (jsonb_typeof("receipt") = 'object'),
+  "digest" text not null constraint bsb_consent_receipts_digest_check check ("digest" ~ '^[0-9a-f]{64}$'),
   "issued_at" timestamptz not null default now(),
   unique ("consent_id", "status")
 );
@@ -3350,7 +3350,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:d74388091f839cbd259b78e0b86f4d7b4fced7e9a3530c1eb8d4d01864d6d3df
+-- @bsb-hash sha256:542b0d4048627d7aa354334660c143fa2f6057056e6aac5a0eddac178c65ed45
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3361,13 +3361,13 @@ create table "better_supabase"."consent_purposes" (
   "id" uuid primary key default gen_random_uuid(),
   -- Null for a system purpose every organization uses.
   "tenant_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 4000),
-  "legal_basis" text not null default 'consent' check ("legal_basis" in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest')),
-  "version" text not null default '1' check (length("version") >= 1 and length("version") <= 40),
+  "key" text not null constraint bsb_consent_purposes_key_check check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
+  "title" text not null constraint bsb_consent_purposes_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_consent_purposes_description_check check ("description" is null or length("description") <= 4000),
+  "legal_basis" text not null default 'consent' constraint bsb_consent_purposes_legal_basis_check check ("legal_basis" in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest')),
+  "version" text not null default '1' constraint bsb_consent_purposes_version_check check (length("version") >= 1 and length("version") <= 40),
   "requires_signature" boolean not null default false,
-  "valid_months" integer check ("valid_months" is null or "valid_months" >= 1 and "valid_months" <= 1200),
+  "valid_months" integer constraint bsb_consent_purposes_valid_months_check check ("valid_months" is null or "valid_months" >= 1 and "valid_months" <= 1200),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -3386,24 +3386,24 @@ create table "better_supabase"."consents" (
   "purpose_id" uuid not null references "better_supabase"."consent_purposes" ("id") on delete restrict,
   "subject_type" text not null,
   "subject_id" text not null,
-  "given_by" text not null default 'self' check ("given_by" in ('self', 'representative')),
+  "given_by" text not null default 'self' constraint bsb_consents_given_by_check check ("given_by" in ('self', 'representative')),
   -- The contact person who decided for the record, when a representative did.
   "given_by_contact_id" uuid,
   "given_by_user_id" uuid,
-  "status" text not null check ("status" in ('granted', 'refused', 'withdrawn', 'expired')),
-  "scope" jsonb not null default '{}'::jsonb check (jsonb_typeof("scope") = 'object'),
+  "status" text not null constraint bsb_consents_status_check check ("status" in ('granted', 'refused', 'withdrawn', 'expired')),
+  "scope" jsonb not null default '{}'::jsonb constraint bsb_consents_scope_check check (jsonb_typeof("scope") = 'object'),
   -- When the decision was made, for a refusal too.
   "granted_at" timestamptz not null default now(),
   "valid_until" timestamptz,
   "withdrawn_at" timestamptz,
-  "withdrawn_reason" text check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
+  "withdrawn_reason" text constraint bsb_consents_withdrawn_reason_check check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
   "signature_id" uuid,
   "submission_id" uuid,
   "attachment_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("given_by" <> 'representative' or "given_by_contact_id" is not null),
-  check ("status" <> 'withdrawn' or "withdrawn_at" is not null)
+  constraint bsb_consents_check check ("given_by" <> 'representative' or "given_by_contact_id" is not null),
+  constraint bsb_consents_check1 check ("status" <> 'withdrawn' or "withdrawn_at" is not null)
 );
 -- One grant in force per record and purpose version.
 create unique index "consents_granted_idx" on "better_supabase"."consents" ("subject_type", "subject_id", "purpose_id") where "status" = 'granted';
@@ -3426,9 +3426,9 @@ create table "better_supabase"."consent_signals" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "kind" text not null check ("kind" in ('gpc', 'tcf', 'gpp')),
-  "raw" text not null check (length("raw") >= 1 and length("raw") <= 8192),
-  "parsed" jsonb not null default '{}'::jsonb check (jsonb_typeof("parsed") = 'object'),
+  "kind" text not null constraint bsb_consent_signals_kind_check check ("kind" in ('gpc', 'tcf', 'gpp')),
+  "raw" text not null constraint bsb_consent_signals_raw_check check (length("raw") >= 1 and length("raw") <= 8192),
+  "parsed" jsonb not null default '{}'::jsonb constraint bsb_consent_signals_parsed_check check (jsonb_typeof("parsed") = 'object'),
   "consent_ids" uuid[] not null default '{}',
   "created_by" uuid,
   "received_at" timestamptz not null default now()
@@ -3451,8 +3451,8 @@ create table "better_supabase"."consent_receipts" (
   "subject_id" text not null,
   "consent_id" uuid not null references "better_supabase"."consents" ("id") on delete cascade,
   "status" text not null,
-  "receipt" jsonb not null check (jsonb_typeof("receipt") = 'object'),
-  "digest" text not null check ("digest" ~ '^[0-9a-f]{64}$'),
+  "receipt" jsonb not null constraint bsb_consent_receipts_receipt_check check (jsonb_typeof("receipt") = 'object'),
+  "digest" text not null constraint bsb_consent_receipts_digest_check check ("digest" ~ '^[0-9a-f]{64}$'),
   "issued_at" timestamptz not null default now(),
   unique ("consent_id", "status")
 );
@@ -4521,7 +4521,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:98ea29260ce2e49d4df673f1c35db73ff57706e7942dac8d2d333e1cc68b0ce7
+-- @bsb-hash sha256:a9aa03589f490b3d974086706794e57827deab42cef59bdf3ce436847b7f7e71
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4531,13 +4531,13 @@ on conflict (name) do update
 -- better_supabase.consent_purposes is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."consent_purposes" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."consent_purposes" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."consent_purposes" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$');
-alter table "better_supabase"."consent_purposes" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 200);
-alter table "better_supabase"."consent_purposes" add column if not exists "description" text check ("description" is null or length("description") <= 4000);
-alter table "better_supabase"."consent_purposes" add column if not exists "legal_basis" text not null default 'consent' check ("legal_basis" in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest'));
-alter table "better_supabase"."consent_purposes" add column if not exists "version" text not null default '1' check (length("version") >= 1 and length("version") <= 40);
+alter table "better_supabase"."consent_purposes" add column if not exists "key" text constraint bsb_consent_purposes_key_check check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$');
+alter table "better_supabase"."consent_purposes" add column if not exists "title" text constraint bsb_consent_purposes_title_check check (length("title") >= 1 and length("title") <= 200);
+alter table "better_supabase"."consent_purposes" add column if not exists "description" text constraint bsb_consent_purposes_description_check check ("description" is null or length("description") <= 4000);
+alter table "better_supabase"."consent_purposes" add column if not exists "legal_basis" text not null default 'consent' constraint bsb_consent_purposes_legal_basis_check check ("legal_basis" in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest'));
+alter table "better_supabase"."consent_purposes" add column if not exists "version" text not null default '1' constraint bsb_consent_purposes_version_check check (length("version") >= 1 and length("version") <= 40);
 alter table "better_supabase"."consent_purposes" add column if not exists "requires_signature" boolean not null default false;
-alter table "better_supabase"."consent_purposes" add column if not exists "valid_months" integer check ("valid_months" is null or "valid_months" >= 1 and "valid_months" <= 1200);
+alter table "better_supabase"."consent_purposes" add column if not exists "valid_months" integer constraint bsb_consent_purposes_valid_months_check check ("valid_months" is null or "valid_months" >= 1 and "valid_months" <= 1200);
 alter table "better_supabase"."consent_purposes" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."consent_purposes" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."consent_purposes" add column if not exists "updated_at" timestamptz not null default now();
@@ -4554,15 +4554,15 @@ alter table "better_supabase"."consents" add column if not exists "tenant_id" uu
 alter table "better_supabase"."consents" add column if not exists "purpose_id" uuid references "better_supabase"."consent_purposes" ("id") on delete restrict;
 alter table "better_supabase"."consents" add column if not exists "subject_type" text;
 alter table "better_supabase"."consents" add column if not exists "subject_id" text;
-alter table "better_supabase"."consents" add column if not exists "given_by" text not null default 'self' check ("given_by" in ('self', 'representative'));
+alter table "better_supabase"."consents" add column if not exists "given_by" text not null default 'self' constraint bsb_consents_given_by_check check ("given_by" in ('self', 'representative'));
 alter table "better_supabase"."consents" add column if not exists "given_by_contact_id" uuid;
 alter table "better_supabase"."consents" add column if not exists "given_by_user_id" uuid;
-alter table "better_supabase"."consents" add column if not exists "status" text check ("status" in ('granted', 'refused', 'withdrawn', 'expired'));
-alter table "better_supabase"."consents" add column if not exists "scope" jsonb not null default '{}'::jsonb check (jsonb_typeof("scope") = 'object');
+alter table "better_supabase"."consents" add column if not exists "status" text constraint bsb_consents_status_check check ("status" in ('granted', 'refused', 'withdrawn', 'expired'));
+alter table "better_supabase"."consents" add column if not exists "scope" jsonb not null default '{}'::jsonb constraint bsb_consents_scope_check check (jsonb_typeof("scope") = 'object');
 alter table "better_supabase"."consents" add column if not exists "granted_at" timestamptz not null default now();
 alter table "better_supabase"."consents" add column if not exists "valid_until" timestamptz;
 alter table "better_supabase"."consents" add column if not exists "withdrawn_at" timestamptz;
-alter table "better_supabase"."consents" add column if not exists "withdrawn_reason" text check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000);
+alter table "better_supabase"."consents" add column if not exists "withdrawn_reason" text constraint bsb_consents_withdrawn_reason_check check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000);
 alter table "better_supabase"."consents" add column if not exists "signature_id" uuid;
 alter table "better_supabase"."consents" add column if not exists "submission_id" uuid;
 alter table "better_supabase"."consents" add column if not exists "attachment_id" uuid;
@@ -4588,9 +4588,9 @@ alter table "better_supabase"."consent_signals" add column if not exists "id" uu
 alter table "better_supabase"."consent_signals" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."consent_signals" add column if not exists "subject_type" text;
 alter table "better_supabase"."consent_signals" add column if not exists "subject_id" text;
-alter table "better_supabase"."consent_signals" add column if not exists "kind" text check ("kind" in ('gpc', 'tcf', 'gpp'));
-alter table "better_supabase"."consent_signals" add column if not exists "raw" text check (length("raw") >= 1 and length("raw") <= 8192);
-alter table "better_supabase"."consent_signals" add column if not exists "parsed" jsonb not null default '{}'::jsonb check (jsonb_typeof("parsed") = 'object');
+alter table "better_supabase"."consent_signals" add column if not exists "kind" text constraint bsb_consent_signals_kind_check check ("kind" in ('gpc', 'tcf', 'gpp'));
+alter table "better_supabase"."consent_signals" add column if not exists "raw" text constraint bsb_consent_signals_raw_check check (length("raw") >= 1 and length("raw") <= 8192);
+alter table "better_supabase"."consent_signals" add column if not exists "parsed" jsonb not null default '{}'::jsonb constraint bsb_consent_signals_parsed_check check (jsonb_typeof("parsed") = 'object');
 alter table "better_supabase"."consent_signals" add column if not exists "consent_ids" uuid[] not null default '{}';
 alter table "better_supabase"."consent_signals" add column if not exists "created_by" uuid;
 alter table "better_supabase"."consent_signals" add column if not exists "received_at" timestamptz not null default now();
@@ -4611,8 +4611,8 @@ alter table "better_supabase"."consent_receipts" add column if not exists "subje
 alter table "better_supabase"."consent_receipts" add column if not exists "subject_id" text;
 alter table "better_supabase"."consent_receipts" add column if not exists "consent_id" uuid references "better_supabase"."consents" ("id") on delete cascade;
 alter table "better_supabase"."consent_receipts" add column if not exists "status" text;
-alter table "better_supabase"."consent_receipts" add column if not exists "receipt" jsonb check (jsonb_typeof("receipt") = 'object');
-alter table "better_supabase"."consent_receipts" add column if not exists "digest" text check ("digest" ~ '^[0-9a-f]{64}$');
+alter table "better_supabase"."consent_receipts" add column if not exists "receipt" jsonb constraint bsb_consent_receipts_receipt_check check (jsonb_typeof("receipt") = 'object');
+alter table "better_supabase"."consent_receipts" add column if not exists "digest" text constraint bsb_consent_receipts_digest_check check ("digest" ~ '^[0-9a-f]{64}$');
 alter table "better_supabase"."consent_receipts" add column if not exists "issued_at" timestamptz not null default now();
 create index if not exists "consent_receipts_tenant_idx" on "better_supabase"."consent_receipts" ("tenant_id", "issued_at" desc);
 alter table "better_supabase"."consent_receipts" enable row level security;
@@ -5548,7 +5548,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:f5bc62acbe67a60f484b48ce6ddb87554d697e665ff5c255d741297883ad50ca
+-- @bsb-hash sha256:1e9f7c4316bd8842b1506a9de39f2572193bdfdf4f23b4c9e6933ace825885cd
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5559,13 +5559,13 @@ create table "better_supabase"."consent_purposes" (
   "id" uuid primary key default gen_random_uuid(),
   -- Null for a system purpose every organization uses.
   "org_id" uuid,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 4000),
-  "legal_basis" text not null default 'consent' check ("legal_basis" in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest')),
-  "version" text not null default '1' check (length("version") >= 1 and length("version") <= 40),
+  "key" text not null constraint bsb_consent_purposes_key_check check ("key" ~ '^[a-z][a-z0-9_.-]{0,62}$'),
+  "title" text not null constraint bsb_consent_purposes_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_consent_purposes_description_check check ("description" is null or length("description") <= 4000),
+  "legal_basis" text not null default 'consent' constraint bsb_consent_purposes_legal_basis_check check ("legal_basis" in ('consent', 'contract', 'legal_obligation', 'vital_interest', 'public_task', 'legitimate_interest')),
+  "version" text not null default '1' constraint bsb_consent_purposes_version_check check (length("version") >= 1 and length("version") <= 40),
   "requires_signature" boolean not null default false,
-  "valid_months" integer check ("valid_months" is null or "valid_months" >= 1 and "valid_months" <= 1200),
+  "valid_months" integer constraint bsb_consent_purposes_valid_months_check check ("valid_months" is null or "valid_months" >= 1 and "valid_months" <= 1200),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -5584,24 +5584,24 @@ create table "better_supabase"."consents" (
   "purpose_id" uuid not null references "better_supabase"."consent_purposes" ("id") on delete restrict,
   "subject_type" text not null,
   "subject_id" text not null,
-  "given_by" text not null default 'self' check ("given_by" in ('self', 'representative')),
+  "given_by" text not null default 'self' constraint bsb_consents_given_by_check check ("given_by" in ('self', 'representative')),
   -- The contact person who decided for the record, when a representative did.
   "given_by_contact_id" uuid,
   "given_by_user_id" uuid,
-  "status" text not null check ("status" in ('granted', 'refused', 'withdrawn', 'expired')),
-  "scope" jsonb not null default '{}'::jsonb check (jsonb_typeof("scope") = 'object'),
+  "status" text not null constraint bsb_consents_status_check check ("status" in ('granted', 'refused', 'withdrawn', 'expired')),
+  "scope" jsonb not null default '{}'::jsonb constraint bsb_consents_scope_check check (jsonb_typeof("scope") = 'object'),
   -- When the decision was made, for a refusal too.
   "granted_at" timestamptz not null default now(),
   "valid_until" timestamptz,
   "withdrawn_at" timestamptz,
-  "withdrawn_reason" text check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
+  "withdrawn_reason" text constraint bsb_consents_withdrawn_reason_check check ("withdrawn_reason" is null or length("withdrawn_reason") <= 1000),
   "signature_id" uuid,
   "submission_id" uuid,
   "attachment_id" uuid,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("given_by" <> 'representative' or "given_by_contact_id" is not null),
-  check ("status" <> 'withdrawn' or "withdrawn_at" is not null)
+  constraint bsb_consents_check check ("given_by" <> 'representative' or "given_by_contact_id" is not null),
+  constraint bsb_consents_check1 check ("status" <> 'withdrawn' or "withdrawn_at" is not null)
 );
 -- One grant in force per record and purpose version.
 create unique index "consents_granted_idx" on "better_supabase"."consents" ("subject_type", "subject_id", "purpose_id") where "status" = 'granted';
@@ -5624,9 +5624,9 @@ create table "better_supabase"."consent_signals" (
   "org_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "kind" text not null check ("kind" in ('gpc', 'tcf', 'gpp')),
-  "raw" text not null check (length("raw") >= 1 and length("raw") <= 8192),
-  "parsed" jsonb not null default '{}'::jsonb check (jsonb_typeof("parsed") = 'object'),
+  "kind" text not null constraint bsb_consent_signals_kind_check check ("kind" in ('gpc', 'tcf', 'gpp')),
+  "raw" text not null constraint bsb_consent_signals_raw_check check (length("raw") >= 1 and length("raw") <= 8192),
+  "parsed" jsonb not null default '{}'::jsonb constraint bsb_consent_signals_parsed_check check (jsonb_typeof("parsed") = 'object'),
   "consent_ids" uuid[] not null default '{}',
   "created_by" uuid,
   "received_at" timestamptz not null default now()
@@ -5649,8 +5649,8 @@ create table "better_supabase"."consent_receipts" (
   "subject_id" text not null,
   "consent_id" uuid not null references "better_supabase"."consents" ("id") on delete cascade,
   "status" text not null,
-  "receipt" jsonb not null check (jsonb_typeof("receipt") = 'object'),
-  "digest" text not null check ("digest" ~ '^[0-9a-f]{64}$'),
+  "receipt" jsonb not null constraint bsb_consent_receipts_receipt_check check (jsonb_typeof("receipt") = 'object'),
+  "digest" text not null constraint bsb_consent_receipts_digest_check check ("digest" ~ '^[0-9a-f]{64}$'),
   "issued_at" timestamptz not null default now(),
   unique ("consent_id", "status")
 );

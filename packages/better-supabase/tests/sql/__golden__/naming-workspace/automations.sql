@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_111_automations.sql
 -- better-supabase module: automations
 -- @bsb-block automations@2 managed
--- @bsb-hash sha256:d2352278a1d63eba72cceac1063ad045432df3b9e2a72803290b9fcfb81dd3ef
+-- @bsb-hash sha256:a8aa19208c1702232ea0ed56ed15f4432774d944aaac500fbde7e646ef3107b5
 -- Tenant-editable automations: a filter tree over a subject type's field catalog, tested when a trigger event happens, with action references the action registry runs. Blocks ship default automations (rule_defaults) that every organization gets a copy of, may turn off or edit, and can reset. rule_matches() evaluates a tree in SQL the same way evaluateFilterQuery does in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,12 +11,12 @@
 create table "better_supabase"."automations" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_automations_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "trigger" text not null constraint bsb_automations_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null constraint bsb_automations_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_automations_description_check check (length("description") <= 2000),
   "conditions" jsonb not null,
-  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "actions" jsonb not null default '[]'::jsonb constraint bsb_automations_actions_check check (jsonb_typeof("actions") = 'array'),
   "enabled" boolean not null default false,
   "stop_processing" boolean not null default false,
   "rank" text collate "C" not null default 'V',
@@ -39,14 +39,14 @@ grant all on "better_supabase"."automations" to service_role;
 -- gets its own copy in rules the first time its rules run or are listed, and
 -- may turn it off or edit it; reset_default_rule restores the shipped one.
 create table "better_supabase"."automation_defaults" (
-  "key" text primary key check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
+  "key" text primary key constraint bsb_automation_defaults_key_check check (length("key") <= 128 and "key" ~ '^[a-z][a-z0-9_]*([.][a-z0-9_]+)*$'),
   "block" text not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "trigger" text not null check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text check (length("description") <= 2000),
+  "subject_type" text not null constraint bsb_automation_defaults_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "trigger" text not null constraint bsb_automation_defaults_trigger_check check (length("trigger") <= 128 and "trigger" ~ '^[a-z][a-z0-9_]*([.:][a-z0-9_]+)*$'),
+  "name" text not null constraint bsb_automation_defaults_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_automation_defaults_description_check check (length("description") <= 2000),
   "conditions" jsonb not null default '{"id": "root", "type": "group", "combinator": "and", "rules": []}'::jsonb,
-  "actions" jsonb not null default '[]'::jsonb check (jsonb_typeof("actions") = 'array'),
+  "actions" jsonb not null default '[]'::jsonb constraint bsb_automation_defaults_actions_check check (jsonb_typeof("actions") = 'array'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
@@ -83,7 +83,7 @@ create table "better_supabase"."automation_evaluations" (
   "trigger" text not null,
   "matched" boolean not null,
   "results" jsonb not null default '{}'::jsonb,
-  "mode" text not null default 'live' check ("mode" in ('live', 'test')),
+  "mode" text not null default 'live' constraint bsb_automation_evaluations_mode_check check ("mode" in ('live', 'test')),
   "evaluated_by" uuid,
   "evaluated_at" timestamptz not null default now()
 );
@@ -96,12 +96,12 @@ grant all on "better_supabase"."automation_evaluations" to service_role;
 -- The fields rules may test, per subject type. The app declares them in code
 -- (defineRuleFields) and syncs them with the service role.
 create table "better_supabase"."automation_fields" (
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "field_id" text not null check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
+  "subject_type" text not null constraint bsb_automation_fields_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "field_id" text not null constraint bsb_automation_fields_field_id_check check (length("field_id") <= 128 and "field_id" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "label" text not null,
   "description" text,
-  "type" text not null check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean')),
-  "path" text not null check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
+  "type" text not null constraint bsb_automation_fields_type_check check ("type" in ('text', 'number', 'date', 'select', 'relation', 'multiselect', 'boolean')),
+  "path" text not null constraint bsb_automation_fields_path_check check ("path" ~ '^[A-Za-z_][A-Za-z0-9_]*([.][A-Za-z_][A-Za-z0-9_]*)*$'),
   "column_type" text not null,
   "nullable" boolean not null default true,
   "options" jsonb,
@@ -109,7 +109,7 @@ create table "better_supabase"."automation_fields" (
   "position" integer not null default 0,
   "updated_at" timestamptz not null default now(),
   primary key ("subject_type", "field_id"),
-  check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
+  constraint bsb_automation_fields_check check ("type" <> 'date' or "column_type" in ('date', 'timestamp', 'timestamptz'))
 );
 alter table "better_supabase"."automation_fields" enable row level security;
 revoke all on "better_supabase"."automation_fields" from public, anon, authenticated;

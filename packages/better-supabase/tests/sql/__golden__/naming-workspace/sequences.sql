@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_138_sequences.sql
 -- better-supabase module: sequences
 -- @bsb-block sequences@2 managed
--- @bsb-hash sha256:146bdc91797b521e805286ad35755355031597e0d874b533dda96e69c9ca390b
+-- @bsb-hash sha256:ed84325b574178c406c93a4b4fc1adcdb74aa084d7c1f5df6b23d007389404b5
 -- Multi-step outreach sequences whose steps send email through mail-sync, create work items or wait. Each sequence runs as an enrollment program, and a reply on the thread or from the recipient's address ends their run.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,10 +12,10 @@
 create table "better_supabase"."sequences" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text check ("description" is null or length("description") <= 2000),
-  "status" text not null default 'draft' check ("status" in ('draft', 'active', 'paused', 'archived')),
+  "key" text not null constraint bsb_sequences_key_check check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
+  "name" text not null constraint bsb_sequences_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_sequences_description_check check ("description" is null or length("description") <= 2000),
+  "status" text not null default 'draft' constraint bsb_sequences_status_check check ("status" in ('draft', 'active', 'paused', 'archived')),
   -- An inbound message on the thread, or from the recipient's address, ends
   -- the recipient's run.
   "exit_on_reply" boolean not null default true,
@@ -23,8 +23,8 @@ create table "better_supabase"."sequences" (
   "mail_account_id" uuid,
   -- The steps in order: [{ id, kind: email | task | wait, ... }]. Each is a
   -- step of the enrollment program sequence:<id>.
-  "steps" jsonb not null default '[]' check (jsonb_typeof("steps") = 'array'),
-  "version" integer not null default 1 check ("version" >= 1),
+  "steps" jsonb not null default '[]' constraint bsb_sequences_steps_check check (jsonb_typeof("steps") = 'array'),
+  "version" integer not null default 1 constraint bsb_sequences_version_check check ("version" >= 1),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -36,13 +36,13 @@ create index "sequences_account_idx" on "better_supabase"."sequences" ("mail_acc
 -- columns say who it goes to and how sending went, and the open step row is
 -- the step that runs next, due when it runs.
 alter table "better_supabase"."enrollments" add column "sequence_id" uuid references "better_supabase"."sequences" ("id") on delete cascade;
-alter table "better_supabase"."enrollments" add column "sequence_address" text check ("sequence_address" is null or (length("sequence_address") <= 320 and "sequence_address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'));
-alter table "better_supabase"."enrollments" add column "sequence_name" text check ("sequence_name" is null or length("sequence_name") <= 200);
+alter table "better_supabase"."enrollments" add column "sequence_address" text constraint bsb_enrollments_sequence_address_check check ("sequence_address" is null or (length("sequence_address") <= 320 and "sequence_address" ~ '^[^@[:space:]]+@[^@[:space:]]+$'));
+alter table "better_supabase"."enrollments" add column "sequence_name" text constraint bsb_enrollments_sequence_name_check check ("sequence_name" is null or length("sequence_name") <= 200);
 alter table "better_supabase"."enrollments" add column "sequence_mail_account_id" uuid;
 alter table "better_supabase"."enrollments" add column "sequence_mail_thread_id" uuid;
-alter table "better_supabase"."enrollments" add column "sequence_attempts" integer not null default 0 check ("sequence_attempts" >= 0);
-alter table "better_supabase"."enrollments" add column "sequence_last_error" text check ("sequence_last_error" is null or length("sequence_last_error") <= 2000);
-alter table "better_supabase"."enrollments" add column "sequence_variables" jsonb not null default '{}' check (jsonb_typeof("sequence_variables") = 'object');
+alter table "better_supabase"."enrollments" add column "sequence_attempts" integer not null default 0 constraint bsb_enrollments_sequence_attempts_check check ("sequence_attempts" >= 0);
+alter table "better_supabase"."enrollments" add column "sequence_last_error" text constraint bsb_enrollments_sequence_last_error_check check ("sequence_last_error" is null or length("sequence_last_error") <= 2000);
+alter table "better_supabase"."enrollments" add column "sequence_variables" jsonb not null default '{}' constraint bsb_enrollments_sequence_variables_check check (jsonb_typeof("sequence_variables") = 'object');
 create index "enrollments_sequence_idx" on "better_supabase"."enrollments" ("sequence_id", "status") where "sequence_id" is not null;
 create index "enrollments_sequence_address_idx" on "better_supabase"."enrollments" ("tenant_id", lower("sequence_address")) where "sequence_id" is not null and "status" = 'active';
 create index "enrollments_sequence_account_idx" on "better_supabase"."enrollments" ("sequence_mail_account_id") where "sequence_mail_account_id" is not null;

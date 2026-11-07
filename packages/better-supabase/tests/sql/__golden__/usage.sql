@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:ec84dc817aeaa33d7923546e985550f2d082e09b249036aaa1a408d9c61afd16
+-- @bsb-hash sha256:9118fb9ae445a187d7646d4301bde213b8cb5764839803c4fbc31eefb4fcf470
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,10 +9,10 @@
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
 create table "better_supabase"."usage_counters" (
   "organization_id" uuid not null,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "meter" text not null constraint bsb_usage_counters_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
-  "value" numeric not null default 0 check ("value" >= 0),
-  "reported_value" numeric not null default 0 check ("reported_value" >= 0),
+  "value" numeric not null default 0 constraint bsb_usage_counters_value_check check ("value" >= 0),
+  "reported_value" numeric not null default 0 constraint bsb_usage_counters_reported_value_check check ("reported_value" >= 0),
   "updated_at" timestamptz not null default now(),
   primary key ("organization_id", "meter", "day")
 );
@@ -51,11 +51,11 @@ create table "better_supabase"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "plan" text,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
-  "limit" numeric check ("limit" >= 0),
-  "period" text not null default 'month' check ("period" in ('day', 'week', 'month', 'year', 'billing')),
+  "meter" text not null constraint bsb_usage_quotas_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "limit" numeric constraint bsb_usage_quotas_limit_check check ("limit" >= 0),
+  "period" text not null default 'month' constraint bsb_usage_quotas_period_check check ("period" in ('day', 'week', 'month', 'year', 'billing')),
   "created_at" timestamptz not null default now(),
-  check (("organization_id" is null) <> ("plan" is null)),
+  constraint bsb_usage_quotas_check check (("organization_id" is null) <> ("plan" is null)),
   unique nulls not distinct ("organization_id", "plan", "meter")
 );
 alter table "better_supabase"."usage_quotas" alter column "limit" type numeric;
@@ -708,7 +708,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:bb8dc9847c55cda72e7dc822f5ef5629c80fa160556052f5623c2aebf4ae2b69
+-- @bsb-hash sha256:50d532cf4671f98798d047fdc58ee73b8ad2ac59290d8bf53c352d0cec3077dd
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -716,10 +716,10 @@ on conflict (name) do update
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
 create table "better_supabase"."usage_counters" (
   "organization_id" uuid not null,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "meter" text not null constraint bsb_usage_counters_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
-  "value" numeric not null default 0 check ("value" >= 0),
-  "reported_value" numeric not null default 0 check ("reported_value" >= 0),
+  "value" numeric not null default 0 constraint bsb_usage_counters_value_check check ("value" >= 0),
+  "reported_value" numeric not null default 0 constraint bsb_usage_counters_reported_value_check check ("reported_value" >= 0),
   "updated_at" timestamptz not null default now(),
   primary key ("organization_id", "meter", "day")
 );
@@ -755,7 +755,7 @@ create table "better_supabase"."usage_history" (
   "meter" text not null,
   "quantity" numeric not null,
   "actor_id" uuid,
-  "source" text check (length("source") <= 200),
+  "source" text constraint bsb_usage_history_source_check check (length("source") <= 200),
   "metadata" jsonb not null default '{}',
   "recorded_at" timestamptz not null default now()
 );
@@ -779,11 +779,11 @@ create table "better_supabase"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "plan" text,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
-  "limit" numeric check ("limit" >= 0),
-  "period" text not null default 'month' check ("period" in ('day', 'week', 'month', 'year', 'billing')),
+  "meter" text not null constraint bsb_usage_quotas_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "limit" numeric constraint bsb_usage_quotas_limit_check check ("limit" >= 0),
+  "period" text not null default 'month' constraint bsb_usage_quotas_period_check check ("period" in ('day', 'week', 'month', 'year', 'billing')),
   "created_at" timestamptz not null default now(),
-  check (("organization_id" is null) <> ("plan" is null)),
+  constraint bsb_usage_quotas_check check (("organization_id" is null) <> ("plan" is null)),
   unique nulls not distinct ("organization_id", "plan", "meter")
 );
 alter table "better_supabase"."usage_quotas" alter column "limit" type numeric;
@@ -1426,11 +1426,11 @@ grant execute on function "better_supabase"."mark_usage_reported"(uuid, text, da
 -- What one unit of a meter costs: unit_amount in minor units of currency
 -- (ADR 0024), and how many units each billing period includes for free.
 create table "better_supabase"."usage_meter_prices" (
-  "meter" text not null check (length("meter") >= 1 and length("meter") <= 100),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
-  "unit_amount" bigint not null check ("unit_amount" >= 0),
-  "included" numeric not null default 0 check ("included" >= 0),
-  "label" text check (length("label") <= 200),
+  "meter" text not null constraint bsb_usage_meter_prices_meter_check check (length("meter") >= 1 and length("meter") <= 100),
+  "currency" text not null constraint bsb_usage_meter_prices_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "unit_amount" bigint not null constraint bsb_usage_meter_prices_unit_amount_check check ("unit_amount" >= 0),
+  "included" numeric not null default 0 constraint bsb_usage_meter_prices_included_check check ("included" >= 0),
+  "label" text constraint bsb_usage_meter_prices_label_check check (length("label") <= 200),
   primary key ("meter", "currency")
 );
 alter table "better_supabase"."usage_meter_prices" enable row level security;
@@ -1612,7 +1612,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:d270de4dc9a8586e4c972c955736da55a8da657b6d05394ebd843d6a0cdba726
+-- @bsb-hash sha256:d1d69aa5e883bceee0dc1271ed231ad37b025500c775feb10d888542176dc0d4
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1625,10 +1625,10 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
 create table "app_private"."usage_counters" (
   "organization_id" uuid not null,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "meter" text not null constraint bsb_usage_counters_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
-  "value" numeric not null default 0 check ("value" >= 0),
-  "reported_value" numeric not null default 0 check ("reported_value" >= 0),
+  "value" numeric not null default 0 constraint bsb_usage_counters_value_check check ("value" >= 0),
+  "reported_value" numeric not null default 0 constraint bsb_usage_counters_reported_value_check check ("reported_value" >= 0),
   "updated_at" timestamptz not null default now(),
   primary key ("organization_id", "meter", "day")
 );
@@ -1667,11 +1667,11 @@ create table "app_private"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "plan" text,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
-  "limit" numeric check ("limit" >= 0),
-  "period" text not null default 'month' check ("period" in ('day', 'week', 'month', 'year', 'billing')),
+  "meter" text not null constraint bsb_usage_quotas_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "limit" numeric constraint bsb_usage_quotas_limit_check check ("limit" >= 0),
+  "period" text not null default 'month' constraint bsb_usage_quotas_period_check check ("period" in ('day', 'week', 'month', 'year', 'billing')),
   "created_at" timestamptz not null default now(),
-  check (("organization_id" is null) <> ("plan" is null)),
+  constraint bsb_usage_quotas_check check (("organization_id" is null) <> ("plan" is null)),
   unique nulls not distinct ("organization_id", "plan", "meter")
 );
 alter table "app_private"."usage_quotas" alter column "limit" type numeric;
@@ -2324,7 +2324,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:4684e627450374c6a27245df3aceac6e1c5cccae291554ab1dd598bc6a24da6b
+-- @bsb-hash sha256:9e7658738dc69dbaf0133d79757c260f9856e686672322c17a696bec3a44aa01
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2332,10 +2332,10 @@ on conflict (name) do update
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
 create table "better_supabase"."usage_counters" (
   "organization_id" uuid not null,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "meter" text not null constraint bsb_usage_counters_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
-  "value" numeric not null default 0 check ("value" >= 0),
-  "reported_value" numeric not null default 0 check ("reported_value" >= 0),
+  "value" numeric not null default 0 constraint bsb_usage_counters_value_check check ("value" >= 0),
+  "reported_value" numeric not null default 0 constraint bsb_usage_counters_reported_value_check check ("reported_value" >= 0),
   "updated_at" timestamptz not null default now(),
   primary key ("organization_id", "meter", "day")
 );
@@ -2374,11 +2374,11 @@ create table "better_supabase"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "plan" text,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
-  "limit" numeric check ("limit" >= 0),
-  "period" text not null default 'month' check ("period" in ('day', 'week', 'month', 'year', 'billing')),
+  "meter" text not null constraint bsb_usage_quotas_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "limit" numeric constraint bsb_usage_quotas_limit_check check ("limit" >= 0),
+  "period" text not null default 'month' constraint bsb_usage_quotas_period_check check ("period" in ('day', 'week', 'month', 'year', 'billing')),
   "created_at" timestamptz not null default now(),
-  check (("organization_id" is null) <> ("plan" is null)),
+  constraint bsb_usage_quotas_check check (("organization_id" is null) <> ("plan" is null)),
   unique nulls not distinct ("organization_id", "plan", "meter")
 );
 alter table "better_supabase"."usage_quotas" alter column "limit" type numeric;
@@ -3217,7 +3217,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:2322f7243eacb02c5c15c410cef17651b94294978552838e20d10ffe08022450
+-- @bsb-hash sha256:002ad98349eeeb8ca50f705e10d85ae059684c37390576e314ecf0dff4a7f250
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3225,10 +3225,10 @@ on conflict (name) do update
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
 -- better_supabase.usage_counters is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."usage_counters" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."usage_counters" add column if not exists "meter" text check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$');
+alter table "better_supabase"."usage_counters" add column if not exists "meter" text constraint bsb_usage_counters_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$');
 alter table "better_supabase"."usage_counters" add column if not exists "day" date;
-alter table "better_supabase"."usage_counters" add column if not exists "value" numeric not null default 0 check ("value" >= 0);
-alter table "better_supabase"."usage_counters" add column if not exists "reported_value" numeric not null default 0 check ("reported_value" >= 0);
+alter table "better_supabase"."usage_counters" add column if not exists "value" numeric not null default 0 constraint bsb_usage_counters_value_check check ("value" >= 0);
+alter table "better_supabase"."usage_counters" add column if not exists "reported_value" numeric not null default 0 constraint bsb_usage_counters_reported_value_check check ("reported_value" >= 0);
 alter table "better_supabase"."usage_counters" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_usage_counters_day_key" on "better_supabase"."usage_counters" ("organization_id", "meter", "day");
 create index if not exists usage_counters_unreported_idx on "better_supabase"."usage_counters" ("day")
@@ -3259,9 +3259,9 @@ grant all on "better_supabase"."usage_events" to service_role;
 alter table "better_supabase"."usage_quotas" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."usage_quotas" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."usage_quotas" add column if not exists "plan" text;
-alter table "better_supabase"."usage_quotas" add column if not exists "meter" text check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$');
-alter table "better_supabase"."usage_quotas" add column if not exists "limit" numeric check ("limit" >= 0);
-alter table "better_supabase"."usage_quotas" add column if not exists "period" text not null default 'month' check ("period" in ('day', 'week', 'month', 'year', 'billing'));
+alter table "better_supabase"."usage_quotas" add column if not exists "meter" text constraint bsb_usage_quotas_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$');
+alter table "better_supabase"."usage_quotas" add column if not exists "limit" numeric constraint bsb_usage_quotas_limit_check check ("limit" >= 0);
+alter table "better_supabase"."usage_quotas" add column if not exists "period" text not null default 'month' constraint bsb_usage_quotas_period_check check ("period" in ('day', 'week', 'month', 'year', 'billing'));
 alter table "better_supabase"."usage_quotas" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."usage_quotas" enable row level security;
 grant select on "better_supabase"."usage_quotas" to authenticated;
@@ -3913,7 +3913,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_030_usage.sql
 -- better-supabase module: usage
 -- @bsb-block usage@8 managed
--- @bsb-hash sha256:be7c271f4bef487cbafbce685fc2301cc19264900ddb9b130c8856fc9349b4e1
+-- @bsb-hash sha256:b213cbc6e2f447d2dec7eba7e2ecb683788deb884e2613534b7335f292136b81
 -- Usage counters per tenant, meter and day with idempotent increments, quotas per tenant or plan, within_quota() for policies and consume_quota(), which raises quota_exceeded. unreported_usage() feeds reportUsageToStripe.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3921,10 +3921,10 @@ on conflict (name) do update
 -- Usage per tenant, meter and UTC day. Quotas sum the days of their period.
 create table "better_supabase"."usage_counters" (
   "org_id" uuid not null,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "meter" text not null constraint bsb_usage_counters_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
   "day" date not null,
-  "value" numeric not null default 0 check ("value" >= 0),
-  "reported_value" numeric not null default 0 check ("reported_value" >= 0),
+  "value" numeric not null default 0 constraint bsb_usage_counters_value_check check ("value" >= 0),
+  "reported_value" numeric not null default 0 constraint bsb_usage_counters_reported_value_check check ("reported_value" >= 0),
   "updated_at" timestamptz not null default now(),
   primary key ("org_id", "meter", "day")
 );
@@ -3963,11 +3963,11 @@ create table "better_supabase"."usage_quotas" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
   "plan" text,
-  "meter" text not null check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
-  "limit" numeric check ("limit" >= 0),
-  "period" text not null default 'month' check ("period" in ('day', 'week', 'month', 'year', 'billing')),
+  "meter" text not null constraint bsb_usage_quotas_meter_check check ("meter" ~ '^[a-z][a-z0-9_.:-]{0,63}$'),
+  "limit" numeric constraint bsb_usage_quotas_limit_check check ("limit" >= 0),
+  "period" text not null default 'month' constraint bsb_usage_quotas_period_check check ("period" in ('day', 'week', 'month', 'year', 'billing')),
   "created_at" timestamptz not null default now(),
-  check (("org_id" is null) <> ("plan" is null)),
+  constraint bsb_usage_quotas_check check (("org_id" is null) <> ("plan" is null)),
   unique nulls not distinct ("org_id", "plan", "meter")
 );
 alter table "better_supabase"."usage_quotas" alter column "limit" type numeric;

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:4fb29001cd067685921ffef8297983eb46a6cd47e7a4e2ee3fc405f62c7cde33
+-- @bsb-hash sha256:6be236a71d869b4f4225b8d6c5e371765f577c61537ad37635d3e80ff80edf34
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -18,17 +18,17 @@
 create table "better_supabase"."care_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction')),
+  "kind" text not null constraint bsb_care_rules_kind_check check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction')),
   "medication_ids" uuid[] not null default '{}',
-  "min_dose" numeric check ("min_dose" is null or "min_dose" >= 0),
-  "max_dose" numeric check ("max_dose" is null or "max_dose" > 0),
-  "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0),
-  "severity" text not null default 'warning' check ("severity" in ('info', 'warning', 'critical')),
-  "message" text check ("message" is null or length("message") <= 1000),
+  "min_dose" numeric constraint bsb_care_rules_min_dose_check check ("min_dose" is null or "min_dose" >= 0),
+  "max_dose" numeric constraint bsb_care_rules_max_dose_check check ("max_dose" is null or "max_dose" > 0),
+  "max_per_day" numeric constraint bsb_care_rules_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0),
+  "severity" text not null default 'warning' constraint bsb_care_rules_severity_check check ("severity" in ('info', 'warning', 'critical')),
+  "message" text constraint bsb_care_rules_message_check check ("message" is null or length("message") <= 1000),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (
+  constraint bsb_care_rules_check check (
     ("kind" = 'dose_range' and cardinality("medication_ids") = 1 and ("min_dose" is not null or "max_dose" is not null or "max_per_day" is not null))
     or ("kind" = 'interaction' and cardinality("medication_ids") = 2)
     or ("kind" = 'duplicate_therapy' and cardinality("medication_ids") >= 2)
@@ -52,21 +52,21 @@ create table "better_supabase"."care_alerts" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
-  "severity" text not null check ("severity" in ('info', 'warning', 'critical')),
-  "source" text not null check (length("source") >= 1 and length("source") <= 100),
+  "kind" text not null constraint bsb_care_alerts_kind_check check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
+  "severity" text not null constraint bsb_care_alerts_severity_check check ("severity" in ('info', 'warning', 'critical')),
+  "source" text not null constraint bsb_care_alerts_source_check check (length("source") >= 1 and length("source") <= 100),
   "rule_id" uuid,
   "order_ids" uuid[] not null default '{}',
-  "message" text not null check (length("message") >= 1 and length("message") <= 1000),
+  "message" text not null constraint bsb_care_alerts_message_check check (length("message") >= 1 and length("message") <= 1000),
   "details" jsonb,
-  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
-  "status" text not null default 'open' check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
+  "fingerprint" text not null constraint bsb_care_alerts_fingerprint_check check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
+  "status" text not null default 'open' constraint bsb_care_alerts_status_check check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
   "decided_by" uuid,
   "decided_at" timestamptz,
-  "decision_reason" text check ("decision_reason" is null or length("decision_reason") <= 1000),
+  "decision_reason" text constraint bsb_care_alerts_decision_reason_check check ("decision_reason" is null or length("decision_reason") <= 1000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("status" not in ('acknowledged', 'overridden') or "decided_at" is not null)
+  constraint bsb_care_alerts_check check ("status" not in ('acknowledged', 'overridden') or "decided_at" is not null)
 );
 create unique index "care_alerts_live_key" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "fingerprint") where "status" <> 'resolved';
 create index "care_alerts_subject_idx" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "status");
@@ -619,7 +619,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:a216afc549e6cd5a4fc6b2454cfc83b43100bbe3d6c03cec06329a6d0afdb074
+-- @bsb-hash sha256:39d58273020ef3e26463b55762d501bd6d3b1bf27f08134b68f4caa1d27a255d
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -636,17 +636,17 @@ on conflict (name) do update
 create table "better_supabase"."care_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction')),
+  "kind" text not null constraint bsb_care_rules_kind_check check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction')),
   "medication_ids" uuid[] not null default '{}',
-  "min_dose" numeric check ("min_dose" is null or "min_dose" >= 0),
-  "max_dose" numeric check ("max_dose" is null or "max_dose" > 0),
-  "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0),
-  "severity" text not null default 'warning' check ("severity" in ('info', 'warning', 'critical')),
-  "message" text check ("message" is null or length("message") <= 1000),
+  "min_dose" numeric constraint bsb_care_rules_min_dose_check check ("min_dose" is null or "min_dose" >= 0),
+  "max_dose" numeric constraint bsb_care_rules_max_dose_check check ("max_dose" is null or "max_dose" > 0),
+  "max_per_day" numeric constraint bsb_care_rules_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0),
+  "severity" text not null default 'warning' constraint bsb_care_rules_severity_check check ("severity" in ('info', 'warning', 'critical')),
+  "message" text constraint bsb_care_rules_message_check check ("message" is null or length("message") <= 1000),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (
+  constraint bsb_care_rules_check check (
     ("kind" = 'dose_range' and cardinality("medication_ids") = 1 and ("min_dose" is not null or "max_dose" is not null or "max_per_day" is not null))
     or ("kind" = 'interaction' and cardinality("medication_ids") = 2)
     or ("kind" = 'duplicate_therapy' and cardinality("medication_ids") >= 2)
@@ -670,21 +670,21 @@ create table "better_supabase"."care_alerts" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
-  "severity" text not null check ("severity" in ('info', 'warning', 'critical')),
-  "source" text not null check (length("source") >= 1 and length("source") <= 100),
+  "kind" text not null constraint bsb_care_alerts_kind_check check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
+  "severity" text not null constraint bsb_care_alerts_severity_check check ("severity" in ('info', 'warning', 'critical')),
+  "source" text not null constraint bsb_care_alerts_source_check check (length("source") >= 1 and length("source") <= 100),
   "rule_id" uuid,
   "order_ids" uuid[] not null default '{}',
-  "message" text not null check (length("message") >= 1 and length("message") <= 1000),
+  "message" text not null constraint bsb_care_alerts_message_check check (length("message") >= 1 and length("message") <= 1000),
   "details" jsonb,
-  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
-  "status" text not null default 'open' check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
+  "fingerprint" text not null constraint bsb_care_alerts_fingerprint_check check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
+  "status" text not null default 'open' constraint bsb_care_alerts_status_check check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
   "decided_by" uuid,
   "decided_at" timestamptz,
-  "decision_reason" text check ("decision_reason" is null or length("decision_reason") <= 1000),
+  "decision_reason" text constraint bsb_care_alerts_decision_reason_check check ("decision_reason" is null or length("decision_reason") <= 1000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("status" not in ('acknowledged', 'overridden') or "decided_at" is not null)
+  constraint bsb_care_alerts_check check ("status" not in ('acknowledged', 'overridden') or "decided_at" is not null)
 );
 create unique index "care_alerts_live_key" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "fingerprint") where "status" <> 'resolved';
 create index "care_alerts_subject_idx" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "status");
@@ -1310,7 +1310,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:3a942988bab48a2a5cdf29db94b5da616307bd1dc6915220dc05f24165b1a5c8
+-- @bsb-hash sha256:6466d2403a6769e6d669e619bf89e08ad4f465c848be82b727c610ba83d3f5fd
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1332,17 +1332,17 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."care_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction')),
+  "kind" text not null constraint bsb_care_rules_kind_check check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction')),
   "medication_ids" uuid[] not null default '{}',
-  "min_dose" numeric check ("min_dose" is null or "min_dose" >= 0),
-  "max_dose" numeric check ("max_dose" is null or "max_dose" > 0),
-  "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0),
-  "severity" text not null default 'warning' check ("severity" in ('info', 'warning', 'critical')),
-  "message" text check ("message" is null or length("message") <= 1000),
+  "min_dose" numeric constraint bsb_care_rules_min_dose_check check ("min_dose" is null or "min_dose" >= 0),
+  "max_dose" numeric constraint bsb_care_rules_max_dose_check check ("max_dose" is null or "max_dose" > 0),
+  "max_per_day" numeric constraint bsb_care_rules_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0),
+  "severity" text not null default 'warning' constraint bsb_care_rules_severity_check check ("severity" in ('info', 'warning', 'critical')),
+  "message" text constraint bsb_care_rules_message_check check ("message" is null or length("message") <= 1000),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (
+  constraint bsb_care_rules_check check (
     ("kind" = 'dose_range' and cardinality("medication_ids") = 1 and ("min_dose" is not null or "max_dose" is not null or "max_per_day" is not null))
     or ("kind" = 'interaction' and cardinality("medication_ids") = 2)
     or ("kind" = 'duplicate_therapy' and cardinality("medication_ids") >= 2)
@@ -1366,21 +1366,21 @@ create table "app_private"."care_alerts" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
-  "severity" text not null check ("severity" in ('info', 'warning', 'critical')),
-  "source" text not null check (length("source") >= 1 and length("source") <= 100),
+  "kind" text not null constraint bsb_care_alerts_kind_check check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
+  "severity" text not null constraint bsb_care_alerts_severity_check check ("severity" in ('info', 'warning', 'critical')),
+  "source" text not null constraint bsb_care_alerts_source_check check (length("source") >= 1 and length("source") <= 100),
   "rule_id" uuid,
   "order_ids" uuid[] not null default '{}',
-  "message" text not null check (length("message") >= 1 and length("message") <= 1000),
+  "message" text not null constraint bsb_care_alerts_message_check check (length("message") >= 1 and length("message") <= 1000),
   "details" jsonb,
-  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
-  "status" text not null default 'open' check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
+  "fingerprint" text not null constraint bsb_care_alerts_fingerprint_check check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
+  "status" text not null default 'open' constraint bsb_care_alerts_status_check check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
   "decided_by" uuid,
   "decided_at" timestamptz,
-  "decision_reason" text check ("decision_reason" is null or length("decision_reason") <= 1000),
+  "decision_reason" text constraint bsb_care_alerts_decision_reason_check check ("decision_reason" is null or length("decision_reason") <= 1000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("status" not in ('acknowledged', 'overridden') or "decided_at" is not null)
+  constraint bsb_care_alerts_check check ("status" not in ('acknowledged', 'overridden') or "decided_at" is not null)
 );
 create unique index "care_alerts_live_key" on "app_private"."care_alerts" ("tenant_id", "subject_type", "subject_id", "fingerprint") where "status" <> 'resolved';
 create index "care_alerts_subject_idx" on "app_private"."care_alerts" ("tenant_id", "subject_type", "subject_id", "status");
@@ -1933,7 +1933,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:4d1eaac60b006d7289a2e5e70aae5673f34a1802e31c3053c0de95e5331045db
+-- @bsb-hash sha256:ee4700be41f816d8c580c0adee43b5033e0175e408e0fedca2bdb483e72716ef
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1950,17 +1950,17 @@ on conflict (name) do update
 create table "better_supabase"."care_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction')),
+  "kind" text not null constraint bsb_care_rules_kind_check check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction')),
   "medication_ids" uuid[] not null default '{}',
-  "min_dose" numeric check ("min_dose" is null or "min_dose" >= 0),
-  "max_dose" numeric check ("max_dose" is null or "max_dose" > 0),
-  "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0),
-  "severity" text not null default 'warning' check ("severity" in ('info', 'warning', 'critical')),
-  "message" text check ("message" is null or length("message") <= 1000),
+  "min_dose" numeric constraint bsb_care_rules_min_dose_check check ("min_dose" is null or "min_dose" >= 0),
+  "max_dose" numeric constraint bsb_care_rules_max_dose_check check ("max_dose" is null or "max_dose" > 0),
+  "max_per_day" numeric constraint bsb_care_rules_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0),
+  "severity" text not null default 'warning' constraint bsb_care_rules_severity_check check ("severity" in ('info', 'warning', 'critical')),
+  "message" text constraint bsb_care_rules_message_check check ("message" is null or length("message") <= 1000),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (
+  constraint bsb_care_rules_check check (
     ("kind" = 'dose_range' and cardinality("medication_ids") = 1 and ("min_dose" is not null or "max_dose" is not null or "max_per_day" is not null))
     or ("kind" = 'interaction' and cardinality("medication_ids") = 2)
     or ("kind" = 'duplicate_therapy' and cardinality("medication_ids") >= 2)
@@ -1984,21 +1984,21 @@ create table "better_supabase"."care_alerts" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
-  "severity" text not null check ("severity" in ('info', 'warning', 'critical')),
-  "source" text not null check (length("source") >= 1 and length("source") <= 100),
+  "kind" text not null constraint bsb_care_alerts_kind_check check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
+  "severity" text not null constraint bsb_care_alerts_severity_check check ("severity" in ('info', 'warning', 'critical')),
+  "source" text not null constraint bsb_care_alerts_source_check check (length("source") >= 1 and length("source") <= 100),
   "rule_id" uuid,
   "order_ids" uuid[] not null default '{}',
-  "message" text not null check (length("message") >= 1 and length("message") <= 1000),
+  "message" text not null constraint bsb_care_alerts_message_check check (length("message") >= 1 and length("message") <= 1000),
   "details" jsonb,
-  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
-  "status" text not null default 'open' check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
+  "fingerprint" text not null constraint bsb_care_alerts_fingerprint_check check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
+  "status" text not null default 'open' constraint bsb_care_alerts_status_check check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
   "decided_by" uuid,
   "decided_at" timestamptz,
-  "decision_reason" text check ("decision_reason" is null or length("decision_reason") <= 1000),
+  "decision_reason" text constraint bsb_care_alerts_decision_reason_check check ("decision_reason" is null or length("decision_reason") <= 1000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("status" not in ('acknowledged', 'overridden') or "decided_at" is not null)
+  constraint bsb_care_alerts_check check ("status" not in ('acknowledged', 'overridden') or "decided_at" is not null)
 );
 create unique index "care_alerts_live_key" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "fingerprint") where "status" <> 'resolved';
 create index "care_alerts_subject_idx" on "better_supabase"."care_alerts" ("tenant_id", "subject_type", "subject_id", "status");
@@ -2630,7 +2630,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:1db7a2ab8ef8f7d3d1cce3c27bddfe34006f643d963d486c45e6042ee7016c16
+-- @bsb-hash sha256:01b8b9419f5cc5f97aa536e58b3edca90c573e1e7b592d216b70137bd7e60b80
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2647,13 +2647,13 @@ on conflict (name) do update
 -- better_supabase.care_rules is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."care_rules" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."care_rules" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."care_rules" add column if not exists "kind" text check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction'));
+alter table "better_supabase"."care_rules" add column if not exists "kind" text constraint bsb_care_rules_kind_check check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction'));
 alter table "better_supabase"."care_rules" add column if not exists "medication_ids" uuid[] not null default '{}';
-alter table "better_supabase"."care_rules" add column if not exists "min_dose" numeric check ("min_dose" is null or "min_dose" >= 0);
-alter table "better_supabase"."care_rules" add column if not exists "max_dose" numeric check ("max_dose" is null or "max_dose" > 0);
-alter table "better_supabase"."care_rules" add column if not exists "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0);
-alter table "better_supabase"."care_rules" add column if not exists "severity" text not null default 'warning' check ("severity" in ('info', 'warning', 'critical'));
-alter table "better_supabase"."care_rules" add column if not exists "message" text check ("message" is null or length("message") <= 1000);
+alter table "better_supabase"."care_rules" add column if not exists "min_dose" numeric constraint bsb_care_rules_min_dose_check check ("min_dose" is null or "min_dose" >= 0);
+alter table "better_supabase"."care_rules" add column if not exists "max_dose" numeric constraint bsb_care_rules_max_dose_check check ("max_dose" is null or "max_dose" > 0);
+alter table "better_supabase"."care_rules" add column if not exists "max_per_day" numeric constraint bsb_care_rules_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0);
+alter table "better_supabase"."care_rules" add column if not exists "severity" text not null default 'warning' constraint bsb_care_rules_severity_check check ("severity" in ('info', 'warning', 'critical'));
+alter table "better_supabase"."care_rules" add column if not exists "message" text constraint bsb_care_rules_message_check check ("message" is null or length("message") <= 1000);
 alter table "better_supabase"."care_rules" add column if not exists "active" boolean not null default true;
 alter table "better_supabase"."care_rules" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."care_rules" add column if not exists "updated_at" timestamptz not null default now();
@@ -2675,18 +2675,18 @@ alter table "better_supabase"."care_alerts" add column if not exists "id" uuid d
 alter table "better_supabase"."care_alerts" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."care_alerts" add column if not exists "subject_type" text;
 alter table "better_supabase"."care_alerts" add column if not exists "subject_id" text;
-alter table "better_supabase"."care_alerts" add column if not exists "kind" text check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other'));
-alter table "better_supabase"."care_alerts" add column if not exists "severity" text check ("severity" in ('info', 'warning', 'critical'));
-alter table "better_supabase"."care_alerts" add column if not exists "source" text check (length("source") >= 1 and length("source") <= 100);
+alter table "better_supabase"."care_alerts" add column if not exists "kind" text constraint bsb_care_alerts_kind_check check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other'));
+alter table "better_supabase"."care_alerts" add column if not exists "severity" text constraint bsb_care_alerts_severity_check check ("severity" in ('info', 'warning', 'critical'));
+alter table "better_supabase"."care_alerts" add column if not exists "source" text constraint bsb_care_alerts_source_check check (length("source") >= 1 and length("source") <= 100);
 alter table "better_supabase"."care_alerts" add column if not exists "rule_id" uuid;
 alter table "better_supabase"."care_alerts" add column if not exists "order_ids" uuid[] not null default '{}';
-alter table "better_supabase"."care_alerts" add column if not exists "message" text check (length("message") >= 1 and length("message") <= 1000);
+alter table "better_supabase"."care_alerts" add column if not exists "message" text constraint bsb_care_alerts_message_check check (length("message") >= 1 and length("message") <= 1000);
 alter table "better_supabase"."care_alerts" add column if not exists "details" jsonb;
-alter table "better_supabase"."care_alerts" add column if not exists "fingerprint" text check (length("fingerprint") >= 1 and length("fingerprint") <= 200);
-alter table "better_supabase"."care_alerts" add column if not exists "status" text not null default 'open' check ("status" in ('open', 'acknowledged', 'overridden', 'resolved'));
+alter table "better_supabase"."care_alerts" add column if not exists "fingerprint" text constraint bsb_care_alerts_fingerprint_check check (length("fingerprint") >= 1 and length("fingerprint") <= 200);
+alter table "better_supabase"."care_alerts" add column if not exists "status" text not null default 'open' constraint bsb_care_alerts_status_check check ("status" in ('open', 'acknowledged', 'overridden', 'resolved'));
 alter table "better_supabase"."care_alerts" add column if not exists "decided_by" uuid;
 alter table "better_supabase"."care_alerts" add column if not exists "decided_at" timestamptz;
-alter table "better_supabase"."care_alerts" add column if not exists "decision_reason" text check ("decision_reason" is null or length("decision_reason") <= 1000);
+alter table "better_supabase"."care_alerts" add column if not exists "decision_reason" text constraint bsb_care_alerts_decision_reason_check check ("decision_reason" is null or length("decision_reason") <= 1000);
 alter table "better_supabase"."care_alerts" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."care_alerts" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_care_alerts_tenant_id_key" on "better_supabase"."care_alerts" ("tenant_id", "id");
@@ -3240,7 +3240,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_169_clinical_decision_support.sql
 -- better-supabase module: clinical-decision-support
 -- @bsb-block clinical-decision-support@1 managed
--- @bsb-hash sha256:ea5fe5106ed051be0d200e417d01ebb6038afe4ea97e8e31f9e940e81f7f7b90
+-- @bsb-hash sha256:779215956708dedd4ce11c6445469a7ddc56860a20f33dad8e068c742445683c
 -- Tenant rules for dose range, duplicate therapy and interactions over a record's medication orders, alerts that members acknowledge or override with a reason, and a decision context for external engines whose alerts are stored the same way.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3257,17 +3257,17 @@ on conflict (name) do update
 create table "better_supabase"."care_rules" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction')),
+  "kind" text not null constraint bsb_care_rules_kind_check check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction')),
   "medication_ids" uuid[] not null default '{}',
-  "min_dose" numeric check ("min_dose" is null or "min_dose" >= 0),
-  "max_dose" numeric check ("max_dose" is null or "max_dose" > 0),
-  "max_per_day" numeric check ("max_per_day" is null or "max_per_day" > 0),
-  "severity" text not null default 'warning' check ("severity" in ('info', 'warning', 'critical')),
-  "message" text check ("message" is null or length("message") <= 1000),
+  "min_dose" numeric constraint bsb_care_rules_min_dose_check check ("min_dose" is null or "min_dose" >= 0),
+  "max_dose" numeric constraint bsb_care_rules_max_dose_check check ("max_dose" is null or "max_dose" > 0),
+  "max_per_day" numeric constraint bsb_care_rules_max_per_day_check check ("max_per_day" is null or "max_per_day" > 0),
+  "severity" text not null default 'warning' constraint bsb_care_rules_severity_check check ("severity" in ('info', 'warning', 'critical')),
+  "message" text constraint bsb_care_rules_message_check check ("message" is null or length("message") <= 1000),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (
+  constraint bsb_care_rules_check check (
     ("kind" = 'dose_range' and cardinality("medication_ids") = 1 and ("min_dose" is not null or "max_dose" is not null or "max_per_day" is not null))
     or ("kind" = 'interaction' and cardinality("medication_ids") = 2)
     or ("kind" = 'duplicate_therapy' and cardinality("medication_ids") >= 2)
@@ -3291,21 +3291,21 @@ create table "better_supabase"."care_alerts" (
   "org_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "kind" text not null check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
-  "severity" text not null check ("severity" in ('info', 'warning', 'critical')),
-  "source" text not null check (length("source") >= 1 and length("source") <= 100),
+  "kind" text not null constraint bsb_care_alerts_kind_check check ("kind" in ('dose_range', 'duplicate_therapy', 'interaction', 'allergy', 'other')),
+  "severity" text not null constraint bsb_care_alerts_severity_check check ("severity" in ('info', 'warning', 'critical')),
+  "source" text not null constraint bsb_care_alerts_source_check check (length("source") >= 1 and length("source") <= 100),
   "rule_id" uuid,
   "order_ids" uuid[] not null default '{}',
-  "message" text not null check (length("message") >= 1 and length("message") <= 1000),
+  "message" text not null constraint bsb_care_alerts_message_check check (length("message") >= 1 and length("message") <= 1000),
   "details" jsonb,
-  "fingerprint" text not null check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
-  "status" text not null default 'open' check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
+  "fingerprint" text not null constraint bsb_care_alerts_fingerprint_check check (length("fingerprint") >= 1 and length("fingerprint") <= 200),
+  "status" text not null default 'open' constraint bsb_care_alerts_status_check check ("status" in ('open', 'acknowledged', 'overridden', 'resolved')),
   "decided_by" uuid,
   "decided_at" timestamptz,
-  "decision_reason" text check ("decision_reason" is null or length("decision_reason") <= 1000),
+  "decision_reason" text constraint bsb_care_alerts_decision_reason_check check ("decision_reason" is null or length("decision_reason") <= 1000),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("status" not in ('acknowledged', 'overridden') or "decided_at" is not null)
+  constraint bsb_care_alerts_check check ("status" not in ('acknowledged', 'overridden') or "decided_at" is not null)
 );
 create unique index "care_alerts_live_key" on "better_supabase"."care_alerts" ("org_id", "subject_type", "subject_id", "fingerprint") where "status" <> 'resolved';
 create index "care_alerts_subject_idx" on "better_supabase"."care_alerts" ("org_id", "subject_type", "subject_id", "status");

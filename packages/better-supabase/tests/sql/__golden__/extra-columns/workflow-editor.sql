@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:e876e207219705916170c59917b4ef6a8e1207b1bd901f3d8565decd2e62e304
+-- @bsb-hash sha256:5bc0854969129aef79e204b694cf600cd02cd7d63d6091f1985f54502c6e0610
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,9 +14,9 @@ create extension if not exists pgcrypto with schema extensions;
 create table "better_supabase"."workflow_definitions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "slug" text not null check ("slug" ~ '^[a-z0-9][a-z0-9-]{0,99}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "description" text check (length("description") <= 2000),
+  "slug" text not null constraint bsb_workflow_definitions_slug_check check ("slug" ~ '^[a-z0-9][a-z0-9-]{0,99}$'),
+  "name" text not null constraint bsb_workflow_definitions_name_check check (length("name") >= 1 and length("name") <= 200),
+  "description" text constraint bsb_workflow_definitions_description_check check (length("description") <= 2000),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -32,16 +32,16 @@ create index workflow_definitions_created_by_idx on "better_supabase"."workflow_
 -- row (or workflow.admin).
 alter table "better_supabase"."workflow_definitions" add column "subject_types" text[] not null default '{}';
 alter table "better_supabase"."workflow_definitions" add column "scope" text not null default 'tenant'
-  check ("scope" in ('tenant', 'system'));
+  constraint bsb_workflow_definitions_scope_check check ("scope" in ('tenant', 'system'));
 alter table "better_supabase"."workflow_definitions" add column "forked_from" uuid references "better_supabase"."workflow_definitions" ("id") on delete set null;
-alter table "better_supabase"."workflow_definitions" add column "forked_from_version" integer check ("forked_from_version" > 0);
+alter table "better_supabase"."workflow_definitions" add column "forked_from_version" integer constraint bsb_workflow_definitions_forked_from_version_check check ("forked_from_version" > 0);
 alter table "better_supabase"."workflow_definitions" add column "restricted" boolean not null default false;
 alter table "better_supabase"."workflow_definitions" add column "purpose" text not null default 'automation'
-  check ("purpose" in ('automation', 'lifecycle'));
+  constraint bsb_workflow_definitions_purpose_check check ("purpose" in ('automation', 'lifecycle'));
 alter table "better_supabase"."workflow_definitions" add column "is_default" boolean not null default false;
-alter table "better_supabase"."workflow_definitions" add constraint "workflow_definitions_system_check"
+alter table "better_supabase"."workflow_definitions" add constraint bsb_workflow_definitions_system_check
   check ("scope" = 'tenant' or "tenant_id" is null);
-alter table "better_supabase"."workflow_definitions" add constraint "workflow_definitions_subject_types_check"
+alter table "better_supabase"."workflow_definitions" add constraint bsb_workflow_definitions_subject_types_check
   check (cardinality("subject_types") <= 50 and array_position("subject_types", null) is null);
 create index workflow_definitions_forked_from_idx on "better_supabase"."workflow_definitions" ("forked_from") where "forked_from" is not null;
 alter table "better_supabase"."workflow_definitions" enable row level security;
@@ -76,9 +76,9 @@ create policy bsb_workflow_opt_outs_read on "better_supabase"."workflow_opt_outs
 create table "better_supabase"."workflow_definition_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
-  "principal_kind" text not null check ("principal_kind" in ('user', 'team', 'role')),
-  "principal_id" text not null check (length("principal_id") >= 1 and length("principal_id") <= 200),
-  "action" text not null check ("action" in ('run', 'edit')),
+  "principal_kind" text not null constraint bsb_workflow_definition_grants_principal_kind_check check ("principal_kind" in ('user', 'team', 'role')),
+  "principal_id" text not null constraint bsb_workflow_definition_grants_principal_id_check check (length("principal_id") >= 1 and length("principal_id") <= 200),
+  "action" text not null constraint bsb_workflow_definition_grants_action_check check ("action" in ('run', 'edit')),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   constraint workflow_definition_grants_key unique ("definition_id", "principal_kind", "principal_id", "action")
@@ -96,10 +96,10 @@ create policy bsb_workflow_definition_grants_read on "better_supabase"."workflow
 create table "better_supabase"."workflow_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
-  "version" integer not null check ("version" > 0),
+  "version" integer not null constraint bsb_workflow_versions_version_check check ("version" > 0),
   "graph" jsonb not null default '{"nodes": [], "edges": []}'::jsonb,
   "compiled" jsonb,
-  "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived')),
+  "status" text not null default 'draft' constraint bsb_workflow_versions_status_check check ("status" in ('draft', 'published', 'archived')),
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "published_at" timestamptz,
@@ -110,12 +110,12 @@ create table "better_supabase"."workflow_versions" (
 -- organization owns it (published by the service role). A deleted user
 -- leaves published_by null with owner_kind 'user', so the steps fail.
 alter table "better_supabase"."workflow_versions" add column "published_by" uuid references auth.users (id) on delete set null;
-alter table "better_supabase"."workflow_versions" add column "owner_kind" text check ("owner_kind" in ('user', 'organization'));
+alter table "better_supabase"."workflow_versions" add column "owner_kind" text constraint bsb_workflow_versions_owner_kind_check check ("owner_kind" in ('user', 'organization'));
 alter table "better_supabase"."workflow_versions" add column "permissions" text[] not null default '{}';
 -- input_schema: the JSON Schema of the input a run of the version takes, as
 -- the editor saved it; callers such as template attachments check against it.
 alter table "better_supabase"."workflow_versions" add column "input_schema" jsonb
-  check ("input_schema" is null or jsonb_typeof("input_schema") = 'object');
+  constraint bsb_workflow_versions_input_schema_check check ("input_schema" is null or jsonb_typeof("input_schema") = 'object');
 create index workflow_versions_published_by_idx on "better_supabase"."workflow_versions" ("published_by");
 create unique index workflow_versions_one_draft_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'draft';
 create unique index workflow_versions_one_published_idx on "better_supabase"."workflow_versions" ("definition_id") where "status" = 'published';
@@ -134,7 +134,7 @@ create policy bsb_workflow_versions_read on "better_supabase"."workflow_versions
 create table "better_supabase"."workflow_triggers" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
-  "kind" text not null check ("kind" in ('manual', 'webhook', 'schedule', 'form', 'chat')),
+  "kind" text not null constraint bsb_workflow_triggers_kind_check check ("kind" in ('manual', 'webhook', 'schedule', 'form', 'chat')),
   "config" jsonb not null default '{}'::jsonb,
   "enabled" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -166,9 +166,9 @@ grant all on "better_supabase"."workflow_webhook_tokens" to service_role;
 create table "better_supabase"."workflow_credentials" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid,
-  "kind" text not null check (length("kind") >= 1 and length("kind") <= 100),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "credential_ref" jsonb not null check (jsonb_typeof("credential_ref" -> 'provider') = 'string'),
+  "kind" text not null constraint bsb_workflow_credentials_kind_check check (length("kind") >= 1 and length("kind") <= 100),
+  "name" text not null constraint bsb_workflow_credentials_name_check check (length("name") >= 1 and length("name") <= 200),
+  "credential_ref" jsonb not null constraint bsb_workflow_credentials_credential_ref_check check (jsonb_typeof("credential_ref" -> 'provider') = 'string'),
   "scopes" text[] not null default '{}',
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -186,8 +186,8 @@ create policy bsb_workflow_credentials_read on "better_supabase"."workflow_crede
 -- The steps the deployment provides, synced from code: the palette of the
 -- builder and the names a published graph may use.
 create table "better_supabase"."workflow_step_library" (
-  "name" text primary key check ("name" ~ '^[A-Za-z][A-Za-z0-9_.-]{0,99}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "name" text primary key constraint bsb_workflow_step_library_name_check check ("name" ~ '^[A-Za-z][A-Za-z0-9_.-]{0,99}$'),
+  "title" text not null constraint bsb_workflow_step_library_title_check check (length("title") >= 1 and length("title") <= 200),
   "description" text,
   "input_schema" jsonb not null default '{}'::jsonb,
   "output_schema" jsonb not null default '{}'::jsonb,
@@ -195,7 +195,7 @@ create table "better_supabase"."workflow_step_library" (
   "updated_at" timestamptz not null default now()
 );
 alter table "better_supabase"."workflow_step_library" add column "operation" text
-  check (length("operation") >= 1 and length("operation") <= 200);
+  constraint bsb_workflow_step_library_operation_check check (length("operation") >= 1 and length("operation") <= 200);
 alter table "better_supabase"."workflow_step_library" enable row level security;
 revoke all on "better_supabase"."workflow_step_library" from public, anon, authenticated;
 grant select on "better_supabase"."workflow_step_library" to authenticated;
@@ -207,8 +207,8 @@ create policy bsb_workflow_step_library_read on "better_supabase"."workflow_step
 -- The app's own node kinds (defineNodeKind), synced from code. branches:
 -- whether the kind's edges take a true or false branch.
 create table "better_supabase"."workflow_node_kinds" (
-  "kind" text primary key check ("kind" ~ '^[a-z][a-z0-9_.-]{0,62}$' and "kind" not in ('trigger', 'step', 'sleep', 'approval', 'condition')),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "kind" text primary key constraint bsb_workflow_node_kinds_kind_check check ("kind" ~ '^[a-z][a-z0-9_.-]{0,62}$' and "kind" not in ('trigger', 'step', 'sleep', 'approval', 'condition')),
+  "title" text not null constraint bsb_workflow_node_kinds_title_check check (length("title") >= 1 and length("title") <= 200),
   "description" text,
   "branches" boolean not null default false,
   "config_schema" jsonb not null default '{}'::jsonb,
@@ -225,8 +225,8 @@ create policy bsb_workflow_node_kinds_read on "better_supabase"."workflow_node_k
 -- The status of each node of a run, by node id, written by the engine.
 create table "better_supabase"."workflow_node_runs" (
   "run_id" uuid not null references "better_supabase"."workflow_runs" ("id") on delete cascade,
-  "node_id" text not null check (length("node_id") >= 1 and length("node_id") <= 100),
-  "status" text not null check ("status" in ('running', 'waiting', 'completed', 'failed', 'skipped')),
+  "node_id" text not null constraint bsb_workflow_node_runs_node_id_check check (length("node_id") >= 1 and length("node_id") <= 100),
+  "status" text not null constraint bsb_workflow_node_runs_status_check check ("status" in ('running', 'waiting', 'completed', 'failed', 'skipped')),
   "attempts" integer not null default 0,
   "output" jsonb,
   "error" text,
@@ -248,12 +248,12 @@ create policy bsb_workflow_node_runs_read on "better_supabase"."workflow_node_ru
 create table "better_supabase"."workflow_alerts" (
   "id" uuid primary key default gen_random_uuid(),
   "definition_id" uuid not null references "better_supabase"."workflow_definitions" ("id") on delete cascade,
-  "on_event" text not null check ("on_event" in ('failed', 'slow')),
+  "on_event" text not null constraint bsb_workflow_alerts_on_event_check check ("on_event" in ('failed', 'slow')),
   "threshold" interval,
   "channel" jsonb not null default '{}'::jsonb,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
-  constraint workflow_alerts_threshold_check check ("on_event" <> 'slow' or "threshold" > interval '0')
+  constraint bsb_workflow_alerts_threshold_check check ("on_event" <> 'slow' or "threshold" > interval '0')
 );
 create index workflow_alerts_definition_idx on "better_supabase"."workflow_alerts" ("definition_id");
 create index workflow_alerts_created_by_idx on "better_supabase"."workflow_alerts" ("created_by");

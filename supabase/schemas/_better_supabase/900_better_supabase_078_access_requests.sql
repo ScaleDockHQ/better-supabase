@@ -1,6 +1,6 @@
 -- better-supabase module: access-requests
 -- @bsb-block access-requests@1 managed
--- @bsb-hash sha256:d0eeefe2923463cd3927b977e92df918029b2af3f053dc15084a3f1f15de2dcf
+-- @bsb-hash sha256:7796517c6fb346225aec381963b6ff18f337cf52484fc119f4f4539945a4e779
 -- Members ask for a role or for access to one record, for a set time if they like. The request goes through approvals; the final approval grants it, and the grant ends early on request or when it expires. Emergency access opens a record at once and waits for a review.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,20 +9,20 @@ create table "better_supabase"."access_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text check (length("role") >= 1 and length("role") <= 200),
-  "target" text not null default 'role' check ("target" in ('role', 'record')),
-  "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 200),
-  "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200),
-  "action" text check (length("action") >= 1 and length("action") <= 200),
+  "role" text constraint bsb_access_requests_role_check check (length("role") >= 1 and length("role") <= 200),
+  "target" text not null default 'role' constraint bsb_access_requests_target_check check ("target" in ('role', 'record')),
+  "subject_type" text constraint bsb_access_requests_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 200),
+  "subject_id" text constraint bsb_access_requests_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "action" text constraint bsb_access_requests_action_check check (length("action") >= 1 and length("action") <= 200),
   "emergency" boolean not null default false,
   "member_id" uuid,
-  "review_verdict" text check ("review_verdict" in ('justified', 'unjustified')),
-  "review_note" text check (length("review_note") <= 2000),
+  "review_verdict" text constraint bsb_access_requests_review_verdict_check check ("review_verdict" in ('justified', 'unjustified')),
+  "review_note" text constraint bsb_access_requests_review_note_check check (length("review_note") <= 2000),
   "reviewed_by" uuid,
   "reviewed_at" timestamptz,
   "previous_role" text,
-  "reason" text check ("reason" is null or length("reason") <= 2000),
-  "duration" interval check ("duration" is null or "duration" > interval '0'),
+  "reason" text constraint bsb_access_requests_reason_check check ("reason" is null or length("reason") <= 2000),
+  "duration" interval constraint bsb_access_requests_duration_check check ("duration" is null or "duration" > interval '0'),
   "approval_id" uuid references "better_supabase"."approval_requests" ("id") on delete cascade,
   "granted_at" timestamptz,
   "expires_at" timestamptz,

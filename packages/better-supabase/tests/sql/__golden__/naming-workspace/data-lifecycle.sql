@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:6fca5d299ec165a731e5d0b6a6819d3438a29f293688feb3b961688989fa95d0
+-- @bsb-hash sha256:b8efca3537fdfa72cc4fc2f42fab099b086be957b0c2dc75c59829d22dd2c31f
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,7 +13,7 @@ create table "better_supabase"."data_exports" (
   "subject" text not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "workspace_id" uuid,
-  "status" text not null default 'pending' check ("status" in ('pending', 'running', 'ready', 'failed')),
+  "status" text not null default 'pending' constraint bsb_data_exports_status_check check ("status" in ('pending', 'running', 'ready', 'failed')),
   "bucket" text not null default 'data-exports',
   "files" text[] not null default '{}',
   "error" text,
@@ -70,10 +70,10 @@ create table "better_supabase"."retention_policies" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid,
   "plan" text,
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "keep" interval not null check ("keep" > interval '0'),
+  "kind" text not null constraint bsb_retention_policies_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "keep" interval not null constraint bsb_retention_policies_keep_check check ("keep" > interval '0'),
   "updated_at" timestamptz not null default now(),
-  check ("workspace_id" is null or "plan" is null),
+  constraint bsb_retention_policies_check check ("workspace_id" is null or "plan" is null),
   unique nulls not distinct ("kind", "workspace_id", "plan")
 );
 create index retention_policies_tenant_idx on "better_supabase"."retention_policies" ("workspace_id") where "workspace_id" is not null;
@@ -87,8 +87,8 @@ grant all on "better_supabase"."retention_policies" to service_role;
 create table "better_supabase"."legal_holds" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid,
-  "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "reason" text not null check (length("reason") >= 1 and length("reason") <= 1000),
+  "kind" text constraint bsb_legal_holds_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "reason" text not null constraint bsb_legal_holds_reason_check check (length("reason") >= 1 and length("reason") <= 1000),
   "placed_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "placed_at" timestamptz not null default now(),
   "released_by" uuid references auth.users (id) on delete set null,
@@ -311,12 +311,12 @@ grant execute on function "better_supabase"."list_legal_holds"(boolean) to servi
 create table "better_supabase"."data_subject_requests" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
-  "kind" text not null check ("kind" in ('access', 'erasure', 'rectification', 'portability')),
-  "requester" text not null check (length("requester") >= 1 and length("requester") <= 320),
+  "kind" text not null constraint bsb_data_subject_requests_kind_check check ("kind" in ('access', 'erasure', 'rectification', 'portability')),
+  "requester" text not null constraint bsb_data_subject_requests_requester_check check (length("requester") >= 1 and length("requester") <= 320),
   "subject_type" text,
   "subject_id" text,
-  "details" text check ("details" is null or length("details") <= 5000),
-  "status" text not null default 'received' check ("status" in ('received', 'verified', 'fulfilled', 'refused')),
+  "details" text constraint bsb_data_subject_requests_details_check check ("details" is null or length("details") <= 5000),
+  "status" text not null default 'received' constraint bsb_data_subject_requests_status_check check ("status" in ('received', 'verified', 'fulfilled', 'refused')),
   "received_at" timestamptz not null default now(),
   "received_by" uuid,
   "due_at" timestamptz not null,
@@ -329,7 +329,7 @@ create table "better_supabase"."data_subject_requests" (
   "resolution" text,
   "closed_at" timestamptz,
   "closed_by" uuid,
-  check (("subject_type" is null) = ("subject_id" is null))
+  constraint bsb_data_subject_requests_check check (("subject_type" is null) = ("subject_id" is null))
 );
 create index data_subject_requests_open_idx on "better_supabase"."data_subject_requests" ("workspace_id", "due_at") where "closed_at" is null;
 alter table "better_supabase"."data_subject_requests" enable row level security;

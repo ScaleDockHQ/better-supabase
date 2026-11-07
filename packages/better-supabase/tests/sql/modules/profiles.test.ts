@@ -150,7 +150,7 @@ describe("profiles module", () => {
     );
     expect(sql).toContain("meta ->> 'full_name', meta ->> 'name'");
     expect(sql).toContain('"better_supabase"."allocate_username"(');
-    expect(sql).toContain("add constraint profiles_username_check check (");
+    expect(sql).toContain("add constraint bsb_profiles_username_check check (");
     // `between` inside the `and` chain nests differently once stored, so a
     // pg-delta sync would drop and re-add the check on every run.
     expect(sql).toContain(

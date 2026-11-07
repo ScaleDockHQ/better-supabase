@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:0da24028c19c6bfc37c254d3782c7fdc56fd63a00a1d478af6f2efbe4895c6b2
+-- @bsb-hash sha256:36747792502fefa0893e400b1c8cf0c1dd32d500d6acc98ceee432babb94ec1e
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,12 +13,12 @@ create table "better_supabase"."reactions" (
   "subject_id" text not null,
   "actor" text not null,
   "user_id" uuid,
-  "kind" text not null default 'emoji' check ("kind" in ('emoji', 'vote')),
-  "emoji" text not null check (length("emoji") >= 1 and length("emoji") <= 64 and "emoji" !~ '\s'),
+  "kind" text not null default 'emoji' constraint bsb_reactions_kind_check check ("kind" in ('emoji', 'vote')),
+  "emoji" text not null constraint bsb_reactions_emoji_check check (length("emoji") >= 1 and length("emoji") <= 64 and "emoji" !~ '\s'),
   -- A vote's direction; an emoji counts once.
-  "value" smallint not null default 1 check ("value" in (-1, 1)),
+  "value" smallint not null default 1 constraint bsb_reactions_value_check check ("value" in (-1, 1)),
   "created_at" timestamptz not null default now(),
-  check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
+  constraint bsb_reactions_check check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
 );
 create unique index "reactions_actor_idx" on "better_supabase"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
 create index "reactions_tenant_idx" on "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id");
@@ -35,8 +35,8 @@ create table "better_supabase"."reaction_scores" (
   "subject_type" text not null,
   "subject_id" text not null,
   "score" integer not null default 0,
-  "up" integer not null default 0 check ("up" >= 0),
-  "down" integer not null default 0 check ("down" >= 0),
+  "up" integer not null default 0 constraint bsb_reaction_scores_up_check check ("up" >= 0),
+  "down" integer not null default 0 constraint bsb_reaction_scores_down_check check ("down" >= 0),
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "subject_type", "subject_id")
 );
@@ -49,13 +49,13 @@ grant all on "better_supabase"."reaction_scores" to service_role;
 create table "better_supabase"."custom_emoji" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "shortcode" text not null check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$'),
+  "shortcode" text not null constraint bsb_custom_emoji_shortcode_check check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$'),
   "attachment_id" uuid,
-  "url" text check ("url" ~ '^https://'),
+  "url" text constraint bsb_custom_emoji_url_check check ("url" ~ '^https://'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "shortcode"),
-  check ("attachment_id" is not null or "url" is not null)
+  constraint bsb_custom_emoji_check check ("attachment_id" is not null or "url" is not null)
 );
 alter table "better_supabase"."custom_emoji" enable row level security;
 revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
@@ -541,7 +541,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:5a991db679bfeae937a5aaf5fee6cf3e55b60d4c76a1017659b019489ff42e2f
+-- @bsb-hash sha256:0453c9fbf7ae9d75a626542351ffb0f26bf1cddee0f2e993592553950946e927
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -553,12 +553,12 @@ create table "better_supabase"."reactions" (
   "subject_id" text not null,
   "actor" text not null,
   "user_id" uuid,
-  "kind" text not null default 'emoji' check ("kind" in ('emoji', 'vote')),
-  "emoji" text not null check (length("emoji") >= 1 and length("emoji") <= 64 and "emoji" !~ '\s'),
+  "kind" text not null default 'emoji' constraint bsb_reactions_kind_check check ("kind" in ('emoji', 'vote')),
+  "emoji" text not null constraint bsb_reactions_emoji_check check (length("emoji") >= 1 and length("emoji") <= 64 and "emoji" !~ '\s'),
   -- A vote's direction; an emoji counts once.
-  "value" smallint not null default 1 check ("value" in (-1, 1)),
+  "value" smallint not null default 1 constraint bsb_reactions_value_check check ("value" in (-1, 1)),
   "created_at" timestamptz not null default now(),
-  check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
+  constraint bsb_reactions_check check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
 );
 create unique index "reactions_actor_idx" on "better_supabase"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
 create index "reactions_tenant_idx" on "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id");
@@ -575,8 +575,8 @@ create table "better_supabase"."reaction_scores" (
   "subject_type" text not null,
   "subject_id" text not null,
   "score" integer not null default 0,
-  "up" integer not null default 0 check ("up" >= 0),
-  "down" integer not null default 0 check ("down" >= 0),
+  "up" integer not null default 0 constraint bsb_reaction_scores_up_check check ("up" >= 0),
+  "down" integer not null default 0 constraint bsb_reaction_scores_down_check check ("down" >= 0),
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "subject_type", "subject_id")
 );
@@ -589,13 +589,13 @@ grant all on "better_supabase"."reaction_scores" to service_role;
 create table "better_supabase"."custom_emoji" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "shortcode" text not null check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$'),
+  "shortcode" text not null constraint bsb_custom_emoji_shortcode_check check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$'),
   "attachment_id" uuid,
-  "url" text check ("url" ~ '^https://'),
+  "url" text constraint bsb_custom_emoji_url_check check ("url" ~ '^https://'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "shortcode"),
-  check ("attachment_id" is not null or "url" is not null)
+  constraint bsb_custom_emoji_check check ("attachment_id" is not null or "url" is not null)
 );
 alter table "better_supabase"."custom_emoji" enable row level security;
 revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
@@ -1084,7 +1084,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:f6c9430367aae0f4078eb3fbcbccbfb27292b126385335edaa6f23005ddb583d
+-- @bsb-hash sha256:ba9d3c1fc022831490e116d43e205393e83fd7bee690bed58b44618841d38914
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1101,12 +1101,12 @@ create table "app_private"."reactions" (
   "subject_id" text not null,
   "actor" text not null,
   "user_id" uuid,
-  "kind" text not null default 'emoji' check ("kind" in ('emoji', 'vote')),
-  "emoji" text not null check (length("emoji") >= 1 and length("emoji") <= 64 and "emoji" !~ '\s'),
+  "kind" text not null default 'emoji' constraint bsb_reactions_kind_check check ("kind" in ('emoji', 'vote')),
+  "emoji" text not null constraint bsb_reactions_emoji_check check (length("emoji") >= 1 and length("emoji") <= 64 and "emoji" !~ '\s'),
   -- A vote's direction; an emoji counts once.
-  "value" smallint not null default 1 check ("value" in (-1, 1)),
+  "value" smallint not null default 1 constraint bsb_reactions_value_check check ("value" in (-1, 1)),
   "created_at" timestamptz not null default now(),
-  check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
+  constraint bsb_reactions_check check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
 );
 create unique index "reactions_actor_idx" on "app_private"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
 create index "reactions_tenant_idx" on "app_private"."reactions" ("tenant_id", "subject_type", "subject_id");
@@ -1123,8 +1123,8 @@ create table "app_private"."reaction_scores" (
   "subject_type" text not null,
   "subject_id" text not null,
   "score" integer not null default 0,
-  "up" integer not null default 0 check ("up" >= 0),
-  "down" integer not null default 0 check ("down" >= 0),
+  "up" integer not null default 0 constraint bsb_reaction_scores_up_check check ("up" >= 0),
+  "down" integer not null default 0 constraint bsb_reaction_scores_down_check check ("down" >= 0),
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "subject_type", "subject_id")
 );
@@ -1137,13 +1137,13 @@ grant all on "app_private"."reaction_scores" to service_role;
 create table "app_private"."custom_emoji" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "shortcode" text not null check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$'),
+  "shortcode" text not null constraint bsb_custom_emoji_shortcode_check check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$'),
   "attachment_id" uuid,
-  "url" text check ("url" ~ '^https://'),
+  "url" text constraint bsb_custom_emoji_url_check check ("url" ~ '^https://'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "shortcode"),
-  check ("attachment_id" is not null or "url" is not null)
+  constraint bsb_custom_emoji_check check ("attachment_id" is not null or "url" is not null)
 );
 alter table "app_private"."custom_emoji" enable row level security;
 revoke all on "app_private"."custom_emoji" from public, anon, authenticated;
@@ -1629,7 +1629,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:ea782912cc636c0a0cc35d9f7c89a37c540df7e52627c77b4a51d205ac6d24d6
+-- @bsb-hash sha256:a756647fd600c6e6bde0eac60185b772c02251ac803f1246e2d57c4f46ffc817
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1641,12 +1641,12 @@ create table "better_supabase"."reactions" (
   "subject_id" text not null,
   "actor" text not null,
   "user_id" uuid,
-  "kind" text not null default 'emoji' check ("kind" in ('emoji', 'vote')),
-  "emoji" text not null check (length("emoji") >= 1 and length("emoji") <= 64 and "emoji" !~ '\s'),
+  "kind" text not null default 'emoji' constraint bsb_reactions_kind_check check ("kind" in ('emoji', 'vote')),
+  "emoji" text not null constraint bsb_reactions_emoji_check check (length("emoji") >= 1 and length("emoji") <= 64 and "emoji" !~ '\s'),
   -- A vote's direction; an emoji counts once.
-  "value" smallint not null default 1 check ("value" in (-1, 1)),
+  "value" smallint not null default 1 constraint bsb_reactions_value_check check ("value" in (-1, 1)),
   "created_at" timestamptz not null default now(),
-  check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
+  constraint bsb_reactions_check check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
 );
 create unique index "reactions_actor_idx" on "better_supabase"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
 create index "reactions_tenant_idx" on "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id");
@@ -1663,8 +1663,8 @@ create table "better_supabase"."reaction_scores" (
   "subject_type" text not null,
   "subject_id" text not null,
   "score" integer not null default 0,
-  "up" integer not null default 0 check ("up" >= 0),
-  "down" integer not null default 0 check ("down" >= 0),
+  "up" integer not null default 0 constraint bsb_reaction_scores_up_check check ("up" >= 0),
+  "down" integer not null default 0 constraint bsb_reaction_scores_down_check check ("down" >= 0),
   "updated_at" timestamptz not null default now(),
   primary key ("tenant_id", "subject_type", "subject_id")
 );
@@ -1677,13 +1677,13 @@ grant all on "better_supabase"."reaction_scores" to service_role;
 create table "better_supabase"."custom_emoji" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "shortcode" text not null check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$'),
+  "shortcode" text not null constraint bsb_custom_emoji_shortcode_check check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$'),
   "attachment_id" uuid,
-  "url" text check ("url" ~ '^https://'),
+  "url" text constraint bsb_custom_emoji_url_check check ("url" ~ '^https://'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "shortcode"),
-  check ("attachment_id" is not null or "url" is not null)
+  constraint bsb_custom_emoji_check check ("attachment_id" is not null or "url" is not null)
 );
 alter table "better_supabase"."custom_emoji" enable row level security;
 revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;
@@ -2262,7 +2262,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:d066a9d68a5bc1735c75b1ac453274c8367e2c5a36e9590cb52a6fb39e549b08
+-- @bsb-hash sha256:595d5576d4f388d78dedc8c120325c8d8713e281b37971449e0aa1c6b0bb7253
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2274,9 +2274,9 @@ alter table "better_supabase"."reactions" add column if not exists "subject_type
 alter table "better_supabase"."reactions" add column if not exists "subject_id" text;
 alter table "better_supabase"."reactions" add column if not exists "actor" text;
 alter table "better_supabase"."reactions" add column if not exists "user_id" uuid;
-alter table "better_supabase"."reactions" add column if not exists "kind" text not null default 'emoji' check ("kind" in ('emoji', 'vote'));
-alter table "better_supabase"."reactions" add column if not exists "emoji" text check (length("emoji") >= 1 and length("emoji") <= 64 and "emoji" !~ '\s');
-alter table "better_supabase"."reactions" add column if not exists "value" smallint not null default 1 check ("value" in (-1, 1));
+alter table "better_supabase"."reactions" add column if not exists "kind" text not null default 'emoji' constraint bsb_reactions_kind_check check ("kind" in ('emoji', 'vote'));
+alter table "better_supabase"."reactions" add column if not exists "emoji" text constraint bsb_reactions_emoji_check check (length("emoji") >= 1 and length("emoji") <= 64 and "emoji" !~ '\s');
+alter table "better_supabase"."reactions" add column if not exists "value" smallint not null default 1 constraint bsb_reactions_value_check check ("value" in (-1, 1));
 alter table "better_supabase"."reactions" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "reactions_actor_idx" on "better_supabase"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
 create index if not exists "reactions_tenant_idx" on "better_supabase"."reactions" ("tenant_id", "subject_type", "subject_id");
@@ -2292,8 +2292,8 @@ alter table "better_supabase"."reaction_scores" add column if not exists "tenant
 alter table "better_supabase"."reaction_scores" add column if not exists "subject_type" text;
 alter table "better_supabase"."reaction_scores" add column if not exists "subject_id" text;
 alter table "better_supabase"."reaction_scores" add column if not exists "score" integer not null default 0;
-alter table "better_supabase"."reaction_scores" add column if not exists "up" integer not null default 0 check ("up" >= 0);
-alter table "better_supabase"."reaction_scores" add column if not exists "down" integer not null default 0 check ("down" >= 0);
+alter table "better_supabase"."reaction_scores" add column if not exists "up" integer not null default 0 constraint bsb_reaction_scores_up_check check ("up" >= 0);
+alter table "better_supabase"."reaction_scores" add column if not exists "down" integer not null default 0 constraint bsb_reaction_scores_down_check check ("down" >= 0);
 alter table "better_supabase"."reaction_scores" add column if not exists "updated_at" timestamptz not null default now();
 create index if not exists "reaction_scores_rank_idx" on "better_supabase"."reaction_scores" ("tenant_id", "subject_type", "score" desc);
 create unique index if not exists "bsb_reaction_scores_subject_key" on "better_supabase"."reaction_scores" ("tenant_id", "subject_type", "subject_id");
@@ -2304,9 +2304,9 @@ grant all on "better_supabase"."reaction_scores" to service_role;
 -- better_supabase.custom_emoji is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."custom_emoji" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."custom_emoji" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."custom_emoji" add column if not exists "shortcode" text check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$');
+alter table "better_supabase"."custom_emoji" add column if not exists "shortcode" text constraint bsb_custom_emoji_shortcode_check check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$');
 alter table "better_supabase"."custom_emoji" add column if not exists "attachment_id" uuid;
-alter table "better_supabase"."custom_emoji" add column if not exists "url" text check ("url" ~ '^https://');
+alter table "better_supabase"."custom_emoji" add column if not exists "url" text constraint bsb_custom_emoji_url_check check ("url" ~ '^https://');
 alter table "better_supabase"."custom_emoji" add column if not exists "created_by" uuid;
 alter table "better_supabase"."custom_emoji" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_custom_emoji_shortcode_key" on "better_supabase"."custom_emoji" ("tenant_id", "shortcode");
@@ -2793,7 +2793,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_076_reactions.sql
 -- better-supabase module: reactions
 -- @bsb-block reactions@2 managed
--- @bsb-hash sha256:ed48ff8853b13a60295d87001915ebc8c3baed424a1ee50555b0248dbc200755
+-- @bsb-hash sha256:0f6ca454dfeb626d606d9062f86afb9a8d3d4dd3d2147e72046159c116ce4bd3
 -- Emoji reactions and up or down votes on any subject and on messages, with per-tenant custom emoji, counts and a vote score per subject under the subject's own read rules and a realtime topic per tenant.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2805,12 +2805,12 @@ create table "better_supabase"."reactions" (
   "subject_id" text not null,
   "actor" text not null,
   "user_id" uuid,
-  "kind" text not null default 'emoji' check ("kind" in ('emoji', 'vote')),
-  "emoji" text not null check (length("emoji") >= 1 and length("emoji") <= 64 and "emoji" !~ '\s'),
+  "kind" text not null default 'emoji' constraint bsb_reactions_kind_check check ("kind" in ('emoji', 'vote')),
+  "emoji" text not null constraint bsb_reactions_emoji_check check (length("emoji") >= 1 and length("emoji") <= 64 and "emoji" !~ '\s'),
   -- A vote's direction; an emoji counts once.
-  "value" smallint not null default 1 check ("value" in (-1, 1)),
+  "value" smallint not null default 1 constraint bsb_reactions_value_check check ("value" in (-1, 1)),
   "created_at" timestamptz not null default now(),
-  check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
+  constraint bsb_reactions_check check ("kind" = 'emoji' and "value" = 1 or "kind" = 'vote' and "emoji" = 'vote')
 );
 create unique index "reactions_actor_idx" on "better_supabase"."reactions" ("subject_type", "subject_id", "actor", "kind", "emoji");
 create index "reactions_tenant_idx" on "better_supabase"."reactions" ("org_id", "subject_type", "subject_id");
@@ -2827,8 +2827,8 @@ create table "better_supabase"."reaction_scores" (
   "subject_type" text not null,
   "subject_id" text not null,
   "score" integer not null default 0,
-  "up" integer not null default 0 check ("up" >= 0),
-  "down" integer not null default 0 check ("down" >= 0),
+  "up" integer not null default 0 constraint bsb_reaction_scores_up_check check ("up" >= 0),
+  "down" integer not null default 0 constraint bsb_reaction_scores_down_check check ("down" >= 0),
   "updated_at" timestamptz not null default now(),
   primary key ("org_id", "subject_type", "subject_id")
 );
@@ -2841,13 +2841,13 @@ grant all on "better_supabase"."reaction_scores" to service_role;
 create table "better_supabase"."custom_emoji" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "shortcode" text not null check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$'),
+  "shortcode" text not null constraint bsb_custom_emoji_shortcode_check check ("shortcode" ~ '^[a-z0-9_+-]{1,32}$'),
   "attachment_id" uuid,
-  "url" text check ("url" ~ '^https://'),
+  "url" text constraint bsb_custom_emoji_url_check check ("url" ~ '^https://'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("org_id", "shortcode"),
-  check ("attachment_id" is not null or "url" is not null)
+  constraint bsb_custom_emoji_check check ("attachment_id" is not null or "url" is not null)
 );
 alter table "better_supabase"."custom_emoji" enable row level security;
 revoke all on "better_supabase"."custom_emoji" from public, anon, authenticated;

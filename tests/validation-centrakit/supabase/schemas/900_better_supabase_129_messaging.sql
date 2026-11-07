@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:6b4e419ff5f2e0eb6e3cc8336dcdc3d7a7c7bc719a0f18dd6f15f6e31845434e
+-- @bsb-hash sha256:6806592eba94fd346b5c4084de3340b772c601174259e04151c27d4453ce964d
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,19 +13,19 @@
 create table "better_supabase"."conversations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null check ("kind" in ('channel', 'dm', 'group_dm', 'subject', 'inbox')),
-  "access" text not null default 'members' check ("access" in ('members', 'tenant', 'subject')),
+  "kind" text not null constraint bsb_conversations_kind_check check ("kind" in ('channel', 'dm', 'group_dm', 'subject', 'inbox')),
+  "access" text not null default 'members' constraint bsb_conversations_access_check check ("access" in ('members', 'tenant', 'subject')),
   "subject_type" text,
   "subject_id" text,
-  "title" text check ("title" is null or length("title") >= 1 and length("title") <= 200),
+  "title" text constraint bsb_conversations_title_check check ("title" is null or length("title") >= 1 and length("title") <= 200),
   "member_key" text,
   "created_by" uuid,
   "last_message_at" timestamptz,
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check ("access" <> 'subject' or "subject_type" is not null)
+  constraint bsb_conversations_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_conversations_check1 check ("access" <> 'subject' or "subject_type" is not null)
 );
 create unique index messaging_conversations_subject_idx on "better_supabase"."conversations" ("tenant_id", "subject_type", "subject_id") where "kind" = 'subject';
 create unique index messaging_conversations_member_key_idx on "better_supabase"."conversations" ("tenant_id", "kind", "member_key") where "member_key" is not null;
@@ -39,8 +39,8 @@ create table "better_supabase"."conversation_members" (
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
   "tenant_id" uuid not null,
   "user_id" uuid not null,
-  "role" text not null default 'member' check ("role" in ('owner', 'member')),
-  "notify" text not null default 'all' check ("notify" in ('all', 'mentions', 'none')),
+  "role" text not null default 'member' constraint bsb_conversation_members_role_check check ("role" in ('owner', 'member')),
+  "notify" text not null default 'all' constraint bsb_conversation_members_notify_check check ("notify" in ('all', 'mentions', 'none')),
   "last_read_at" timestamptz,
   "joined_at" timestamptz not null default now(),
   primary key ("conversation_id", "user_id")
@@ -90,12 +90,12 @@ create table "better_supabase"."messages" (
   "parent_id" uuid references "better_supabase"."messages" ("id") on delete set null,
   "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade,
   "author_id" uuid,
-  "kind" text not null default 'message' check ("kind" in ('message', 'note')),
-  "body" text not null default '' check (length("body") <= 40000),
+  "kind" text not null default 'message' constraint bsb_messages_kind_check check ("kind" in ('message', 'note')),
+  "body" text not null default '' constraint bsb_messages_body_check check (length("body") <= 40000),
   "document" jsonb,
   "anchor" jsonb,
   "mentions" uuid[] not null default '{}',
-  "mention_scope" text check ("mention_scope" in ('channel', 'here')),
+  "mention_scope" text constraint bsb_messages_mention_scope_check check ("mention_scope" in ('channel', 'here')),
   "broadcast" boolean not null default false,
   "reply_count" integer not null default 0,
   "last_reply_at" timestamptz,
@@ -109,7 +109,7 @@ create table "better_supabase"."messages" (
   "edited_at" timestamptz,
   "deleted_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check (("thread_id" is null) = ("parent_id" is null))
+  constraint bsb_messages_check check (("thread_id" is null) = ("parent_id" is null))
 );
 create index messaging_messages_conversation_idx on "better_supabase"."messages" ("conversation_id", "sent_at", "id") where "thread_id" is null or "broadcast";
 create index messaging_messages_thread_idx on "better_supabase"."messages" ("thread_id", "sent_at", "id") where "thread_id" is not null;
@@ -198,9 +198,9 @@ create table "better_supabase"."thread_summaries" (
   "tenant_id" uuid not null,
   "conversation_id" uuid not null references "better_supabase"."conversations" ("id") on delete cascade,
   "thread_id" uuid references "better_supabase"."messages" ("id") on delete cascade,
-  "summary" text not null check (char_length("summary") >= 1 and char_length("summary") <= 20000),
-  "model" text check (char_length("model") <= 200),
-  "message_count" integer not null default 0 check ("message_count" >= 0),
+  "summary" text not null constraint bsb_thread_summaries_summary_check check (char_length("summary") >= 1 and char_length("summary") <= 20000),
+  "model" text constraint bsb_thread_summaries_model_check check (char_length("model") <= 200),
+  "message_count" integer not null default 0 constraint bsb_thread_summaries_message_count_check check ("message_count" >= 0),
   "through_at" timestamptz not null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),

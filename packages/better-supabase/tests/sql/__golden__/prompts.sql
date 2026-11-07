@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:ca121521d0bae203550d4b9bab1972332337bbdbd2a3f0a2d36f762308663bb5
+-- @bsb-hash sha256:ac04fe12d998baea0b1a274af041925c3c3336a8aad84eac8e38ce224715de55
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,10 +13,10 @@
 create table "better_supabase"."prompt_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
-  "version" integer not null check ("version" >= 1),
-  "template" text not null check (length("template") >= 1 and length("template") <= 102400),
-  "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array'),
+  "name" text not null constraint bsb_prompt_versions_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
+  "version" integer not null constraint bsb_prompt_versions_version_check check ("version" >= 1),
+  "template" text not null constraint bsb_prompt_versions_template_check check (length("template") >= 1 and length("template") <= 102400),
+  "variables" jsonb not null default '[]'::jsonb constraint bsb_prompt_versions_variables_check check (jsonb_typeof("variables") = 'array'),
   "created_at" timestamptz not null default now()
 );
 create unique index "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("organization_id"::text, '')), "name", "version");
@@ -28,8 +28,8 @@ grant all on "better_supabase"."prompt_versions" to service_role;
 create table "better_supabase"."prompt_labels" (
   "organization_id" uuid,
   "name" text not null,
-  "label" text not null check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
-  "version" integer not null check ("version" >= 1),
+  "label" text not null constraint bsb_prompt_labels_label_check check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
+  "version" integer not null constraint bsb_prompt_labels_version_check check ("version" >= 1),
   "updated_at" timestamptz not null default now()
 );
 create unique index "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("organization_id"::text, '')), "name", "label");
@@ -180,7 +180,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:ca121521d0bae203550d4b9bab1972332337bbdbd2a3f0a2d36f762308663bb5
+-- @bsb-hash sha256:ac04fe12d998baea0b1a274af041925c3c3336a8aad84eac8e38ce224715de55
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -192,10 +192,10 @@ on conflict (name) do update
 create table "better_supabase"."prompt_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
-  "version" integer not null check ("version" >= 1),
-  "template" text not null check (length("template") >= 1 and length("template") <= 102400),
-  "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array'),
+  "name" text not null constraint bsb_prompt_versions_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
+  "version" integer not null constraint bsb_prompt_versions_version_check check ("version" >= 1),
+  "template" text not null constraint bsb_prompt_versions_template_check check (length("template") >= 1 and length("template") <= 102400),
+  "variables" jsonb not null default '[]'::jsonb constraint bsb_prompt_versions_variables_check check (jsonb_typeof("variables") = 'array'),
   "created_at" timestamptz not null default now()
 );
 create unique index "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("organization_id"::text, '')), "name", "version");
@@ -207,8 +207,8 @@ grant all on "better_supabase"."prompt_versions" to service_role;
 create table "better_supabase"."prompt_labels" (
   "organization_id" uuid,
   "name" text not null,
-  "label" text not null check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
-  "version" integer not null check ("version" >= 1),
+  "label" text not null constraint bsb_prompt_labels_label_check check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
+  "version" integer not null constraint bsb_prompt_labels_version_check check ("version" >= 1),
   "updated_at" timestamptz not null default now()
 );
 create unique index "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("organization_id"::text, '')), "name", "label");
@@ -359,7 +359,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:fbe519bfbae3740f5d5a84b9137042037b681f71beefea05207da96bc862830e
+-- @bsb-hash sha256:927551d0356ee71f61a2dc74090c0cdce3d1cae37541f615c3e9c76b55f6e42e
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -376,10 +376,10 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."prompt_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
-  "version" integer not null check ("version" >= 1),
-  "template" text not null check (length("template") >= 1 and length("template") <= 102400),
-  "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array'),
+  "name" text not null constraint bsb_prompt_versions_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
+  "version" integer not null constraint bsb_prompt_versions_version_check check ("version" >= 1),
+  "template" text not null constraint bsb_prompt_versions_template_check check (length("template") >= 1 and length("template") <= 102400),
+  "variables" jsonb not null default '[]'::jsonb constraint bsb_prompt_versions_variables_check check (jsonb_typeof("variables") = 'array'),
   "created_at" timestamptz not null default now()
 );
 create unique index "bsb_prompt_versions_key" on "app_private"."prompt_versions" ((coalesce("organization_id"::text, '')), "name", "version");
@@ -391,8 +391,8 @@ grant all on "app_private"."prompt_versions" to service_role;
 create table "app_private"."prompt_labels" (
   "organization_id" uuid,
   "name" text not null,
-  "label" text not null check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
-  "version" integer not null check ("version" >= 1),
+  "label" text not null constraint bsb_prompt_labels_label_check check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
+  "version" integer not null constraint bsb_prompt_labels_version_check check ("version" >= 1),
   "updated_at" timestamptz not null default now()
 );
 create unique index "bsb_prompt_labels_key" on "app_private"."prompt_labels" ((coalesce("organization_id"::text, '')), "name", "label");
@@ -543,7 +543,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:50536932b1eb144c0a9ec69e3a5ddf5d818c7b1ebe5e086e1b27a8f7d832c7f6
+-- @bsb-hash sha256:64f3b57ef07380a63fe849dfd8e2eb189866fcb13fa90fd7716571e23e7751de
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -555,10 +555,10 @@ on conflict (name) do update
 create table "better_supabase"."prompt_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
-  "version" integer not null check ("version" >= 1),
-  "template" text not null check (length("template") >= 1 and length("template") <= 102400),
-  "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array'),
+  "name" text not null constraint bsb_prompt_versions_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
+  "version" integer not null constraint bsb_prompt_versions_version_check check ("version" >= 1),
+  "template" text not null constraint bsb_prompt_versions_template_check check (length("template") >= 1 and length("template") <= 102400),
+  "variables" jsonb not null default '[]'::jsonb constraint bsb_prompt_versions_variables_check check (jsonb_typeof("variables") = 'array'),
   "created_at" timestamptz not null default now()
 );
 create unique index "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("organization_id"::text, '')), "name", "version");
@@ -570,8 +570,8 @@ grant all on "better_supabase"."prompt_versions" to service_role;
 create table "better_supabase"."prompt_labels" (
   "organization_id" uuid,
   "name" text not null,
-  "label" text not null check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
-  "version" integer not null check ("version" >= 1),
+  "label" text not null constraint bsb_prompt_labels_label_check check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
+  "version" integer not null constraint bsb_prompt_labels_version_check check ("version" >= 1),
   "updated_at" timestamptz not null default now()
 );
 create unique index "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("organization_id"::text, '')), "name", "label");
@@ -764,7 +764,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:5b7f8f7079d7c4a6a98c645f9792e3a3d4508a578a97af4ca39d35a1f83d05e9
+-- @bsb-hash sha256:a73e434a769c0bc5b4a3dc12649e8907037fa39d3e17e5bbb83a179b838fae60
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -776,10 +776,10 @@ on conflict (name) do update
 -- better_supabase.prompt_versions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."prompt_versions" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."prompt_versions" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."prompt_versions" add column if not exists "name" text check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$');
-alter table "better_supabase"."prompt_versions" add column if not exists "version" integer check ("version" >= 1);
-alter table "better_supabase"."prompt_versions" add column if not exists "template" text check (length("template") >= 1 and length("template") <= 102400);
-alter table "better_supabase"."prompt_versions" add column if not exists "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array');
+alter table "better_supabase"."prompt_versions" add column if not exists "name" text constraint bsb_prompt_versions_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$');
+alter table "better_supabase"."prompt_versions" add column if not exists "version" integer constraint bsb_prompt_versions_version_check check ("version" >= 1);
+alter table "better_supabase"."prompt_versions" add column if not exists "template" text constraint bsb_prompt_versions_template_check check (length("template") >= 1 and length("template") <= 102400);
+alter table "better_supabase"."prompt_versions" add column if not exists "variables" jsonb not null default '[]'::jsonb constraint bsb_prompt_versions_variables_check check (jsonb_typeof("variables") = 'array');
 alter table "better_supabase"."prompt_versions" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("organization_id"::text, '')), "name", "version");
 create index if not exists "prompt_versions_tenant_idx" on "better_supabase"."prompt_versions" ("organization_id");
@@ -789,8 +789,8 @@ grant all on "better_supabase"."prompt_versions" to service_role;
 -- better_supabase.prompt_labels is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."prompt_labels" add column if not exists "organization_id" uuid;
 alter table "better_supabase"."prompt_labels" add column if not exists "name" text;
-alter table "better_supabase"."prompt_labels" add column if not exists "label" text check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$');
-alter table "better_supabase"."prompt_labels" add column if not exists "version" integer check ("version" >= 1);
+alter table "better_supabase"."prompt_labels" add column if not exists "label" text constraint bsb_prompt_labels_label_check check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$');
+alter table "better_supabase"."prompt_labels" add column if not exists "version" integer constraint bsb_prompt_labels_version_check check ("version" >= 1);
 alter table "better_supabase"."prompt_labels" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("organization_id"::text, '')), "name", "label");
 create index if not exists "prompt_labels_tenant_idx" on "better_supabase"."prompt_labels" ("organization_id");
@@ -939,7 +939,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:4c790c89e9b6c965bfa57c9b0fb2d2efd9d601684004071e6d5616d9a112e3b3
+-- @bsb-hash sha256:e39f3230392134f0a2ae2955b7f68dbf1ad1a3feb76f40ae5dbec688962be81a
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -951,10 +951,10 @@ on conflict (name) do update
 create table "better_supabase"."prompt_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid,
-  "name" text not null check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
-  "version" integer not null check ("version" >= 1),
-  "template" text not null check (length("template") >= 1 and length("template") <= 102400),
-  "variables" jsonb not null default '[]'::jsonb check (jsonb_typeof("variables") = 'array'),
+  "name" text not null constraint bsb_prompt_versions_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
+  "version" integer not null constraint bsb_prompt_versions_version_check check ("version" >= 1),
+  "template" text not null constraint bsb_prompt_versions_template_check check (length("template") >= 1 and length("template") <= 102400),
+  "variables" jsonb not null default '[]'::jsonb constraint bsb_prompt_versions_variables_check check (jsonb_typeof("variables") = 'array'),
   "created_at" timestamptz not null default now()
 );
 create unique index "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("org_id"::text, '')), "name", "version");
@@ -966,8 +966,8 @@ grant all on "better_supabase"."prompt_versions" to service_role;
 create table "better_supabase"."prompt_labels" (
   "org_id" uuid,
   "name" text not null,
-  "label" text not null check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
-  "version" integer not null check ("version" >= 1),
+  "label" text not null constraint bsb_prompt_labels_label_check check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
+  "version" integer not null constraint bsb_prompt_labels_version_check check ("version" >= 1),
   "updated_at" timestamptz not null default now()
 );
 create unique index "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("org_id"::text, '')), "name", "label");

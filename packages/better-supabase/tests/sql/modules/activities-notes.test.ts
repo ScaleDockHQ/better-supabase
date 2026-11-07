@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { customContracts, renderBlocks } from "../../../src/sql/render.ts";
 import { liteStack } from "../../../src/testing/lite.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const TENANT = "11111111-1111-4111-8111-111111111111";
 
@@ -77,7 +78,7 @@ describe("progress notes, rendered", () => {
   it("adds the note columns, the addendum index and the functions", () => {
     const sql = sqlOf();
 
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `add column "audience" text not null default 'team' check ("audience" in ('team', 'subject', 'restricted'))`,
     );
     expect(sql).toContain(

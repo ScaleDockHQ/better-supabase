@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_145_shifts.sql
 -- better-supabase module: shifts
 -- @bsb-block shifts@1 managed
--- @bsb-hash sha256:361feab3d5272e92851e5819a49741c571a5b39014eacdc2e5b6ddc2dbfc07ee
+-- @bsb-hash sha256:e8cb92df181cedc59051b154cf8a8d43e0c474babf2c2080b0160cc6a04e9504
 -- Shift templates that generate shifts on weekdays, shifts planned in draft and published per team and location, assignments checked for overlap, approved leave, required qualifications and rest time, open shift requests, swaps between members, availability, a roster, planned hours against contract hours, and time entries from worked shifts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,18 +15,18 @@ create extension if not exists btree_gist with schema extensions;
 create table "better_supabase"."shift_templates" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_shift_templates_name_check check (length("name") >= 1 and length("name") <= 200),
   "team_id" uuid references "better_supabase"."teams" ("id") on delete set null,
   "location_id" uuid,
   -- An end at or before the start runs into the next day.
   "starts_time" time not null,
   "ends_time" time not null,
-  "break_minutes" integer not null default 0 check ("break_minutes" >= 0 and "break_minutes" <= 720),
-  "headcount" integer not null default 1 check ("headcount" >= 1 and "headcount" <= 500),
+  "break_minutes" integer not null default 0 constraint bsb_shift_templates_break_minutes_check check ("break_minutes" >= 0 and "break_minutes" <= 720),
+  "headcount" integer not null default 1 constraint bsb_shift_templates_headcount_check check ("headcount" >= 1 and "headcount" <= 500),
   -- Qualification type keys (qualifications block) everyone on the shift holds.
   "required_qualifications" text[] not null default '{}',
   -- ISO weekdays, 1 (Monday) to 7 (Sunday), generate_shifts creates shifts on.
-  "weekdays" integer[] not null default '{1,2,3,4,5}' check ("weekdays" <@ array[1, 2, 3, 4, 5, 6, 7]),
+  "weekdays" integer[] not null default '{1,2,3,4,5}' constraint bsb_shift_templates_weekdays_check check ("weekdays" <@ array[1, 2, 3, 4, 5, 6, 7]),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -51,19 +51,19 @@ create table "better_supabase"."shifts" (
   "location_id" uuid,
   "starts_at" timestamptz not null,
   "ends_at" timestamptz not null,
-  "break_minutes" integer not null default 0 check ("break_minutes" >= 0 and "break_minutes" <= 720),
-  "headcount" integer not null default 1 check ("headcount" >= 1 and "headcount" <= 500),
+  "break_minutes" integer not null default 0 constraint bsb_shifts_break_minutes_check check ("break_minutes" >= 0 and "break_minutes" <= 720),
+  "headcount" integer not null default 1 constraint bsb_shifts_headcount_check check ("headcount" >= 1 and "headcount" <= 500),
   "required_qualifications" text[] not null default '{}',
   -- draft: planners see it; published: everyone with shifts.read does.
-  "status" text not null default 'draft' check ("status" in ('draft', 'published', 'canceled')),
-  "note" text check ("note" is null or length("note") <= 2000),
+  "status" text not null default 'draft' constraint bsb_shifts_status_check check ("status" in ('draft', 'published', 'canceled')),
+  "note" text constraint bsb_shifts_note_check check ("note" is null or length("note") <= 2000),
   "published_at" timestamptz,
   "canceled_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("ends_at" > "starts_at"),
-  check ("ends_at" - "starts_at" <= interval '24 hours'),
+  constraint bsb_shifts_check check ("ends_at" > "starts_at"),
+  constraint bsb_shifts_check1 check ("ends_at" - "starts_at" <= interval '24 hours'),
   unique ("tenant_id", "id"),
   foreign key ("tenant_id", "template_id") references "better_supabase"."shift_templates" ("tenant_id", "id") on delete set null ("template_id")
 );
@@ -85,7 +85,7 @@ create table "better_supabase"."shift_assignments" (
   "shift_id" uuid not null,
   "user_id" uuid not null,
   -- requested: the member asked for an open shift; released: no longer on it.
-  "status" text not null default 'assigned' check ("status" in ('assigned', 'requested', 'released')),
+  "status" text not null default 'assigned' constraint bsb_shift_assignments_status_check check ("status" in ('assigned', 'requested', 'released')),
   -- The shift's times, copied so the exclusion constraint can read them.
   "starts_at" timestamptz not null,
   "ends_at" timestamptz not null,
@@ -117,13 +117,13 @@ create table "better_supabase"."shift_swaps" (
   "assignment_id" uuid not null,
   "from_user_id" uuid not null,
   "to_user_id" uuid not null,
-  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected', 'canceled')),
+  "status" text not null default 'pending' constraint bsb_shift_swaps_status_check check ("status" in ('pending', 'approved', 'rejected', 'canceled')),
   "approval_id" uuid,
-  "note" text check ("note" is null or length("note") <= 2000),
+  "note" text constraint bsb_shift_swaps_note_check check ("note" is null or length("note") <= 2000),
   "decided_by" uuid,
   "decided_at" timestamptz,
   "created_at" timestamptz not null default now(),
-  check ("to_user_id" <> "from_user_id"),
+  constraint bsb_shift_swaps_check check ("to_user_id" <> "from_user_id"),
   foreign key ("tenant_id", "assignment_id") references "better_supabase"."shift_assignments" ("tenant_id", "id") on delete cascade
 );
 create index "shift_swaps_tenant_idx" on "better_supabase"."shift_swaps" ("tenant_id", "assignment_id");
@@ -145,11 +145,11 @@ create table "better_supabase"."shift_availability" (
   -- Both null: the whole day.
   "from_time" time,
   "until_time" time,
-  "kind" text not null check ("kind" in ('available', 'unavailable', 'preferred')),
-  "note" text check ("note" is null or length("note") <= 500),
+  "kind" text not null constraint bsb_shift_availability_kind_check check ("kind" in ('available', 'unavailable', 'preferred')),
+  "note" text constraint bsb_shift_availability_note_check check ("note" is null or length("note") <= 500),
   "created_at" timestamptz not null default now(),
-  check (("from_time" is null) = ("until_time" is null)),
-  check ("until_time" is null or "until_time" > "from_time"),
+  constraint bsb_shift_availability_check check (("from_time" is null) = ("until_time" is null)),
+  constraint bsb_shift_availability_check1 check ("until_time" is null or "until_time" > "from_time"),
   unique ("tenant_id", "user_id", "on_date")
 );
 create index "shift_availability_day_idx" on "better_supabase"."shift_availability" ("tenant_id", "on_date");

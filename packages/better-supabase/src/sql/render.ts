@@ -42,7 +42,7 @@ import { appTableSet, ownTablesCreatedBy } from "./pipeline/resolve.ts";
 import { rerunnableDdl, staticDdl } from "./pipeline/static.ts";
 import { withUnscopedFile } from "./pipeline/unscoped.ts";
 import { withoutCoveredPolicies } from "./policy-cover.ts";
-import { bsbPolicyNames } from "./policy-names.ts";
+import { bsbNames } from "./policy-names.ts";
 import {
   checkMigrationOptions,
   checkModules,
@@ -79,7 +79,7 @@ export function moduleBody(
     layout.ownPolicies,
   );
 
-  return bsbPolicyNames(
+  return bsbNames(
     layout.rerunnable === true
       ? rerunnableDdl(body)
       : staticDdl(body, appTableSet(ctx)),
@@ -271,7 +271,7 @@ function moduleFiles(
   // The migrations workflow repeats every statement in each migration; the
   // others read the files as declarative DDL.
   const settled = (sql: string): string =>
-    bsbPolicyNames(
+    bsbNames(
       layout.rerunnable === true
         ? rerunnableDdl(sql)
         : staticDdl(sql, appTableSet(ctx)),

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_123_dispatch.sql
 -- better-supabase module: dispatch
 -- @bsb-block dispatch@1 managed
--- @bsb-hash sha256:fe4c7da7e168bdf696f940d7189b432c13ac11366efcfbc352c12f7db41a7ceb
+-- @bsb-hash sha256:3e80dbcbb0300b47042a3b0e541e55424fe44a7686f59a8e0aa960ace57081dd
 -- Field service work orders at asset locations: a schedule board of technicians' slots, a status lifecycle from scheduled to done, day routes with ordered stops, and the parts each job used, linked to assets or inventory when those blocks are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16,32 +16,32 @@
 create table "better_supabase"."work_orders" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 10000),
-  "priority" text not null default 'normal' check ("priority" in ('low', 'normal', 'high', 'urgent')),
-  "status" text not null default 'unscheduled' check ("status" in ('unscheduled', 'scheduled', 'en_route', 'on_site', 'done', 'cancelled')),
+  "title" text not null constraint bsb_work_orders_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_work_orders_description_check check ("description" is null or length("description") <= 10000),
+  "priority" text not null default 'normal' constraint bsb_work_orders_priority_check check ("priority" in ('low', 'normal', 'high', 'urgent')),
+  "status" text not null default 'unscheduled' constraint bsb_work_orders_status_check check ("status" in ('unscheduled', 'scheduled', 'en_route', 'on_site', 'done', 'cancelled')),
   "technician_id" uuid references auth.users (id) on delete set null,
   "starts_at" timestamptz,
   "ends_at" timestamptz,
   "location_id" uuid,
   "asset_id" uuid,
   "booking_id" uuid,
-  "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
-  "address" text check ("address" is null or length("address") >= 1 and length("address") <= 500),
+  "subject_type" text constraint bsb_work_orders_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_work_orders_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
+  "address" text constraint bsb_work_orders_address_check check ("address" is null or length("address") >= 1 and length("address") <= 500),
   "en_route_at" timestamptz,
   "arrived_at" timestamptz,
   "completed_at" timestamptz,
   "cancelled_at" timestamptz,
-  "cancel_reason" text check ("cancel_reason" is null or length("cancel_reason") <= 1000),
-  "completion_note" text check ("completion_note" is null or length("completion_note") <= 10000),
+  "cancel_reason" text constraint bsb_work_orders_cancel_reason_check check ("cancel_reason" is null or length("cancel_reason") <= 1000),
+  "completion_note" text constraint bsb_work_orders_completion_note_check check ("completion_note" is null or length("completion_note") <= 10000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check (("starts_at" is null) = ("ends_at" is null)),
-  check ("ends_at" is null or "ends_at" > "starts_at"),
-  check ("status" not in ('scheduled', 'en_route', 'on_site') or ("technician_id" is not null and "starts_at" is not null))
+  constraint bsb_work_orders_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_work_orders_check1 check (("starts_at" is null) = ("ends_at" is null)),
+  constraint bsb_work_orders_check2 check ("ends_at" is null or "ends_at" > "starts_at"),
+  constraint bsb_work_orders_check3 check ("status" not in ('scheduled', 'en_route', 'on_site') or ("technician_id" is not null and "starts_at" is not null))
 );
 create index "work_orders_tenant_idx" on "better_supabase"."work_orders" ("tenant_id", "created_at" desc);
 create index "work_orders_slot_idx" on "better_supabase"."work_orders" ("technician_id", "starts_at") where "starts_at" is not null;
@@ -83,7 +83,7 @@ create table "better_supabase"."dispatch_route_stops" (
   "tenant_id" uuid not null,
   "route_id" uuid not null references "better_supabase"."dispatch_routes" ("id") on delete cascade,
   "work_order_id" uuid not null references "better_supabase"."work_orders" ("id") on delete cascade,
-  "position" integer not null check ("position" >= 1),
+  "position" integer not null constraint bsb_dispatch_route_stops_position_check check ("position" >= 1),
   unique ("route_id", "position"),
   unique ("route_id", "work_order_id")
 );
@@ -101,9 +101,9 @@ create table "better_supabase"."work_order_parts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "work_order_id" uuid not null references "better_supabase"."work_orders" ("id") on delete cascade,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "quantity" numeric(14, 3) not null check ("quantity" > 0),
-  "unit" text check ("unit" is null or length("unit") >= 1 and length("unit") <= 20),
+  "name" text not null constraint bsb_work_order_parts_name_check check (length("name") >= 1 and length("name") <= 200),
+  "quantity" numeric(14, 3) not null constraint bsb_work_order_parts_quantity_check check ("quantity" > 0),
+  "unit" text constraint bsb_work_order_parts_unit_check check ("unit" is null or length("unit") >= 1 and length("unit") <= 20),
   "asset_id" uuid,
   "variant_id" uuid,
   "location_id" uuid,

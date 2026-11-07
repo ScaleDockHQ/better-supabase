@@ -1,6 +1,6 @@
 -- better-supabase module: passes
 -- @bsb-block passes@2 managed
--- @bsb-hash sha256:41ed3da3866cf57845512dc478c0581bd998860d77b4a8566f364066c561c1d2
+-- @bsb-hash sha256:4e19b47f2583c1af93b822b6cdfc2c3f21cbd0259b0cd1606fcb9b5deab08c97
 -- Admission passes on QR codes and NFC tags, signed with the signing-keys block: a ticket for a booking or a pass with a number of uses for a resource, a log of every scan, class credits that pay for bookings and come back on an early cancellation, and drop-ins counted against the resource's capacity with its bookings.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,27 +14,27 @@
 create table "better_supabase"."passes" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "kind" text not null default 'ticket' check ("kind" ~ '^[a-z][a-z0-9_-]{0,39}$'),
+  "kind" text not null default 'ticket' constraint bsb_passes_kind_check check ("kind" ~ '^[a-z][a-z0-9_-]{0,39}$'),
   "holder_user_id" uuid references auth.users (id) on delete set null,
-  "holder_name" text check ("holder_name" is null or length("holder_name") >= 1 and length("holder_name") <= 200),
-  "holder_email" text check ("holder_email" is null or (length("holder_email") >= 3 and length("holder_email") <= 320 and position('@' in "holder_email") > 1)),
-  "subject_type" text check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "subject_id" text check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
+  "holder_name" text constraint bsb_passes_holder_name_check check ("holder_name" is null or length("holder_name") >= 1 and length("holder_name") <= 200),
+  "holder_email" text constraint bsb_passes_holder_email_check check ("holder_email" is null or (length("holder_email") >= 3 and length("holder_email") <= 320 and position('@' in "holder_email") > 1)),
+  "subject_type" text constraint bsb_passes_subject_type_check check ("subject_type" is null or "subject_type" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "subject_id" text constraint bsb_passes_subject_id_check check ("subject_id" is null or length("subject_id") >= 1 and length("subject_id") <= 200),
   "booking_id" uuid,
   "resource_id" uuid,
-  "uses_allowed" integer check ("uses_allowed" is null or "uses_allowed" > 0),
-  "uses" integer not null default 0 check ("uses" >= 0),
+  "uses_allowed" integer constraint bsb_passes_uses_allowed_check check ("uses_allowed" is null or "uses_allowed" > 0),
+  "uses" integer not null default 0 constraint bsb_passes_uses_check check ("uses" >= 0),
   "valid_from" timestamptz not null default now(),
   "valid_until" timestamptz,
-  "status" text not null default 'active' check ("status" in ('active', 'revoked')),
+  "status" text not null default 'active' constraint bsb_passes_status_check check ("status" in ('active', 'revoked')),
   "nonce" text not null unique,
   "issued_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "revoked_at" timestamptz,
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check ("uses_allowed" is null or "uses" <= "uses_allowed"),
-  check ("valid_until" is null or "valid_until" > "valid_from")
+  constraint bsb_passes_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_passes_check1 check ("uses_allowed" is null or "uses" <= "uses_allowed"),
+  constraint bsb_passes_check2 check ("valid_until" is null or "valid_until" > "valid_from")
 );
 create index "passes_tenant_idx" on "better_supabase"."passes" ("tenant_id", "created_at" desc);
 create index "passes_holder_idx" on "better_supabase"."passes" ("holder_user_id");
@@ -55,13 +55,13 @@ create table "better_supabase"."pass_check_ins" (
   "pass_id" uuid not null references "better_supabase"."passes" ("id") on delete cascade,
   "resource_id" uuid,
   "booking_id" uuid,
-  "gate" text check ("gate" is null or length("gate") >= 1 and length("gate") <= 100),
-  "method" text not null check ("method" in ('qr', 'nfc', 'manual')),
+  "gate" text constraint bsb_pass_check_ins_gate_check check ("gate" is null or length("gate") >= 1 and length("gate") <= 100),
+  "method" text not null constraint bsb_pass_check_ins_method_check check ("method" in ('qr', 'nfc', 'manual')),
   "admitted" boolean not null,
-  "reason" text check ("reason" is null or "reason" in ('invalid', 'revoked', 'not_yet_valid', 'expired', 'used_up', 'booking_cancelled', 'booking_unconfirmed', 'outside_window', 'wrong_resource', 'full')),
+  "reason" text constraint bsb_pass_check_ins_reason_check check ("reason" is null or "reason" in ('invalid', 'revoked', 'not_yet_valid', 'expired', 'used_up', 'booking_cancelled', 'booking_unconfirmed', 'outside_window', 'wrong_resource', 'full')),
   "checked_in_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("admitted" = ("reason" is null))
+  constraint bsb_pass_check_ins_check check ("admitted" = ("reason" is null))
 );
 create index "pass_check_ins_log_idx" on "better_supabase"."pass_check_ins" ("pass_id", "created_at" desc);
 create index "pass_check_ins_drop_in_idx" on "better_supabase"."pass_check_ins" ("resource_id", "created_at") where "admitted" and "booking_id" is null;

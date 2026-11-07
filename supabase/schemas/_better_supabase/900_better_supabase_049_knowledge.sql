@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:5907606ebcc57a78b388240fd99ff50b778e01fb9e6f68bdb05c4f5b89598674
+-- @bsb-hash sha256:3121fdc292137b6869b841c98a1e286465a51528228a2baf6261313f0128789f
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,9 +11,9 @@
 create table "better_supabase"."knowledge_collections" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_knowledge_collections_name_check check (length("name") >= 1 and length("name") <= 200),
   "description" text,
-  "visibility" text not null default 'automatic' check ("visibility" in ('automatic', 'restricted', 'disabled')),
+  "visibility" text not null default 'automatic' constraint bsb_knowledge_collections_visibility_check check ("visibility" in ('automatic', 'restricted', 'disabled')),
   "priority" integer not null default 0,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -32,7 +32,7 @@ create table "better_supabase"."knowledge_collection_grants" (
   "user_id" uuid references auth.users (id) on delete cascade,
   "team_id" uuid,
   "created_at" timestamptz not null default now(),
-  check (("user_id" is null) <> ("team_id" is null))
+  constraint bsb_knowledge_collection_grants_check check (("user_id" is null) <> ("team_id" is null))
 );
 create unique index knowledge_collection_grants_key on "better_supabase"."knowledge_collection_grants" ("collection_id", "user_id", "team_id") nulls not distinct;
 create index knowledge_collection_grants_user_idx on "better_supabase"."knowledge_collection_grants" ("user_id") where "user_id" is not null;
@@ -252,25 +252,25 @@ create table "better_supabase"."knowledge_documents" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "owner_id" uuid references auth.users (id) on delete cascade,
-  "scope" text not null default 'user' check ("scope" in ('organization', 'agent', 'project', 'chat', 'user', 'subject')),
+  "scope" text not null default 'user' constraint bsb_knowledge_documents_scope_check check ("scope" in ('organization', 'agent', 'project', 'chat', 'user', 'subject')),
   "scope_id" uuid,
   "file_id" uuid references "better_supabase"."ai_files" ("id") on delete cascade,
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
+  "title" text not null constraint bsb_knowledge_documents_title_check check (length("title") >= 1 and length("title") <= 500),
   "source" text,
-  "metadata" jsonb not null default '{}' check (jsonb_typeof("metadata") = 'object'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'ready', 'failed')),
+  "metadata" jsonb not null default '{}' constraint bsb_knowledge_documents_metadata_check check (jsonb_typeof("metadata") = 'object'),
+  "status" text not null default 'pending' constraint bsb_knowledge_documents_status_check check ("status" in ('pending', 'ready', 'failed')),
   "error" text,
   "chunk_count" integer not null default 0,
   "embedding_model" text,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("scope" in ('organization', 'subject')) = ("scope_id" is null)),
-  constraint knowledge_documents_system_check check ("organization_id" is not null or ("scope" = 'organization' and "owner_id" is null))
+  constraint bsb_knowledge_documents_check check (("scope" in ('organization', 'subject')) = ("scope_id" is null)),
+  constraint bsb_knowledge_documents_system_check check ("organization_id" is not null or ("scope" = 'organization' and "owner_id" is null))
 );
 alter table "better_supabase"."knowledge_documents" add column "collection_id" uuid references "better_supabase"."knowledge_collections" ("id") on delete set null;
-alter table "better_supabase"."knowledge_documents" add column "subject_type" text check (length("subject_type") >= 1 and length("subject_type") <= 100);
-alter table "better_supabase"."knowledge_documents" add column "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
-alter table "better_supabase"."knowledge_documents" add constraint knowledge_documents_subject_check check (("scope" = 'subject') = ("subject_type" is not null and "subject_id" is not null));
+alter table "better_supabase"."knowledge_documents" add column "subject_type" text constraint bsb_knowledge_documents_subject_type_check check (length("subject_type") >= 1 and length("subject_type") <= 100);
+alter table "better_supabase"."knowledge_documents" add column "subject_id" text constraint bsb_knowledge_documents_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."knowledge_documents" add constraint bsb_knowledge_documents_subject_check check (("scope" = 'subject') = ("subject_type" is not null and "subject_id" is not null));
 create index knowledge_documents_subject_idx on "better_supabase"."knowledge_documents" ("subject_type", "subject_id") where "subject_type" is not null;
 create index knowledge_documents_tenant_idx on "better_supabase"."knowledge_documents" ("organization_id", "scope", "scope_id");
 create index knowledge_documents_owner_idx on "better_supabase"."knowledge_documents" ("owner_id") where "owner_id" is not null;
@@ -303,8 +303,8 @@ create policy bsb_knowledge_documents_read on "better_supabase"."knowledge_docum
 -- A chunk is visible when its document is, so search inherits the scopes.
 create table "better_supabase"."knowledge_chunks" (
   "document_id" uuid not null references "better_supabase"."knowledge_documents" ("id") on delete cascade,
-  "idx" integer not null check ("idx" >= 0),
-  "content" text not null check (length("content") > 0),
+  "idx" integer not null constraint bsb_knowledge_chunks_idx_check check ("idx" >= 0),
+  "content" text not null constraint bsb_knowledge_chunks_content_check check (length("content") > 0),
   "token_count" integer,
   "embedding" extensions.vector(1536),
   "embedding_hash" text,

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_drive.sql
 -- better-supabase module: drive
 -- @bsb-block drive@2 managed
--- @bsb-hash sha256:6fac49855322bcac321544ebf348315cf221efec8a0ada53c54267e9510e1199
+-- @bsb-hash sha256:5afbd3f1c3d8ff4e9f3b862ab62475e40b0780b144d00b468c1a3a9b2cb339d5
 -- Folders and files on the attachments module: access granted to users, teams or roles and inherited down the tree, enforced by storage policies too; moves and renames with a name-conflict policy; revisions through versions, a bin through trash, starred and recent items through share-links' user state, and folder share links.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,11 +11,11 @@ create table "better_supabase"."drive_nodes" (
   "tenant_id" uuid not null,
   
   "parent_id" uuid references "better_supabase"."drive_nodes" ("id") on delete cascade,
-  "kind" text not null check ("kind" in ('folder', 'file')),
-  "name" text not null check (length(btrim("name")) between 1 and 255 and "name" !~ '[/[:cntrl:]]'),
+  "kind" text not null constraint bsb_drive_nodes_kind_check check ("kind" in ('folder', 'file')),
+  "name" text not null constraint bsb_drive_nodes_name_check check (length(btrim("name")) between 1 and 255 and "name" !~ '[/[:cntrl:]]'),
   "attachment_id" uuid,
   "path" text not null default '',
-  "rank" text collate "C" not null default 'V' check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
+  "rank" text collate "C" not null default 'V' constraint bsb_drive_nodes_rank_check check ("rank" ~ '^[0-9A-Za-z]*[1-9A-Za-z]$'),
   "deleted_at" timestamptz,
   "source" text not null default 'internal',
   "external_id" text,
@@ -23,13 +23,13 @@ create table "better_supabase"."drive_nodes" (
   "legal_hold_until" timestamptz,
   "locked_by" uuid,
   "locked_until" timestamptz,
-  "lock_note" text check (length("lock_note") <= 500),
+  "lock_note" text constraint bsb_drive_nodes_lock_note_check check (length("lock_note") <= 500),
   "download_blocked" boolean not null default false,
-  "preview_pages" integer check ("preview_pages" >= 0),
+  "preview_pages" integer constraint bsb_drive_nodes_preview_pages_check check ("preview_pages" >= 0),
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("external_id" is null or "source" <> 'internal')
+  constraint bsb_drive_nodes_check check ("external_id" is null or "source" <> 'internal')
 );
 create unique index "drive_nodes_sibling_name_idx" on "better_supabase"."drive_nodes" ("tenant_id", coalesce("parent_id", '00000000-0000-0000-0000-000000000000'::uuid), lower("name")) where "deleted_at" is null and "source" = 'internal';
 create index "drive_nodes_parent_idx" on "better_supabase"."drive_nodes" ("tenant_id", "parent_id", "rank");
@@ -47,7 +47,7 @@ create table "better_supabase"."drive_grants" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "node_id" uuid not null references "better_supabase"."drive_nodes" ("id") on delete cascade,
-  "principal_type" text not null check ("principal_type" in ('user', 'team', 'role')),
+  "principal_type" text not null constraint bsb_drive_grants_principal_type_check check ("principal_type" in ('user', 'team', 'role')),
   "principal_id" text not null,
   "role" text not null,
   "expires_at" timestamptz,

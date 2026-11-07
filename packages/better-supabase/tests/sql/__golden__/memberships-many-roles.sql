@@ -1,7 +1,7 @@
 -- ==== memberships
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:3d7fcee7af1c7598dd8e35ab8dd66d63d0621e39ba6458d342a9d00d39b39b36
+-- @bsb-hash sha256:3ec0b61636811ca070b5a4d32513020243f017f87f7b374d5431f1c29cc986bd
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -24,7 +24,7 @@ create trigger bsb_updated_at before update on "better_supabase"."memberships"
 alter table "better_supabase"."memberships" add column "last_used_at" timestamptz;
 alter table "better_supabase"."memberships" add column "disabled_at" timestamptz;
 alter table "better_supabase"."memberships"
-  add constraint memberships_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
+  add constraint bsb_memberships_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
 alter table "better_supabase"."memberships" enable row level security;
 grant select on "better_supabase"."memberships" to authenticated;
@@ -43,7 +43,7 @@ create table "better_supabase"."membership_roles" (
 );
 create index membership_roles_user_idx on "better_supabase"."membership_roles" ("user_id");
 alter table "better_supabase"."membership_roles"
-  add constraint membership_roles_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
+  add constraint bsb_membership_roles_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 alter table "better_supabase"."membership_roles" enable row level security;
 grant select on "better_supabase"."membership_roles" to authenticated;
 grant all on "better_supabase"."membership_roles" to service_role;
@@ -734,14 +734,14 @@ on conflict (name) do update
 -- ==== organizations
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:62e6053357b6d8254faba644046533210d0c2f82217b5793ca809a1b2ae5bd96
+-- @bsb-hash sha256:1d45a72276df7c3c0b7a3e0bf30acb3997fd4d825c04bad04786fc520d5e522f
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create table "better_supabase"."organizations" (
   "id" uuid primary key default gen_random_uuid(),
-  "name" text not null check (length(btrim("name")) > 0),
+  "name" text not null constraint bsb_organizations_name_check check (length(btrim("name")) > 0),
   "slug" text not null,
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
@@ -1599,7 +1599,7 @@ on conflict (name) do update
 -- ==== invitations
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:92fdaf4d06d356dd4f0691f07b5310abca2a1158242e983571c799b09e910003
+-- @bsb-hash sha256:3e68f2fcf056adc523c5204721a0d9545a43899a0047eb7c710ea7ee682f6eaf
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1632,7 +1632,7 @@ create trigger bsb_updated_at before update on "better_supabase"."invitations"
 create index invitations_invited_by_idx on "better_supabase"."invitations" ("invited_by");
 create index invitations_accepted_by_idx on "better_supabase"."invitations" ("accepted_by");
 alter table "better_supabase"."invitations"
-  add constraint invitations_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
+  add constraint bsb_invitations_role_check check ("role" in ('owner', 'admin', 'member', 'viewer'));
 
 alter table "better_supabase"."invitations" enable row level security;
 revoke all on "better_supabase"."invitations" from public, anon, authenticated;

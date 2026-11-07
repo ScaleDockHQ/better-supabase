@@ -66,11 +66,12 @@ describe("appTablesOf", () => {
     fails({ [`t${"a".repeat(58)}`]: {} }, "Use at most 58 characters");
   });
 
-  it("refuses a derived constraint name past 63 characters", () => {
+  it("refuses a derived unique key name past 63 characters", () => {
     fails(
       {
         [`t${"a".repeat(40)}`]: {
-          columns: { [`c${"b".repeat(20)}`]: { type: "text", options: ["x"] } },
+          columns: { [`c${"b".repeat(20)}`]: { type: "text" } },
+          unique: [[`c${"b".repeat(20)}`]],
         },
       },
       "is longer than 63 characters",

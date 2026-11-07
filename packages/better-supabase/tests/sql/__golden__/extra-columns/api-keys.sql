@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_028_api_keys.sql
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:a471e29fe17dde3737a0249068f1f5c8133df70b7bbac8ee86fd43783388a700
+-- @bsb-hash sha256:ed3dde66e2891c758638e467b25757e9ffea8a648dcfa67d8b8f02294b2315fb
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,12 +13,12 @@ create table "better_supabase"."api_keys" (
   "id" uuid primary key default gen_random_uuid(),
   "organization_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "name" text not null check (length(trim("name")) > 0),
-  "prefix" text not null check ("prefix" ~ '^[a-z][a-z0-9]*$'),
-  "public_id" text not null unique check ("public_id" ~ '^[0-9a-f]{16}$'),
-  "secret_hash" text not null check ("secret_hash" ~ '^[0-9a-f]{64}$'),
+  "name" text not null constraint bsb_api_keys_name_check check (length(trim("name")) > 0),
+  "prefix" text not null constraint bsb_api_keys_prefix_check check ("prefix" ~ '^[a-z][a-z0-9]*$'),
+  "public_id" text not null unique constraint bsb_api_keys_public_id_check check ("public_id" ~ '^[0-9a-f]{16}$'),
+  "secret_hash" text not null constraint bsb_api_keys_secret_hash_check check ("secret_hash" ~ '^[0-9a-f]{64}$'),
   "scopes" text[] not null default '{}',
-  "rate_limit" integer check ("rate_limit" > 0),
+  "rate_limit" integer constraint bsb_api_keys_rate_limit_check check ("rate_limit" > 0),
   "window_start" timestamptz,
   "window_hits" integer not null default 0,
   "expires_at" timestamptz,
@@ -27,7 +27,7 @@ create table "better_supabase"."api_keys" (
   "rotated_from" uuid references "better_supabase"."api_keys" ("id") on delete set null,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
-  check ("organization_id" is not null or "user_id" is not null)
+  constraint bsb_api_keys_check check ("organization_id" is not null or "user_id" is not null)
 );
 -- verify_api_key updates the counters on every request; free space on each
 -- page keeps those updates HOT (no index writes).

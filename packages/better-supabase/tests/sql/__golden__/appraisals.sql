@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:b40fa0cb308e9c1bb7eebeec86ac5861dc76b30c408474245279c9397d738f4e
+-- @bsb-hash sha256:2c8b724212329e797a986b0758f48cff08eb24a4aa29b8ffd89f8331f1d216f9
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -51,15 +51,15 @@ grant execute on function "better_supabase"."appraisal_review_hidden"(uuid) to a
 create table "better_supabase"."appraisal_cycles" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_appraisal_cycles_name_check check (length("name") >= 1 and length("name") <= 200),
   "starts_on" date not null,
   "ends_on" date not null,
   -- The key of the enrollment program the cycle's appraisals follow, when set.
   "program" text,
-  "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed')),
+  "status" text not null default 'draft' constraint bsb_appraisal_cycles_status_check check ("status" in ('draft', 'open', 'closed')),
   -- Who learns which peer wrote a review: everyone who sees it (none), anyone
   -- but the appraised person (subject), or only the reviewer (all).
-  "anonymity" text not null default 'subject' check ("anonymity" in ('none', 'subject', 'all')),
+  "anonymity" text not null default 'subject' constraint bsb_appraisal_cycles_anonymity_check check ("anonymity" in ('none', 'subject', 'all')),
   -- Whether the appraised person reads the manager and peer reviews once the
   -- appraisal is signed off.
   "share_feedback" boolean not null default false,
@@ -68,7 +68,7 @@ create table "better_supabase"."appraisal_cycles" (
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("ends_on" >= "starts_on")
+  constraint bsb_appraisal_cycles_check check ("ends_on" >= "starts_on")
 );
 create index "appraisal_cycles_tenant_idx" on "better_supabase"."appraisal_cycles" ("tenant_id", "starts_on" desc);
 alter table "better_supabase"."appraisal_cycles" enable row level security;
@@ -85,13 +85,13 @@ create table "better_supabase"."appraisals" (
   "cycle_id" uuid not null,
   "subject_user_id" uuid not null,
   "manager_id" uuid,
-  "status" text not null default 'pending' check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off')),
+  "status" text not null default 'pending' constraint bsb_appraisals_status_check check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off')),
   -- The average of the submitted reviews.
-  "rating" numeric(3, 2) check ("rating" is null or "rating" >= 1 and "rating" <= 5),
+  "rating" numeric(3, 2) constraint bsb_appraisals_rating_check check ("rating" is null or "rating" >= 1 and "rating" <= 5),
   -- The rating a calibration session set, when it moved.
-  "calibrated_rating" smallint check ("calibrated_rating" is null or "calibrated_rating" >= 1 and "calibrated_rating" <= 5),
+  "calibrated_rating" smallint constraint bsb_appraisals_calibrated_rating_check check ("calibrated_rating" is null or "calibrated_rating" >= 1 and "calibrated_rating" <= 5),
   -- Calibrated competency ratings by competency key, when a session moved them.
-  "calibrated_competencies" jsonb not null default '{}'::jsonb check (jsonb_typeof("calibrated_competencies") = 'object'),
+  "calibrated_competencies" jsonb not null default '{}'::jsonb constraint bsb_appraisals_calibrated_competencies_check check (jsonb_typeof("calibrated_competencies") = 'object'),
   -- The approvals request that signs the appraisal off.
   "approval_id" uuid,
   "signed_off_at" timestamptz,
@@ -101,7 +101,7 @@ create table "better_supabase"."appraisals" (
   unique ("tenant_id", "id"),
   unique ("cycle_id", "subject_user_id"),
   foreign key ("tenant_id", "cycle_id") references "better_supabase"."appraisal_cycles" ("tenant_id", "id") on delete cascade,
-  check (("status" = 'signed_off') = ("signed_off_at" is not null))
+  constraint bsb_appraisals_check check (("status" = 'signed_off') = ("signed_off_at" is not null))
 );
 create index "appraisals_cycle_idx" on "better_supabase"."appraisals" ("tenant_id", "cycle_id", "status");
 create index "appraisals_subject_idx" on "better_supabase"."appraisals" ("tenant_id", "subject_user_id");
@@ -119,16 +119,16 @@ create table "better_supabase"."appraisal_reviews" (
   "tenant_id" uuid not null,
   "appraisal_id" uuid not null,
   "reviewer_id" uuid not null,
-  "kind" text not null check ("kind" in ('self', 'peer', 'manager')),
-  "rating" smallint check ("rating" is null or "rating" >= 1 and "rating" <= 5),
-  "comments" text check ("comments" is null or length("comments") <= 10000),
+  "kind" text not null constraint bsb_appraisal_reviews_kind_check check ("kind" in ('self', 'peer', 'manager')),
+  "rating" smallint constraint bsb_appraisal_reviews_rating_check check ("rating" is null or "rating" >= 1 and "rating" <= 5),
+  "comments" text constraint bsb_appraisal_reviews_comments_check check ("comments" is null or length("comments") <= 10000),
   -- The forms submission with the longer answers, when the review uses a form.
   "submission_id" uuid,
   "submitted_at" timestamptz,
   unique ("tenant_id", "id"),
   unique ("appraisal_id", "reviewer_id", "kind"),
   foreign key ("tenant_id", "appraisal_id") references "better_supabase"."appraisals" ("tenant_id", "id") on delete cascade,
-  check (("submitted_at" is not null) = ("rating" is not null))
+  constraint bsb_appraisal_reviews_check check (("submitted_at" is not null) = ("rating" is not null))
 );
 create index "appraisal_reviews_parent_idx" on "better_supabase"."appraisal_reviews" ("tenant_id", "appraisal_id");
 create index "appraisal_reviews_reviewer_idx" on "better_supabase"."appraisal_reviews" ("tenant_id", "reviewer_id") where "submitted_at" is null;
@@ -145,10 +145,10 @@ create table "better_supabase"."appraisal_calibrations" (
   "tenant_id" uuid not null,
   "appraisal_id" uuid not null,
   "from_rating" numeric(3, 2),
-  "to_rating" smallint not null check ("to_rating" >= 1 and "to_rating" <= 5),
+  "to_rating" smallint not null constraint bsb_appraisal_calibrations_to_rating_check check ("to_rating" >= 1 and "to_rating" <= 5),
   -- The competency ratings the session set, by competency key.
-  "competency_ratings" jsonb not null default '{}'::jsonb check (jsonb_typeof("competency_ratings") = 'object'),
-  "reason" text not null check (length("reason") >= 1 and length("reason") <= 2000),
+  "competency_ratings" jsonb not null default '{}'::jsonb constraint bsb_appraisal_calibrations_competency_ratings_check check (jsonb_typeof("competency_ratings") = 'object'),
+  "reason" text not null constraint bsb_appraisal_calibrations_reason_check check (length("reason") >= 1 and length("reason") <= 2000),
   "calibrated_by" uuid,
   "calibrated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "appraisal_id") references "better_supabase"."appraisals" ("tenant_id", "id") on delete cascade
@@ -169,9 +169,9 @@ create table "better_supabase"."appraisal_competencies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cycle_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "weight" numeric(6, 2) not null default 1 check ("weight" > 0 and "weight" <= 1000),
+  "key" text not null constraint bsb_appraisal_competencies_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_appraisal_competencies_name_check check (length("name") >= 1 and length("name") <= 200),
+  "weight" numeric(6, 2) not null default 1 constraint bsb_appraisal_competencies_weight_check check ("weight" > 0 and "weight" <= 1000),
   "position" integer not null default 0,
   unique ("tenant_id", "id"),
   unique ("cycle_id", "key"),
@@ -192,8 +192,8 @@ create table "better_supabase"."appraisal_review_ratings" (
   "tenant_id" uuid not null,
   "review_id" uuid not null,
   "competency_id" uuid not null,
-  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
-  "comment" text check ("comment" is null or length("comment") <= 2000),
+  "rating" smallint not null constraint bsb_appraisal_review_ratings_rating_check check ("rating" >= 1 and "rating" <= 5),
+  "comment" text constraint bsb_appraisal_review_ratings_comment_check check ("comment" is null or length("comment") <= 2000),
   unique ("review_id", "competency_id"),
   foreign key ("tenant_id", "review_id") references "better_supabase"."appraisal_reviews" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "competency_id") references "better_supabase"."appraisal_competencies" ("tenant_id", "id") on delete cascade
@@ -1167,7 +1167,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:a7d0d7c32c3d0e97b7cff029cdf27d08cda4df27577107a5ddc0080f3fe83532
+-- @bsb-hash sha256:adbeadb37588f91222166aa5a553d23ea5d6a722adb38d29e71b98a87fdbb9ae
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1217,15 +1217,15 @@ grant execute on function "better_supabase"."appraisal_review_hidden"(uuid) to a
 create table "better_supabase"."appraisal_cycles" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_appraisal_cycles_name_check check (length("name") >= 1 and length("name") <= 200),
   "starts_on" date not null,
   "ends_on" date not null,
   -- The key of the enrollment program the cycle's appraisals follow, when set.
   "program" text,
-  "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed')),
+  "status" text not null default 'draft' constraint bsb_appraisal_cycles_status_check check ("status" in ('draft', 'open', 'closed')),
   -- Who learns which peer wrote a review: everyone who sees it (none), anyone
   -- but the appraised person (subject), or only the reviewer (all).
-  "anonymity" text not null default 'subject' check ("anonymity" in ('none', 'subject', 'all')),
+  "anonymity" text not null default 'subject' constraint bsb_appraisal_cycles_anonymity_check check ("anonymity" in ('none', 'subject', 'all')),
   -- Whether the appraised person reads the manager and peer reviews once the
   -- appraisal is signed off.
   "share_feedback" boolean not null default false,
@@ -1234,7 +1234,7 @@ create table "better_supabase"."appraisal_cycles" (
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("ends_on" >= "starts_on")
+  constraint bsb_appraisal_cycles_check check ("ends_on" >= "starts_on")
 );
 create index "appraisal_cycles_tenant_idx" on "better_supabase"."appraisal_cycles" ("tenant_id", "starts_on" desc);
 alter table "better_supabase"."appraisal_cycles" enable row level security;
@@ -1251,13 +1251,13 @@ create table "better_supabase"."appraisals" (
   "cycle_id" uuid not null,
   "subject_user_id" uuid not null,
   "manager_id" uuid,
-  "status" text not null default 'pending' check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off')),
+  "status" text not null default 'pending' constraint bsb_appraisals_status_check check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off')),
   -- The average of the submitted reviews.
-  "rating" numeric(3, 2) check ("rating" is null or "rating" >= 1 and "rating" <= 5),
+  "rating" numeric(3, 2) constraint bsb_appraisals_rating_check check ("rating" is null or "rating" >= 1 and "rating" <= 5),
   -- The rating a calibration session set, when it moved.
-  "calibrated_rating" smallint check ("calibrated_rating" is null or "calibrated_rating" >= 1 and "calibrated_rating" <= 5),
+  "calibrated_rating" smallint constraint bsb_appraisals_calibrated_rating_check check ("calibrated_rating" is null or "calibrated_rating" >= 1 and "calibrated_rating" <= 5),
   -- Calibrated competency ratings by competency key, when a session moved them.
-  "calibrated_competencies" jsonb not null default '{}'::jsonb check (jsonb_typeof("calibrated_competencies") = 'object'),
+  "calibrated_competencies" jsonb not null default '{}'::jsonb constraint bsb_appraisals_calibrated_competencies_check check (jsonb_typeof("calibrated_competencies") = 'object'),
   -- The approvals request that signs the appraisal off.
   "approval_id" uuid,
   "signed_off_at" timestamptz,
@@ -1267,7 +1267,7 @@ create table "better_supabase"."appraisals" (
   unique ("tenant_id", "id"),
   unique ("cycle_id", "subject_user_id"),
   foreign key ("tenant_id", "cycle_id") references "better_supabase"."appraisal_cycles" ("tenant_id", "id") on delete cascade,
-  check (("status" = 'signed_off') = ("signed_off_at" is not null))
+  constraint bsb_appraisals_check check (("status" = 'signed_off') = ("signed_off_at" is not null))
 );
 create index "appraisals_cycle_idx" on "better_supabase"."appraisals" ("tenant_id", "cycle_id", "status");
 create index "appraisals_subject_idx" on "better_supabase"."appraisals" ("tenant_id", "subject_user_id");
@@ -1285,16 +1285,16 @@ create table "better_supabase"."appraisal_reviews" (
   "tenant_id" uuid not null,
   "appraisal_id" uuid not null,
   "reviewer_id" uuid not null,
-  "kind" text not null check ("kind" in ('self', 'peer', 'manager')),
-  "rating" smallint check ("rating" is null or "rating" >= 1 and "rating" <= 5),
-  "comments" text check ("comments" is null or length("comments") <= 10000),
+  "kind" text not null constraint bsb_appraisal_reviews_kind_check check ("kind" in ('self', 'peer', 'manager')),
+  "rating" smallint constraint bsb_appraisal_reviews_rating_check check ("rating" is null or "rating" >= 1 and "rating" <= 5),
+  "comments" text constraint bsb_appraisal_reviews_comments_check check ("comments" is null or length("comments") <= 10000),
   -- The forms submission with the longer answers, when the review uses a form.
   "submission_id" uuid,
   "submitted_at" timestamptz,
   unique ("tenant_id", "id"),
   unique ("appraisal_id", "reviewer_id", "kind"),
   foreign key ("tenant_id", "appraisal_id") references "better_supabase"."appraisals" ("tenant_id", "id") on delete cascade,
-  check (("submitted_at" is not null) = ("rating" is not null))
+  constraint bsb_appraisal_reviews_check check (("submitted_at" is not null) = ("rating" is not null))
 );
 create index "appraisal_reviews_parent_idx" on "better_supabase"."appraisal_reviews" ("tenant_id", "appraisal_id");
 create index "appraisal_reviews_reviewer_idx" on "better_supabase"."appraisal_reviews" ("tenant_id", "reviewer_id") where "submitted_at" is null;
@@ -1311,10 +1311,10 @@ create table "better_supabase"."appraisal_calibrations" (
   "tenant_id" uuid not null,
   "appraisal_id" uuid not null,
   "from_rating" numeric(3, 2),
-  "to_rating" smallint not null check ("to_rating" >= 1 and "to_rating" <= 5),
+  "to_rating" smallint not null constraint bsb_appraisal_calibrations_to_rating_check check ("to_rating" >= 1 and "to_rating" <= 5),
   -- The competency ratings the session set, by competency key.
-  "competency_ratings" jsonb not null default '{}'::jsonb check (jsonb_typeof("competency_ratings") = 'object'),
-  "reason" text not null check (length("reason") >= 1 and length("reason") <= 2000),
+  "competency_ratings" jsonb not null default '{}'::jsonb constraint bsb_appraisal_calibrations_competency_ratings_check check (jsonb_typeof("competency_ratings") = 'object'),
+  "reason" text not null constraint bsb_appraisal_calibrations_reason_check check (length("reason") >= 1 and length("reason") <= 2000),
   "calibrated_by" uuid,
   "calibrated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "appraisal_id") references "better_supabase"."appraisals" ("tenant_id", "id") on delete cascade
@@ -1335,9 +1335,9 @@ create table "better_supabase"."appraisal_competencies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cycle_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "weight" numeric(6, 2) not null default 1 check ("weight" > 0 and "weight" <= 1000),
+  "key" text not null constraint bsb_appraisal_competencies_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_appraisal_competencies_name_check check (length("name") >= 1 and length("name") <= 200),
+  "weight" numeric(6, 2) not null default 1 constraint bsb_appraisal_competencies_weight_check check ("weight" > 0 and "weight" <= 1000),
   "position" integer not null default 0,
   unique ("tenant_id", "id"),
   unique ("cycle_id", "key"),
@@ -1358,8 +1358,8 @@ create table "better_supabase"."appraisal_review_ratings" (
   "tenant_id" uuid not null,
   "review_id" uuid not null,
   "competency_id" uuid not null,
-  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
-  "comment" text check ("comment" is null or length("comment") <= 2000),
+  "rating" smallint not null constraint bsb_appraisal_review_ratings_rating_check check ("rating" >= 1 and "rating" <= 5),
+  "comment" text constraint bsb_appraisal_review_ratings_comment_check check ("comment" is null or length("comment") <= 2000),
   unique ("review_id", "competency_id"),
   foreign key ("tenant_id", "review_id") references "better_supabase"."appraisal_reviews" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "competency_id") references "better_supabase"."appraisal_competencies" ("tenant_id", "id") on delete cascade
@@ -2511,7 +2511,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:d6aa85c2c4392b6144d5f2da217ae0f835e6fb2898dc887a71debb328abe6c45
+-- @bsb-hash sha256:2c821673c8063aafa2367f8cbb2677047d69ffec0db6950ecb90277e6fceb7f0
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2566,15 +2566,15 @@ grant execute on function "app_private"."appraisal_review_hidden"(uuid) to authe
 create table "app_private"."appraisal_cycles" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_appraisal_cycles_name_check check (length("name") >= 1 and length("name") <= 200),
   "starts_on" date not null,
   "ends_on" date not null,
   -- The key of the enrollment program the cycle's appraisals follow, when set.
   "program" text,
-  "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed')),
+  "status" text not null default 'draft' constraint bsb_appraisal_cycles_status_check check ("status" in ('draft', 'open', 'closed')),
   -- Who learns which peer wrote a review: everyone who sees it (none), anyone
   -- but the appraised person (subject), or only the reviewer (all).
-  "anonymity" text not null default 'subject' check ("anonymity" in ('none', 'subject', 'all')),
+  "anonymity" text not null default 'subject' constraint bsb_appraisal_cycles_anonymity_check check ("anonymity" in ('none', 'subject', 'all')),
   -- Whether the appraised person reads the manager and peer reviews once the
   -- appraisal is signed off.
   "share_feedback" boolean not null default false,
@@ -2583,7 +2583,7 @@ create table "app_private"."appraisal_cycles" (
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("ends_on" >= "starts_on")
+  constraint bsb_appraisal_cycles_check check ("ends_on" >= "starts_on")
 );
 create index "appraisal_cycles_tenant_idx" on "app_private"."appraisal_cycles" ("tenant_id", "starts_on" desc);
 alter table "app_private"."appraisal_cycles" enable row level security;
@@ -2600,13 +2600,13 @@ create table "app_private"."appraisals" (
   "cycle_id" uuid not null,
   "subject_user_id" uuid not null,
   "manager_id" uuid,
-  "status" text not null default 'pending' check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off')),
+  "status" text not null default 'pending' constraint bsb_appraisals_status_check check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off')),
   -- The average of the submitted reviews.
-  "rating" numeric(3, 2) check ("rating" is null or "rating" >= 1 and "rating" <= 5),
+  "rating" numeric(3, 2) constraint bsb_appraisals_rating_check check ("rating" is null or "rating" >= 1 and "rating" <= 5),
   -- The rating a calibration session set, when it moved.
-  "calibrated_rating" smallint check ("calibrated_rating" is null or "calibrated_rating" >= 1 and "calibrated_rating" <= 5),
+  "calibrated_rating" smallint constraint bsb_appraisals_calibrated_rating_check check ("calibrated_rating" is null or "calibrated_rating" >= 1 and "calibrated_rating" <= 5),
   -- Calibrated competency ratings by competency key, when a session moved them.
-  "calibrated_competencies" jsonb not null default '{}'::jsonb check (jsonb_typeof("calibrated_competencies") = 'object'),
+  "calibrated_competencies" jsonb not null default '{}'::jsonb constraint bsb_appraisals_calibrated_competencies_check check (jsonb_typeof("calibrated_competencies") = 'object'),
   -- The approvals request that signs the appraisal off.
   "approval_id" uuid,
   "signed_off_at" timestamptz,
@@ -2616,7 +2616,7 @@ create table "app_private"."appraisals" (
   unique ("tenant_id", "id"),
   unique ("cycle_id", "subject_user_id"),
   foreign key ("tenant_id", "cycle_id") references "app_private"."appraisal_cycles" ("tenant_id", "id") on delete cascade,
-  check (("status" = 'signed_off') = ("signed_off_at" is not null))
+  constraint bsb_appraisals_check check (("status" = 'signed_off') = ("signed_off_at" is not null))
 );
 create index "appraisals_cycle_idx" on "app_private"."appraisals" ("tenant_id", "cycle_id", "status");
 create index "appraisals_subject_idx" on "app_private"."appraisals" ("tenant_id", "subject_user_id");
@@ -2634,16 +2634,16 @@ create table "app_private"."appraisal_reviews" (
   "tenant_id" uuid not null,
   "appraisal_id" uuid not null,
   "reviewer_id" uuid not null,
-  "kind" text not null check ("kind" in ('self', 'peer', 'manager')),
-  "rating" smallint check ("rating" is null or "rating" >= 1 and "rating" <= 5),
-  "comments" text check ("comments" is null or length("comments") <= 10000),
+  "kind" text not null constraint bsb_appraisal_reviews_kind_check check ("kind" in ('self', 'peer', 'manager')),
+  "rating" smallint constraint bsb_appraisal_reviews_rating_check check ("rating" is null or "rating" >= 1 and "rating" <= 5),
+  "comments" text constraint bsb_appraisal_reviews_comments_check check ("comments" is null or length("comments") <= 10000),
   -- The forms submission with the longer answers, when the review uses a form.
   "submission_id" uuid,
   "submitted_at" timestamptz,
   unique ("tenant_id", "id"),
   unique ("appraisal_id", "reviewer_id", "kind"),
   foreign key ("tenant_id", "appraisal_id") references "app_private"."appraisals" ("tenant_id", "id") on delete cascade,
-  check (("submitted_at" is not null) = ("rating" is not null))
+  constraint bsb_appraisal_reviews_check check (("submitted_at" is not null) = ("rating" is not null))
 );
 create index "appraisal_reviews_parent_idx" on "app_private"."appraisal_reviews" ("tenant_id", "appraisal_id");
 create index "appraisal_reviews_reviewer_idx" on "app_private"."appraisal_reviews" ("tenant_id", "reviewer_id") where "submitted_at" is null;
@@ -2660,10 +2660,10 @@ create table "app_private"."appraisal_calibrations" (
   "tenant_id" uuid not null,
   "appraisal_id" uuid not null,
   "from_rating" numeric(3, 2),
-  "to_rating" smallint not null check ("to_rating" >= 1 and "to_rating" <= 5),
+  "to_rating" smallint not null constraint bsb_appraisal_calibrations_to_rating_check check ("to_rating" >= 1 and "to_rating" <= 5),
   -- The competency ratings the session set, by competency key.
-  "competency_ratings" jsonb not null default '{}'::jsonb check (jsonb_typeof("competency_ratings") = 'object'),
-  "reason" text not null check (length("reason") >= 1 and length("reason") <= 2000),
+  "competency_ratings" jsonb not null default '{}'::jsonb constraint bsb_appraisal_calibrations_competency_ratings_check check (jsonb_typeof("competency_ratings") = 'object'),
+  "reason" text not null constraint bsb_appraisal_calibrations_reason_check check (length("reason") >= 1 and length("reason") <= 2000),
   "calibrated_by" uuid,
   "calibrated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "appraisal_id") references "app_private"."appraisals" ("tenant_id", "id") on delete cascade
@@ -2684,9 +2684,9 @@ create table "app_private"."appraisal_competencies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cycle_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "weight" numeric(6, 2) not null default 1 check ("weight" > 0 and "weight" <= 1000),
+  "key" text not null constraint bsb_appraisal_competencies_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_appraisal_competencies_name_check check (length("name") >= 1 and length("name") <= 200),
+  "weight" numeric(6, 2) not null default 1 constraint bsb_appraisal_competencies_weight_check check ("weight" > 0 and "weight" <= 1000),
   "position" integer not null default 0,
   unique ("tenant_id", "id"),
   unique ("cycle_id", "key"),
@@ -2707,8 +2707,8 @@ create table "app_private"."appraisal_review_ratings" (
   "tenant_id" uuid not null,
   "review_id" uuid not null,
   "competency_id" uuid not null,
-  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
-  "comment" text check ("comment" is null or length("comment") <= 2000),
+  "rating" smallint not null constraint bsb_appraisal_review_ratings_rating_check check ("rating" >= 1 and "rating" <= 5),
+  "comment" text constraint bsb_appraisal_review_ratings_comment_check check ("comment" is null or length("comment") <= 2000),
   unique ("review_id", "competency_id"),
   foreign key ("tenant_id", "review_id") references "app_private"."appraisal_reviews" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "competency_id") references "app_private"."appraisal_competencies" ("tenant_id", "id") on delete cascade
@@ -3682,7 +3682,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:e2676de7056c268d4777e546a014631807336286b627bc734aaf1c816829fc6b
+-- @bsb-hash sha256:41b1e23a1a95319a25cdf999b3af925e3869427225f725290da70284dca939f8
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3732,15 +3732,15 @@ grant execute on function "better_supabase"."appraisal_review_hidden"(uuid) to a
 create table "better_supabase"."appraisal_cycles" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_appraisal_cycles_name_check check (length("name") >= 1 and length("name") <= 200),
   "starts_on" date not null,
   "ends_on" date not null,
   -- The key of the enrollment program the cycle's appraisals follow, when set.
   "program" text,
-  "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed')),
+  "status" text not null default 'draft' constraint bsb_appraisal_cycles_status_check check ("status" in ('draft', 'open', 'closed')),
   -- Who learns which peer wrote a review: everyone who sees it (none), anyone
   -- but the appraised person (subject), or only the reviewer (all).
-  "anonymity" text not null default 'subject' check ("anonymity" in ('none', 'subject', 'all')),
+  "anonymity" text not null default 'subject' constraint bsb_appraisal_cycles_anonymity_check check ("anonymity" in ('none', 'subject', 'all')),
   -- Whether the appraised person reads the manager and peer reviews once the
   -- appraisal is signed off.
   "share_feedback" boolean not null default false,
@@ -3749,7 +3749,7 @@ create table "better_supabase"."appraisal_cycles" (
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check ("ends_on" >= "starts_on")
+  constraint bsb_appraisal_cycles_check check ("ends_on" >= "starts_on")
 );
 create index "appraisal_cycles_tenant_idx" on "better_supabase"."appraisal_cycles" ("tenant_id", "starts_on" desc);
 alter table "better_supabase"."appraisal_cycles" enable row level security;
@@ -3766,13 +3766,13 @@ create table "better_supabase"."appraisals" (
   "cycle_id" uuid not null,
   "subject_user_id" uuid not null,
   "manager_id" uuid,
-  "status" text not null default 'pending' check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off')),
+  "status" text not null default 'pending' constraint bsb_appraisals_status_check check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off')),
   -- The average of the submitted reviews.
-  "rating" numeric(3, 2) check ("rating" is null or "rating" >= 1 and "rating" <= 5),
+  "rating" numeric(3, 2) constraint bsb_appraisals_rating_check check ("rating" is null or "rating" >= 1 and "rating" <= 5),
   -- The rating a calibration session set, when it moved.
-  "calibrated_rating" smallint check ("calibrated_rating" is null or "calibrated_rating" >= 1 and "calibrated_rating" <= 5),
+  "calibrated_rating" smallint constraint bsb_appraisals_calibrated_rating_check check ("calibrated_rating" is null or "calibrated_rating" >= 1 and "calibrated_rating" <= 5),
   -- Calibrated competency ratings by competency key, when a session moved them.
-  "calibrated_competencies" jsonb not null default '{}'::jsonb check (jsonb_typeof("calibrated_competencies") = 'object'),
+  "calibrated_competencies" jsonb not null default '{}'::jsonb constraint bsb_appraisals_calibrated_competencies_check check (jsonb_typeof("calibrated_competencies") = 'object'),
   -- The approvals request that signs the appraisal off.
   "approval_id" uuid,
   "signed_off_at" timestamptz,
@@ -3782,7 +3782,7 @@ create table "better_supabase"."appraisals" (
   unique ("tenant_id", "id"),
   unique ("cycle_id", "subject_user_id"),
   foreign key ("tenant_id", "cycle_id") references "better_supabase"."appraisal_cycles" ("tenant_id", "id") on delete cascade,
-  check (("status" = 'signed_off') = ("signed_off_at" is not null))
+  constraint bsb_appraisals_check check (("status" = 'signed_off') = ("signed_off_at" is not null))
 );
 create index "appraisals_cycle_idx" on "better_supabase"."appraisals" ("tenant_id", "cycle_id", "status");
 create index "appraisals_subject_idx" on "better_supabase"."appraisals" ("tenant_id", "subject_user_id");
@@ -3800,16 +3800,16 @@ create table "better_supabase"."appraisal_reviews" (
   "tenant_id" uuid not null,
   "appraisal_id" uuid not null,
   "reviewer_id" uuid not null,
-  "kind" text not null check ("kind" in ('self', 'peer', 'manager')),
-  "rating" smallint check ("rating" is null or "rating" >= 1 and "rating" <= 5),
-  "comments" text check ("comments" is null or length("comments") <= 10000),
+  "kind" text not null constraint bsb_appraisal_reviews_kind_check check ("kind" in ('self', 'peer', 'manager')),
+  "rating" smallint constraint bsb_appraisal_reviews_rating_check check ("rating" is null or "rating" >= 1 and "rating" <= 5),
+  "comments" text constraint bsb_appraisal_reviews_comments_check check ("comments" is null or length("comments") <= 10000),
   -- The forms submission with the longer answers, when the review uses a form.
   "submission_id" uuid,
   "submitted_at" timestamptz,
   unique ("tenant_id", "id"),
   unique ("appraisal_id", "reviewer_id", "kind"),
   foreign key ("tenant_id", "appraisal_id") references "better_supabase"."appraisals" ("tenant_id", "id") on delete cascade,
-  check (("submitted_at" is not null) = ("rating" is not null))
+  constraint bsb_appraisal_reviews_check check (("submitted_at" is not null) = ("rating" is not null))
 );
 create index "appraisal_reviews_parent_idx" on "better_supabase"."appraisal_reviews" ("tenant_id", "appraisal_id");
 create index "appraisal_reviews_reviewer_idx" on "better_supabase"."appraisal_reviews" ("tenant_id", "reviewer_id") where "submitted_at" is null;
@@ -3826,10 +3826,10 @@ create table "better_supabase"."appraisal_calibrations" (
   "tenant_id" uuid not null,
   "appraisal_id" uuid not null,
   "from_rating" numeric(3, 2),
-  "to_rating" smallint not null check ("to_rating" >= 1 and "to_rating" <= 5),
+  "to_rating" smallint not null constraint bsb_appraisal_calibrations_to_rating_check check ("to_rating" >= 1 and "to_rating" <= 5),
   -- The competency ratings the session set, by competency key.
-  "competency_ratings" jsonb not null default '{}'::jsonb check (jsonb_typeof("competency_ratings") = 'object'),
-  "reason" text not null check (length("reason") >= 1 and length("reason") <= 2000),
+  "competency_ratings" jsonb not null default '{}'::jsonb constraint bsb_appraisal_calibrations_competency_ratings_check check (jsonb_typeof("competency_ratings") = 'object'),
+  "reason" text not null constraint bsb_appraisal_calibrations_reason_check check (length("reason") >= 1 and length("reason") <= 2000),
   "calibrated_by" uuid,
   "calibrated_at" timestamptz not null default now(),
   foreign key ("tenant_id", "appraisal_id") references "better_supabase"."appraisals" ("tenant_id", "id") on delete cascade
@@ -3850,9 +3850,9 @@ create table "better_supabase"."appraisal_competencies" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "cycle_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "weight" numeric(6, 2) not null default 1 check ("weight" > 0 and "weight" <= 1000),
+  "key" text not null constraint bsb_appraisal_competencies_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_appraisal_competencies_name_check check (length("name") >= 1 and length("name") <= 200),
+  "weight" numeric(6, 2) not null default 1 constraint bsb_appraisal_competencies_weight_check check ("weight" > 0 and "weight" <= 1000),
   "position" integer not null default 0,
   unique ("tenant_id", "id"),
   unique ("cycle_id", "key"),
@@ -3873,8 +3873,8 @@ create table "better_supabase"."appraisal_review_ratings" (
   "tenant_id" uuid not null,
   "review_id" uuid not null,
   "competency_id" uuid not null,
-  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
-  "comment" text check ("comment" is null or length("comment") <= 2000),
+  "rating" smallint not null constraint bsb_appraisal_review_ratings_rating_check check ("rating" >= 1 and "rating" <= 5),
+  "comment" text constraint bsb_appraisal_review_ratings_comment_check check ("comment" is null or length("comment") <= 2000),
   unique ("review_id", "competency_id"),
   foreign key ("tenant_id", "review_id") references "better_supabase"."appraisal_reviews" ("tenant_id", "id") on delete cascade,
   foreign key ("tenant_id", "competency_id") references "better_supabase"."appraisal_competencies" ("tenant_id", "id") on delete cascade
@@ -4973,7 +4973,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:200c56d2d8465ecd981439acfa05597617a5da803f3aeb35cd749a439c8c2cf0
+-- @bsb-hash sha256:ace9b7f51e82865996ce3c3687aa0a2d4fed907cb83dcea90fde8e45e8fa27ac
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5023,12 +5023,12 @@ grant execute on function "better_supabase"."appraisal_review_hidden"(uuid) to a
 -- better_supabase.appraisal_cycles is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."appraisal_cycles" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."appraisal_cycles" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."appraisal_cycles" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."appraisal_cycles" add column if not exists "name" text constraint bsb_appraisal_cycles_name_check check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."appraisal_cycles" add column if not exists "starts_on" date;
 alter table "better_supabase"."appraisal_cycles" add column if not exists "ends_on" date;
 alter table "better_supabase"."appraisal_cycles" add column if not exists "program" text;
-alter table "better_supabase"."appraisal_cycles" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed'));
-alter table "better_supabase"."appraisal_cycles" add column if not exists "anonymity" text not null default 'subject' check ("anonymity" in ('none', 'subject', 'all'));
+alter table "better_supabase"."appraisal_cycles" add column if not exists "status" text not null default 'draft' constraint bsb_appraisal_cycles_status_check check ("status" in ('draft', 'open', 'closed'));
+alter table "better_supabase"."appraisal_cycles" add column if not exists "anonymity" text not null default 'subject' constraint bsb_appraisal_cycles_anonymity_check check ("anonymity" in ('none', 'subject', 'all'));
 alter table "better_supabase"."appraisal_cycles" add column if not exists "share_feedback" boolean not null default false;
 alter table "better_supabase"."appraisal_cycles" add column if not exists "opened_at" timestamptz;
 alter table "better_supabase"."appraisal_cycles" add column if not exists "closed_at" timestamptz;
@@ -5049,10 +5049,10 @@ alter table "better_supabase"."appraisals" add column if not exists "tenant_id" 
 alter table "better_supabase"."appraisals" add column if not exists "cycle_id" uuid;
 alter table "better_supabase"."appraisals" add column if not exists "subject_user_id" uuid;
 alter table "better_supabase"."appraisals" add column if not exists "manager_id" uuid;
-alter table "better_supabase"."appraisals" add column if not exists "status" text not null default 'pending' check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off'));
-alter table "better_supabase"."appraisals" add column if not exists "rating" numeric(3, 2) check ("rating" is null or "rating" >= 1 and "rating" <= 5);
-alter table "better_supabase"."appraisals" add column if not exists "calibrated_rating" smallint check ("calibrated_rating" is null or "calibrated_rating" >= 1 and "calibrated_rating" <= 5);
-alter table "better_supabase"."appraisals" add column if not exists "calibrated_competencies" jsonb not null default '{}'::jsonb check (jsonb_typeof("calibrated_competencies") = 'object');
+alter table "better_supabase"."appraisals" add column if not exists "status" text not null default 'pending' constraint bsb_appraisals_status_check check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off'));
+alter table "better_supabase"."appraisals" add column if not exists "rating" numeric(3, 2) constraint bsb_appraisals_rating_check check ("rating" is null or "rating" >= 1 and "rating" <= 5);
+alter table "better_supabase"."appraisals" add column if not exists "calibrated_rating" smallint constraint bsb_appraisals_calibrated_rating_check check ("calibrated_rating" is null or "calibrated_rating" >= 1 and "calibrated_rating" <= 5);
+alter table "better_supabase"."appraisals" add column if not exists "calibrated_competencies" jsonb not null default '{}'::jsonb constraint bsb_appraisals_calibrated_competencies_check check (jsonb_typeof("calibrated_competencies") = 'object');
 alter table "better_supabase"."appraisals" add column if not exists "approval_id" uuid;
 alter table "better_supabase"."appraisals" add column if not exists "signed_off_at" timestamptz;
 alter table "better_supabase"."appraisals" add column if not exists "signed_off_by" uuid;
@@ -5074,9 +5074,9 @@ alter table "better_supabase"."appraisal_reviews" add column if not exists "id" 
 alter table "better_supabase"."appraisal_reviews" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."appraisal_reviews" add column if not exists "appraisal_id" uuid;
 alter table "better_supabase"."appraisal_reviews" add column if not exists "reviewer_id" uuid;
-alter table "better_supabase"."appraisal_reviews" add column if not exists "kind" text check ("kind" in ('self', 'peer', 'manager'));
-alter table "better_supabase"."appraisal_reviews" add column if not exists "rating" smallint check ("rating" is null or "rating" >= 1 and "rating" <= 5);
-alter table "better_supabase"."appraisal_reviews" add column if not exists "comments" text check ("comments" is null or length("comments") <= 10000);
+alter table "better_supabase"."appraisal_reviews" add column if not exists "kind" text constraint bsb_appraisal_reviews_kind_check check ("kind" in ('self', 'peer', 'manager'));
+alter table "better_supabase"."appraisal_reviews" add column if not exists "rating" smallint constraint bsb_appraisal_reviews_rating_check check ("rating" is null or "rating" >= 1 and "rating" <= 5);
+alter table "better_supabase"."appraisal_reviews" add column if not exists "comments" text constraint bsb_appraisal_reviews_comments_check check ("comments" is null or length("comments") <= 10000);
 alter table "better_supabase"."appraisal_reviews" add column if not exists "submission_id" uuid;
 alter table "better_supabase"."appraisal_reviews" add column if not exists "submitted_at" timestamptz;
 create index if not exists "appraisal_reviews_parent_idx" on "better_supabase"."appraisal_reviews" ("tenant_id", "appraisal_id");
@@ -5093,9 +5093,9 @@ alter table "better_supabase"."appraisal_calibrations" add column if not exists 
 alter table "better_supabase"."appraisal_calibrations" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."appraisal_calibrations" add column if not exists "appraisal_id" uuid;
 alter table "better_supabase"."appraisal_calibrations" add column if not exists "from_rating" numeric(3, 2);
-alter table "better_supabase"."appraisal_calibrations" add column if not exists "to_rating" smallint check ("to_rating" >= 1 and "to_rating" <= 5);
-alter table "better_supabase"."appraisal_calibrations" add column if not exists "competency_ratings" jsonb not null default '{}'::jsonb check (jsonb_typeof("competency_ratings") = 'object');
-alter table "better_supabase"."appraisal_calibrations" add column if not exists "reason" text check (length("reason") >= 1 and length("reason") <= 2000);
+alter table "better_supabase"."appraisal_calibrations" add column if not exists "to_rating" smallint constraint bsb_appraisal_calibrations_to_rating_check check ("to_rating" >= 1 and "to_rating" <= 5);
+alter table "better_supabase"."appraisal_calibrations" add column if not exists "competency_ratings" jsonb not null default '{}'::jsonb constraint bsb_appraisal_calibrations_competency_ratings_check check (jsonb_typeof("competency_ratings") = 'object');
+alter table "better_supabase"."appraisal_calibrations" add column if not exists "reason" text constraint bsb_appraisal_calibrations_reason_check check (length("reason") >= 1 and length("reason") <= 2000);
 alter table "better_supabase"."appraisal_calibrations" add column if not exists "calibrated_by" uuid;
 alter table "better_supabase"."appraisal_calibrations" add column if not exists "calibrated_at" timestamptz not null default now();
 create index if not exists "appraisal_calibrations_parent_idx" on "better_supabase"."appraisal_calibrations" ("tenant_id", "appraisal_id", "calibrated_at");
@@ -5113,9 +5113,9 @@ create policy bsb_appraisal_calibrations_read on "better_supabase"."appraisal_ca
 alter table "better_supabase"."appraisal_competencies" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."appraisal_competencies" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."appraisal_competencies" add column if not exists "cycle_id" uuid;
-alter table "better_supabase"."appraisal_competencies" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."appraisal_competencies" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."appraisal_competencies" add column if not exists "weight" numeric(6, 2) not null default 1 check ("weight" > 0 and "weight" <= 1000);
+alter table "better_supabase"."appraisal_competencies" add column if not exists "key" text constraint bsb_appraisal_competencies_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."appraisal_competencies" add column if not exists "name" text constraint bsb_appraisal_competencies_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."appraisal_competencies" add column if not exists "weight" numeric(6, 2) not null default 1 constraint bsb_appraisal_competencies_weight_check check ("weight" > 0 and "weight" <= 1000);
 alter table "better_supabase"."appraisal_competencies" add column if not exists "position" integer not null default 0;
 create index if not exists "appraisal_competencies_parent_idx" on "better_supabase"."appraisal_competencies" ("tenant_id", "cycle_id", "position");
 alter table "better_supabase"."appraisal_competencies" enable row level security;
@@ -5131,8 +5131,8 @@ alter table "better_supabase"."appraisal_review_ratings" add column if not exist
 alter table "better_supabase"."appraisal_review_ratings" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."appraisal_review_ratings" add column if not exists "review_id" uuid;
 alter table "better_supabase"."appraisal_review_ratings" add column if not exists "competency_id" uuid;
-alter table "better_supabase"."appraisal_review_ratings" add column if not exists "rating" smallint check ("rating" >= 1 and "rating" <= 5);
-alter table "better_supabase"."appraisal_review_ratings" add column if not exists "comment" text check ("comment" is null or length("comment") <= 2000);
+alter table "better_supabase"."appraisal_review_ratings" add column if not exists "rating" smallint constraint bsb_appraisal_review_ratings_rating_check check ("rating" >= 1 and "rating" <= 5);
+alter table "better_supabase"."appraisal_review_ratings" add column if not exists "comment" text constraint bsb_appraisal_review_ratings_comment_check check ("comment" is null or length("comment") <= 2000);
 create index if not exists "appraisal_review_ratings_parent_idx" on "better_supabase"."appraisal_review_ratings" ("tenant_id", "review_id");
 create index if not exists "appraisal_review_ratings_competency_idx" on "better_supabase"."appraisal_review_ratings" ("tenant_id", "competency_id");
 alter table "better_supabase"."appraisal_review_ratings" enable row level security;
@@ -6097,7 +6097,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_165_appraisals.sql
 -- better-supabase module: appraisals
 -- @bsb-block appraisals@1 managed
--- @bsb-hash sha256:aa75c01d1eb1540e1e50ed42bfd2aa2e2fb8f5991efbf1a5519f58e464c8b32e
+-- @bsb-hash sha256:0caf9df597cafb8d404ee717540ac632e4db9a339039eb943b91e30c1f570e1c
 -- Performance appraisals: review cycles that can follow an enrollment program and carry a rubric of weighted competencies, one appraisal per person with self, peer and manager reviews, anonymous peer reviewers, goals, calibration sessions that keep their reason, and sign-off through approvals.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6147,15 +6147,15 @@ grant execute on function "better_supabase"."appraisal_review_hidden"(uuid) to a
 create table "better_supabase"."appraisal_cycles" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_appraisal_cycles_name_check check (length("name") >= 1 and length("name") <= 200),
   "starts_on" date not null,
   "ends_on" date not null,
   -- The key of the enrollment program the cycle's appraisals follow, when set.
   "program" text,
-  "status" text not null default 'draft' check ("status" in ('draft', 'open', 'closed')),
+  "status" text not null default 'draft' constraint bsb_appraisal_cycles_status_check check ("status" in ('draft', 'open', 'closed')),
   -- Who learns which peer wrote a review: everyone who sees it (none), anyone
   -- but the appraised person (subject), or only the reviewer (all).
-  "anonymity" text not null default 'subject' check ("anonymity" in ('none', 'subject', 'all')),
+  "anonymity" text not null default 'subject' constraint bsb_appraisal_cycles_anonymity_check check ("anonymity" in ('none', 'subject', 'all')),
   -- Whether the appraised person reads the manager and peer reviews once the
   -- appraisal is signed off.
   "share_feedback" boolean not null default false,
@@ -6164,7 +6164,7 @@ create table "better_supabase"."appraisal_cycles" (
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   unique ("org_id", "id"),
-  check ("ends_on" >= "starts_on")
+  constraint bsb_appraisal_cycles_check check ("ends_on" >= "starts_on")
 );
 create index "appraisal_cycles_tenant_idx" on "better_supabase"."appraisal_cycles" ("org_id", "starts_on" desc);
 alter table "better_supabase"."appraisal_cycles" enable row level security;
@@ -6181,13 +6181,13 @@ create table "better_supabase"."appraisals" (
   "cycle_id" uuid not null,
   "subject_user_id" uuid not null,
   "manager_id" uuid,
-  "status" text not null default 'pending' check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off')),
+  "status" text not null default 'pending' constraint bsb_appraisals_status_check check ("status" in ('pending', 'reviewed', 'calibrated', 'awaiting_signoff', 'signed_off')),
   -- The average of the submitted reviews.
-  "rating" numeric(3, 2) check ("rating" is null or "rating" >= 1 and "rating" <= 5),
+  "rating" numeric(3, 2) constraint bsb_appraisals_rating_check check ("rating" is null or "rating" >= 1 and "rating" <= 5),
   -- The rating a calibration session set, when it moved.
-  "calibrated_rating" smallint check ("calibrated_rating" is null or "calibrated_rating" >= 1 and "calibrated_rating" <= 5),
+  "calibrated_rating" smallint constraint bsb_appraisals_calibrated_rating_check check ("calibrated_rating" is null or "calibrated_rating" >= 1 and "calibrated_rating" <= 5),
   -- Calibrated competency ratings by competency key, when a session moved them.
-  "calibrated_competencies" jsonb not null default '{}'::jsonb check (jsonb_typeof("calibrated_competencies") = 'object'),
+  "calibrated_competencies" jsonb not null default '{}'::jsonb constraint bsb_appraisals_calibrated_competencies_check check (jsonb_typeof("calibrated_competencies") = 'object'),
   -- The approvals request that signs the appraisal off.
   "approval_id" uuid,
   "signed_off_at" timestamptz,
@@ -6197,7 +6197,7 @@ create table "better_supabase"."appraisals" (
   unique ("org_id", "id"),
   unique ("cycle_id", "subject_user_id"),
   foreign key ("org_id", "cycle_id") references "better_supabase"."appraisal_cycles" ("org_id", "id") on delete cascade,
-  check (("status" = 'signed_off') = ("signed_off_at" is not null))
+  constraint bsb_appraisals_check check (("status" = 'signed_off') = ("signed_off_at" is not null))
 );
 create index "appraisals_cycle_idx" on "better_supabase"."appraisals" ("org_id", "cycle_id", "status");
 create index "appraisals_subject_idx" on "better_supabase"."appraisals" ("org_id", "subject_user_id");
@@ -6215,16 +6215,16 @@ create table "better_supabase"."appraisal_reviews" (
   "org_id" uuid not null,
   "appraisal_id" uuid not null,
   "reviewer_id" uuid not null,
-  "kind" text not null check ("kind" in ('self', 'peer', 'manager')),
-  "rating" smallint check ("rating" is null or "rating" >= 1 and "rating" <= 5),
-  "comments" text check ("comments" is null or length("comments") <= 10000),
+  "kind" text not null constraint bsb_appraisal_reviews_kind_check check ("kind" in ('self', 'peer', 'manager')),
+  "rating" smallint constraint bsb_appraisal_reviews_rating_check check ("rating" is null or "rating" >= 1 and "rating" <= 5),
+  "comments" text constraint bsb_appraisal_reviews_comments_check check ("comments" is null or length("comments") <= 10000),
   -- The forms submission with the longer answers, when the review uses a form.
   "submission_id" uuid,
   "submitted_at" timestamptz,
   unique ("org_id", "id"),
   unique ("appraisal_id", "reviewer_id", "kind"),
   foreign key ("org_id", "appraisal_id") references "better_supabase"."appraisals" ("org_id", "id") on delete cascade,
-  check (("submitted_at" is not null) = ("rating" is not null))
+  constraint bsb_appraisal_reviews_check check (("submitted_at" is not null) = ("rating" is not null))
 );
 create index "appraisal_reviews_parent_idx" on "better_supabase"."appraisal_reviews" ("org_id", "appraisal_id");
 create index "appraisal_reviews_reviewer_idx" on "better_supabase"."appraisal_reviews" ("org_id", "reviewer_id") where "submitted_at" is null;
@@ -6241,10 +6241,10 @@ create table "better_supabase"."appraisal_calibrations" (
   "org_id" uuid not null,
   "appraisal_id" uuid not null,
   "from_rating" numeric(3, 2),
-  "to_rating" smallint not null check ("to_rating" >= 1 and "to_rating" <= 5),
+  "to_rating" smallint not null constraint bsb_appraisal_calibrations_to_rating_check check ("to_rating" >= 1 and "to_rating" <= 5),
   -- The competency ratings the session set, by competency key.
-  "competency_ratings" jsonb not null default '{}'::jsonb check (jsonb_typeof("competency_ratings") = 'object'),
-  "reason" text not null check (length("reason") >= 1 and length("reason") <= 2000),
+  "competency_ratings" jsonb not null default '{}'::jsonb constraint bsb_appraisal_calibrations_competency_ratings_check check (jsonb_typeof("competency_ratings") = 'object'),
+  "reason" text not null constraint bsb_appraisal_calibrations_reason_check check (length("reason") >= 1 and length("reason") <= 2000),
   "calibrated_by" uuid,
   "calibrated_at" timestamptz not null default now(),
   foreign key ("org_id", "appraisal_id") references "better_supabase"."appraisals" ("org_id", "id") on delete cascade
@@ -6265,9 +6265,9 @@ create table "better_supabase"."appraisal_competencies" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "cycle_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "weight" numeric(6, 2) not null default 1 check ("weight" > 0 and "weight" <= 1000),
+  "key" text not null constraint bsb_appraisal_competencies_key_check check ("key" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "name" text not null constraint bsb_appraisal_competencies_name_check check (length("name") >= 1 and length("name") <= 200),
+  "weight" numeric(6, 2) not null default 1 constraint bsb_appraisal_competencies_weight_check check ("weight" > 0 and "weight" <= 1000),
   "position" integer not null default 0,
   unique ("org_id", "id"),
   unique ("cycle_id", "key"),
@@ -6288,8 +6288,8 @@ create table "better_supabase"."appraisal_review_ratings" (
   "org_id" uuid not null,
   "review_id" uuid not null,
   "competency_id" uuid not null,
-  "rating" smallint not null check ("rating" >= 1 and "rating" <= 5),
-  "comment" text check ("comment" is null or length("comment") <= 2000),
+  "rating" smallint not null constraint bsb_appraisal_review_ratings_rating_check check ("rating" >= 1 and "rating" <= 5),
+  "comment" text constraint bsb_appraisal_review_ratings_comment_check check ("comment" is null or length("comment") <= 2000),
   unique ("review_id", "competency_id"),
   foreign key ("org_id", "review_id") references "better_supabase"."appraisal_reviews" ("org_id", "id") on delete cascade,
   foreign key ("org_id", "competency_id") references "better_supabase"."appraisal_competencies" ("org_id", "id") on delete cascade

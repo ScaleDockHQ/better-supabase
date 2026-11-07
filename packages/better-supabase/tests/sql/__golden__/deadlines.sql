@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@1 managed
--- @bsb-hash sha256:b1d731a148b1c06bb36fda72f4207c9fcece4bf3ecb0c1f87e79ff3300f2ef0c
+-- @bsb-hash sha256:1fed17b57e5a06809a45f73f3dae3eb952f4d5aeb6c842c732d5d77a167b237d
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash and a citation per rule, and the deadlines computed from a subject's facts: due on a date or unknown with the facts still missing, recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,9 +13,9 @@
 -- still waits for.
 create table "better_supabase"."deadline_rule_sets" (
   "id" uuid primary key default gen_random_uuid(),
-  "jurisdiction" text not null check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text check ("title" is null or length("title") <= 200),
+  "jurisdiction" text not null constraint bsb_deadline_rule_sets_jurisdiction_check check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "kind" text not null constraint bsb_deadline_rule_sets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text constraint bsb_deadline_rule_sets_title_check check ("title" is null or length("title") <= 200),
   "created_at" timestamptz not null default now(),
   constraint "deadline_rule_sets_key" unique ("jurisdiction", "kind")
 );
@@ -30,8 +30,8 @@ create policy bsb_deadline_rule_sets_read on "better_supabase"."deadline_rule_se
 create table "better_supabase"."deadline_rule_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "rule_set_id" uuid not null references "better_supabase"."deadline_rule_sets" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved')),
+  "version" integer not null constraint bsb_deadline_rule_versions_version_check check ("version" >= 1),
+  "status" text not null default 'draft' constraint bsb_deadline_rule_versions_status_check check ("status" in ('draft', 'approved')),
   "rules" jsonb not null,
   "content_hash" text,
   "effective_from" date,
@@ -40,7 +40,7 @@ create table "better_supabase"."deadline_rule_versions" (
   "approval_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("rule_set_id", "version"),
-  check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
+  constraint bsb_deadline_rule_versions_check check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
 );
 create index "deadline_rule_versions_effective_idx" on "better_supabase"."deadline_rule_versions" ("rule_set_id", "effective_from" desc) where "status" = 'approved';
 alter table "better_supabase"."deadline_rule_versions" enable row level security;
@@ -75,24 +75,24 @@ create trigger bsb_deadlines_version_frozen
 create table "better_supabase"."deadlines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text not null constraint bsb_deadlines_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_id" text not null constraint bsb_deadlines_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "jurisdiction" text not null,
   "kind" text not null,
   "rule_key" text not null,
   "rule_version_id" uuid not null references "better_supabase"."deadline_rule_versions" ("id") on delete restrict,
   "facts" jsonb not null default '{}'::jsonb,
-  "result" text not null check ("result" in ('due', 'unknown')),
+  "result" text not null constraint bsb_deadlines_result_check check ("result" in ('due', 'unknown')),
   "due_on" date,
   "missing" text[] not null default '{}',
   "citation" jsonb not null,
-  "state" text not null default 'pending' check ("state" in ('pending', 'satisfied')),
+  "state" text not null default 'pending' constraint bsb_deadlines_state_check check ("state" in ('pending', 'satisfied')),
   "satisfied_at" timestamptz,
   "satisfied_by" uuid,
-  "satisfied_action" text check ("satisfied_action" is null or length("satisfied_action") <= 200),
+  "satisfied_action" text constraint bsb_deadlines_satisfied_action_check check ("satisfied_action" is null or length("satisfied_action") <= 200),
   "computed_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
-  check (("result" = 'due') = ("due_on" is not null)),
+  constraint bsb_deadlines_check check (("result" = 'due') = ("due_on" is not null)),
   constraint "deadlines_subject_rule_key" unique ("tenant_id", "subject_type", "subject_id", "rule_key")
 );
 create index "deadlines_version_idx" on "better_supabase"."deadlines" ("rule_version_id");
@@ -625,7 +625,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@1 managed
--- @bsb-hash sha256:94d7bc7c8d845ed33aed14767d485300be57c9e904f6d9d62df4137d7411dab1
+-- @bsb-hash sha256:9b52f10bbd73dc12f4fb6369047b686142d783f8577c50b759f28868e3de5425
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash and a citation per rule, and the deadlines computed from a subject's facts: due on a date or unknown with the facts still missing, recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -637,9 +637,9 @@ on conflict (name) do update
 -- still waits for.
 create table "better_supabase"."deadline_rule_sets" (
   "id" uuid primary key default gen_random_uuid(),
-  "jurisdiction" text not null check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text check ("title" is null or length("title") <= 200),
+  "jurisdiction" text not null constraint bsb_deadline_rule_sets_jurisdiction_check check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "kind" text not null constraint bsb_deadline_rule_sets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text constraint bsb_deadline_rule_sets_title_check check ("title" is null or length("title") <= 200),
   "created_at" timestamptz not null default now(),
   constraint "deadline_rule_sets_key" unique ("jurisdiction", "kind")
 );
@@ -654,8 +654,8 @@ create policy bsb_deadline_rule_sets_read on "better_supabase"."deadline_rule_se
 create table "better_supabase"."deadline_rule_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "rule_set_id" uuid not null references "better_supabase"."deadline_rule_sets" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved')),
+  "version" integer not null constraint bsb_deadline_rule_versions_version_check check ("version" >= 1),
+  "status" text not null default 'draft' constraint bsb_deadline_rule_versions_status_check check ("status" in ('draft', 'approved')),
   "rules" jsonb not null,
   "content_hash" text,
   "effective_from" date,
@@ -664,7 +664,7 @@ create table "better_supabase"."deadline_rule_versions" (
   "approval_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("rule_set_id", "version"),
-  check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
+  constraint bsb_deadline_rule_versions_check check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
 );
 create index "deadline_rule_versions_effective_idx" on "better_supabase"."deadline_rule_versions" ("rule_set_id", "effective_from" desc) where "status" = 'approved';
 alter table "better_supabase"."deadline_rule_versions" enable row level security;
@@ -699,24 +699,24 @@ create trigger bsb_deadlines_version_frozen
 create table "better_supabase"."deadlines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text not null constraint bsb_deadlines_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_id" text not null constraint bsb_deadlines_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "jurisdiction" text not null,
   "kind" text not null,
   "rule_key" text not null,
   "rule_version_id" uuid not null references "better_supabase"."deadline_rule_versions" ("id") on delete restrict,
   "facts" jsonb not null default '{}'::jsonb,
-  "result" text not null check ("result" in ('due', 'unknown')),
+  "result" text not null constraint bsb_deadlines_result_check check ("result" in ('due', 'unknown')),
   "due_on" date,
   "missing" text[] not null default '{}',
   "citation" jsonb not null,
-  "state" text not null default 'pending' check ("state" in ('pending', 'satisfied')),
+  "state" text not null default 'pending' constraint bsb_deadlines_state_check check ("state" in ('pending', 'satisfied')),
   "satisfied_at" timestamptz,
   "satisfied_by" uuid,
-  "satisfied_action" text check ("satisfied_action" is null or length("satisfied_action") <= 200),
+  "satisfied_action" text constraint bsb_deadlines_satisfied_action_check check ("satisfied_action" is null or length("satisfied_action") <= 200),
   "computed_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
-  check (("result" = 'due') = ("due_on" is not null)),
+  constraint bsb_deadlines_check check (("result" = 'due') = ("due_on" is not null)),
   constraint "deadlines_subject_rule_key" unique ("tenant_id", "subject_type", "subject_id", "rule_key")
 );
 create index "deadlines_version_idx" on "better_supabase"."deadlines" ("rule_version_id");
@@ -1291,7 +1291,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@1 managed
--- @bsb-hash sha256:d699f7c97dc9742105cfba0f09959b06a8e8d8904eae1c2bc745d0106cce5b94
+-- @bsb-hash sha256:1527d51666dc7825733ec83e92bb9ea0f3ea61ed4805483bbd514a93fb2d4a72
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash and a citation per rule, and the deadlines computed from a subject's facts: due on a date or unknown with the facts still missing, recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1308,9 +1308,9 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- still waits for.
 create table "app_private"."deadline_rule_sets" (
   "id" uuid primary key default gen_random_uuid(),
-  "jurisdiction" text not null check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text check ("title" is null or length("title") <= 200),
+  "jurisdiction" text not null constraint bsb_deadline_rule_sets_jurisdiction_check check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "kind" text not null constraint bsb_deadline_rule_sets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text constraint bsb_deadline_rule_sets_title_check check ("title" is null or length("title") <= 200),
   "created_at" timestamptz not null default now(),
   constraint "deadline_rule_sets_key" unique ("jurisdiction", "kind")
 );
@@ -1325,8 +1325,8 @@ create policy bsb_deadline_rule_sets_read on "app_private"."deadline_rule_sets"
 create table "app_private"."deadline_rule_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "rule_set_id" uuid not null references "app_private"."deadline_rule_sets" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved')),
+  "version" integer not null constraint bsb_deadline_rule_versions_version_check check ("version" >= 1),
+  "status" text not null default 'draft' constraint bsb_deadline_rule_versions_status_check check ("status" in ('draft', 'approved')),
   "rules" jsonb not null,
   "content_hash" text,
   "effective_from" date,
@@ -1335,7 +1335,7 @@ create table "app_private"."deadline_rule_versions" (
   "approval_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("rule_set_id", "version"),
-  check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
+  constraint bsb_deadline_rule_versions_check check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
 );
 create index "deadline_rule_versions_effective_idx" on "app_private"."deadline_rule_versions" ("rule_set_id", "effective_from" desc) where "status" = 'approved';
 alter table "app_private"."deadline_rule_versions" enable row level security;
@@ -1370,24 +1370,24 @@ create trigger bsb_deadlines_version_frozen
 create table "app_private"."deadlines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text not null constraint bsb_deadlines_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_id" text not null constraint bsb_deadlines_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "jurisdiction" text not null,
   "kind" text not null,
   "rule_key" text not null,
   "rule_version_id" uuid not null references "app_private"."deadline_rule_versions" ("id") on delete restrict,
   "facts" jsonb not null default '{}'::jsonb,
-  "result" text not null check ("result" in ('due', 'unknown')),
+  "result" text not null constraint bsb_deadlines_result_check check ("result" in ('due', 'unknown')),
   "due_on" date,
   "missing" text[] not null default '{}',
   "citation" jsonb not null,
-  "state" text not null default 'pending' check ("state" in ('pending', 'satisfied')),
+  "state" text not null default 'pending' constraint bsb_deadlines_state_check check ("state" in ('pending', 'satisfied')),
   "satisfied_at" timestamptz,
   "satisfied_by" uuid,
-  "satisfied_action" text check ("satisfied_action" is null or length("satisfied_action") <= 200),
+  "satisfied_action" text constraint bsb_deadlines_satisfied_action_check check ("satisfied_action" is null or length("satisfied_action") <= 200),
   "computed_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
-  check (("result" = 'due') = ("due_on" is not null)),
+  constraint bsb_deadlines_check check (("result" = 'due') = ("due_on" is not null)),
   constraint "deadlines_subject_rule_key" unique ("tenant_id", "subject_type", "subject_id", "rule_key")
 );
 create index "deadlines_version_idx" on "app_private"."deadlines" ("rule_version_id");
@@ -1920,7 +1920,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@1 managed
--- @bsb-hash sha256:952cca46ce16f305d5d80d71308dcc4c08c05db0f403d7157fd965f741df4ecd
+-- @bsb-hash sha256:169b6b4ccde71b07aab7ce0287f69232e284599a40e70c3bff206e60f0a66726
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash and a citation per rule, and the deadlines computed from a subject's facts: due on a date or unknown with the facts still missing, recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1932,9 +1932,9 @@ on conflict (name) do update
 -- still waits for.
 create table "better_supabase"."deadline_rule_sets" (
   "id" uuid primary key default gen_random_uuid(),
-  "jurisdiction" text not null check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text check ("title" is null or length("title") <= 200),
+  "jurisdiction" text not null constraint bsb_deadline_rule_sets_jurisdiction_check check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "kind" text not null constraint bsb_deadline_rule_sets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text constraint bsb_deadline_rule_sets_title_check check ("title" is null or length("title") <= 200),
   "created_at" timestamptz not null default now(),
   constraint "deadline_rule_sets_key" unique ("jurisdiction", "kind")
 );
@@ -1949,8 +1949,8 @@ create policy bsb_deadline_rule_sets_read on "better_supabase"."deadline_rule_se
 create table "better_supabase"."deadline_rule_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "rule_set_id" uuid not null references "better_supabase"."deadline_rule_sets" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved')),
+  "version" integer not null constraint bsb_deadline_rule_versions_version_check check ("version" >= 1),
+  "status" text not null default 'draft' constraint bsb_deadline_rule_versions_status_check check ("status" in ('draft', 'approved')),
   "rules" jsonb not null,
   "content_hash" text,
   "effective_from" date,
@@ -1959,7 +1959,7 @@ create table "better_supabase"."deadline_rule_versions" (
   "approval_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("rule_set_id", "version"),
-  check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
+  constraint bsb_deadline_rule_versions_check check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
 );
 create index "deadline_rule_versions_effective_idx" on "better_supabase"."deadline_rule_versions" ("rule_set_id", "effective_from" desc) where "status" = 'approved';
 alter table "better_supabase"."deadline_rule_versions" enable row level security;
@@ -1994,24 +1994,24 @@ create trigger bsb_deadlines_version_frozen
 create table "better_supabase"."deadlines" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text not null constraint bsb_deadlines_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_id" text not null constraint bsb_deadlines_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "jurisdiction" text not null,
   "kind" text not null,
   "rule_key" text not null,
   "rule_version_id" uuid not null references "better_supabase"."deadline_rule_versions" ("id") on delete restrict,
   "facts" jsonb not null default '{}'::jsonb,
-  "result" text not null check ("result" in ('due', 'unknown')),
+  "result" text not null constraint bsb_deadlines_result_check check ("result" in ('due', 'unknown')),
   "due_on" date,
   "missing" text[] not null default '{}',
   "citation" jsonb not null,
-  "state" text not null default 'pending' check ("state" in ('pending', 'satisfied')),
+  "state" text not null default 'pending' constraint bsb_deadlines_state_check check ("state" in ('pending', 'satisfied')),
   "satisfied_at" timestamptz,
   "satisfied_by" uuid,
-  "satisfied_action" text check ("satisfied_action" is null or length("satisfied_action") <= 200),
+  "satisfied_action" text constraint bsb_deadlines_satisfied_action_check check ("satisfied_action" is null or length("satisfied_action") <= 200),
   "computed_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
-  check (("result" = 'due') = ("due_on" is not null)),
+  constraint bsb_deadlines_check check (("result" = 'due') = ("due_on" is not null)),
   constraint "deadlines_subject_rule_key" unique ("tenant_id", "subject_type", "subject_id", "rule_key")
 );
 create index "deadlines_version_idx" on "better_supabase"."deadlines" ("rule_version_id");
@@ -2633,7 +2633,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@1 managed
--- @bsb-hash sha256:9e6f988e3911bd120ccfa603e9f0c3ed0014a4a03c67ca00c3c9bdd5f99feda9
+-- @bsb-hash sha256:cffbd4d22f3c32979cf97c8d0d13bb8e5f1b3695c7c29db62449cea02adebd46
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash and a citation per rule, and the deadlines computed from a subject's facts: due on a date or unknown with the facts still missing, recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2645,9 +2645,9 @@ on conflict (name) do update
 -- still waits for.
 -- better_supabase.deadline_rule_sets is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."deadline_rule_sets" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."deadline_rule_sets" add column if not exists "jurisdiction" text check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."deadline_rule_sets" add column if not exists "kind" text check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."deadline_rule_sets" add column if not exists "title" text check ("title" is null or length("title") <= 200);
+alter table "better_supabase"."deadline_rule_sets" add column if not exists "jurisdiction" text constraint bsb_deadline_rule_sets_jurisdiction_check check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."deadline_rule_sets" add column if not exists "kind" text constraint bsb_deadline_rule_sets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."deadline_rule_sets" add column if not exists "title" text constraint bsb_deadline_rule_sets_title_check check ("title" is null or length("title") <= 200);
 alter table "better_supabase"."deadline_rule_sets" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."deadline_rule_sets" enable row level security;
 grant select on "better_supabase"."deadline_rule_sets" to authenticated;
@@ -2659,8 +2659,8 @@ create policy bsb_deadline_rule_sets_select on "better_supabase"."deadline_rule_
 -- better_supabase.deadline_rule_versions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."deadline_rule_versions" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."deadline_rule_versions" add column if not exists "rule_set_id" uuid references "better_supabase"."deadline_rule_sets" ("id") on delete cascade;
-alter table "better_supabase"."deadline_rule_versions" add column if not exists "version" integer check ("version" >= 1);
-alter table "better_supabase"."deadline_rule_versions" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'approved'));
+alter table "better_supabase"."deadline_rule_versions" add column if not exists "version" integer constraint bsb_deadline_rule_versions_version_check check ("version" >= 1);
+alter table "better_supabase"."deadline_rule_versions" add column if not exists "status" text not null default 'draft' constraint bsb_deadline_rule_versions_status_check check ("status" in ('draft', 'approved'));
 alter table "better_supabase"."deadline_rule_versions" add column if not exists "rules" jsonb;
 alter table "better_supabase"."deadline_rule_versions" add column if not exists "content_hash" text;
 alter table "better_supabase"."deadline_rule_versions" add column if not exists "effective_from" date;
@@ -2700,21 +2700,21 @@ create trigger bsb_deadlines_version_frozen
 -- better_supabase.deadlines is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."deadlines" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."deadlines" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."deadlines" add column if not exists "subject_type" text check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$');
-alter table "better_supabase"."deadlines" add column if not exists "subject_id" text check (length("subject_id") >= 1 and length("subject_id") <= 200);
+alter table "better_supabase"."deadlines" add column if not exists "subject_type" text constraint bsb_deadlines_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$');
+alter table "better_supabase"."deadlines" add column if not exists "subject_id" text constraint bsb_deadlines_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200);
 alter table "better_supabase"."deadlines" add column if not exists "jurisdiction" text;
 alter table "better_supabase"."deadlines" add column if not exists "kind" text;
 alter table "better_supabase"."deadlines" add column if not exists "rule_key" text;
 alter table "better_supabase"."deadlines" add column if not exists "rule_version_id" uuid references "better_supabase"."deadline_rule_versions" ("id") on delete restrict;
 alter table "better_supabase"."deadlines" add column if not exists "facts" jsonb not null default '{}'::jsonb;
-alter table "better_supabase"."deadlines" add column if not exists "result" text check ("result" in ('due', 'unknown'));
+alter table "better_supabase"."deadlines" add column if not exists "result" text constraint bsb_deadlines_result_check check ("result" in ('due', 'unknown'));
 alter table "better_supabase"."deadlines" add column if not exists "due_on" date;
 alter table "better_supabase"."deadlines" add column if not exists "missing" text[] not null default '{}';
 alter table "better_supabase"."deadlines" add column if not exists "citation" jsonb;
-alter table "better_supabase"."deadlines" add column if not exists "state" text not null default 'pending' check ("state" in ('pending', 'satisfied'));
+alter table "better_supabase"."deadlines" add column if not exists "state" text not null default 'pending' constraint bsb_deadlines_state_check check ("state" in ('pending', 'satisfied'));
 alter table "better_supabase"."deadlines" add column if not exists "satisfied_at" timestamptz;
 alter table "better_supabase"."deadlines" add column if not exists "satisfied_by" uuid;
-alter table "better_supabase"."deadlines" add column if not exists "satisfied_action" text check ("satisfied_action" is null or length("satisfied_action") <= 200);
+alter table "better_supabase"."deadlines" add column if not exists "satisfied_action" text constraint bsb_deadlines_satisfied_action_check check ("satisfied_action" is null or length("satisfied_action") <= 200);
 alter table "better_supabase"."deadlines" add column if not exists "computed_at" timestamptz not null default now();
 alter table "better_supabase"."deadlines" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_deadlines_tenant_id_key" on "better_supabase"."deadlines" ("tenant_id", "id");
@@ -3247,7 +3247,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@1 managed
--- @bsb-hash sha256:621c7eae86c7d9acfb3f24f821721e1420537b9d9aeb3ce9b37bb5c51a14dfcf
+-- @bsb-hash sha256:65f783f63df3889c20de7d9a417a224b574dd0566013fdd9132b5fa0933bbc2e
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash and a citation per rule, and the deadlines computed from a subject's facts: due on a date or unknown with the facts still missing, recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3259,9 +3259,9 @@ on conflict (name) do update
 -- still waits for.
 create table "better_supabase"."deadline_rule_sets" (
   "id" uuid primary key default gen_random_uuid(),
-  "jurisdiction" text not null check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "kind" text not null check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "title" text check ("title" is null or length("title") <= 200),
+  "jurisdiction" text not null constraint bsb_deadline_rule_sets_jurisdiction_check check ("jurisdiction" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "kind" text not null constraint bsb_deadline_rule_sets_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "title" text constraint bsb_deadline_rule_sets_title_check check ("title" is null or length("title") <= 200),
   "created_at" timestamptz not null default now(),
   constraint "deadline_rule_sets_key" unique ("jurisdiction", "kind")
 );
@@ -3276,8 +3276,8 @@ create policy bsb_deadline_rule_sets_read on "better_supabase"."deadline_rule_se
 create table "better_supabase"."deadline_rule_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "rule_set_id" uuid not null references "better_supabase"."deadline_rule_sets" ("id") on delete cascade,
-  "version" integer not null check ("version" >= 1),
-  "status" text not null default 'draft' check ("status" in ('draft', 'approved')),
+  "version" integer not null constraint bsb_deadline_rule_versions_version_check check ("version" >= 1),
+  "status" text not null default 'draft' constraint bsb_deadline_rule_versions_status_check check ("status" in ('draft', 'approved')),
   "rules" jsonb not null,
   "content_hash" text,
   "effective_from" date,
@@ -3286,7 +3286,7 @@ create table "better_supabase"."deadline_rule_versions" (
   "approval_id" uuid,
   "created_at" timestamptz not null default now(),
   unique ("rule_set_id", "version"),
-  check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
+  constraint bsb_deadline_rule_versions_check check ("status" = 'draft' or ("content_hash" is not null and "effective_from" is not null and "approved_at" is not null))
 );
 create index "deadline_rule_versions_effective_idx" on "better_supabase"."deadline_rule_versions" ("rule_set_id", "effective_from" desc) where "status" = 'approved';
 alter table "better_supabase"."deadline_rule_versions" enable row level security;
@@ -3321,24 +3321,24 @@ create trigger bsb_deadlines_version_frozen
 create table "better_supabase"."deadlines" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "subject_type" text not null check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "subject_id" text not null check (length("subject_id") >= 1 and length("subject_id") <= 200),
+  "subject_type" text not null constraint bsb_deadlines_subject_type_check check ("subject_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "subject_id" text not null constraint bsb_deadlines_subject_id_check check (length("subject_id") >= 1 and length("subject_id") <= 200),
   "jurisdiction" text not null,
   "kind" text not null,
   "rule_key" text not null,
   "rule_version_id" uuid not null references "better_supabase"."deadline_rule_versions" ("id") on delete restrict,
   "facts" jsonb not null default '{}'::jsonb,
-  "result" text not null check ("result" in ('due', 'unknown')),
+  "result" text not null constraint bsb_deadlines_result_check check ("result" in ('due', 'unknown')),
   "due_on" date,
   "missing" text[] not null default '{}',
   "citation" jsonb not null,
-  "state" text not null default 'pending' check ("state" in ('pending', 'satisfied')),
+  "state" text not null default 'pending' constraint bsb_deadlines_state_check check ("state" in ('pending', 'satisfied')),
   "satisfied_at" timestamptz,
   "satisfied_by" uuid,
-  "satisfied_action" text check ("satisfied_action" is null or length("satisfied_action") <= 200),
+  "satisfied_action" text constraint bsb_deadlines_satisfied_action_check check ("satisfied_action" is null or length("satisfied_action") <= 200),
   "computed_at" timestamptz not null default now(),
   "created_at" timestamptz not null default now(),
-  check (("result" = 'due') = ("due_on" is not null)),
+  constraint bsb_deadlines_check check (("result" = 'due') = ("due_on" is not null)),
   constraint "deadlines_subject_rule_key" unique ("org_id", "subject_type", "subject_id", "rule_key")
 );
 create index "deadlines_version_idx" on "better_supabase"."deadlines" ("rule_version_id");

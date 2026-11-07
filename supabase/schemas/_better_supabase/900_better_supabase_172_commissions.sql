@@ -1,6 +1,6 @@
 -- better-supabase module: commissions
 -- @bsb-block commissions@1 managed
--- @bsb-hash sha256:bc0db1d898f82b055af99faf8c58997f383013cc1a6c788f33208300931940ba
+-- @bsb-hash sha256:ddaaf320b1d104dea875391d1418a2cb4bf503b42f0c096e85c6abc2cc095ae9
 -- Commission plans (flat or marginal tiers) assigned to sellers, commissions accrued on the ledger from paid records, statements per period with a payout, and the lines payroll adds.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,17 +11,17 @@
 create table "better_supabase"."commission_plans" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "kind" text not null check ("kind" in ('flat', 'tiered')),
+  "name" text not null constraint bsb_commission_plans_name_check check (length("name") >= 1 and length("name") <= 200),
+  "kind" text not null constraint bsb_commission_plans_kind_check check ("kind" in ('flat', 'tiered')),
   -- A flat plan's rate in basis points (100 is 1%).
-  "rate_bps" integer check ("rate_bps" >= 0 and "rate_bps" <= 10000),
+  "rate_bps" integer constraint bsb_commission_plans_rate_bps_check check ("rate_bps" >= 0 and "rate_bps" <= 10000),
   -- A tiered plan's marginal tiers: [{ "upTo": 100000, "bps": 500 }, { "upTo": null, "bps": 800 }].
-  "tiers" jsonb check ("tiers" is null or jsonb_typeof("tiers") = 'array'),
+  "tiers" jsonb constraint bsb_commission_plans_tiers_check check ("tiers" is null or jsonb_typeof("tiers") = 'array'),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   unique ("tenant_id", "id"),
-  check (("kind" = 'flat' and "rate_bps" is not null and "tiers" is null)
+  constraint bsb_commission_plans_check check (("kind" = 'flat' and "rate_bps" is not null and "tiers" is null)
     or ("kind" = 'tiered' and "rate_bps" is null and "tiers" is not null))
 );
 create index "commission_plans_tenant_idx" on "better_supabase"."commission_plans" ("tenant_id", "created_at" desc);
@@ -44,8 +44,8 @@ create table "better_supabase"."commission_assignments" (
   "starts_on" date not null default current_date,
   "ends_on" date,
   "created_at" timestamptz not null default now(),
-  check (("subject_type" is null) = ("subject_id" is null)),
-  check ("ends_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_commission_assignments_check check (("subject_type" is null) = ("subject_id" is null)),
+  constraint bsb_commission_assignments_check1 check ("ends_on" is null or "ends_on" >= "starts_on"),
   foreign key ("tenant_id", "plan_id") references "better_supabase"."commission_plans" ("tenant_id", "id") on delete cascade
 );
 create index "commission_assignments_plan_idx" on "better_supabase"."commission_assignments" ("tenant_id", "plan_id");
@@ -62,10 +62,10 @@ create table "better_supabase"."commission_statements" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "seller_id" uuid not null,
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "currency" text not null constraint bsb_commission_statements_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "starts_on" date not null,
   "ends_on" date not null,
-  "status" text not null default 'open' check ("status" in ('open', 'finalized', 'paid')),
+  "status" text not null default 'open' constraint bsb_commission_statements_status_check check ("status" in ('open', 'finalized', 'paid')),
   "total" bigint not null default 0,
   -- The ledger transaction that paid the statement out.
   "ledger_transaction_id" uuid,
@@ -73,7 +73,7 @@ create table "better_supabase"."commission_statements" (
   "paid_at" timestamptz,
   "paid_by" uuid,
   "created_at" timestamptz not null default now(),
-  check ("ends_on" >= "starts_on"),
+  constraint bsb_commission_statements_check check ("ends_on" >= "starts_on"),
   unique ("tenant_id", "id"),
   unique ("tenant_id", "seller_id", "currency", "starts_on")
 );
@@ -92,14 +92,14 @@ create table "better_supabase"."commissions" (
   "plan_id" uuid not null,
   "seller_id" uuid not null,
   -- The record the commission was earned on, such as invoices and its id.
-  "source_type" text not null check (length("source_type") >= 1 and length("source_type") <= 100),
-  "source_id" text not null check (length("source_id") >= 1 and length("source_id") <= 200),
+  "source_type" text not null constraint bsb_commissions_source_type_check check (length("source_type") >= 1 and length("source_type") <= 100),
+  "source_id" text not null constraint bsb_commissions_source_id_check check (length("source_id") >= 1 and length("source_id") <= 200),
   -- What the percentage was taken of, and what it came to, in minor units.
-  "basis" bigint not null check ("basis" > 0),
-  "amount" bigint not null check ("amount" > 0),
-  "currency" text not null check ("currency" ~ '^[A-Z]{3}$'),
+  "basis" bigint not null constraint bsb_commissions_basis_check check ("basis" > 0),
+  "amount" bigint not null constraint bsb_commissions_amount_check check ("amount" > 0),
+  "currency" text not null constraint bsb_commissions_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "occurred_on" date not null,
-  "status" text not null default 'accrued' check ("status" in ('accrued', 'reversed')),
+  "status" text not null default 'accrued' constraint bsb_commissions_status_check check ("status" in ('accrued', 'reversed')),
   "statement_id" uuid,
   "ledger_transaction_id" uuid,
   "reversed_at" timestamptz,

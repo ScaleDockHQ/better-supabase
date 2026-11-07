@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_125_contracts.sql
 -- better-supabase module: contracts
 -- @bsb-block contracts@1 managed
--- @bsb-hash sha256:ee1363fa1094346fe91d21c50c4cdb6a97ffd214e7264ce93e5b194e31b9bcf8
+-- @bsb-hash sha256:8e8b74195564e09d09a0b9bde6d36621ca362ad33127366830d92ad9cb687840
 -- Contracts with counterparties from draft through review and signature to active, expired or terminated, built on signatures, versions and reminders. Values are bigint minor units; renewal terms (auto-renew, renewal period, notice days) schedule a reminder before the notice deadline; obligations carry due dates and owners.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,34 +12,34 @@
 create table "better_supabase"."contracts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 10000),
+  "title" text not null constraint bsb_contracts_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_contracts_description_check check ("description" is null or length("description") <= 10000),
   -- The other party: a registered subject (a company or person of the parties block, say).
   "counterparty_type" text,
   "counterparty_id" text,
   "owner_id" uuid,
-  "status" text not null default 'draft' check ("status" in ('draft', 'in_review', 'out_for_signature', 'active', 'expired', 'terminated')),
+  "status" text not null default 'draft' constraint bsb_contracts_status_check check ("status" in ('draft', 'in_review', 'out_for_signature', 'active', 'expired', 'terminated')),
   -- The contract value in minor units of currency.
-  "value" bigint check ("value" is null or "value" >= 0),
-  "currency" text check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
+  "value" bigint constraint bsb_contracts_value_check check ("value" is null or "value" >= 0),
+  "currency" text constraint bsb_contracts_currency_check check ("currency" is null or "currency" ~ '^[A-Z]{3}$'),
   "starts_on" date,
   "ends_on" date,
   "auto_renew" boolean not null default false,
   -- How far an auto-renewal moves ends_on.
-  "renewal_months" integer not null default 12 check ("renewal_months" >= 1 and "renewal_months" <= 120),
+  "renewal_months" integer not null default 12 constraint bsb_contracts_renewal_months_check check ("renewal_months" >= 1 and "renewal_months" <= 120),
   -- How many days before ends_on notice of termination is due.
-  "notice_days" integer not null default 30 check ("notice_days" >= 0 and "notice_days" <= 3650),
+  "notice_days" integer not null default 30 constraint bsb_contracts_notice_days_check check ("notice_days" >= 0 and "notice_days" <= 3650),
   "renewed_count" integer not null default 0,
   "signature_request_id" uuid references "better_supabase"."signature_requests" ("id") on delete set null,
   "signed_at" timestamptz,
   "terminated_at" timestamptz,
-  "termination_reason" text check ("termination_reason" is null or length("termination_reason") <= 2000),
+  "termination_reason" text constraint bsb_contracts_termination_reason_check check ("termination_reason" is null or length("termination_reason") <= 2000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("counterparty_type" is null) = ("counterparty_id" is null)),
-  check (("value" is null) = ("currency" is null)),
-  check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
+  constraint bsb_contracts_check check (("counterparty_type" is null) = ("counterparty_id" is null)),
+  constraint bsb_contracts_check1 check (("value" is null) = ("currency" is null)),
+  constraint bsb_contracts_check2 check ("ends_on" is null or "starts_on" is null or "ends_on" >= "starts_on"),
   unique ("tenant_id", "id")
 );
 create index "contracts_status_idx" on "better_supabase"."contracts" ("tenant_id", "status", "ends_on");
@@ -58,11 +58,11 @@ create table "better_supabase"."contract_obligations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "contract_id" uuid not null,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "description" text check ("description" is null or length("description") <= 4000),
+  "title" text not null constraint bsb_contract_obligations_title_check check (length("title") >= 1 and length("title") <= 200),
+  "description" text constraint bsb_contract_obligations_description_check check ("description" is null or length("description") <= 4000),
   "due_on" date,
   "owner_id" uuid,
-  "status" text not null default 'open' check ("status" in ('open', 'done', 'waived')),
+  "status" text not null default 'open' constraint bsb_contract_obligations_status_check check ("status" in ('open', 'done', 'waived')),
   "completed_at" timestamptz,
   "completed_by" uuid,
   "created_at" timestamptz not null default now(),

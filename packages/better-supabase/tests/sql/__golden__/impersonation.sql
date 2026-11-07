@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:35c90835b2754fa7e9130dae9fd1f09321689629b6bafdc3b01aba187940a9e6
+-- @bsb-hash sha256:a81338dc3d1927f048d5eb2e5a0ca904f38019d7510a7161ef00cf7bcb21efce
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -17,11 +17,11 @@ create table "better_supabase"."support_sessions" (
   "started_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   "ended_at" timestamptz,
-  "ended_by" text check ("ended_by" in ('admin', 'expired', 'revoked')),
+  "ended_by" text constraint bsb_support_sessions_ended_by_check check ("ended_by" in ('admin', 'expired', 'revoked')),
   -- App data, such as a ticket id.
   "metadata" jsonb not null default '{}',
-  check ("admin_id" <> "target_user_id"),
-  check ("expires_at" > "started_at")
+  constraint bsb_support_sessions_check check ("admin_id" <> "target_user_id"),
+  constraint bsb_support_sessions_check1 check ("expires_at" > "started_at")
 );
 create index support_sessions_admin_idx on "better_supabase"."support_sessions" ("admin_id", "started_at" desc);
 create index support_sessions_target_idx on "better_supabase"."support_sessions" ("target_user_id", "started_at" desc);
@@ -51,9 +51,9 @@ create table "better_supabase"."support_requests" (
   "approved_at" timestamptz,
   -- The session the approval started; an approval starts one session.
   "session_id" uuid,
-  check ("admin_id" <> "target_user_id"),
-  constraint support_requests_distinct_approver check ("approved_by" <> "admin_id"),
-  check (("approved_by" is null) = ("approved_at" is null))
+  constraint bsb_support_requests_check check ("admin_id" <> "target_user_id"),
+  constraint bsb_support_requests_distinct_approver check ("approved_by" <> "admin_id"),
+  constraint bsb_support_requests_check1 check (("approved_by" is null) = ("approved_at" is null))
 );
 create index support_requests_admin_idx on "better_supabase"."support_requests" ("admin_id", "target_user_id", "requested_at" desc);
 create index support_requests_target_idx on "better_supabase"."support_requests" ("target_user_id");
@@ -756,7 +756,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:b35db83062d99075d979060be4ba77ee3193caeda1467311e23830b6cbefc6e6
+-- @bsb-hash sha256:26ba1a55150ff0680f6617affa6f516582eacc8ba676397adb839fd361d81edf
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -772,11 +772,11 @@ create table "better_supabase"."support_sessions" (
   "started_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   "ended_at" timestamptz,
-  "ended_by" text check ("ended_by" in ('admin', 'expired', 'revoked')),
+  "ended_by" text constraint bsb_support_sessions_ended_by_check check ("ended_by" in ('admin', 'expired', 'revoked')),
   -- App data, such as a ticket id.
   "metadata" jsonb not null default '{}',
-  check ("admin_id" <> "target_user_id"),
-  check ("expires_at" > "started_at")
+  constraint bsb_support_sessions_check check ("admin_id" <> "target_user_id"),
+  constraint bsb_support_sessions_check1 check ("expires_at" > "started_at")
 );
 create index support_sessions_admin_idx on "better_supabase"."support_sessions" ("admin_id", "started_at" desc);
 create index support_sessions_target_idx on "better_supabase"."support_sessions" ("target_user_id", "started_at" desc);
@@ -806,9 +806,9 @@ create table "better_supabase"."support_requests" (
   "approved_at" timestamptz,
   -- The session the approval started; an approval starts one session.
   "session_id" uuid,
-  check ("admin_id" <> "target_user_id"),
-  constraint support_requests_distinct_approver check ("approved_by" <> "admin_id"),
-  check (("approved_by" is null) = ("approved_at" is null))
+  constraint bsb_support_requests_check check ("admin_id" <> "target_user_id"),
+  constraint bsb_support_requests_distinct_approver check ("approved_by" <> "admin_id"),
+  constraint bsb_support_requests_check1 check (("approved_by" is null) = ("approved_at" is null))
 );
 create index support_requests_admin_idx on "better_supabase"."support_requests" ("admin_id", "target_user_id", "requested_at" desc);
 create index support_requests_target_idx on "better_supabase"."support_requests" ("target_user_id");
@@ -1552,7 +1552,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:901e89eb24adc3a26634e145e43a799825f7b6e40dde84dde566f2e5acd71051
+-- @bsb-hash sha256:2e696887d135a62b219331cec53991c1a945dc045719f0ed0534e737d7e46596
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1568,11 +1568,11 @@ create table "app_private"."support_sessions" (
   "started_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   "ended_at" timestamptz,
-  "ended_by" text check ("ended_by" in ('admin', 'expired', 'revoked')),
+  "ended_by" text constraint bsb_support_sessions_ended_by_check check ("ended_by" in ('admin', 'expired', 'revoked')),
   -- App data, such as a ticket id.
   "metadata" jsonb not null default '{}',
-  check ("admin_id" <> "target_user_id"),
-  check ("expires_at" > "started_at")
+  constraint bsb_support_sessions_check check ("admin_id" <> "target_user_id"),
+  constraint bsb_support_sessions_check1 check ("expires_at" > "started_at")
 );
 create index support_sessions_admin_idx on "app_private"."support_sessions" ("admin_id", "started_at" desc);
 create index support_sessions_target_idx on "app_private"."support_sessions" ("target_user_id", "started_at" desc);
@@ -1602,9 +1602,9 @@ create table "app_private"."support_requests" (
   "approved_at" timestamptz,
   -- The session the approval started; an approval starts one session.
   "session_id" uuid,
-  check ("admin_id" <> "target_user_id"),
-  constraint support_requests_distinct_approver check ("approved_by" <> "admin_id"),
-  check (("approved_by" is null) = ("approved_at" is null))
+  constraint bsb_support_requests_check check ("admin_id" <> "target_user_id"),
+  constraint bsb_support_requests_distinct_approver check ("approved_by" <> "admin_id"),
+  constraint bsb_support_requests_check1 check (("approved_by" is null) = ("approved_at" is null))
 );
 create index support_requests_admin_idx on "app_private"."support_requests" ("admin_id", "target_user_id", "requested_at" desc);
 create index support_requests_target_idx on "app_private"."support_requests" ("target_user_id");
@@ -2307,7 +2307,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:2c83dc511806e7a495863bccae30391751ddce6f3efecce8974a375a900213f9
+-- @bsb-hash sha256:22da781008aa47be076b136e96b84e71e63a8d2457ca789a0755d8351ce00967
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2323,11 +2323,11 @@ create table "better_supabase"."support_sessions" (
   "started_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   "ended_at" timestamptz,
-  "ended_by" text check ("ended_by" in ('admin', 'expired', 'revoked')),
+  "ended_by" text constraint bsb_support_sessions_ended_by_check check ("ended_by" in ('admin', 'expired', 'revoked')),
   -- App data, such as a ticket id.
   "metadata" jsonb not null default '{}',
-  check ("admin_id" <> "target_user_id"),
-  check ("expires_at" > "started_at")
+  constraint bsb_support_sessions_check check ("admin_id" <> "target_user_id"),
+  constraint bsb_support_sessions_check1 check ("expires_at" > "started_at")
 );
 create index support_sessions_admin_idx on "better_supabase"."support_sessions" ("admin_id", "started_at" desc);
 create index support_sessions_target_idx on "better_supabase"."support_sessions" ("target_user_id", "started_at" desc);
@@ -2357,9 +2357,9 @@ create table "better_supabase"."support_requests" (
   "approved_at" timestamptz,
   -- The session the approval started; an approval starts one session.
   "session_id" uuid,
-  check ("admin_id" <> "target_user_id"),
-  constraint support_requests_distinct_approver check ("approved_by" <> "admin_id"),
-  check (("approved_by" is null) = ("approved_at" is null))
+  constraint bsb_support_requests_check check ("admin_id" <> "target_user_id"),
+  constraint bsb_support_requests_distinct_approver check ("approved_by" <> "admin_id"),
+  constraint bsb_support_requests_check1 check (("approved_by" is null) = ("approved_at" is null))
 );
 create index support_requests_admin_idx on "better_supabase"."support_requests" ("admin_id", "target_user_id", "requested_at" desc);
 create index support_requests_target_idx on "better_supabase"."support_requests" ("target_user_id");
@@ -3160,7 +3160,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:3aa301f7b063f9f14549acb63dc3c0ac97a72f3c49eb1c223609f41f14a149c9
+-- @bsb-hash sha256:f5420233683698364c6caf67e237980a06a3cd2b0c8a3b5074f373130b1667be
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3175,7 +3175,7 @@ alter table "better_supabase"."support_sessions" add column if not exists "read_
 alter table "better_supabase"."support_sessions" add column if not exists "started_at" timestamptz not null default now();
 alter table "better_supabase"."support_sessions" add column if not exists "expires_at" timestamptz;
 alter table "better_supabase"."support_sessions" add column if not exists "ended_at" timestamptz;
-alter table "better_supabase"."support_sessions" add column if not exists "ended_by" text check ("ended_by" in ('admin', 'expired', 'revoked'));
+alter table "better_supabase"."support_sessions" add column if not exists "ended_by" text constraint bsb_support_sessions_ended_by_check check ("ended_by" in ('admin', 'expired', 'revoked'));
 alter table "better_supabase"."support_sessions" add column if not exists "metadata" jsonb not null default '{}';
 create index if not exists support_sessions_admin_idx on "better_supabase"."support_sessions" ("admin_id", "started_at" desc);
 create index if not exists support_sessions_target_idx on "better_supabase"."support_sessions" ("target_user_id", "started_at" desc);
@@ -3903,7 +3903,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_020_impersonation.sql
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:959bf769115f329aa8bae0bcf949954ccc0388af222cec001dfc2e39b49d5b1c
+-- @bsb-hash sha256:16f4bff2084eb1f14884b2f81d4e7ab3705ebb98ac75b545345ad4321d26da6c
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3919,11 +3919,11 @@ create table "better_supabase"."support_sessions" (
   "started_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
   "ended_at" timestamptz,
-  "ended_by" text check ("ended_by" in ('admin', 'expired', 'revoked')),
+  "ended_by" text constraint bsb_support_sessions_ended_by_check check ("ended_by" in ('admin', 'expired', 'revoked')),
   -- App data, such as a ticket id.
   "metadata" jsonb not null default '{}',
-  check ("admin_id" <> "target_user_id"),
-  check ("expires_at" > "started_at")
+  constraint bsb_support_sessions_check check ("admin_id" <> "target_user_id"),
+  constraint bsb_support_sessions_check1 check ("expires_at" > "started_at")
 );
 create index support_sessions_admin_idx on "better_supabase"."support_sessions" ("admin_id", "started_at" desc);
 create index support_sessions_target_idx on "better_supabase"."support_sessions" ("target_user_id", "started_at" desc);
@@ -3953,9 +3953,9 @@ create table "better_supabase"."support_requests" (
   "approved_at" timestamptz,
   -- The session the approval started; an approval starts one session.
   "session_id" uuid,
-  check ("admin_id" <> "target_user_id"),
-  constraint support_requests_distinct_approver check ("approved_by" <> "admin_id"),
-  check (("approved_by" is null) = ("approved_at" is null))
+  constraint bsb_support_requests_check check ("admin_id" <> "target_user_id"),
+  constraint bsb_support_requests_distinct_approver check ("approved_by" <> "admin_id"),
+  constraint bsb_support_requests_check1 check (("approved_by" is null) = ("approved_at" is null))
 );
 create index support_requests_admin_idx on "better_supabase"."support_requests" ("admin_id", "target_user_id", "requested_at" desc);
 create index support_requests_target_idx on "better_supabase"."support_requests" ("target_user_id");

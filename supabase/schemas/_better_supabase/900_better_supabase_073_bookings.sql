@@ -1,6 +1,6 @@
 -- better-supabase module: bookings
 -- @bsb-block bookings@1 managed
--- @bsb-hash sha256:ad0d85b5df5f92fb820f77adbb7df3964e10b5776f37f7f2632febf57da5ce8a
+-- @bsb-hash sha256:410dd939311e8ff0ce4246a1b0cab8de6febb143adde21ac2822051b3e1e6235
 -- Bookable resources with weekly hours and exceptions, services with durations and buffers, and bookings that a gist exclusion constraint (btree_gist) keeps from overlapping per seat. Holds expire; recurring series book every occurrence; a share link opens public booking; confirmed bookings mirror into the calendar and reminders.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,9 +9,9 @@ create extension if not exists btree_gist with schema extensions;
 create table "better_supabase"."booking_resources" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 120),
+  "name" text not null constraint bsb_booking_resources_name_check check (length("name") >= 1 and length("name") <= 120),
   "kind" text not null default 'staff',
-  "capacity" integer not null default 1 check ("capacity" >= 1 and "capacity" <= 1000),
+  "capacity" integer not null default 1 constraint bsb_booking_resources_capacity_check check ("capacity" >= 1 and "capacity" <= 1000),
   "tz" text not null default 'UTC',
   "calendar_id" uuid,
   "host_user_id" uuid,
@@ -31,10 +31,10 @@ create table "better_supabase"."booking_availability" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "resource_id" uuid not null references "better_supabase"."booking_resources" ("id") on delete cascade,
-  "weekday" smallint not null check ("weekday" >= 1 and "weekday" <= 7),
+  "weekday" smallint not null constraint bsb_booking_availability_weekday_check check ("weekday" >= 1 and "weekday" <= 7),
   "starts_at" time not null,
   "ends_at" time not null,
-  check ("ends_at" > "starts_at")
+  constraint bsb_booking_availability_check check ("ends_at" > "starts_at")
 );
 create index booking_availability_resource_idx on "better_supabase"."booking_availability" ("resource_id", "weekday");
 alter table "better_supabase"."booking_availability" enable row level security;
@@ -48,7 +48,7 @@ create table "better_supabase"."booking_exceptions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "resource_id" uuid not null references "better_supabase"."booking_resources" ("id") on delete cascade,
-  "during" tstzrange not null check (not isempty("during")),
+  "during" tstzrange not null constraint bsb_booking_exceptions_during_check check (not isempty("during")),
   "available" boolean not null default false,
   "reason" text
 );
@@ -63,14 +63,14 @@ create policy bsb_booking_exceptions_read on "better_supabase"."booking_exceptio
 create table "better_supabase"."booking_services" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 120),
-  "duration" interval not null check ("duration" > interval '0'),
-  "buffer_before" interval not null default interval '0' check ("buffer_before" >= interval '0'),
-  "buffer_after" interval not null default interval '0' check ("buffer_after" >= interval '0'),
+  "name" text not null constraint bsb_booking_services_name_check check (length("name") >= 1 and length("name") <= 120),
+  "duration" interval not null constraint bsb_booking_services_duration_check check ("duration" > interval '0'),
+  "buffer_before" interval not null default interval '0' constraint bsb_booking_services_buffer_before_check check ("buffer_before" >= interval '0'),
+  "buffer_after" interval not null default interval '0' constraint bsb_booking_services_buffer_after_check check ("buffer_after" >= interval '0'),
   "resource_kinds" text[] not null default '{}',
-  "step" interval check ("step" > interval '0'),
+  "step" interval constraint bsb_booking_services_step_check check ("step" > interval '0'),
   "min_notice" interval not null default interval '0',
-  "hold_for" interval not null default interval '10 minutes' check ("hold_for" > interval '0'),
+  "hold_for" interval not null default interval '10 minutes' constraint bsb_booking_services_hold_for_check check ("hold_for" > interval '0'),
   "reminder_offsets" integer[] not null default '{1440}',
   "active" boolean not null default true,
   "created_at" timestamptz not null default now()
@@ -88,10 +88,10 @@ create table "better_supabase"."bookings" (
   "tenant_id" uuid not null,
   "resource_id" uuid not null references "better_supabase"."booking_resources" ("id") on delete cascade,
   "service_id" uuid not null references "better_supabase"."booking_services" ("id") on delete restrict,
-  "seat" integer not null default 1 check ("seat" >= 1),
-  "during" tstzrange not null check (not isempty("during")),
+  "seat" integer not null default 1 constraint bsb_bookings_seat_check check ("seat" >= 1),
+  "during" tstzrange not null constraint bsb_bookings_during_check check (not isempty("during")),
   "blocked" tstzrange not null,
-  "status" text not null default 'hold' check ("status" in ('hold', 'confirmed', 'cancelled')),
+  "status" text not null default 'hold' constraint bsb_bookings_status_check check ("status" in ('hold', 'confirmed', 'cancelled')),
   "hold_expires_at" timestamptz,
   "customer_name" text,
   "customer_email" text,
@@ -104,8 +104,8 @@ create table "better_supabase"."bookings" (
   "updated_at" timestamptz not null default now(),
   "cancelled_at" timestamptz,
   "cancel_reason" text,
-  check ("blocked" @> "during"),
-  check (("status" = 'hold') = ("hold_expires_at" is not null)),
+  constraint bsb_bookings_check check ("blocked" @> "during"),
+  constraint bsb_bookings_check1 check (("status" = 'hold') = ("hold_expires_at" is not null)),
   constraint bookings_no_overlap_excl exclude using gist (
     "resource_id" with =,
     "seat" with =,
@@ -132,13 +132,13 @@ create table "better_supabase"."booking_series" (
   "tenant_id" uuid not null,
   "service_id" uuid not null references "better_supabase"."booking_services" ("id") on delete restrict,
   "resource_id" uuid not null references "better_supabase"."booking_resources" ("id") on delete cascade,
-  "rule" jsonb not null check (jsonb_typeof("rule") = 'object'),
+  "rule" jsonb not null constraint bsb_booking_series_rule_check check (jsonb_typeof("rule") = 'object'),
   "starts_at" timestamptz not null,
   "tz" text not null,
   "customer_name" text,
   "customer_email" text,
   "customer_user_id" uuid,
-  "status" text not null default 'active' check ("status" in ('active', 'ended', 'cancelled')),
+  "status" text not null default 'active' constraint bsb_booking_series_status_check check ("status" in ('active', 'ended', 'cancelled')),
   "ends_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),

@@ -1,6 +1,6 @@
 -- better-supabase module: courses
 -- @bsb-block courses@1 managed
--- @bsb-hash sha256:8bac4597bb15780ff594ba04f0bc1ed1a124278527667d2966569e3a72c154a8
+-- @bsb-hash sha256:abc49cef2062ea922793c9ef2b1fc77255daa3263df134ce645beeae86ae7242
 -- Courses of modules and lessons ordered by rank keys, with quiz lessons graded by forms, per-lesson progress, completion and certificates. Each course runs as an enrollment program, so learners enroll through enrollments.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,12 +10,12 @@
 create table "better_supabase"."courses" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "summary" text check ("summary" is null or length("summary") <= 2000),
-  "status" text not null default 'draft' check ("status" in ('draft', 'published', 'archived')),
+  "key" text not null constraint bsb_courses_key_check check ("key" ~ '^[a-z][a-z0-9-]{0,62}$'),
+  "title" text not null constraint bsb_courses_title_check check (length("title") >= 1 and length("title") <= 200),
+  "summary" text constraint bsb_courses_summary_check check ("summary" is null or length("summary") <= 2000),
+  "status" text not null default 'draft' constraint bsb_courses_status_check check ("status" in ('draft', 'published', 'archived')),
   "issues_certificate" boolean not null default true,
-  "valid_for_months" integer check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240),
+  "valid_for_months" integer constraint bsb_courses_valid_for_months_check check ("valid_for_months" is null or "valid_for_months" >= 1 and "valid_for_months" <= 240),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -26,7 +26,7 @@ create table "better_supabase"."course_modules" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "course_id" uuid not null references "better_supabase"."courses" ("id") on delete cascade,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
+  "title" text not null constraint bsb_course_modules_title_check check (length("title") >= 1 and length("title") <= 200),
   -- A fractional rank key (ADR 0021): modules sort by it within the course.
   "rank" text collate "C" not null,
   "created_at" timestamptz not null default now(),
@@ -39,21 +39,21 @@ create table "better_supabase"."course_lessons" (
   "tenant_id" uuid not null,
   "course_id" uuid not null references "better_supabase"."courses" ("id") on delete cascade,
   "module_id" uuid not null references "better_supabase"."course_modules" ("id") on delete cascade,
-  "title" text not null check (length("title") >= 1 and length("title") <= 200),
-  "kind" text not null default 'content' check ("kind" in ('content', 'video', 'quiz')),
+  "title" text not null constraint bsb_course_lessons_title_check check (length("title") >= 1 and length("title") <= 200),
+  "kind" text not null default 'content' constraint bsb_course_lessons_kind_check check ("kind" in ('content', 'video', 'quiz')),
   -- The lesson's content, such as a rich-text document; only enrolled
   -- learners and the course's managers read it.
   "body" jsonb,
-  "media_url" text check ("media_url" is null or ("media_url" ~ '^https?://' and length("media_url") <= 2000)),
+  "media_url" text constraint bsb_course_lessons_media_url_check check ("media_url" is null or ("media_url" ~ '^https?://' and length("media_url") <= 2000)),
   -- The forms form a quiz lesson grades; a passed submission completes it.
   "form_id" uuid,
   -- Required lessons are the steps of the course's enrollment program.
   "required" boolean not null default true,
-  "duration_minutes" integer check ("duration_minutes" is null or "duration_minutes" >= 1 and "duration_minutes" <= 10000),
+  "duration_minutes" integer constraint bsb_course_lessons_duration_minutes_check check ("duration_minutes" is null or "duration_minutes" >= 1 and "duration_minutes" <= 10000),
   "rank" text collate "C" not null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("kind" = 'quiz') = ("form_id" is not null))
+  constraint bsb_course_lessons_check check (("kind" = 'quiz') = ("form_id" is not null))
 );
 create index "course_lessons_module_idx" on "better_supabase"."course_lessons" ("module_id", "rank");
 create index "course_lessons_parent_idx" on "better_supabase"."course_lessons" ("course_id");
@@ -70,7 +70,7 @@ create table "better_supabase"."course_lesson_progress" (
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "started_at" timestamptz not null default now(),
   "completed_at" timestamptz,
-  "attempts" integer not null default 0 check ("attempts" >= 0),
+  "attempts" integer not null default 0 constraint bsb_course_lesson_progress_attempts_check check ("attempts" >= 0),
   "submission_id" uuid,
   "score" numeric,
   "max_score" numeric,
@@ -90,7 +90,7 @@ create table "better_supabase"."course_certificates" (
   "course_id" uuid not null references "better_supabase"."courses" ("id") on delete cascade,
   "enrollment_id" uuid not null references "better_supabase"."enrollments" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "code" text not null unique check ("code" ~ '^[0-9a-f]{32}$'),
+  "code" text not null unique constraint bsb_course_certificates_code_check check ("code" ~ '^[0-9a-f]{32}$'),
   "issued_at" timestamptz not null default now(),
   "expires_at" timestamptz,
   "revoked_at" timestamptz,

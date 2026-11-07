@@ -242,6 +242,8 @@ describe("blocks.<name>.entities in the SQL", () => {
               new RegExp(String.raw`bsb_${name}_\w+|/${name}/`, "g"),
               "",
             )
+            // A check's name carries its table and column (`bsb_<table>_<column>_check`).
+            .replaceAll(/constraint bsb_\w+_check/g, "")
             // The default privileges name every object kind, not an entity.
             .replaceAll(
               /alter default privileges in schema \w+ revoke all on \w+ from[^;]*;/g,

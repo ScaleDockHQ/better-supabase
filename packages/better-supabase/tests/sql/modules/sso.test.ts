@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { renderBlocks } from "../../../src/sql/render.ts";
+import { unnamedChecks } from "../unnamed-checks.ts";
 
 const sqlOf = (
   names: readonly string[],
@@ -25,7 +26,7 @@ describe("sso module", () => {
 
   it("creates domains, providers and SCIM tables with role defaults", () => {
     const sql = sqlOf(["sso"]);
-    expect(sql).toContain(
+    expect(unnamedChecks(sql)).toContain(
       `"auto_join_role" text check ("auto_join_role" = any (array['admin', 'member', 'viewer']::text[]))`,
     );
     expect(sql).toContain("'_better-supabase.' || ");

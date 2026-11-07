@@ -232,8 +232,8 @@ declare
   v_final jsonb;
 begin
   ${SERVICE}
-  alter table better_supabase.invoices drop constraint invoices_kind_check;
-  alter table better_supabase.invoices add constraint invoices_kind_check check (kind in ('invoice', 'deposit', 'credit_note'));
+  alter table better_supabase.invoices drop constraint bsb_invoices_kind_check;
+  alter table better_supabase.invoices add constraint bsb_invoices_kind_check check (kind in ('invoice', 'deposit', 'credit_note'));
   ${accepted('{"title": "Work", "currency": "EUR"}')}
   v_share := better_supabase.invoice_from_quote(v_quote, 2000);
   v_fixed := better_supabase.invoice_from_quote(v_quote, null, 1210);

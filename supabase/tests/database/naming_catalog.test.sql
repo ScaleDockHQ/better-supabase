@@ -32,7 +32,7 @@ select extensions.cmp_ok(
     join pg_catalog.pg_class c on c.oid = k.conrelid
     join pg_catalog.pg_namespace s on s.oid = c.relnamespace
     where s.nspname = 'better_supabase' and k.contype = 'c' and k.conname !~ '^bsb_'),
-  '<=', 1872::bigint,
+  '<=', 0::bigint,
   'better_supabase check constraints are named bsb_*'
 );
 

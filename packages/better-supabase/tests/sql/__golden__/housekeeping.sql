@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:55362bf4d80336e3df567122ae38197355290aef7ce3a6193ec30f22e016c6c7
+-- @bsb-hash sha256:22f8953b4b87933610637b476330513e3572ee6b222b16bb6c07b0efaa279485
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,7 +10,7 @@
 create table "better_supabase"."maintenance_state" (
   "job" text primary key,
   "last_run_at" timestamptz,
-  "last_status" text check ("last_status" in ('ok', 'error')),
+  "last_status" text constraint bsb_maintenance_state_last_status_check check ("last_status" in ('ok', 'error')),
   "last_result" jsonb,
   "last_error" text,
   "runs" bigint not null default 0
@@ -136,7 +136,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:47594629cdf04a7e92468491e88e96150255a84821f54fc835fd2b419edd9403
+-- @bsb-hash sha256:6883a95fef5c50f2adda8fef5f3bf197216774f20f3e194e02807b2d4ec1645e
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -145,7 +145,7 @@ on conflict (name) do update
 create table "better_supabase"."maintenance_state" (
   "job" text primary key,
   "last_run_at" timestamptz,
-  "last_status" text check ("last_status" in ('ok', 'error')),
+  "last_status" text constraint bsb_maintenance_state_last_status_check check ("last_status" in ('ok', 'error')),
   "last_result" jsonb,
   "last_error" text,
   "runs" bigint not null default 0
@@ -282,7 +282,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:41fd54ac1deb932d8ecd47e5bb5243fa2c817a92c5febcd6a20d88ab88afa7f4
+-- @bsb-hash sha256:e6fa858e0df13f22ec52805592628b777227bc88f2f4364539565b4770d6adb2
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -297,7 +297,7 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 create table "app_private"."maintenance_state" (
   "job" text primary key,
   "last_run_at" timestamptz,
-  "last_status" text check ("last_status" in ('ok', 'error')),
+  "last_status" text constraint bsb_maintenance_state_last_status_check check ("last_status" in ('ok', 'error')),
   "last_result" jsonb,
   "last_error" text,
   "runs" bigint not null default 0
@@ -423,7 +423,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:25b25ca6068b694de830ee294c879ecce8c968bee0ffc93589bb500761a504c6
+-- @bsb-hash sha256:ccdbb54731bd279b11a93e9aebd020a79711457bf7bf498776f1aade02bb3998
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -432,7 +432,7 @@ on conflict (name) do update
 create table "better_supabase"."maintenance_state" (
   "job" text primary key,
   "last_run_at" timestamptz,
-  "last_status" text check ("last_status" in ('ok', 'error')),
+  "last_status" text constraint bsb_maintenance_state_last_status_check check ("last_status" in ('ok', 'error')),
   "last_result" jsonb,
   "last_error" text,
   "runs" bigint not null default 0
@@ -589,7 +589,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_175_housekeeping.sql
 -- better-supabase module: housekeeping
 -- @bsb-block housekeeping@1 managed
--- @bsb-hash sha256:013aef1c1db62d0ede79984a686054fb9427012f136a62fa2773279063048560
+-- @bsb-hash sha256:f54641626dc2bc32cee522d842582e42e090ef138b6d06bd2900f1f7531e03f0
 -- One dispatcher for the recurring cleanups the installed blocks contribute (purges, expiries): maintenance() runs each due job and records its outcome, and maintenance_schedule() registers it with pg_cron.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -598,7 +598,7 @@ on conflict (name) do update
 -- better_supabase.maintenance_state is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."maintenance_state" add column if not exists "job" text;
 alter table "better_supabase"."maintenance_state" add column if not exists "last_run_at" timestamptz;
-alter table "better_supabase"."maintenance_state" add column if not exists "last_status" text check ("last_status" in ('ok', 'error'));
+alter table "better_supabase"."maintenance_state" add column if not exists "last_status" text constraint bsb_maintenance_state_last_status_check check ("last_status" in ('ok', 'error'));
 alter table "better_supabase"."maintenance_state" add column if not exists "last_result" jsonb;
 alter table "better_supabase"."maintenance_state" add column if not exists "last_error" text;
 alter table "better_supabase"."maintenance_state" add column if not exists "runs" bigint not null default 0;

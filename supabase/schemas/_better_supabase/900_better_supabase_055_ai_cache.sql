@@ -1,6 +1,6 @@
 -- better-supabase module: ai-cache
 -- @bsb-block ai-cache@1 managed
--- @bsb-hash sha256:4a194b0031f514f39fd03daadff5a6d44d82f1f75cb6981fbcb024b4da30f76d
+-- @bsb-hash sha256:80031f4fff79f9b605d541cdba67a953cd797cb9f85e9495a7f70793d1e2187b
 -- Model responses cached by a key the application derives from the request, with a TTL capped by maxTtl, hit counts and a purge of expired entries; only the service role reads and writes it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,11 +9,11 @@
 -- (a SHA-256 of the model, the prompt and the settings). Entries hold prompts
 -- and outputs, so only the service role reads and writes them.
 create table "better_supabase"."ai_cache_entries" (
-  "key" text primary key check (length("key") >= 1 and length("key") <= 256),
+  "key" text primary key constraint bsb_ai_cache_entries_key_check check (length("key") >= 1 and length("key") <= 256),
   "organization_id" uuid,
-  "kind" text not null default 'generate' check ("kind" in ('generate', 'stream', 'embed', 'other')),
-  "model" text check (length("model") <= 200),
-  "value" jsonb not null check (octet_length("value"::text) <= 1048576),
+  "kind" text not null default 'generate' constraint bsb_ai_cache_entries_kind_check check ("kind" in ('generate', 'stream', 'embed', 'other')),
+  "model" text constraint bsb_ai_cache_entries_model_check check (length("model") <= 200),
+  "value" jsonb not null constraint bsb_ai_cache_entries_value_check check (octet_length("value"::text) <= 1048576),
   "hits" integer not null default 0,
   "created_at" timestamptz not null default now(),
   "last_hit_at" timestamptz,

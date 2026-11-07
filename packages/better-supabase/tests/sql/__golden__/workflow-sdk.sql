@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:c8b12f445ca4cd79b6dd0853b67c172e26255ad0ac0134cd04d0b544cccc6588
+-- @bsb-hash sha256:8aba899a2134121ac83eb9154a0c02227802cb8f40de99ae1baf96b96ef7ee0f
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -191,7 +191,7 @@ create index workflow_waits_run_id_index ON workflow.workflow_waits USING btree 
 -- a run, so two concurrent starts with one key start one run. run_id is null
 -- while the start that claimed it is still running.
 create table workflow.workflow_run_keys (
-  key text primary key check (length(key) >= 1 and length(key) <= 500),
+  key text primary key constraint bsb_workflow_run_keys_key_check check (length(key) >= 1 and length(key) <= 500),
   run_id character varying,
   claimed_at timestamptz not null default now()
 );
@@ -523,7 +523,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:c8b12f445ca4cd79b6dd0853b67c172e26255ad0ac0134cd04d0b544cccc6588
+-- @bsb-hash sha256:8aba899a2134121ac83eb9154a0c02227802cb8f40de99ae1baf96b96ef7ee0f
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -713,7 +713,7 @@ create index workflow_waits_run_id_index ON workflow.workflow_waits USING btree 
 -- a run, so two concurrent starts with one key start one run. run_id is null
 -- while the start that claimed it is still running.
 create table workflow.workflow_run_keys (
-  key text primary key check (length(key) >= 1 and length(key) <= 500),
+  key text primary key constraint bsb_workflow_run_keys_key_check check (length(key) >= 1 and length(key) <= 500),
   run_id character varying,
   claimed_at timestamptz not null default now()
 );
@@ -1045,7 +1045,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:643664176fb7f303e45929edf08a5ffc42541d58c3694423e60656d2c70e266c
+-- @bsb-hash sha256:65c4ebfe06806935dc3375083f36b4c5b5150e777322ebd60208486d5ce94ac4
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1240,7 +1240,7 @@ create index workflow_waits_run_id_index ON workflow.workflow_waits USING btree 
 -- a run, so two concurrent starts with one key start one run. run_id is null
 -- while the start that claimed it is still running.
 create table workflow.workflow_run_keys (
-  key text primary key check (length(key) >= 1 and length(key) <= 500),
+  key text primary key constraint bsb_workflow_run_keys_key_check check (length(key) >= 1 and length(key) <= 500),
   run_id character varying,
   claimed_at timestamptz not null default now()
 );
@@ -1572,7 +1572,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_043_workflow_sdk.sql
 -- better-supabase module: workflow-sdk
 -- @bsb-block workflow-sdk@4 managed
--- @bsb-hash sha256:cbc85257a33b73a1584cd71f99e9e464f8d75890d4298fbb70816b06376efc9c
+-- @bsb-hash sha256:fd348ff4922d092e46c59dfdb9efbaccb504c7ee850458e6eb8d33c031b41112
 -- The tables of the Workflow SDK World (@workflow/world-postgres 5.1.0) in the workflow schema, closed to the API roles; a trigger that copies each run into workflow_runs, a pg_net dispatcher for the delivery queue on a pg_cron schedule, start idempotency keys, a list of the hooks open runs wait on and a purge of ended runs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1762,7 +1762,7 @@ create index workflow_waits_run_id_index ON workflow.workflow_waits USING btree 
 -- a run, so two concurrent starts with one key start one run. run_id is null
 -- while the start that claimed it is still running.
 create table workflow.workflow_run_keys (
-  key text primary key check (length(key) >= 1 and length(key) <= 500),
+  key text primary key constraint bsb_workflow_run_keys_key_check check (length(key) >= 1 and length(key) <= 500),
   run_id character varying,
   claimed_at timestamptz not null default now()
 );

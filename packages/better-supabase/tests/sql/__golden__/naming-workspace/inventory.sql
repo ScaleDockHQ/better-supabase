@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_081_inventory.sql
 -- better-supabase module: inventory
 -- @bsb-block inventory@5 managed
--- @bsb-hash sha256:5092d6a9d22a6f9e4fea691bfa925d1ae40ac269d5df591335cbc420ffd2779a
+-- @bsb-hash sha256:a201b711b63d89edfe8e17aa35f9cc2c2746a261739fa125ec9d6f368527d975
 -- Stock per catalog variant and location in a unit with decimals: movements posted to the ledger block, lots, serial numbers, expiry, bins, weighted average cost, reservations with expiry, allocations with backorders, transfers, purchase requisitions with approval, and purchase orders with partial receiving into goods receipts.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16,8 +16,8 @@ create table "better_supabase"."inventory_locations" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "code" text not null,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "kind" text not null default 'warehouse' check ("kind" in ('warehouse', 'store', 'virtual')),
+  "name" text not null constraint bsb_inventory_locations_name_check check (length("name") >= 1 and length("name") <= 200),
+  "kind" text not null default 'warehouse' constraint bsb_inventory_locations_kind_check check ("kind" in ('warehouse', 'store', 'virtual')),
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -37,11 +37,11 @@ create table "better_supabase"."stock_levels" (
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "on_hand" numeric(20, 6) not null default 0,
-  "reserved" numeric(20, 6) not null default 0 check ("reserved" >= 0),
-  "held" numeric(20, 6) not null default 0 check ("held" >= 0),
-  "incoming" numeric(20, 6) not null default 0 check ("incoming" >= 0),
+  "reserved" numeric(20, 6) not null default 0 constraint bsb_stock_levels_reserved_check check ("reserved" >= 0),
+  "held" numeric(20, 6) not null default 0 constraint bsb_stock_levels_held_check check ("held" >= 0),
+  "incoming" numeric(20, 6) not null default 0 constraint bsb_stock_levels_incoming_check check ("incoming" >= 0),
   "available" numeric(20, 6) generated always as ("on_hand" - "reserved" - "held") stored,
-  "reorder_point" numeric(20, 6) check ("reorder_point" >= 0),
+  "reorder_point" numeric(20, 6) constraint bsb_stock_levels_reorder_point_check check ("reorder_point" >= 0),
   "reorder_quantity" numeric(20, 6) constraint bsb_stock_levels_reorder_quantity check ("reorder_quantity" > 0),
   "updated_at" timestamptz not null default now(),
   primary key ("variant_id", "location_id")
@@ -60,8 +60,8 @@ create table "better_supabase"."stock_reservations" (
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
-  "status" text not null default 'active' check ("status" in ('active', 'committed', 'released', 'expired')),
+  "quantity" numeric(20, 6) not null constraint bsb_stock_reservations_quantity_check check ("quantity" > 0),
+  "status" text not null default 'active' constraint bsb_stock_reservations_status_check check ("status" in ('active', 'committed', 'released', 'expired')),
   "reference_type" text,
   "reference_id" text,
   "expires_at" timestamptz not null,
@@ -85,12 +85,12 @@ create table "better_supabase"."stock_transfers" (
   "tenant_id" uuid not null,
   "from_location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "to_location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
-  "status" text not null default 'draft' check ("status" in ('draft', 'in_transit', 'received', 'cancelled')),
+  "status" text not null default 'draft' constraint bsb_stock_transfers_status_check check ("status" in ('draft', 'in_transit', 'received', 'cancelled')),
   "note" text,
   "created_at" timestamptz not null default now(),
   "shipped_at" timestamptz,
   "received_at" timestamptz,
-  check ("from_location_id" <> "to_location_id"),
+  constraint bsb_stock_transfers_check check ("from_location_id" <> "to_location_id"),
   unique ("id", "tenant_id")
 );
 create index stock_transfers_from_idx on "better_supabase"."stock_transfers" ("from_location_id");
@@ -107,7 +107,7 @@ create table "better_supabase"."stock_transfer_lines" (
   "tenant_id" uuid not null,
   "transfer_id" uuid not null references "better_supabase"."stock_transfers" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
+  "quantity" numeric(20, 6) not null constraint bsb_stock_transfer_lines_quantity_check check ("quantity" > 0),
   -- The lots and serial numbers the transfer took out, so receiving puts the same ones in.
   "detail" jsonb,
   primary key ("transfer_id", "variant_id")
@@ -127,17 +127,17 @@ create table "better_supabase"."purchase_orders" (
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "supplier_type" text,
   "supplier_id" text,
-  "status" text not null default 'draft' check ("status" in ('draft', 'ordered', 'partially_received', 'received', 'cancelled')),
-  "currency" char(3) not null check ("currency" ~ '^[A-Z]{3}$'),
+  "status" text not null default 'draft' constraint bsb_purchase_orders_status_check check ("status" in ('draft', 'ordered', 'partially_received', 'received', 'cancelled')),
+  "currency" char(3) not null constraint bsb_purchase_orders_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "expected_at" timestamptz,
   "note" text,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
   "placed_at" timestamptz,
-  "ship_to" jsonb check ("ship_to" is null or jsonb_typeof("ship_to") = 'object'),
+  "ship_to" jsonb constraint bsb_purchase_orders_ship_to_check check ("ship_to" is null or jsonb_typeof("ship_to") = 'object'),
   "origin_type" text,
   "origin_id" text,
-  check (("supplier_type" is null) = ("supplier_id" is null)),
+  constraint bsb_purchase_orders_check check (("supplier_type" is null) = ("supplier_id" is null)),
   unique ("id", "tenant_id")
 );
 create index purchase_orders_location_idx on "better_supabase"."purchase_orders" ("location_id");
@@ -155,9 +155,9 @@ create table "better_supabase"."purchase_order_lines" (
   "tenant_id" uuid not null,
   "purchase_order_id" uuid not null references "better_supabase"."purchase_orders" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "quantity_ordered" numeric(20, 6) not null check ("quantity_ordered" > 0),
-  "quantity_received" numeric(20, 6) not null default 0 check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered"),
-  "unit_cost" bigint not null check ("unit_cost" >= 0),
+  "quantity_ordered" numeric(20, 6) not null constraint bsb_purchase_order_lines_quantity_ordered_check check ("quantity_ordered" > 0),
+  "quantity_received" numeric(20, 6) not null default 0 constraint bsb_purchase_order_lines_check check ("quantity_received" >= 0 and "quantity_received" <= "quantity_ordered"),
+  "unit_cost" bigint not null constraint bsb_purchase_order_lines_unit_cost_check check ("unit_cost" >= 0),
   unique ("purchase_order_id", "variant_id")
 );
 create index purchase_order_lines_variant_idx on "better_supabase"."purchase_order_lines" ("variant_id");
@@ -175,9 +175,9 @@ create table "better_supabase"."purchase_requisitions" (
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
   "supplier_type" text,
   "supplier_id" text,
-  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'approved', 'rejected', 'ordered', 'cancelled')),
-  "reason" text check (length("reason") <= 2000),
+  "currency" char(3) constraint bsb_purchase_requisitions_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "status" text not null default 'pending' constraint bsb_purchase_requisitions_status_check check ("status" in ('pending', 'approved', 'rejected', 'ordered', 'cancelled')),
+  "reason" text constraint bsb_purchase_requisitions_reason_check check (length("reason") <= 2000),
   "requested_by" uuid default auth.uid(),
   "decided_by" uuid,
   "decided_at" timestamptz,
@@ -185,7 +185,7 @@ create table "better_supabase"."purchase_requisitions" (
   "purchase_order_id" uuid references "better_supabase"."purchase_orders" ("id") on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check (("supplier_type" is null) = ("supplier_id" is null))
+  constraint bsb_purchase_requisitions_check check (("supplier_type" is null) = ("supplier_id" is null))
 );
 create index purchase_requisitions_status_idx on "better_supabase"."purchase_requisitions" ("tenant_id", "status");
 create index purchase_requisitions_location_idx on "better_supabase"."purchase_requisitions" ("location_id");
@@ -203,8 +203,8 @@ create table "better_supabase"."purchase_requisition_lines" (
   "tenant_id" uuid not null,
   "requisition_id" uuid not null references "better_supabase"."purchase_requisitions" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
-  "unit_cost" bigint check ("unit_cost" >= 0),
+  "quantity" numeric(20, 6) not null constraint bsb_purchase_requisition_lines_quantity_check check ("quantity" > 0),
+  "unit_cost" bigint constraint bsb_purchase_requisition_lines_unit_cost_check check ("unit_cost" >= 0),
   unique ("requisition_id", "variant_id")
 );
 create index purchase_requisition_lines_variant_idx on "better_supabase"."purchase_requisition_lines" ("variant_id");
@@ -241,8 +241,8 @@ create table "better_supabase"."inventory_receipt_lines" (
   "receipt_id" uuid not null references "better_supabase"."inventory_receipts" ("id") on delete cascade,
   "purchase_order_line_id" uuid not null references "better_supabase"."purchase_order_lines" ("id") on delete cascade,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
-  "unit_cost" bigint not null check ("unit_cost" >= 0),
+  "quantity" numeric(20, 6) not null constraint bsb_inventory_receipt_lines_quantity_check check ("quantity" > 0),
+  "unit_cost" bigint not null constraint bsb_inventory_receipt_lines_unit_cost_check check ("unit_cost" >= 0),
   "detail" jsonb
 );
 create index inventory_receipt_lines_receipt_idx on "better_supabase"."inventory_receipt_lines" ("receipt_id");
@@ -259,16 +259,16 @@ create policy bsb_inventory_receipt_lines_read on "better_supabase"."inventory_r
 create table "better_supabase"."stock_items" (
   "variant_id" uuid primary key references "better_supabase"."product_variants" ("id") on delete cascade,
   "tenant_id" uuid not null,
-  "unit" text not null default 'item' check ("unit" ~ '^[a-z][a-z0-9_]{0,31}$'),
-  "scale" smallint not null default 0 check ("scale" >= 0 and "scale" <= 6),
-  "tracking" text not null default 'none' check ("tracking" in ('none', 'lot', 'serial')),
+  "unit" text not null default 'item' constraint bsb_stock_items_unit_check check ("unit" ~ '^[a-z][a-z0-9_]{0,31}$'),
+  "scale" smallint not null default 0 constraint bsb_stock_items_scale_check check ("scale" >= 0 and "scale" <= 6),
+  "tracking" text not null default 'none' constraint bsb_stock_items_tracking_check check ("tracking" in ('none', 'lot', 'serial')),
   "tracks_expiry" boolean not null default false,
-  "costing" text not null default 'none' check ("costing" in ('none', 'average')),
-  "currency" char(3) check ("currency" ~ '^[A-Z]{3}$'),
-  "average_cost" numeric(24, 6) check ("average_cost" >= 0),
+  "costing" text not null default 'none' constraint bsb_stock_items_costing_check check ("costing" in ('none', 'average')),
+  "currency" char(3) constraint bsb_stock_items_currency_check check ("currency" ~ '^[A-Z]{3}$'),
+  "average_cost" numeric(24, 6) constraint bsb_stock_items_average_cost_check check ("average_cost" >= 0),
   "updated_at" timestamptz not null default now(),
-  check ("tracking" <> 'serial' or "scale" = 0),
-  check ("costing" = 'none' or "currency" is not null)
+  constraint bsb_stock_items_check check ("tracking" <> 'serial' or "scale" = 0),
+  constraint bsb_stock_items_check1 check ("costing" = 'none' or "currency" is not null)
 );
 create index stock_items_tenant_idx on "better_supabase"."stock_items" ("tenant_id");
 alter table "better_supabase"."stock_items" enable row level security;
@@ -283,8 +283,8 @@ create table "better_supabase"."stock_bins" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
-  "code" text not null check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$'),
-  "name" text check (length("name") >= 1 and length("name") <= 200),
+  "code" text not null constraint bsb_stock_bins_code_check check ("code" ~ '^[A-Za-z0-9][A-Za-z0-9_.-]{0,39}$'),
+  "name" text constraint bsb_stock_bins_name_check check (length("name") >= 1 and length("name") <= 200),
   "hold" boolean not null default false,
   "active" boolean not null default true,
   "created_at" timestamptz not null default now(),
@@ -303,7 +303,7 @@ create table "better_supabase"."stock_lots" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "code" text not null check (length("code") >= 1 and length("code") <= 100),
+  "code" text not null constraint bsb_stock_lots_code_check check (length("code") >= 1 and length("code") <= 100),
   "expires_on" date,
   "created_at" timestamptz not null default now(),
   unique ("variant_id", "code")
@@ -321,11 +321,11 @@ create table "better_supabase"."stock_serials" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
-  "serial" text not null check (length("serial") >= 1 and length("serial") <= 100),
+  "serial" text not null constraint bsb_stock_serials_serial_check check (length("serial") >= 1 and length("serial") <= 100),
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete set null,
   "location_id" uuid references "better_supabase"."inventory_locations" ("id") on delete set null,
   "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete set null,
-  "status" text not null default 'in_stock' check ("status" in ('in_stock', 'out', 'scrapped')),
+  "status" text not null default 'in_stock' constraint bsb_stock_serials_status_check check ("status" in ('in_stock', 'out', 'scrapped')),
   "movement_id" uuid,
   "updated_at" timestamptz not null default now(),
   unique ("variant_id", "serial")
@@ -352,7 +352,7 @@ create table "better_supabase"."stock_buckets" (
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
   "on_hand" numeric(20, 6) not null default 0,
   "updated_at" timestamptz not null default now(),
-  check ("bin_id" is not null or "lot_id" is not null),
+  constraint bsb_stock_buckets_check check ("bin_id" is not null or "lot_id" is not null),
   unique nulls not distinct ("variant_id", "location_id", "bin_id", "lot_id")
 );
 create index stock_buckets_location_idx on "better_supabase"."stock_buckets" ("location_id");
@@ -372,17 +372,17 @@ create table "better_supabase"."stock_allocations" (
   "tenant_id" uuid not null,
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
-  "document_type" text not null check ("document_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
-  "document_id" text not null check (length("document_id") >= 1 and length("document_id") <= 200),
+  "document_type" text not null constraint bsb_stock_allocations_document_type_check check ("document_type" ~ '^[a-z][a-z0-9_]{0,62}$'),
+  "document_id" text not null constraint bsb_stock_allocations_document_id_check check (length("document_id") >= 1 and length("document_id") <= 200),
   "line_id" text,
-  "quantity" numeric(20, 6) not null check ("quantity" > 0),
-  "allocated" numeric(20, 6) not null default 0 check ("allocated" >= 0),
-  "fulfilled" numeric(20, 6) not null default 0 check ("fulfilled" >= 0),
+  "quantity" numeric(20, 6) not null constraint bsb_stock_allocations_quantity_check check ("quantity" > 0),
+  "allocated" numeric(20, 6) not null default 0 constraint bsb_stock_allocations_allocated_check check ("allocated" >= 0),
+  "fulfilled" numeric(20, 6) not null default 0 constraint bsb_stock_allocations_fulfilled_check check ("fulfilled" >= 0),
   "backordered" numeric(20, 6) generated always as (case when "status" = 'open' then "quantity" - "allocated" - "fulfilled" else 0 end) stored,
-  "status" text not null default 'open' check ("status" in ('open', 'fulfilled', 'released')),
+  "status" text not null default 'open' constraint bsb_stock_allocations_status_check check ("status" in ('open', 'fulfilled', 'released')),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  check ("allocated" + "fulfilled" <= "quantity")
+  constraint bsb_stock_allocations_check check ("allocated" + "fulfilled" <= "quantity")
 );
 create index stock_allocations_document_idx on "better_supabase"."stock_allocations" ("tenant_id", "document_type", "document_id");
 create index stock_allocations_open_idx on "better_supabase"."stock_allocations" ("variant_id", "location_id", "created_at") where "status" = 'open';
@@ -402,7 +402,7 @@ create table "better_supabase"."stock_counts" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "location_id" uuid not null references "better_supabase"."inventory_locations" ("id") on delete cascade,
-  "status" text not null default 'open' check ("status" in ('open', 'posted', 'cancelled')),
+  "status" text not null default 'open' constraint bsb_stock_counts_status_check check ("status" in ('open', 'posted', 'cancelled')),
   "note" text,
   "opened_by" uuid default auth.uid(),
   "posted_by" uuid,
@@ -430,9 +430,9 @@ create table "better_supabase"."stock_count_lines" (
   "variant_id" uuid not null references "better_supabase"."product_variants" ("id") on delete cascade,
   "bin_id" uuid references "better_supabase"."stock_bins" ("id") on delete restrict,
   "lot_id" uuid references "better_supabase"."stock_lots" ("id") on delete restrict,
-  "serial" text check (length("serial") >= 1 and length("serial") <= 100),
-  "expected" numeric(20, 6) not null default 0 check ("expected" >= 0),
-  "counted" numeric(20, 6) check ("counted" >= 0),
+  "serial" text constraint bsb_stock_count_lines_serial_check check (length("serial") >= 1 and length("serial") <= 100),
+  "expected" numeric(20, 6) not null default 0 constraint bsb_stock_count_lines_expected_check check ("expected" >= 0),
+  "counted" numeric(20, 6) constraint bsb_stock_count_lines_counted_check check ("counted" >= 0),
   "variance" numeric(20, 6) generated always as ("counted" - "expected") stored,
   "movement_id" uuid,
   "updated_at" timestamptz not null default now()
@@ -1439,7 +1439,7 @@ grant execute on function "better_supabase"."list_allocations"(uuid, text, text)
 -- Where the location is: line1, line2, postalCode, city, region and country
 -- (a two-letter ISO 3166 code).
 alter table "better_supabase"."inventory_locations" add column "address" jsonb;
-alter table "better_supabase"."inventory_locations" add constraint inventory_locations_address_check check ("address" is null or jsonb_typeof("address") = 'object');
+alter table "better_supabase"."inventory_locations" add constraint bsb_inventory_locations_address_check check ("address" is null or jsonb_typeof("address") = 'object');
 
 -- Creates a location (location null) or updates one, with the extra columns
 -- in fields by name. Returns its id, code and active flag.

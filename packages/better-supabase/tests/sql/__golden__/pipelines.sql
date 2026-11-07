@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:c7faaa06e831f1c1ebca5afc9460cc269998ee2296edac93cde761429bc0648a
+-- @bsb-hash sha256:15a4a256ec862795b18d8233cfcbbb6f83688632f897b970c6ce36859f808c77
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,8 +14,8 @@ create table "better_supabase"."pipelines" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "scope_id" text,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_pipelines_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_pipelines_name_check check (length("name") >= 1 and length("name") <= 200),
   "rank" text collate "C" not null default 'V',
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
@@ -37,17 +37,17 @@ create table "better_supabase"."pipeline_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_pipeline_stages_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_pipeline_stages_name_check check (length("name") >= 1 and length("name") <= 200),
   "color" text,
-  "icon" text check (length("icon") <= 100),
+  "icon" text constraint bsb_pipeline_stages_icon_check check (length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "category" text not null,
-  "outcome" text not null check ("outcome" in ('open', 'success', 'failure')),
-  "probability" smallint check ("probability" >= 0 and "probability" <= 100),
-  "rotting_after_days" integer check ("rotting_after_days" > 0),
-  "wip_limit" integer check ("wip_limit" > 0),
+  "outcome" text not null constraint bsb_pipeline_stages_outcome_check check ("outcome" in ('open', 'success', 'failure')),
+  "probability" smallint constraint bsb_pipeline_stages_probability_check check ("probability" >= 0 and "probability" <= 100),
+  "rotting_after_days" integer constraint bsb_pipeline_stages_rotting_after_days_check check ("rotting_after_days" > 0),
+  "wip_limit" integer constraint bsb_pipeline_stages_wip_limit_check check ("wip_limit" > 0),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -668,7 +668,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:7c6331a871fcbf1c61c63faf1b8d7bc00a4a1d383ab2879245b835a75bdc4850
+-- @bsb-hash sha256:fc6a004f23b88fc2d6e579d046f1be2157c06c7ad5d0d75766d63673cbe7f1bf
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -681,8 +681,8 @@ create table "better_supabase"."pipelines" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "scope_id" text,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_pipelines_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_pipelines_name_check check (length("name") >= 1 and length("name") <= 200),
   "rank" text collate "C" not null default 'V',
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
@@ -704,17 +704,17 @@ create table "better_supabase"."pipeline_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_pipeline_stages_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_pipeline_stages_name_check check (length("name") >= 1 and length("name") <= 200),
   "color" text,
-  "icon" text check (length("icon") <= 100),
+  "icon" text constraint bsb_pipeline_stages_icon_check check (length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "category" text not null,
-  "outcome" text not null check ("outcome" in ('open', 'success', 'failure')),
-  "probability" smallint check ("probability" >= 0 and "probability" <= 100),
-  "rotting_after_days" integer check ("rotting_after_days" > 0),
-  "wip_limit" integer check ("wip_limit" > 0),
+  "outcome" text not null constraint bsb_pipeline_stages_outcome_check check ("outcome" in ('open', 'success', 'failure')),
+  "probability" smallint constraint bsb_pipeline_stages_probability_check check ("probability" >= 0 and "probability" <= 100),
+  "rotting_after_days" integer constraint bsb_pipeline_stages_rotting_after_days_check check ("rotting_after_days" > 0),
+  "wip_limit" integer constraint bsb_pipeline_stages_wip_limit_check check ("wip_limit" > 0),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -2184,7 +2184,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:a3292123467936fc3e8f3671424048c70d2b270174f2bb540ef4e0dd9473ddfa
+-- @bsb-hash sha256:8022f5234ef344b5ff729f9e0d20f03a4f3dd431100f60f6afb28de666265196
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2202,8 +2202,8 @@ create table "app_private"."pipelines" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "scope_id" text,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_pipelines_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_pipelines_name_check check (length("name") >= 1 and length("name") <= 200),
   "rank" text collate "C" not null default 'V',
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
@@ -2225,17 +2225,17 @@ create table "app_private"."pipeline_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "pipeline_id" uuid not null references "app_private"."pipelines" ("id") on delete cascade,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_pipeline_stages_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_pipeline_stages_name_check check (length("name") >= 1 and length("name") <= 200),
   "color" text,
-  "icon" text check (length("icon") <= 100),
+  "icon" text constraint bsb_pipeline_stages_icon_check check (length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "category" text not null,
-  "outcome" text not null check ("outcome" in ('open', 'success', 'failure')),
-  "probability" smallint check ("probability" >= 0 and "probability" <= 100),
-  "rotting_after_days" integer check ("rotting_after_days" > 0),
-  "wip_limit" integer check ("wip_limit" > 0),
+  "outcome" text not null constraint bsb_pipeline_stages_outcome_check check ("outcome" in ('open', 'success', 'failure')),
+  "probability" smallint constraint bsb_pipeline_stages_probability_check check ("probability" >= 0 and "probability" <= 100),
+  "rotting_after_days" integer constraint bsb_pipeline_stages_rotting_after_days_check check ("rotting_after_days" > 0),
+  "wip_limit" integer constraint bsb_pipeline_stages_wip_limit_check check ("wip_limit" > 0),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -2856,7 +2856,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:b77639159398aa316a381fe0bf983ccf1f568ae419890e2fc9d18ebb36488bb1
+-- @bsb-hash sha256:ed32243fa84db62f58bcbdca84015ee98e8f7a5ed60681da955c22c19a38845a
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2869,8 +2869,8 @@ create table "better_supabase"."pipelines" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "scope_id" text,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_pipelines_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_pipelines_name_check check (length("name") >= 1 and length("name") <= 200),
   "rank" text collate "C" not null default 'V',
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
@@ -2892,17 +2892,17 @@ create table "better_supabase"."pipeline_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_pipeline_stages_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_pipeline_stages_name_check check (length("name") >= 1 and length("name") <= 200),
   "color" text,
-  "icon" text check (length("icon") <= 100),
+  "icon" text constraint bsb_pipeline_stages_icon_check check (length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "category" text not null,
-  "outcome" text not null check ("outcome" in ('open', 'success', 'failure')),
-  "probability" smallint check ("probability" >= 0 and "probability" <= 100),
-  "rotting_after_days" integer check ("rotting_after_days" > 0),
-  "wip_limit" integer check ("wip_limit" > 0),
+  "outcome" text not null constraint bsb_pipeline_stages_outcome_check check ("outcome" in ('open', 'success', 'failure')),
+  "probability" smallint constraint bsb_pipeline_stages_probability_check check ("probability" >= 0 and "probability" <= 100),
+  "rotting_after_days" integer constraint bsb_pipeline_stages_rotting_after_days_check check ("rotting_after_days" > 0),
+  "wip_limit" integer constraint bsb_pipeline_stages_wip_limit_check check ("wip_limit" > 0),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
@@ -3630,7 +3630,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:614f66da98f1386b24b4b598b5002b892d8fddbe9e79b548662e527e0bd596c5
+-- @bsb-hash sha256:83de987bdc808502d4eb386e14f80ac3f5416f25f6c62ceddb98a92002cc2b19
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3643,8 +3643,8 @@ alter table "better_supabase"."pipelines" add column if not exists "id" uuid def
 alter table "better_supabase"."pipelines" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."pipelines" add column if not exists "subject_type" text;
 alter table "better_supabase"."pipelines" add column if not exists "scope_id" text;
-alter table "better_supabase"."pipelines" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
-alter table "better_supabase"."pipelines" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."pipelines" add column if not exists "key" text constraint bsb_pipelines_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."pipelines" add column if not exists "name" text constraint bsb_pipelines_name_check check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."pipelines" add column if not exists "rank" text collate "C" not null default 'V';
 alter table "better_supabase"."pipelines" add column if not exists "is_default" boolean not null default false;
 alter table "better_supabase"."pipelines" add column if not exists "archived_at" timestamptz;
@@ -3664,22 +3664,22 @@ create policy bsb_pipelines_select on "better_supabase"."pipelines"
 alter table "better_supabase"."pipeline_stages" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."pipeline_stages" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."pipeline_stages" add column if not exists "pipeline_id" uuid references "better_supabase"."pipelines" ("id") on delete cascade;
-alter table "better_supabase"."pipeline_stages" add column if not exists "key" text check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
+alter table "better_supabase"."pipeline_stages" add column if not exists "key" text constraint bsb_pipeline_stages_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$');
 alter table "better_supabase"."pipeline_stages" add column if not exists "system_key" text;
-alter table "better_supabase"."pipeline_stages" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."pipeline_stages" add column if not exists "name" text constraint bsb_pipeline_stages_name_check check (length("name") >= 1 and length("name") <= 200);
 alter table "better_supabase"."pipeline_stages" add column if not exists "color" text;
-alter table "better_supabase"."pipeline_stages" add column if not exists "icon" text check (length("icon") <= 100);
+alter table "better_supabase"."pipeline_stages" add column if not exists "icon" text constraint bsb_pipeline_stages_icon_check check (length("icon") <= 100);
 alter table "better_supabase"."pipeline_stages" add column if not exists "rank" text collate "C" not null default 'V';
 alter table "better_supabase"."pipeline_stages" add column if not exists "category" text;
-alter table "better_supabase"."pipeline_stages" add column if not exists "outcome" text check ("outcome" in ('open', 'success', 'failure'));
-alter table "better_supabase"."pipeline_stages" add column if not exists "probability" smallint check ("probability" >= 0 and "probability" <= 100);
-alter table "better_supabase"."pipeline_stages" add column if not exists "rotting_after_days" integer check ("rotting_after_days" > 0);
-alter table "better_supabase"."pipeline_stages" add column if not exists "wip_limit" integer check ("wip_limit" > 0);
+alter table "better_supabase"."pipeline_stages" add column if not exists "outcome" text constraint bsb_pipeline_stages_outcome_check check ("outcome" in ('open', 'success', 'failure'));
+alter table "better_supabase"."pipeline_stages" add column if not exists "probability" smallint constraint bsb_pipeline_stages_probability_check check ("probability" >= 0 and "probability" <= 100);
+alter table "better_supabase"."pipeline_stages" add column if not exists "rotting_after_days" integer constraint bsb_pipeline_stages_rotting_after_days_check check ("rotting_after_days" > 0);
+alter table "better_supabase"."pipeline_stages" add column if not exists "wip_limit" integer constraint bsb_pipeline_stages_wip_limit_check check ("wip_limit" > 0);
 alter table "better_supabase"."pipeline_stages" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."pipeline_stages" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."pipeline_stages" add column if not exists "updated_at" timestamptz not null default now();
 create unique index if not exists "bsb_pipeline_stages_key_key" on "better_supabase"."pipeline_stages" ("pipeline_id", "key");
-alter table "better_supabase"."pipeline_stages" add column if not exists "icon" text check (length("icon") <= 100);
+alter table "better_supabase"."pipeline_stages" add column if not exists "icon" text constraint bsb_pipeline_stages_icon_check1 check (length("icon") <= 100);
 create index if not exists pipeline_stages_pipeline_idx on "better_supabase"."pipeline_stages" ("pipeline_id", "rank");
 alter table "better_supabase"."pipeline_stages" enable row level security;
 grant select on "better_supabase"."pipeline_stages" to authenticated;
@@ -4290,7 +4290,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:6642ed3944cd8f68d60b48b603cc09056da641ec8f2b87aa7f9351bd699aaede
+-- @bsb-hash sha256:edf218d9520f0d266f4c63e0acd92d6ec602652be680d78345c02aa9cf31a134
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4303,8 +4303,8 @@ create table "better_supabase"."pipelines" (
   "org_id" uuid not null,
   "subject_type" text not null,
   "scope_id" text,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "key" text not null constraint bsb_pipelines_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "name" text not null constraint bsb_pipelines_name_check check (length("name") >= 1 and length("name") <= 200),
   "rank" text collate "C" not null default 'V',
   "is_default" boolean not null default false,
   "archived_at" timestamptz,
@@ -4326,17 +4326,17 @@ create table "better_supabase"."pipeline_stages" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "pipeline_id" uuid not null references "better_supabase"."pipelines" ("id") on delete cascade,
-  "key" text not null check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
+  "key" text not null constraint bsb_pipeline_stages_key_check check ("key" ~ '^[a-z][a-z0-9_-]{0,62}$'),
   "system_key" text,
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
+  "name" text not null constraint bsb_pipeline_stages_name_check check (length("name") >= 1 and length("name") <= 200),
   "color" text,
-  "icon" text check (length("icon") <= 100),
+  "icon" text constraint bsb_pipeline_stages_icon_check check (length("icon") <= 100),
   "rank" text collate "C" not null default 'V',
   "category" text not null,
-  "outcome" text not null check ("outcome" in ('open', 'success', 'failure')),
-  "probability" smallint check ("probability" >= 0 and "probability" <= 100),
-  "rotting_after_days" integer check ("rotting_after_days" > 0),
-  "wip_limit" integer check ("wip_limit" > 0),
+  "outcome" text not null constraint bsb_pipeline_stages_outcome_check check ("outcome" in ('open', 'success', 'failure')),
+  "probability" smallint constraint bsb_pipeline_stages_probability_check check ("probability" >= 0 and "probability" <= 100),
+  "rotting_after_days" integer constraint bsb_pipeline_stages_rotting_after_days_check check ("rotting_after_days" > 0),
+  "wip_limit" integer constraint bsb_pipeline_stages_wip_limit_check check ("wip_limit" > 0),
   "archived_at" timestamptz,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),

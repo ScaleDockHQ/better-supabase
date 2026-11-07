@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:716fe2b20fae68f05dc23fd526d72d80abaf69cfc3a49b48b52c3bb690ede0a4
+-- @bsb-hash sha256:c7dfbf8e21ab4e2223d3e6b0b2c72977996d0de070f1b98c3de9c2023b40f20e
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16,9 +16,9 @@ create table "better_supabase"."acknowledgement_assignments" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "principal_type" text not null check ("principal_type" in ('user', 'team', 'role')),
-  "principal_id" text not null check (length("principal_id") >= 1 and length("principal_id") <= 200),
-  "due_in_days" integer check ("due_in_days" is null or ("due_in_days" >= 1 and "due_in_days" <= 365)),
+  "principal_type" text not null constraint bsb_acknowledgement_assignments_principal_type_check check ("principal_type" in ('user', 'team', 'role')),
+  "principal_id" text not null constraint bsb_acknowledgement_assignments_principal_id_check check (length("principal_id") >= 1 and length("principal_id") <= 200),
+  "due_in_days" integer constraint bsb_acknowledgement_assignments_due_in_days_check check ("due_in_days" is null or ("due_in_days" >= 1 and "due_in_days" <= 365)),
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
@@ -40,7 +40,7 @@ create table "better_supabase"."acknowledgements" (
   "subject_id" text not null,
   "version_id" uuid not null references "better_supabase"."versions" ("id") on delete restrict,
   "user_id" uuid not null,
-  "method" text not null default 'click' check ("method" in ('click', 'signature')),
+  "method" text not null default 'click' constraint bsb_acknowledgements_method_check check ("method" in ('click', 'signature')),
   "signature_id" uuid,
   "acknowledged_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "version_id", "user_id")
@@ -617,7 +617,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:5770d135160a6b9bf17ad24e268f94065b21cfcb8c9a4ad56024a62cbd96921b
+-- @bsb-hash sha256:9709cb4915d91e341bb18d431b45bd63fdca6e4d64b4e037c9c44aa71f1643f8
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -632,9 +632,9 @@ create table "better_supabase"."acknowledgement_assignments" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "principal_type" text not null check ("principal_type" in ('user', 'team', 'role')),
-  "principal_id" text not null check (length("principal_id") >= 1 and length("principal_id") <= 200),
-  "due_in_days" integer check ("due_in_days" is null or ("due_in_days" >= 1 and "due_in_days" <= 365)),
+  "principal_type" text not null constraint bsb_acknowledgement_assignments_principal_type_check check ("principal_type" in ('user', 'team', 'role')),
+  "principal_id" text not null constraint bsb_acknowledgement_assignments_principal_id_check check (length("principal_id") >= 1 and length("principal_id") <= 200),
+  "due_in_days" integer constraint bsb_acknowledgement_assignments_due_in_days_check check ("due_in_days" is null or ("due_in_days" >= 1 and "due_in_days" <= 365)),
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
@@ -656,7 +656,7 @@ create table "better_supabase"."acknowledgements" (
   "subject_id" text not null,
   "version_id" uuid not null references "better_supabase"."versions" ("id") on delete restrict,
   "user_id" uuid not null,
-  "method" text not null default 'click' check ("method" in ('click', 'signature')),
+  "method" text not null default 'click' constraint bsb_acknowledgements_method_check check ("method" in ('click', 'signature')),
   "signature_id" uuid,
   "acknowledged_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "version_id", "user_id")
@@ -1332,7 +1332,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:65e7c248277133803cc2864043026b3f97f5274460df033171a4fa0b4ca583c9
+-- @bsb-hash sha256:f23ef59265ff2d12148f9aae6309d7cc8ebd1bd6076d00236b80773826d44fe2
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1352,9 +1352,9 @@ create table "app_private"."acknowledgement_assignments" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "principal_type" text not null check ("principal_type" in ('user', 'team', 'role')),
-  "principal_id" text not null check (length("principal_id") >= 1 and length("principal_id") <= 200),
-  "due_in_days" integer check ("due_in_days" is null or ("due_in_days" >= 1 and "due_in_days" <= 365)),
+  "principal_type" text not null constraint bsb_acknowledgement_assignments_principal_type_check check ("principal_type" in ('user', 'team', 'role')),
+  "principal_id" text not null constraint bsb_acknowledgement_assignments_principal_id_check check (length("principal_id") >= 1 and length("principal_id") <= 200),
+  "due_in_days" integer constraint bsb_acknowledgement_assignments_due_in_days_check check ("due_in_days" is null or ("due_in_days" >= 1 and "due_in_days" <= 365)),
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
@@ -1376,7 +1376,7 @@ create table "app_private"."acknowledgements" (
   "subject_id" text not null,
   "version_id" uuid not null references "better_supabase"."versions" ("id") on delete restrict,
   "user_id" uuid not null,
-  "method" text not null default 'click' check ("method" in ('click', 'signature')),
+  "method" text not null default 'click' constraint bsb_acknowledgements_method_check check ("method" in ('click', 'signature')),
   "signature_id" uuid,
   "acknowledged_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "version_id", "user_id")
@@ -1953,7 +1953,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:62515d8f1fd30107f82fbb39769524509d8892b53471e5b2c6e2964a32798e7b
+-- @bsb-hash sha256:c6ee6a81c76e771993227bc0a003b36840d11c0b7f64d4a1a7dbc69a6835e11e
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1968,9 +1968,9 @@ create table "better_supabase"."acknowledgement_assignments" (
   "tenant_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "principal_type" text not null check ("principal_type" in ('user', 'team', 'role')),
-  "principal_id" text not null check (length("principal_id") >= 1 and length("principal_id") <= 200),
-  "due_in_days" integer check ("due_in_days" is null or ("due_in_days" >= 1 and "due_in_days" <= 365)),
+  "principal_type" text not null constraint bsb_acknowledgement_assignments_principal_type_check check ("principal_type" in ('user', 'team', 'role')),
+  "principal_id" text not null constraint bsb_acknowledgement_assignments_principal_id_check check (length("principal_id") >= 1 and length("principal_id") <= 200),
+  "due_in_days" integer constraint bsb_acknowledgement_assignments_due_in_days_check check ("due_in_days" is null or ("due_in_days" >= 1 and "due_in_days" <= 365)),
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id")
@@ -1992,7 +1992,7 @@ create table "better_supabase"."acknowledgements" (
   "subject_id" text not null,
   "version_id" uuid not null references "better_supabase"."versions" ("id") on delete restrict,
   "user_id" uuid not null,
-  "method" text not null default 'click' check ("method" in ('click', 'signature')),
+  "method" text not null default 'click' constraint bsb_acknowledgements_method_check check ("method" in ('click', 'signature')),
   "signature_id" uuid,
   "acknowledged_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "version_id", "user_id")
@@ -2649,7 +2649,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:df6e436ea185dedfde5c318c0a02c22a4a0af83ca12d98e67a184351b24fdcc5
+-- @bsb-hash sha256:02a78c1c13fe870e9b09d6e0cddea02db88c4f17c96c404170af677895587bc3
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2664,9 +2664,9 @@ alter table "better_supabase"."acknowledgement_assignments" add column if not ex
 alter table "better_supabase"."acknowledgement_assignments" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."acknowledgement_assignments" add column if not exists "subject_type" text;
 alter table "better_supabase"."acknowledgement_assignments" add column if not exists "subject_id" text;
-alter table "better_supabase"."acknowledgement_assignments" add column if not exists "principal_type" text check ("principal_type" in ('user', 'team', 'role'));
-alter table "better_supabase"."acknowledgement_assignments" add column if not exists "principal_id" text check (length("principal_id") >= 1 and length("principal_id") <= 200);
-alter table "better_supabase"."acknowledgement_assignments" add column if not exists "due_in_days" integer check ("due_in_days" is null or ("due_in_days" >= 1 and "due_in_days" <= 365));
+alter table "better_supabase"."acknowledgement_assignments" add column if not exists "principal_type" text constraint bsb_acknowledgement_assignments_principal_type_check check ("principal_type" in ('user', 'team', 'role'));
+alter table "better_supabase"."acknowledgement_assignments" add column if not exists "principal_id" text constraint bsb_acknowledgement_assignments_principal_id_check check (length("principal_id") >= 1 and length("principal_id") <= 200);
+alter table "better_supabase"."acknowledgement_assignments" add column if not exists "due_in_days" integer constraint bsb_acknowledgement_assignments_due_in_days_check check ("due_in_days" is null or ("due_in_days" >= 1 and "due_in_days" <= 365));
 alter table "better_supabase"."acknowledgement_assignments" add column if not exists "created_by" uuid default auth.uid();
 alter table "better_supabase"."acknowledgement_assignments" add column if not exists "created_at" timestamptz not null default now();
 create unique index if not exists "bsb_acknowledgement_assignments_principal_key" on "better_supabase"."acknowledgement_assignments" ("tenant_id", "subject_type", "subject_id", "principal_type", "principal_id");
@@ -2686,7 +2686,7 @@ alter table "better_supabase"."acknowledgements" add column if not exists "subje
 alter table "better_supabase"."acknowledgements" add column if not exists "subject_id" text;
 alter table "better_supabase"."acknowledgements" add column if not exists "version_id" uuid references "better_supabase"."versions" ("id") on delete restrict;
 alter table "better_supabase"."acknowledgements" add column if not exists "user_id" uuid;
-alter table "better_supabase"."acknowledgements" add column if not exists "method" text not null default 'click' check ("method" in ('click', 'signature'));
+alter table "better_supabase"."acknowledgements" add column if not exists "method" text not null default 'click' constraint bsb_acknowledgements_method_check check ("method" in ('click', 'signature'));
 alter table "better_supabase"."acknowledgements" add column if not exists "signature_id" uuid;
 alter table "better_supabase"."acknowledgements" add column if not exists "acknowledged_at" timestamptz not null default now();
 create unique index if not exists "bsb_acknowledgements_version_user_key" on "better_supabase"."acknowledgements" ("subject_type", "subject_id", "version_id", "user_id");
@@ -3259,7 +3259,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_147_acknowledgements.sql
 -- better-supabase module: acknowledgements
 -- @bsb-block acknowledgements@1 managed
--- @bsb-hash sha256:981f4f169a626e063c3dd0d9b9703c0a8736b6dc6fa7d46bf242d10ccb8209a8
+-- @bsb-hash sha256:7530ca04493786da3dd0411981889d2111a833eaae4645289e4baa9cbc9daaa7
 -- Members confirm they read the current version of a record: assignments to a member, a team or a role, a due date per assignment, a click or a completed signature, and a reminder once a version is overdue.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3274,9 +3274,9 @@ create table "better_supabase"."acknowledgement_assignments" (
   "org_id" uuid not null,
   "subject_type" text not null,
   "subject_id" text not null,
-  "principal_type" text not null check ("principal_type" in ('user', 'team', 'role')),
-  "principal_id" text not null check (length("principal_id") >= 1 and length("principal_id") <= 200),
-  "due_in_days" integer check ("due_in_days" is null or ("due_in_days" >= 1 and "due_in_days" <= 365)),
+  "principal_type" text not null constraint bsb_acknowledgement_assignments_principal_type_check check ("principal_type" in ('user', 'team', 'role')),
+  "principal_id" text not null constraint bsb_acknowledgement_assignments_principal_id_check check (length("principal_id") >= 1 and length("principal_id") <= 200),
+  "due_in_days" integer constraint bsb_acknowledgement_assignments_due_in_days_check check ("due_in_days" is null or ("due_in_days" >= 1 and "due_in_days" <= 365)),
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now(),
   unique ("org_id", "subject_type", "subject_id", "principal_type", "principal_id")
@@ -3298,7 +3298,7 @@ create table "better_supabase"."acknowledgements" (
   "subject_id" text not null,
   "version_id" uuid not null references "better_supabase"."versions" ("id") on delete restrict,
   "user_id" uuid not null,
-  "method" text not null default 'click' check ("method" in ('click', 'signature')),
+  "method" text not null default 'click' constraint bsb_acknowledgements_method_check check ("method" in ('click', 'signature')),
   "signature_id" uuid,
   "acknowledged_at" timestamptz not null default now(),
   unique ("subject_type", "subject_id", "version_id", "user_id")

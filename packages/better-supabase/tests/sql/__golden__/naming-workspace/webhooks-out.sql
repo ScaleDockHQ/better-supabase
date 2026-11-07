@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_025_webhooks_out.sql
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:82712885f63a88da55e3754133295a7273534afb851977d3fcae0787e538139b
+-- @bsb-hash sha256:56de54b88f3d46ddc47ee3652b2987072bdb84185e6beaff3b0ef61676261f01
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,15 +9,15 @@
 create table "better_supabase"."webhook_endpoints" (
   "id" uuid primary key default gen_random_uuid(),
   "workspace_id" uuid not null,
-  "name" text not null check (length(trim("name")) > 0),
-  "url" text not null check ("url" ~* '^https://'),
+  "name" text not null constraint bsb_webhook_endpoints_name_check check (length(trim("name")) > 0),
+  "url" text not null constraint bsb_webhook_endpoints_url_check check ("url" ~* '^https://'),
   "enabled" boolean not null default true,
   "event_types" text[] not null default '{}',
   "permissions" text[],
   "batch" boolean not null default false,
-  "signing" text not null default 'v1' check ("signing" in ('v1', 'v1a')),
-  "format" text not null default 'cloudevents' check ("format" ~ '^[a-z][a-z0-9-]{0,39}$'),
-  "credential_ref" jsonb check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
+  "signing" text not null default 'v1' constraint bsb_webhook_endpoints_signing_check check ("signing" in ('v1', 'v1a')),
+  "format" text not null default 'cloudevents' constraint bsb_webhook_endpoints_format_check check ("format" ~ '^[a-z][a-z0-9-]{0,39}$'),
+  "credential_ref" jsonb constraint bsb_webhook_endpoints_credential_ref_check check ("credential_ref" is null or (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider')),
   "failing_since" timestamptz,
   "disabled_at" timestamptz,
   "disabled_reason" text,
@@ -58,8 +58,8 @@ create table "better_supabase"."webhook_deliveries" (
   "event_type" text not null,
   "subject" text,
   "payload" jsonb not null default '{}',
-  "status" text not null default 'pending' check ("status" in ('pending', 'delivering', 'succeeded', 'retrying', 'dead', 'canceled')),
-  "attempt" integer not null default 0 check ("attempt" >= 0),
+  "status" text not null default 'pending' constraint bsb_webhook_deliveries_status_check check ("status" in ('pending', 'delivering', 'succeeded', 'retrying', 'dead', 'canceled')),
+  "attempt" integer not null default 0 constraint bsb_webhook_deliveries_attempt_check check ("attempt" >= 0),
   "available_at" timestamptz not null default now(),
   "leased_until" timestamptz,
   "response_status" integer,

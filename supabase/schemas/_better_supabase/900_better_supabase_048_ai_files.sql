@@ -1,6 +1,6 @@
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:8c0c8c45510f8c2d76bacb1cd86e6b0b59e45cc453c750f19162c8d1ba256416
+-- @bsb-hash sha256:076ce46c51e239a4d8f84958a087e2617d458e3ab1b99055b58ac931e3c759e1
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16,13 +16,13 @@ create table "better_supabase"."ai_files" (
   "chat_id" uuid,
   "project_id" uuid,
   "bucket" text not null,
-  "filename" text not null check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..')),
+  "filename" text not null constraint bsb_ai_files_filename_check check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..')),
   "path" text generated always as ("organization_id"::text || '/' || "owner_id"::text || '/' || "id"::text || '/' || "filename") stored,
-  "media_type" text not null check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
-  "byte_size" bigint not null check ("byte_size" >= 0 and "byte_size" <= 52428800),
-  "sha256" text check ("sha256" ~ '^[0-9a-f]{64}$'),
-  "status" text not null default 'pending' check ("status" in ('pending', 'ready', 'failed')),
-  "source" text not null default 'upload' check ("source" in ('upload', 'generated', 'provider')),
+  "media_type" text not null constraint bsb_ai_files_media_type_check check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
+  "byte_size" bigint not null constraint bsb_ai_files_byte_size_check check ("byte_size" >= 0 and "byte_size" <= 52428800),
+  "sha256" text constraint bsb_ai_files_sha256_check check ("sha256" ~ '^[0-9a-f]{64}$'),
+  "status" text not null default 'pending' constraint bsb_ai_files_status_check check ("status" in ('pending', 'ready', 'failed')),
+  "source" text not null default 'upload' constraint bsb_ai_files_source_check check ("source" in ('upload', 'generated', 'provider')),
   "created_at" timestamptz not null default now(),
   "uploaded_at" timestamptz,
   "expires_at" timestamptz
@@ -44,8 +44,8 @@ create policy bsb_ai_files_read on "better_supabase"."ai_files"
 -- Gemini file URI), so the next call reuses it until it expires.
 create table "better_supabase"."ai_provider_files" (
   "file_id" uuid not null references "better_supabase"."ai_files" ("id") on delete cascade,
-  "provider" text not null check (length("provider") >= 1 and length("provider") <= 100),
-  "reference" text not null check (length("reference") >= 1 and length("reference") <= 2000),
+  "provider" text not null constraint bsb_ai_provider_files_provider_check check (length("provider") >= 1 and length("provider") <= 100),
+  "reference" text not null constraint bsb_ai_provider_files_reference_check check (length("reference") >= 1 and length("reference") <= 2000),
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now(),
   primary key ("file_id", "provider")
@@ -63,9 +63,9 @@ create table "better_supabase"."ai_documents" (
   "organization_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
-  "kind" text not null check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
-  "title" text not null check (length("title") >= 1 and length("title") <= 500),
-  "current_version" integer not null default 1 check ("current_version" >= 1),
+  "kind" text not null constraint bsb_ai_documents_kind_check check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
+  "title" text not null constraint bsb_ai_documents_title_check check (length("title") >= 1 and length("title") <= 500),
+  "current_version" integer not null default 1 constraint bsb_ai_documents_current_version_check check ("current_version" >= 1),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );

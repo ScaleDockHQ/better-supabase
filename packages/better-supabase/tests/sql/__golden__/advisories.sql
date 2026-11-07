@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:6e0c0b41ec9e94d2d627badbd9987b865a13bd39e41ac7125797b6114f7e5fa3
+-- @bsb-hash sha256:2936bd7ce672f0bf383193d55c56f37cb42f64d49830f64b034d4a108cf904c6
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,10 +14,10 @@ create table "better_supabase"."advisory_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- Names the product in OpenVEX and CSAF documents.
-  "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "vendor" text check ("vendor" is null or length("vendor") <= 200),
-  "description" text check ("description" is null or length("description") <= 5000),
+  "key" text not null constraint bsb_advisory_products_key_check check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$'),
+  "name" text not null constraint bsb_advisory_products_name_check check (length("name") >= 1 and length("name") <= 200),
+  "vendor" text constraint bsb_advisory_products_vendor_check check ("vendor" is null or length("vendor") <= 200),
+  "description" text constraint bsb_advisory_products_description_check check ("description" is null or length("description") <= 5000),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -36,7 +36,7 @@ create table "better_supabase"."advisory_product_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null,
-  "version" text not null check (length("version") >= 1 and length("version") <= 100),
+  "version" text not null constraint bsb_advisory_product_versions_version_check check (length("version") >= 1 and length("version") <= 100),
   "released_at" timestamptz,
   "end_of_support_at" timestamptz,
   -- The BOM the components came from: its urn:uuid serial and CycloneDX version.
@@ -61,7 +61,7 @@ create table "better_supabase"."sbom_components" (
   "version_id" uuid not null,
   "bom_ref" text,
   "component_type" text not null default 'library',
-  "name" text not null check (length("name") >= 1 and length("name") <= 500),
+  "name" text not null constraint bsb_sbom_components_name_check check (length("name") >= 1 and length("name") <= 500),
   "component_version" text,
   "purl" text,
   -- The purl without version, qualifiers and subpath, which vulnerabilities match on.
@@ -84,16 +84,16 @@ create policy bsb_sbom_components_read on "better_supabase"."sbom_components"
 create table "better_supabase"."vulnerabilities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "vuln_id" text not null check ("vuln_id" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$'),
+  "vuln_id" text not null constraint bsb_vulnerabilities_vuln_id_check check ("vuln_id" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$'),
   "aliases" text[] not null default '{}',
-  "summary" text check ("summary" is null or length("summary") <= 1000),
-  "details" text check ("details" is null or length("details") <= 20000),
-  "cvss_vector" text check ("cvss_vector" is null or length("cvss_vector") <= 300),
-  "cvss_version" text check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0')),
-  "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10),
-  "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
-  "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1),
-  "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1),
+  "summary" text constraint bsb_vulnerabilities_summary_check check ("summary" is null or length("summary") <= 1000),
+  "details" text constraint bsb_vulnerabilities_details_check check ("details" is null or length("details") <= 20000),
+  "cvss_vector" text constraint bsb_vulnerabilities_cvss_vector_check check ("cvss_vector" is null or length("cvss_vector") <= 300),
+  "cvss_version" text constraint bsb_vulnerabilities_cvss_version_check check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0')),
+  "cvss_score" numeric(3, 1) constraint bsb_vulnerabilities_cvss_score_check check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10),
+  "severity" text constraint bsb_vulnerabilities_severity_check check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
+  "epss_score" numeric(6, 5) constraint bsb_vulnerabilities_epss_score_check check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1),
+  "epss_percentile" numeric(6, 5) constraint bsb_vulnerabilities_epss_percentile_check check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1),
   "epss_date" date,
   "kev" boolean not null default false,
   "kev_added_on" date,
@@ -126,10 +126,10 @@ create table "better_supabase"."vex_statements" (
   -- Null: the statement covers every version of the product.
   "version_id" uuid,
   "vulnerability_id" uuid not null,
-  "status" text not null check ("status" in ('not_affected', 'affected', 'fixed', 'under_investigation')),
-  "justification" text check ("justification" is null or "justification" in ('component_not_present', 'vulnerable_code_not_present', 'vulnerable_code_not_in_execute_path', 'vulnerable_code_cannot_be_controlled_by_adversary', 'inline_mitigations_already_exist')),
-  "impact_statement" text check ("impact_statement" is null or length("impact_statement") <= 5000),
-  "action_statement" text check ("action_statement" is null or length("action_statement") <= 5000),
+  "status" text not null constraint bsb_vex_statements_status_check check ("status" in ('not_affected', 'affected', 'fixed', 'under_investigation')),
+  "justification" text constraint bsb_vex_statements_justification_check check ("justification" is null or "justification" in ('component_not_present', 'vulnerable_code_not_present', 'vulnerable_code_not_in_execute_path', 'vulnerable_code_cannot_be_controlled_by_adversary', 'inline_mitigations_already_exist')),
+  "impact_statement" text constraint bsb_vex_statements_impact_statement_check check ("impact_statement" is null or length("impact_statement") <= 5000),
+  "action_statement" text constraint bsb_vex_statements_action_statement_check check ("action_statement" is null or length("action_statement") <= 5000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -147,18 +147,18 @@ create table "better_supabase"."advisories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The CSAF tracking id, such as ACME-SA-2026-001.
-  "tracking_id" text not null check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "summary" text check ("summary" is null or length("summary") <= 10000),
+  "tracking_id" text not null constraint bsb_advisories_tracking_id_check check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$'),
+  "title" text not null constraint bsb_advisories_title_check check (length("title") >= 1 and length("title") <= 300),
+  "summary" text constraint bsb_advisories_summary_check check ("summary" is null or length("summary") <= 10000),
   "product_id" uuid not null,
-  "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
-  "status" text not null default 'draft' check ("status" in ('draft', 'interim', 'final')),
+  "severity" text constraint bsb_advisories_severity_check check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
+  "status" text not null default 'draft' constraint bsb_advisories_status_check check ("status" in ('draft', 'interim', 'final')),
   -- The CSAF document version: 0 for a draft, then one more per publication.
-  "revision" integer not null default 0 check ("revision" >= 0),
+  "revision" integer not null default 0 constraint bsb_advisories_revision_check check ("revision" >= 0),
   "initial_release_at" timestamptz,
   "current_release_at" timestamptz,
   -- [{ number, date, summary }], one entry per publication.
-  "revision_history" jsonb not null default '[]' check (jsonb_typeof("revision_history") = 'array'),
+  "revision_history" jsonb not null default '[]' constraint bsb_advisories_revision_history_check check (jsonb_typeof("revision_history") = 'array'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -1169,7 +1169,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:d5709d7678eb6fa87fed1cf2e78704e381a48598f1e20f2df1c44b1175bac519
+-- @bsb-hash sha256:6a8c2e05b25dbd493a0432c532ac997d73f50d3a7db7ac6227e45a891a31d1dc
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1182,10 +1182,10 @@ create table "better_supabase"."advisory_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- Names the product in OpenVEX and CSAF documents.
-  "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "vendor" text check ("vendor" is null or length("vendor") <= 200),
-  "description" text check ("description" is null or length("description") <= 5000),
+  "key" text not null constraint bsb_advisory_products_key_check check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$'),
+  "name" text not null constraint bsb_advisory_products_name_check check (length("name") >= 1 and length("name") <= 200),
+  "vendor" text constraint bsb_advisory_products_vendor_check check ("vendor" is null or length("vendor") <= 200),
+  "description" text constraint bsb_advisory_products_description_check check ("description" is null or length("description") <= 5000),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -1204,7 +1204,7 @@ create table "better_supabase"."advisory_product_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null,
-  "version" text not null check (length("version") >= 1 and length("version") <= 100),
+  "version" text not null constraint bsb_advisory_product_versions_version_check check (length("version") >= 1 and length("version") <= 100),
   "released_at" timestamptz,
   "end_of_support_at" timestamptz,
   -- The BOM the components came from: its urn:uuid serial and CycloneDX version.
@@ -1229,7 +1229,7 @@ create table "better_supabase"."sbom_components" (
   "version_id" uuid not null,
   "bom_ref" text,
   "component_type" text not null default 'library',
-  "name" text not null check (length("name") >= 1 and length("name") <= 500),
+  "name" text not null constraint bsb_sbom_components_name_check check (length("name") >= 1 and length("name") <= 500),
   "component_version" text,
   "purl" text,
   -- The purl without version, qualifiers and subpath, which vulnerabilities match on.
@@ -1252,16 +1252,16 @@ create policy bsb_sbom_components_read on "better_supabase"."sbom_components"
 create table "better_supabase"."vulnerabilities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "vuln_id" text not null check ("vuln_id" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$'),
+  "vuln_id" text not null constraint bsb_vulnerabilities_vuln_id_check check ("vuln_id" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$'),
   "aliases" text[] not null default '{}',
-  "summary" text check ("summary" is null or length("summary") <= 1000),
-  "details" text check ("details" is null or length("details") <= 20000),
-  "cvss_vector" text check ("cvss_vector" is null or length("cvss_vector") <= 300),
-  "cvss_version" text check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0')),
-  "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10),
-  "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
-  "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1),
-  "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1),
+  "summary" text constraint bsb_vulnerabilities_summary_check check ("summary" is null or length("summary") <= 1000),
+  "details" text constraint bsb_vulnerabilities_details_check check ("details" is null or length("details") <= 20000),
+  "cvss_vector" text constraint bsb_vulnerabilities_cvss_vector_check check ("cvss_vector" is null or length("cvss_vector") <= 300),
+  "cvss_version" text constraint bsb_vulnerabilities_cvss_version_check check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0')),
+  "cvss_score" numeric(3, 1) constraint bsb_vulnerabilities_cvss_score_check check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10),
+  "severity" text constraint bsb_vulnerabilities_severity_check check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
+  "epss_score" numeric(6, 5) constraint bsb_vulnerabilities_epss_score_check check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1),
+  "epss_percentile" numeric(6, 5) constraint bsb_vulnerabilities_epss_percentile_check check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1),
   "epss_date" date,
   "kev" boolean not null default false,
   "kev_added_on" date,
@@ -1294,10 +1294,10 @@ create table "better_supabase"."vex_statements" (
   -- Null: the statement covers every version of the product.
   "version_id" uuid,
   "vulnerability_id" uuid not null,
-  "status" text not null check ("status" in ('not_affected', 'affected', 'fixed', 'under_investigation')),
-  "justification" text check ("justification" is null or "justification" in ('component_not_present', 'vulnerable_code_not_present', 'vulnerable_code_not_in_execute_path', 'vulnerable_code_cannot_be_controlled_by_adversary', 'inline_mitigations_already_exist')),
-  "impact_statement" text check ("impact_statement" is null or length("impact_statement") <= 5000),
-  "action_statement" text check ("action_statement" is null or length("action_statement") <= 5000),
+  "status" text not null constraint bsb_vex_statements_status_check check ("status" in ('not_affected', 'affected', 'fixed', 'under_investigation')),
+  "justification" text constraint bsb_vex_statements_justification_check check ("justification" is null or "justification" in ('component_not_present', 'vulnerable_code_not_present', 'vulnerable_code_not_in_execute_path', 'vulnerable_code_cannot_be_controlled_by_adversary', 'inline_mitigations_already_exist')),
+  "impact_statement" text constraint bsb_vex_statements_impact_statement_check check ("impact_statement" is null or length("impact_statement") <= 5000),
+  "action_statement" text constraint bsb_vex_statements_action_statement_check check ("action_statement" is null or length("action_statement") <= 5000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -1315,18 +1315,18 @@ create table "better_supabase"."advisories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The CSAF tracking id, such as ACME-SA-2026-001.
-  "tracking_id" text not null check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "summary" text check ("summary" is null or length("summary") <= 10000),
+  "tracking_id" text not null constraint bsb_advisories_tracking_id_check check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$'),
+  "title" text not null constraint bsb_advisories_title_check check (length("title") >= 1 and length("title") <= 300),
+  "summary" text constraint bsb_advisories_summary_check check ("summary" is null or length("summary") <= 10000),
   "product_id" uuid not null,
-  "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
-  "status" text not null default 'draft' check ("status" in ('draft', 'interim', 'final')),
+  "severity" text constraint bsb_advisories_severity_check check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
+  "status" text not null default 'draft' constraint bsb_advisories_status_check check ("status" in ('draft', 'interim', 'final')),
   -- The CSAF document version: 0 for a draft, then one more per publication.
-  "revision" integer not null default 0 check ("revision" >= 0),
+  "revision" integer not null default 0 constraint bsb_advisories_revision_check check ("revision" >= 0),
   "initial_release_at" timestamptz,
   "current_release_at" timestamptz,
   -- [{ number, date, summary }], one entry per publication.
-  "revision_history" jsonb not null default '[]' check (jsonb_typeof("revision_history") = 'array'),
+  "revision_history" jsonb not null default '[]' constraint bsb_advisories_revision_history_check check (jsonb_typeof("revision_history") = 'array'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -2446,7 +2446,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:2b2a0044a1535d01763dddd9e272e2df585c694a4c6332ac40d1cdcc7772e969
+-- @bsb-hash sha256:f956c61444f9db1b8124228143f8a175ab69156061719fbb465095acdc9c1038
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2464,10 +2464,10 @@ create table "app_private"."advisory_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- Names the product in OpenVEX and CSAF documents.
-  "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "vendor" text check ("vendor" is null or length("vendor") <= 200),
-  "description" text check ("description" is null or length("description") <= 5000),
+  "key" text not null constraint bsb_advisory_products_key_check check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$'),
+  "name" text not null constraint bsb_advisory_products_name_check check (length("name") >= 1 and length("name") <= 200),
+  "vendor" text constraint bsb_advisory_products_vendor_check check ("vendor" is null or length("vendor") <= 200),
+  "description" text constraint bsb_advisory_products_description_check check ("description" is null or length("description") <= 5000),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -2486,7 +2486,7 @@ create table "app_private"."advisory_product_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null,
-  "version" text not null check (length("version") >= 1 and length("version") <= 100),
+  "version" text not null constraint bsb_advisory_product_versions_version_check check (length("version") >= 1 and length("version") <= 100),
   "released_at" timestamptz,
   "end_of_support_at" timestamptz,
   -- The BOM the components came from: its urn:uuid serial and CycloneDX version.
@@ -2511,7 +2511,7 @@ create table "app_private"."sbom_components" (
   "version_id" uuid not null,
   "bom_ref" text,
   "component_type" text not null default 'library',
-  "name" text not null check (length("name") >= 1 and length("name") <= 500),
+  "name" text not null constraint bsb_sbom_components_name_check check (length("name") >= 1 and length("name") <= 500),
   "component_version" text,
   "purl" text,
   -- The purl without version, qualifiers and subpath, which vulnerabilities match on.
@@ -2534,16 +2534,16 @@ create policy bsb_sbom_components_read on "app_private"."sbom_components"
 create table "app_private"."vulnerabilities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "vuln_id" text not null check ("vuln_id" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$'),
+  "vuln_id" text not null constraint bsb_vulnerabilities_vuln_id_check check ("vuln_id" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$'),
   "aliases" text[] not null default '{}',
-  "summary" text check ("summary" is null or length("summary") <= 1000),
-  "details" text check ("details" is null or length("details") <= 20000),
-  "cvss_vector" text check ("cvss_vector" is null or length("cvss_vector") <= 300),
-  "cvss_version" text check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0')),
-  "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10),
-  "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
-  "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1),
-  "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1),
+  "summary" text constraint bsb_vulnerabilities_summary_check check ("summary" is null or length("summary") <= 1000),
+  "details" text constraint bsb_vulnerabilities_details_check check ("details" is null or length("details") <= 20000),
+  "cvss_vector" text constraint bsb_vulnerabilities_cvss_vector_check check ("cvss_vector" is null or length("cvss_vector") <= 300),
+  "cvss_version" text constraint bsb_vulnerabilities_cvss_version_check check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0')),
+  "cvss_score" numeric(3, 1) constraint bsb_vulnerabilities_cvss_score_check check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10),
+  "severity" text constraint bsb_vulnerabilities_severity_check check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
+  "epss_score" numeric(6, 5) constraint bsb_vulnerabilities_epss_score_check check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1),
+  "epss_percentile" numeric(6, 5) constraint bsb_vulnerabilities_epss_percentile_check check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1),
   "epss_date" date,
   "kev" boolean not null default false,
   "kev_added_on" date,
@@ -2576,10 +2576,10 @@ create table "app_private"."vex_statements" (
   -- Null: the statement covers every version of the product.
   "version_id" uuid,
   "vulnerability_id" uuid not null,
-  "status" text not null check ("status" in ('not_affected', 'affected', 'fixed', 'under_investigation')),
-  "justification" text check ("justification" is null or "justification" in ('component_not_present', 'vulnerable_code_not_present', 'vulnerable_code_not_in_execute_path', 'vulnerable_code_cannot_be_controlled_by_adversary', 'inline_mitigations_already_exist')),
-  "impact_statement" text check ("impact_statement" is null or length("impact_statement") <= 5000),
-  "action_statement" text check ("action_statement" is null or length("action_statement") <= 5000),
+  "status" text not null constraint bsb_vex_statements_status_check check ("status" in ('not_affected', 'affected', 'fixed', 'under_investigation')),
+  "justification" text constraint bsb_vex_statements_justification_check check ("justification" is null or "justification" in ('component_not_present', 'vulnerable_code_not_present', 'vulnerable_code_not_in_execute_path', 'vulnerable_code_cannot_be_controlled_by_adversary', 'inline_mitigations_already_exist')),
+  "impact_statement" text constraint bsb_vex_statements_impact_statement_check check ("impact_statement" is null or length("impact_statement") <= 5000),
+  "action_statement" text constraint bsb_vex_statements_action_statement_check check ("action_statement" is null or length("action_statement") <= 5000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -2597,18 +2597,18 @@ create table "app_private"."advisories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The CSAF tracking id, such as ACME-SA-2026-001.
-  "tracking_id" text not null check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "summary" text check ("summary" is null or length("summary") <= 10000),
+  "tracking_id" text not null constraint bsb_advisories_tracking_id_check check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$'),
+  "title" text not null constraint bsb_advisories_title_check check (length("title") >= 1 and length("title") <= 300),
+  "summary" text constraint bsb_advisories_summary_check check ("summary" is null or length("summary") <= 10000),
   "product_id" uuid not null,
-  "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
-  "status" text not null default 'draft' check ("status" in ('draft', 'interim', 'final')),
+  "severity" text constraint bsb_advisories_severity_check check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
+  "status" text not null default 'draft' constraint bsb_advisories_status_check check ("status" in ('draft', 'interim', 'final')),
   -- The CSAF document version: 0 for a draft, then one more per publication.
-  "revision" integer not null default 0 check ("revision" >= 0),
+  "revision" integer not null default 0 constraint bsb_advisories_revision_check check ("revision" >= 0),
   "initial_release_at" timestamptz,
   "current_release_at" timestamptz,
   -- [{ number, date, summary }], one entry per publication.
-  "revision_history" jsonb not null default '[]' check (jsonb_typeof("revision_history") = 'array'),
+  "revision_history" jsonb not null default '[]' constraint bsb_advisories_revision_history_check check (jsonb_typeof("revision_history") = 'array'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -3619,7 +3619,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:c6186b02b18045a39f5553fbaa4de586a5cb84776edadd86489b102a86e1f417
+-- @bsb-hash sha256:ef10fe24ddb8fad9c87d5bc608ea30c51f504a7e64827ce8a5334622e4502624
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3632,10 +3632,10 @@ create table "better_supabase"."advisory_products" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- Names the product in OpenVEX and CSAF documents.
-  "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "vendor" text check ("vendor" is null or length("vendor") <= 200),
-  "description" text check ("description" is null or length("description") <= 5000),
+  "key" text not null constraint bsb_advisory_products_key_check check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$'),
+  "name" text not null constraint bsb_advisory_products_name_check check (length("name") >= 1 and length("name") <= 200),
+  "vendor" text constraint bsb_advisory_products_vendor_check check ("vendor" is null or length("vendor") <= 200),
+  "description" text constraint bsb_advisory_products_description_check check ("description" is null or length("description") <= 5000),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -3654,7 +3654,7 @@ create table "better_supabase"."advisory_product_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   "product_id" uuid not null,
-  "version" text not null check (length("version") >= 1 and length("version") <= 100),
+  "version" text not null constraint bsb_advisory_product_versions_version_check check (length("version") >= 1 and length("version") <= 100),
   "released_at" timestamptz,
   "end_of_support_at" timestamptz,
   -- The BOM the components came from: its urn:uuid serial and CycloneDX version.
@@ -3679,7 +3679,7 @@ create table "better_supabase"."sbom_components" (
   "version_id" uuid not null,
   "bom_ref" text,
   "component_type" text not null default 'library',
-  "name" text not null check (length("name") >= 1 and length("name") <= 500),
+  "name" text not null constraint bsb_sbom_components_name_check check (length("name") >= 1 and length("name") <= 500),
   "component_version" text,
   "purl" text,
   -- The purl without version, qualifiers and subpath, which vulnerabilities match on.
@@ -3702,16 +3702,16 @@ create policy bsb_sbom_components_read on "better_supabase"."sbom_components"
 create table "better_supabase"."vulnerabilities" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "vuln_id" text not null check ("vuln_id" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$'),
+  "vuln_id" text not null constraint bsb_vulnerabilities_vuln_id_check check ("vuln_id" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$'),
   "aliases" text[] not null default '{}',
-  "summary" text check ("summary" is null or length("summary") <= 1000),
-  "details" text check ("details" is null or length("details") <= 20000),
-  "cvss_vector" text check ("cvss_vector" is null or length("cvss_vector") <= 300),
-  "cvss_version" text check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0')),
-  "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10),
-  "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
-  "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1),
-  "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1),
+  "summary" text constraint bsb_vulnerabilities_summary_check check ("summary" is null or length("summary") <= 1000),
+  "details" text constraint bsb_vulnerabilities_details_check check ("details" is null or length("details") <= 20000),
+  "cvss_vector" text constraint bsb_vulnerabilities_cvss_vector_check check ("cvss_vector" is null or length("cvss_vector") <= 300),
+  "cvss_version" text constraint bsb_vulnerabilities_cvss_version_check check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0')),
+  "cvss_score" numeric(3, 1) constraint bsb_vulnerabilities_cvss_score_check check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10),
+  "severity" text constraint bsb_vulnerabilities_severity_check check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
+  "epss_score" numeric(6, 5) constraint bsb_vulnerabilities_epss_score_check check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1),
+  "epss_percentile" numeric(6, 5) constraint bsb_vulnerabilities_epss_percentile_check check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1),
   "epss_date" date,
   "kev" boolean not null default false,
   "kev_added_on" date,
@@ -3744,10 +3744,10 @@ create table "better_supabase"."vex_statements" (
   -- Null: the statement covers every version of the product.
   "version_id" uuid,
   "vulnerability_id" uuid not null,
-  "status" text not null check ("status" in ('not_affected', 'affected', 'fixed', 'under_investigation')),
-  "justification" text check ("justification" is null or "justification" in ('component_not_present', 'vulnerable_code_not_present', 'vulnerable_code_not_in_execute_path', 'vulnerable_code_cannot_be_controlled_by_adversary', 'inline_mitigations_already_exist')),
-  "impact_statement" text check ("impact_statement" is null or length("impact_statement") <= 5000),
-  "action_statement" text check ("action_statement" is null or length("action_statement") <= 5000),
+  "status" text not null constraint bsb_vex_statements_status_check check ("status" in ('not_affected', 'affected', 'fixed', 'under_investigation')),
+  "justification" text constraint bsb_vex_statements_justification_check check ("justification" is null or "justification" in ('component_not_present', 'vulnerable_code_not_present', 'vulnerable_code_not_in_execute_path', 'vulnerable_code_cannot_be_controlled_by_adversary', 'inline_mitigations_already_exist')),
+  "impact_statement" text constraint bsb_vex_statements_impact_statement_check check ("impact_statement" is null or length("impact_statement") <= 5000),
+  "action_statement" text constraint bsb_vex_statements_action_statement_check check ("action_statement" is null or length("action_statement") <= 5000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -3765,18 +3765,18 @@ create table "better_supabase"."advisories" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
   -- The CSAF tracking id, such as ACME-SA-2026-001.
-  "tracking_id" text not null check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "summary" text check ("summary" is null or length("summary") <= 10000),
+  "tracking_id" text not null constraint bsb_advisories_tracking_id_check check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$'),
+  "title" text not null constraint bsb_advisories_title_check check (length("title") >= 1 and length("title") <= 300),
+  "summary" text constraint bsb_advisories_summary_check check ("summary" is null or length("summary") <= 10000),
   "product_id" uuid not null,
-  "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
-  "status" text not null default 'draft' check ("status" in ('draft', 'interim', 'final')),
+  "severity" text constraint bsb_advisories_severity_check check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
+  "status" text not null default 'draft' constraint bsb_advisories_status_check check ("status" in ('draft', 'interim', 'final')),
   -- The CSAF document version: 0 for a draft, then one more per publication.
-  "revision" integer not null default 0 check ("revision" >= 0),
+  "revision" integer not null default 0 constraint bsb_advisories_revision_check check ("revision" >= 0),
   "initial_release_at" timestamptz,
   "current_release_at" timestamptz,
   -- [{ number, date, summary }], one entry per publication.
-  "revision_history" jsonb not null default '[]' check (jsonb_typeof("revision_history") = 'array'),
+  "revision_history" jsonb not null default '[]' constraint bsb_advisories_revision_history_check check (jsonb_typeof("revision_history") = 'array'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -4962,7 +4962,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:808c6df01a58a71472f1facfcfc26f10b2c33fbb7c3d7195764df4aac2a4db13
+-- @bsb-hash sha256:5ef0298479b5fbafb1a9b293bc37fdfbc40094c4a3acb6573517be065b14d28d
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4974,10 +4974,10 @@ on conflict (name) do update
 -- better_supabase.advisory_products is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."advisory_products" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."advisory_products" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."advisory_products" add column if not exists "key" text check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$');
-alter table "better_supabase"."advisory_products" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 200);
-alter table "better_supabase"."advisory_products" add column if not exists "vendor" text check ("vendor" is null or length("vendor") <= 200);
-alter table "better_supabase"."advisory_products" add column if not exists "description" text check ("description" is null or length("description") <= 5000);
+alter table "better_supabase"."advisory_products" add column if not exists "key" text constraint bsb_advisory_products_key_check check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$');
+alter table "better_supabase"."advisory_products" add column if not exists "name" text constraint bsb_advisory_products_name_check check (length("name") >= 1 and length("name") <= 200);
+alter table "better_supabase"."advisory_products" add column if not exists "vendor" text constraint bsb_advisory_products_vendor_check check ("vendor" is null or length("vendor") <= 200);
+alter table "better_supabase"."advisory_products" add column if not exists "description" text constraint bsb_advisory_products_description_check check ("description" is null or length("description") <= 5000);
 alter table "better_supabase"."advisory_products" add column if not exists "archived_at" timestamptz;
 alter table "better_supabase"."advisory_products" add column if not exists "created_by" uuid;
 alter table "better_supabase"."advisory_products" add column if not exists "created_at" timestamptz not null default now();
@@ -4994,7 +4994,7 @@ create policy bsb_advisory_products_read on "better_supabase"."advisory_products
 alter table "better_supabase"."advisory_product_versions" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."advisory_product_versions" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."advisory_product_versions" add column if not exists "product_id" uuid;
-alter table "better_supabase"."advisory_product_versions" add column if not exists "version" text check (length("version") >= 1 and length("version") <= 100);
+alter table "better_supabase"."advisory_product_versions" add column if not exists "version" text constraint bsb_advisory_product_versions_version_check check (length("version") >= 1 and length("version") <= 100);
 alter table "better_supabase"."advisory_product_versions" add column if not exists "released_at" timestamptz;
 alter table "better_supabase"."advisory_product_versions" add column if not exists "end_of_support_at" timestamptz;
 alter table "better_supabase"."advisory_product_versions" add column if not exists "sbom_serial" text;
@@ -5016,7 +5016,7 @@ alter table "better_supabase"."sbom_components" add column if not exists "tenant
 alter table "better_supabase"."sbom_components" add column if not exists "version_id" uuid;
 alter table "better_supabase"."sbom_components" add column if not exists "bom_ref" text;
 alter table "better_supabase"."sbom_components" add column if not exists "component_type" text not null default 'library';
-alter table "better_supabase"."sbom_components" add column if not exists "name" text check (length("name") >= 1 and length("name") <= 500);
+alter table "better_supabase"."sbom_components" add column if not exists "name" text constraint bsb_sbom_components_name_check check (length("name") >= 1 and length("name") <= 500);
 alter table "better_supabase"."sbom_components" add column if not exists "component_version" text;
 alter table "better_supabase"."sbom_components" add column if not exists "purl" text;
 alter table "better_supabase"."sbom_components" add column if not exists "package_purl" text;
@@ -5036,16 +5036,16 @@ create policy bsb_sbom_components_read on "better_supabase"."sbom_components"
 -- better_supabase.vulnerabilities is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."vulnerabilities" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."vulnerabilities" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."vulnerabilities" add column if not exists "vuln_id" text check ("vuln_id" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$');
+alter table "better_supabase"."vulnerabilities" add column if not exists "vuln_id" text constraint bsb_vulnerabilities_vuln_id_check check ("vuln_id" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$');
 alter table "better_supabase"."vulnerabilities" add column if not exists "aliases" text[] not null default '{}';
-alter table "better_supabase"."vulnerabilities" add column if not exists "summary" text check ("summary" is null or length("summary") <= 1000);
-alter table "better_supabase"."vulnerabilities" add column if not exists "details" text check ("details" is null or length("details") <= 20000);
-alter table "better_supabase"."vulnerabilities" add column if not exists "cvss_vector" text check ("cvss_vector" is null or length("cvss_vector") <= 300);
-alter table "better_supabase"."vulnerabilities" add column if not exists "cvss_version" text check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0'));
-alter table "better_supabase"."vulnerabilities" add column if not exists "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10);
-alter table "better_supabase"."vulnerabilities" add column if not exists "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical'));
-alter table "better_supabase"."vulnerabilities" add column if not exists "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1);
-alter table "better_supabase"."vulnerabilities" add column if not exists "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1);
+alter table "better_supabase"."vulnerabilities" add column if not exists "summary" text constraint bsb_vulnerabilities_summary_check check ("summary" is null or length("summary") <= 1000);
+alter table "better_supabase"."vulnerabilities" add column if not exists "details" text constraint bsb_vulnerabilities_details_check check ("details" is null or length("details") <= 20000);
+alter table "better_supabase"."vulnerabilities" add column if not exists "cvss_vector" text constraint bsb_vulnerabilities_cvss_vector_check check ("cvss_vector" is null or length("cvss_vector") <= 300);
+alter table "better_supabase"."vulnerabilities" add column if not exists "cvss_version" text constraint bsb_vulnerabilities_cvss_version_check check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0'));
+alter table "better_supabase"."vulnerabilities" add column if not exists "cvss_score" numeric(3, 1) constraint bsb_vulnerabilities_cvss_score_check check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10);
+alter table "better_supabase"."vulnerabilities" add column if not exists "severity" text constraint bsb_vulnerabilities_severity_check check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical'));
+alter table "better_supabase"."vulnerabilities" add column if not exists "epss_score" numeric(6, 5) constraint bsb_vulnerabilities_epss_score_check check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1);
+alter table "better_supabase"."vulnerabilities" add column if not exists "epss_percentile" numeric(6, 5) constraint bsb_vulnerabilities_epss_percentile_check check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1);
 alter table "better_supabase"."vulnerabilities" add column if not exists "epss_date" date;
 alter table "better_supabase"."vulnerabilities" add column if not exists "kev" boolean not null default false;
 alter table "better_supabase"."vulnerabilities" add column if not exists "kev_added_on" date;
@@ -5074,10 +5074,10 @@ alter table "better_supabase"."vex_statements" add column if not exists "tenant_
 alter table "better_supabase"."vex_statements" add column if not exists "product_id" uuid;
 alter table "better_supabase"."vex_statements" add column if not exists "version_id" uuid;
 alter table "better_supabase"."vex_statements" add column if not exists "vulnerability_id" uuid;
-alter table "better_supabase"."vex_statements" add column if not exists "status" text check ("status" in ('not_affected', 'affected', 'fixed', 'under_investigation'));
-alter table "better_supabase"."vex_statements" add column if not exists "justification" text check ("justification" is null or "justification" in ('component_not_present', 'vulnerable_code_not_present', 'vulnerable_code_not_in_execute_path', 'vulnerable_code_cannot_be_controlled_by_adversary', 'inline_mitigations_already_exist'));
-alter table "better_supabase"."vex_statements" add column if not exists "impact_statement" text check ("impact_statement" is null or length("impact_statement") <= 5000);
-alter table "better_supabase"."vex_statements" add column if not exists "action_statement" text check ("action_statement" is null or length("action_statement") <= 5000);
+alter table "better_supabase"."vex_statements" add column if not exists "status" text constraint bsb_vex_statements_status_check check ("status" in ('not_affected', 'affected', 'fixed', 'under_investigation'));
+alter table "better_supabase"."vex_statements" add column if not exists "justification" text constraint bsb_vex_statements_justification_check check ("justification" is null or "justification" in ('component_not_present', 'vulnerable_code_not_present', 'vulnerable_code_not_in_execute_path', 'vulnerable_code_cannot_be_controlled_by_adversary', 'inline_mitigations_already_exist'));
+alter table "better_supabase"."vex_statements" add column if not exists "impact_statement" text constraint bsb_vex_statements_impact_statement_check check ("impact_statement" is null or length("impact_statement") <= 5000);
+alter table "better_supabase"."vex_statements" add column if not exists "action_statement" text constraint bsb_vex_statements_action_statement_check check ("action_statement" is null or length("action_statement") <= 5000);
 alter table "better_supabase"."vex_statements" add column if not exists "created_by" uuid;
 alter table "better_supabase"."vex_statements" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."vex_statements" add column if not exists "updated_at" timestamptz not null default now();
@@ -5092,16 +5092,16 @@ create policy bsb_vex_statements_read on "better_supabase"."vex_statements"
 -- better_supabase.advisories is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."advisories" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."advisories" add column if not exists "tenant_id" uuid;
-alter table "better_supabase"."advisories" add column if not exists "tracking_id" text check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$');
-alter table "better_supabase"."advisories" add column if not exists "title" text check (length("title") >= 1 and length("title") <= 300);
-alter table "better_supabase"."advisories" add column if not exists "summary" text check ("summary" is null or length("summary") <= 10000);
+alter table "better_supabase"."advisories" add column if not exists "tracking_id" text constraint bsb_advisories_tracking_id_check check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$');
+alter table "better_supabase"."advisories" add column if not exists "title" text constraint bsb_advisories_title_check check (length("title") >= 1 and length("title") <= 300);
+alter table "better_supabase"."advisories" add column if not exists "summary" text constraint bsb_advisories_summary_check check ("summary" is null or length("summary") <= 10000);
 alter table "better_supabase"."advisories" add column if not exists "product_id" uuid;
-alter table "better_supabase"."advisories" add column if not exists "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical'));
-alter table "better_supabase"."advisories" add column if not exists "status" text not null default 'draft' check ("status" in ('draft', 'interim', 'final'));
-alter table "better_supabase"."advisories" add column if not exists "revision" integer not null default 0 check ("revision" >= 0);
+alter table "better_supabase"."advisories" add column if not exists "severity" text constraint bsb_advisories_severity_check check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical'));
+alter table "better_supabase"."advisories" add column if not exists "status" text not null default 'draft' constraint bsb_advisories_status_check check ("status" in ('draft', 'interim', 'final'));
+alter table "better_supabase"."advisories" add column if not exists "revision" integer not null default 0 constraint bsb_advisories_revision_check check ("revision" >= 0);
 alter table "better_supabase"."advisories" add column if not exists "initial_release_at" timestamptz;
 alter table "better_supabase"."advisories" add column if not exists "current_release_at" timestamptz;
-alter table "better_supabase"."advisories" add column if not exists "revision_history" jsonb not null default '[]' check (jsonb_typeof("revision_history") = 'array');
+alter table "better_supabase"."advisories" add column if not exists "revision_history" jsonb not null default '[]' constraint bsb_advisories_revision_history_check check (jsonb_typeof("revision_history") = 'array');
 alter table "better_supabase"."advisories" add column if not exists "created_by" uuid;
 alter table "better_supabase"."advisories" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."advisories" add column if not exists "updated_at" timestamptz not null default now();
@@ -6107,7 +6107,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_179_advisories.sql
 -- better-supabase module: advisories
 -- @bsb-block advisories@1 managed
--- @bsb-hash sha256:caf0e00f74740e8f66ec630834b9bbcb63e80d0ec5645926eed1041c0e9afe60
+-- @bsb-hash sha256:49d6ed79f0e6b12fe76a2ea3aeef75176d8dd7a0cf4858de52904682605156b5
 -- Security advisories for a software vendor: products and versions with CycloneDX components, vulnerabilities enriched from OSV, EPSS and the CISA KEV catalog on a schedule, OpenVEX statements per version, and CSAF 2.0 advisories with a /.well-known/csaf handler, linked to incidents and risks through relations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6120,10 +6120,10 @@ create table "better_supabase"."advisory_products" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- Names the product in OpenVEX and CSAF documents.
-  "key" text not null check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$'),
-  "name" text not null check (length("name") >= 1 and length("name") <= 200),
-  "vendor" text check ("vendor" is null or length("vendor") <= 200),
-  "description" text check ("description" is null or length("description") <= 5000),
+  "key" text not null constraint bsb_advisory_products_key_check check ("key" ~ '^[a-z0-9][a-z0-9._-]{0,62}$'),
+  "name" text not null constraint bsb_advisory_products_name_check check (length("name") >= 1 and length("name") <= 200),
+  "vendor" text constraint bsb_advisory_products_vendor_check check ("vendor" is null or length("vendor") <= 200),
+  "description" text constraint bsb_advisory_products_description_check check ("description" is null or length("description") <= 5000),
   "archived_at" timestamptz,
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
@@ -6142,7 +6142,7 @@ create table "better_supabase"."advisory_product_versions" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   "product_id" uuid not null,
-  "version" text not null check (length("version") >= 1 and length("version") <= 100),
+  "version" text not null constraint bsb_advisory_product_versions_version_check check (length("version") >= 1 and length("version") <= 100),
   "released_at" timestamptz,
   "end_of_support_at" timestamptz,
   -- The BOM the components came from: its urn:uuid serial and CycloneDX version.
@@ -6167,7 +6167,7 @@ create table "better_supabase"."sbom_components" (
   "version_id" uuid not null,
   "bom_ref" text,
   "component_type" text not null default 'library',
-  "name" text not null check (length("name") >= 1 and length("name") <= 500),
+  "name" text not null constraint bsb_sbom_components_name_check check (length("name") >= 1 and length("name") <= 500),
   "component_version" text,
   "purl" text,
   -- The purl without version, qualifiers and subpath, which vulnerabilities match on.
@@ -6190,16 +6190,16 @@ create policy bsb_sbom_components_read on "better_supabase"."sbom_components"
 create table "better_supabase"."vulnerabilities" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
-  "vuln_id" text not null check ("vuln_id" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$'),
+  "vuln_id" text not null constraint bsb_vulnerabilities_vuln_id_check check ("vuln_id" ~ '^[A-Za-z0-9][A-Za-z0-9._:-]{2,127}$'),
   "aliases" text[] not null default '{}',
-  "summary" text check ("summary" is null or length("summary") <= 1000),
-  "details" text check ("details" is null or length("details") <= 20000),
-  "cvss_vector" text check ("cvss_vector" is null or length("cvss_vector") <= 300),
-  "cvss_version" text check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0')),
-  "cvss_score" numeric(3, 1) check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10),
-  "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
-  "epss_score" numeric(6, 5) check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1),
-  "epss_percentile" numeric(6, 5) check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1),
+  "summary" text constraint bsb_vulnerabilities_summary_check check ("summary" is null or length("summary") <= 1000),
+  "details" text constraint bsb_vulnerabilities_details_check check ("details" is null or length("details") <= 20000),
+  "cvss_vector" text constraint bsb_vulnerabilities_cvss_vector_check check ("cvss_vector" is null or length("cvss_vector") <= 300),
+  "cvss_version" text constraint bsb_vulnerabilities_cvss_version_check check ("cvss_version" is null or "cvss_version" in ('3.0', '3.1', '4.0')),
+  "cvss_score" numeric(3, 1) constraint bsb_vulnerabilities_cvss_score_check check ("cvss_score" is null or "cvss_score" >= 0 and "cvss_score" <= 10),
+  "severity" text constraint bsb_vulnerabilities_severity_check check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
+  "epss_score" numeric(6, 5) constraint bsb_vulnerabilities_epss_score_check check ("epss_score" is null or "epss_score" >= 0 and "epss_score" <= 1),
+  "epss_percentile" numeric(6, 5) constraint bsb_vulnerabilities_epss_percentile_check check ("epss_percentile" is null or "epss_percentile" >= 0 and "epss_percentile" <= 1),
   "epss_date" date,
   "kev" boolean not null default false,
   "kev_added_on" date,
@@ -6232,10 +6232,10 @@ create table "better_supabase"."vex_statements" (
   -- Null: the statement covers every version of the product.
   "version_id" uuid,
   "vulnerability_id" uuid not null,
-  "status" text not null check ("status" in ('not_affected', 'affected', 'fixed', 'under_investigation')),
-  "justification" text check ("justification" is null or "justification" in ('component_not_present', 'vulnerable_code_not_present', 'vulnerable_code_not_in_execute_path', 'vulnerable_code_cannot_be_controlled_by_adversary', 'inline_mitigations_already_exist')),
-  "impact_statement" text check ("impact_statement" is null or length("impact_statement") <= 5000),
-  "action_statement" text check ("action_statement" is null or length("action_statement") <= 5000),
+  "status" text not null constraint bsb_vex_statements_status_check check ("status" in ('not_affected', 'affected', 'fixed', 'under_investigation')),
+  "justification" text constraint bsb_vex_statements_justification_check check ("justification" is null or "justification" in ('component_not_present', 'vulnerable_code_not_present', 'vulnerable_code_not_in_execute_path', 'vulnerable_code_cannot_be_controlled_by_adversary', 'inline_mitigations_already_exist')),
+  "impact_statement" text constraint bsb_vex_statements_impact_statement_check check ("impact_statement" is null or length("impact_statement") <= 5000),
+  "action_statement" text constraint bsb_vex_statements_action_statement_check check ("action_statement" is null or length("action_statement") <= 5000),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
@@ -6253,18 +6253,18 @@ create table "better_supabase"."advisories" (
   "id" uuid primary key default gen_random_uuid(),
   "org_id" uuid not null,
   -- The CSAF tracking id, such as ACME-SA-2026-001.
-  "tracking_id" text not null check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$'),
-  "title" text not null check (length("title") >= 1 and length("title") <= 300),
-  "summary" text check ("summary" is null or length("summary") <= 10000),
+  "tracking_id" text not null constraint bsb_advisories_tracking_id_check check ("tracking_id" ~ '^[A-Za-z0-9][A-Za-z0-9._-]{2,99}$'),
+  "title" text not null constraint bsb_advisories_title_check check (length("title") >= 1 and length("title") <= 300),
+  "summary" text constraint bsb_advisories_summary_check check ("summary" is null or length("summary") <= 10000),
   "product_id" uuid not null,
-  "severity" text check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
-  "status" text not null default 'draft' check ("status" in ('draft', 'interim', 'final')),
+  "severity" text constraint bsb_advisories_severity_check check ("severity" is null or "severity" in ('none', 'low', 'medium', 'high', 'critical')),
+  "status" text not null default 'draft' constraint bsb_advisories_status_check check ("status" in ('draft', 'interim', 'final')),
   -- The CSAF document version: 0 for a draft, then one more per publication.
-  "revision" integer not null default 0 check ("revision" >= 0),
+  "revision" integer not null default 0 constraint bsb_advisories_revision_check check ("revision" >= 0),
   "initial_release_at" timestamptz,
   "current_release_at" timestamptz,
   -- [{ number, date, summary }], one entry per publication.
-  "revision_history" jsonb not null default '[]' check (jsonb_typeof("revision_history") = 'array'),
+  "revision_history" jsonb not null default '[]' constraint bsb_advisories_revision_history_check check (jsonb_typeof("revision_history") = 'array'),
   "created_by" uuid,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
