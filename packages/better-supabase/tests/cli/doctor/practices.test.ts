@@ -74,3 +74,48 @@ create policy "u" on public.notes for update using (true);`),
     expect(codes(`-- @bsb-block tags\n${sql}`)).toEqual([]);
   });
 });
+
+describe("storage, initplan and index practices", () => {
+  it("BS383 flags insert without select and update", () => {
+    expect(
+      codes(
+        `create policy "i" on storage.objects for insert to authenticated with check (bucket_id = 'a');`,
+      ),
+    ).toEqual(["BS383"]);
+    expect(
+      codes(`create policy "i" on storage.objects for insert with check (true);
+create policy "s" on storage.objects for select using (true);
+create policy "u" on storage.objects for update using (true);`),
+    ).toEqual([]);
+  });
+
+  it("BS384 flags a bare auth.uid() and accepts the select form", () => {
+    const index = "create index n_u on public.notes (user_id);";
+
+    expect(
+      codes(
+        `${index} create policy "s" on public.notes for select using (user_id = auth.uid());`,
+      ),
+    ).toEqual(["BS384"]);
+    expect(
+      codes(
+        `${index} create policy "s" on public.notes for select using (user_id = (select auth.uid()));`,
+      ),
+    ).toEqual([]);
+  });
+
+  it("BS385 flags a policy column without a leading index", () => {
+    const policy = `create policy "s" on public.notes for select using (user_id = (select auth.uid()));`;
+
+    expect(codes(policy)).toEqual(["BS385"]);
+    expect(
+      codes(`create index n_u on public.notes (user_id, id); ${policy}`),
+    ).toEqual([]);
+    expect(
+      codes(`create index n_u on public.notes (id, user_id); ${policy}`),
+    ).toEqual(["BS385"]);
+    expect(
+      codes(`create table public.notes (user_id uuid primary key); ${policy}`),
+    ).toEqual([]);
+  });
+});

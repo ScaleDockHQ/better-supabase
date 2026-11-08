@@ -165,7 +165,11 @@ Where the findings come from depends on what doctor reads:
 - **Hosted projects** (`--project-ref` or `database.source.projectRef`): the Management
   API's `GET /v1/projects/{ref}/advisors/security`, the same data the dashboard
   shows.
-- **Local stack, `$DATABASE_URL`, `$SUPABASE_DB_URL` or `--db-url-stdin`:** [splinter](https://github.com/supabase/splinter),
+- **A database on this machine** (the local stack or a loopback URL): `supabase db advisors`
+  when the Supabase CLI is 2.81.3 or later. Doctor passes the URL with
+  `--db-url` and reads the JSON output. A missing or older CLI, a remote
+  database or a failed run falls back to splinter.
+- **Any other database, or the fallback** (`$DATABASE_URL`, `$SUPABASE_DB_URL` or `--db-url-stdin`): [splinter](https://github.com/supabase/splinter),
   the SQL behind the advisors. Doctor downloads `splinter.sql` at a pinned
   commit, checks its SHA-256, caches it in
   `node_modules/.cache/better-supabase` and runs it in a read-only transaction
@@ -1705,6 +1709,29 @@ caller's policies would hide. Create the view `with (security_invoker = true)`.
 **Info: a column uses `timestamp` or `serial`.** `timestamp` has no time zone and
 `serial` is the legacy form of an identity column. Use `timestamptz` and
 `generated always as identity`.
+
+### BS383
+
+**Warning: a storage policy set has insert but no select and update.** A storage
+upload with `upsert: true` reads the existing object and then updates it, so it
+needs `insert`, `select` and `update` policies on `storage.objects`. With
+`insert` alone the first upload works and every overwrite fails. Add the select
+and update policies, or turn upsert off. Doctor reads the app's own schema files.
+
+### BS384
+
+**Warning: a policy calls `auth.uid()` once per row.** `auth.uid()`,
+`auth.jwt()` and `auth.role()` called bare in a policy run for every row the
+policy checks. Written as `(select auth.uid())`, Postgres evaluates the call
+once per statement. Wrap each call in `select`.
+
+### BS385
+
+**Info: a policy column has no index.** A policy that filters on
+`user_id = (select auth.uid())` runs that filter in every query on the table, so
+the column needs an index that starts with it. A composite index puts the tenant
+column first. Without one, Postgres reads the whole table. Doctor counts an
+index, a primary key or a unique constraint that starts with the column.
 
 ### BS369
 
