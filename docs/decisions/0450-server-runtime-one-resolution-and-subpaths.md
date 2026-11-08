@@ -28,6 +28,12 @@ unwraps each step and stops the pipe at the first error. The tags block's
 and the rate-limit header helpers to `better-supabase/server/rate-limit`. The
 old names have no alias.
 
+The block builder checks port uniqueness and resolves every consumed port to
+its provider once per block set (`wiringOf` in `blocks/create-blocks.ts`) and
+keeps the result, so each later builder reads it. Plugin `afterMutation` events
+copy the returned rows on the first read of `rows`, as the `mutation` event
+already did.
+
 ## Alternatives considered
 
 Keeping re-exports from `server` kept the bundle cost, which was the problem.
