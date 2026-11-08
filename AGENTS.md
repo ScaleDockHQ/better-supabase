@@ -433,6 +433,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0387: The time-tracking block is time-entries.
 - 0388: The bulk block is bulk-actions.
 - 0393: Close the declarative base layer release and record what is deferred.
+- 0394: Infer the notifications block and the settings schemas.
 
 ## Pre-release pins
 

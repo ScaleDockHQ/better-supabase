@@ -20,6 +20,7 @@ import { CliError } from "./core/errors.ts";
 import { display, readStdin } from "./core/io.ts";
 import { importFresh } from "./fresh-import.ts";
 import { withSchemaTags } from "./schema-tags.ts";
+import { withSettingsSchemas } from "./settings-schemas.ts";
 import { readStackStatus } from "./stack-status.ts";
 import { findUp, readSupabaseToml, tomlNumber } from "./supabase-toml.ts";
 
@@ -266,15 +267,17 @@ export async function loadConfig(
   }
 
   return withEnvironment(
-    await withSchemaTags(
-      resolveConfig(
-        {
-          ...applyEnvironment(current, environment),
-          ...(legacy.appTables === undefined
-            ? {}
-            : { appTables: legacy.appTables }),
-        },
-        explicit ? cwd : dirname(path),
+    await withSettingsSchemas(
+      await withSchemaTags(
+        resolveConfig(
+          {
+            ...applyEnvironment(current, environment),
+            ...(legacy.appTables === undefined
+              ? {}
+              : { appTables: legacy.appTables }),
+          },
+          explicit ? cwd : dirname(path),
+        ),
       ),
     ),
   );
