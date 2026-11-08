@@ -360,6 +360,7 @@
   "guides/limitations",
   "guides/monorepo",
   "guides/offline-first",
+  "guides/postgres-practices",
   "guides/quality-management",
   "guides/read-replicas",
   "guides/supabase-blocks",

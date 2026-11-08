@@ -14,11 +14,14 @@ import {
   openSource,
   snapshotFile,
 } from "../commands/snapshot.ts";
+import { databaseUrl } from "../config.ts";
 import {
   apiSchemas,
   managementAdvisors,
   splinterAdvisors,
 } from "../doctor/advisors.ts";
+import { cliAdvisors, withFallback } from "../doctor/cli-advisors.ts";
+import { supabaseCli } from "../exec.ts";
 import { CACHE_DIR } from "../introspect/cache.ts";
 import { readSupabaseToml } from "../supabase-toml.ts";
 
@@ -103,7 +106,7 @@ export function openLive(
   let splinter: Promise<AdvisorSource> | undefined;
   const cacheDir = resolve(config.root, CACHE_DIR);
 
-  const advisors: AdvisorSource = {
+  const splinterSource: AdvisorSource = {
     describe: "database (splinter)",
     async lints(category) {
       splinter ??= Promise.all([
@@ -120,5 +123,17 @@ export function openLive(
     },
   };
 
+  const advisors = withFallback(async () => {
+    const url = source.dbUrl ?? (await databaseUrl(config, env));
+
+    return cliAdvisors({
+      dbUrl: url,
+      run: (args) => supabaseCli(args, config.root, env, signalOf(source)),
+    });
+  }, splinterSource);
+
   return { advisors, database, open, close };
 }
+
+const signalOf = (source: SnapshotSource): { signal?: AbortSignal } =>
+  source.signal ? { signal: source.signal } : {};
