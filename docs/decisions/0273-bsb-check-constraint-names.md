@@ -31,7 +31,7 @@ beside an `add constraint` of the same name, so the name was part of the SQL.
   of `better_supabase` and `workflow` to `bsb_<old name>`. The old names are
   the ones Postgres chose, which the SQL files never wrote, so the loop reads
   them from `pg_constraint`. The fixture migration
-  `20261107160015_bsb_check_names.sql` is the same loop; no data moves and the
+  `20261107180015_bsb_check_names.sql` is the same loop; no data moves and the
   second strict-coverage sync is empty, which shows the generated names equal
   `bsb_` plus the names the catalog held.
 

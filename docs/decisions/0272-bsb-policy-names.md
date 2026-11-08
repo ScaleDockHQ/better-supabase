@@ -24,7 +24,7 @@ policies on an app's table and the tenant scope already carried the prefix.
   and writes one `alter policy ... rename to` behind an existence check for
   each `better_supabase` policy that lacks the prefix. The rule replaces 478
   rows in the rename table.
-- The fixture migration `20261107160014_bsb_policy_names.sql` renames the 478
+- The fixture migration `20261107180014_bsb_policy_names.sql` renames the 478
   policies of the local database; no data moves and the second
   strict-coverage sync is empty. `naming_catalog.test.sql` allows no policy
   outside `bsb_*`.

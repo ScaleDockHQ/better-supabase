@@ -30,7 +30,7 @@ reader could not tell an instant from a date or a duration by the name.
   `valid_from` and `valid_until` date columns stay.
 - `codemod naming` renames the columns of an installed app, when its SQL files
   name the old column, and the fixture migration
-  `20261107170000_bsb_timestamp_column_names.sql` does the same; a generated
+  `20261107180016_bsb_timestamp_column_names.sql` does the same; a generated
   migration then replaces the functions that read them. The second strict
   coverage sync is empty.
 

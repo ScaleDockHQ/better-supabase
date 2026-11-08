@@ -25,7 +25,7 @@ table could not move a trigger, an index or a constraint of an installed block.
   (with `table`). `codemod naming` writes `alter trigger`, `alter index` and
   `alter table ... rename constraint` behind an existence check, and only for a
   name the project's SQL files mention.
-- The fixture migration `20261107160013_bsb_trigger_and_index_names.sql`
+- The fixture migration `20261107180013_bsb_trigger_and_index_names.sql`
   renames the objects and replaces `set_flag_override`, whose body names the
   constraint; no data moves, and the second strict-coverage sync is empty.
 
