@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 import type { BlockSqlLayout, BlockSqlDefinition } from "../module-types.ts";
 
+import { fillTemplate } from "../../core/access-sql.ts";
 import { AUTHZ_EVENT, AUTHZ_TOPIC } from "../../core/authz-topic.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
 import { tableGlobs } from "../schema-scan.ts";
@@ -128,6 +129,12 @@ interface BootstrapTarget {
   readonly readSets: readonly string[];
   /** A no-argument function whose jsonb result is the authorizer subject. */
   readonly subject?: string | undefined;
+  /**
+   * `authorization.functions.subjectForTenant` with the call's tenant filled
+   * in, for a target that uses the provider's `subject`. `null` for an unknown
+   * tenant, so the payload never names the user's other tenants.
+   */
+  readonly subjectForTenant?: string | undefined;
 }
 
 /**
@@ -158,6 +165,30 @@ function subjectOf(
 }
 
 function bootstrapFunctions(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+): readonly BootstrapTarget[] {
+  const template = layout.accessProvider?.functions.subjectForTenant;
+  const provider = layout.accessProvider;
+
+  return bootstrapTargets(ctx, layout).map((target) =>
+    template !== undefined &&
+    provider !== undefined &&
+    target.subject !== undefined &&
+    target.subject === provider.functions.subject
+      ? {
+          ...target,
+          subjectForTenant: fillTemplate(
+            "authorization.functions.subjectForTenant",
+            template,
+            { tenant: "(args ->> 'tenant')", scope: provider.scope },
+          ),
+        }
+      : target,
+  );
+}
+
+function bootstrapTargets(
   ctx: BlockSqlContext,
   layout: BlockSqlLayout,
 ): readonly BootstrapTarget[] {
@@ -269,6 +300,24 @@ function hasVersionSource(
 }
 
 /**
+ * The `'subject'` pair of a wrapper. With `subjectForTenant` a call that names
+ * a tenant gets the subject restricted to it, and a call without one the whole
+ * subject.
+ */
+function subjectSql(
+  subject: string | undefined,
+  subjectForTenant: string | undefined,
+): string {
+  if (!subject) {
+    return "";
+  }
+
+  return subjectForTenant === undefined
+    ? `,\n    'subject', to_jsonb(${subject}())`
+    : `,\n    'subject', case when nullif(args ->> 'tenant', '') is null then to_jsonb(${subject}()) else to_jsonb(${subjectForTenant}) end`;
+}
+
+/**
  * One wrapper per `bootstrap` entry: the session check, the authorization
  * version and the app function's data in one jsonb, so a page's first query
  * carries all three. It runs as the caller, so the app function's policies
@@ -290,21 +339,22 @@ function bootstrapWrappers(
     ? "to_jsonb(better_supabase.caller_authz_version())"
     : "auth.jwt() -> 'authz_ver'";
 
-  const wrappers = functions.map(({ name, fn, readSets, subject }) => {
-    const wrapper = `better_supabase.bootstrap_${name}`;
-    const picks = readSets.length > 0;
-    const dataSql = fn === undefined ? "null" : `to_jsonb(${fn}(args))`;
+  const wrappers = functions.map(
+    ({ name, fn, readSets, subject, subjectForTenant }) => {
+      const wrapper = `better_supabase.bootstrap_${name}`;
+      const picks = readSets.length > 0;
+      const dataSql = fn === undefined ? "null" : `to_jsonb(${fn}(args))`;
 
-    const signature = picks
-      ? `args jsonb default '{}'::jsonb, read_set text default null, read_params jsonb default null`
-      : `args jsonb default '{}'::jsonb`;
+      const signature = picks
+        ? `args jsonb default '{}'::jsonb, read_set text default null, read_params jsonb default null`
+        : `args jsonb default '{}'::jsonb`;
 
-    const argTypes = picks ? "jsonb, text, jsonb" : "jsonb";
+      const argTypes = picks ? "jsonb, text, jsonb" : "jsonb";
 
-    // A static case: the set is one of the listed functions, never a name the
-    // caller builds. Each runs as the caller, so its policies apply.
-    const readsSql = picks
-      ? `,
+      // A static case: the set is one of the listed functions, never a name the
+      // caller builds. Each runs as the caller, so its policies apply.
+      const readsSql = picks
+        ? `,
     'reads', case read_set
 ${readSets
   .map(
@@ -314,21 +364,21 @@ ${readSets
   .join("\n")}
       else null
     end`
-      : "";
+        : "";
 
-    const guard = picks
-      ? `
+      const guard = picks
+        ? `
   if read_set is not null and read_set not in (${readSets.map((set) => `'${set}'`).join(", ")}) then
     raise exception 'unknown read set %', read_set using errcode = '22023';
   end if;`
-      : "";
+        : "";
 
-    // The earlier one-argument wrapper would make a named call ambiguous.
-    const dropOld = picks
-      ? `drop function if exists ${wrapper}(jsonb);\n\n`
-      : "";
+      // The earlier one-argument wrapper would make a named call ambiguous.
+      const dropOld = picks
+        ? `drop function if exists ${wrapper}(jsonb);\n\n`
+        : "";
 
-    return `${dropOld}create or replace function ${wrapper}(${signature})
+      return `${dropOld}create or replace function ${wrapper}(${signature})
 returns jsonb
 language plpgsql
 security invoker
@@ -350,14 +400,15 @@ begin${guard}
     'authz_version', ${live},
     'token_authz_version', auth.jwt() -> 'authz_ver',
     'tenant', args ->> 'tenant',
-    'data', ${dataSql}${readsSql}${subject ? `,\n    'subject', to_jsonb(${subject}())` : ""}
+    'data', ${dataSql}${readsSql}${subjectSql(subject, subjectForTenant)}
   );
 end;
 $$;
 
 revoke execute on function ${wrapper}(${argTypes}) from public, anon;
 grant execute on function ${wrapper}(${argTypes}) to authenticated;`;
-  });
+    },
+  );
 
   return `
 

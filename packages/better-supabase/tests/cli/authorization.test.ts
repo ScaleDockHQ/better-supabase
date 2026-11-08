@@ -103,7 +103,11 @@ describe("entitlementsMode", () => {
     expect(
       entitlementsMode(
         resolveConfig(
-          { auth: { authorization: withProvider({ functions }) } },
+          {
+            auth: {
+              authorization: withProvider({ functions, memberships: [] }),
+            },
+          },
           "/project",
         ),
       ),

@@ -220,11 +220,15 @@ function withProviderSuspension(
     ...(configured.user === undefined && suspension.user
       ? { user: suspension.user }
       : {}),
+    ...(configured.userKey === undefined && suspension.userKey !== undefined
+      ? { userKey: suspension.userKey }
+      : {}),
   };
 
   if (
     disabled.tenant === configured.tenant &&
-    disabled.user === configured.user
+    disabled.user === configured.user &&
+    disabled.userKey === configured.userKey
   ) {
     return modules;
   }

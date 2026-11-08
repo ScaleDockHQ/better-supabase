@@ -944,6 +944,15 @@
                 },
                 "subject": {
                   "type": "string"
+                },
+                "subjectForTenant": {
+                  "type": "string"
+                },
+                "approverFor": {
+                  "type": "string"
+                },
+                "managedUsers": {
+                  "type": "string"
                 }
               },
               "required": ["idsWith", "isPlatform"],
@@ -981,6 +990,12 @@
                     "type": "boolean"
                   },
                   "scopes": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "levels": {
                     "type": "array",
                     "items": {
                       "type": "string"
@@ -1034,6 +1049,9 @@
                     "type": "string"
                   },
                   "userColumn": {
+                    "type": "string"
+                  },
+                  "userKey": {
                     "type": "string"
                   },
                   "scope": {
@@ -1126,6 +1144,9 @@
                   },
                   "required": ["table", "id"],
                   "additionalProperties": false
+                },
+                "userKey": {
+                  "type": "string"
                 }
               },
               "additionalProperties": false
@@ -1217,6 +1238,40 @@
               "additionalProperties": false
             },
             "personas": {
+              "anyOf": [
+                {
+                  "const": "roles"
+                },
+                {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "properties": {
+                      "name": {
+                        "type": "string",
+                        "pattern": "^[a-z][a-z0-9_]*$"
+                      },
+                      "setup": {
+                        "type": "string"
+                      },
+                      "claims": {
+                        "type": "object",
+                        "additionalProperties": {}
+                      },
+                      "permissions": {
+                        "type": "array",
+                        "items": {
+                          "type": "string"
+                        }
+                      }
+                    },
+                    "required": ["name", "setup", "permissions"],
+                    "additionalProperties": false
+                  }
+                }
+              ]
+            },
+            "fixtureRoles": {
               "type": "array",
               "items": {
                 "type": "object",
@@ -1228,15 +1283,15 @@
                   "setup": {
                     "type": "string"
                   },
-                  "claims": {
-                    "type": "object",
-                    "additionalProperties": {}
-                  },
                   "permissions": {
                     "type": "array",
                     "items": {
                       "type": "string"
                     }
+                  },
+                  "claims": {
+                    "type": "object",
+                    "additionalProperties": {}
                   }
                 },
                 "required": ["name", "setup", "permissions"],
@@ -1289,6 +1344,9 @@
                   "minItems": 1
                 },
                 "truncatedClaim": {
+                  "type": "string"
+                },
+                "teamIdsTruncatedClaim": {
                   "type": "string"
                 },
                 "registeredClaims": {

@@ -16,6 +16,9 @@ type StubProvider = AuthorizationProvider & {
       | "subject"
       | "rowsWith"
       | "rowsWithFor"
+      | "subjectForTenant"
+      | "approverFor"
+      | "managedUsers"
     >
   >;
   readonly memberships: NonNullable<AuthorizationProvider["memberships"]>;

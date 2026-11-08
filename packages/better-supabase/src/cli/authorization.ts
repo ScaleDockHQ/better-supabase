@@ -101,6 +101,75 @@ const scopeMemberships = (
     (source) => !("value" in source.scope) || source.scope.value === scope,
   );
 
+const quotedName = (name: string): string => `"${name.replaceAll('"', '""')}"`;
+
+const quotedTableName = (table: string): string =>
+  table.split(".").map(quotedName).join(".");
+
+/**
+ * The `memberIds` and `memberIdsFor` templates a provider's membership rows
+ * imply.
+ */
+function membershipTemplates(
+  memberships: readonly AuthorizationMembership[],
+): Pick<AuthorizationFunctions, "memberIds" | "memberIdsFor"> | undefined {
+  if (memberships.length === 0) {
+    return undefined;
+  }
+
+  const select = (user: string): string =>
+    memberships
+      .map((source) => {
+        const live =
+          source.disabledAt === undefined
+            ? ""
+            : ` and m.${quotedName(source.disabledAt)} is null`;
+
+        const kind =
+          "column" in source.scope
+            ? ` and m.${quotedName(source.scope.column)} = '{scope}'`
+            : "";
+
+        return `select m.${quotedName(source.idColumn)} as id from ${quotedTableName(source.table)} m where m.${quotedName(source.userColumn)} = ${user}${kind}${live}`;
+      })
+      .join(" union ");
+
+  return {
+    memberIds: `(${select("(select auth.uid())")})`,
+    memberIdsFor: `(${select("{user}")})`,
+  };
+}
+
+/**
+ * The provider's functions, with `memberIds` and `memberIdsFor` read off its
+ * membership rows when it sets the rows and leaves the templates out. A
+ * template the provider sets always wins.
+ */
+export function providerFunctions(
+  provider: AuthorizationProvider,
+  scope: string,
+): AuthorizationFunctions {
+  const { memberIds, memberIdsFor } = provider.functions;
+
+  if (memberIds !== undefined && memberIdsFor !== undefined) {
+    return provider.functions;
+  }
+
+  const derived = membershipTemplates(scopeMemberships(provider, scope));
+
+  return derived === undefined
+    ? provider.functions
+    : {
+        ...provider.functions,
+        ...(memberIds === undefined && derived.memberIds !== undefined
+          ? { memberIds: derived.memberIds }
+          : {}),
+        ...(memberIdsFor === undefined && derived.memberIdsFor !== undefined
+          ? { memberIdsFor: derived.memberIdsFor }
+          : {}),
+      };
+}
+
 /**
  * Provider mode when `entitlements.memberships` resolves to `"provider"` (the
  * default with `authorization`). The provider needs `memberIds` and
@@ -129,12 +198,12 @@ export function entitlementsMode(
     return chosen;
   }
 
-  const { memberIds, memberIdsFor } = provider.functions;
+  const { memberIds, memberIdsFor } = providerFunctions(provider, chosen.scope);
 
   if (memberIds === undefined || memberIdsFor === undefined) {
     return {
       kind: "invalid",
-      problem: `${providerLabel(provider)} has no authorization.functions.${memberIds === undefined ? "memberIds" : "memberIdsFor"}, which the entitlements module calls. Use a provider that sets both, or set auth.entitlements.memberships to "tenant" to keep the tenant module's memberships.`,
+      problem: `${providerLabel(provider)} has no authorization.functions.${memberIds === undefined ? "memberIds" : "memberIdsFor"} and no authorization.memberships for the tenant scope to derive it from, and the entitlements module calls it. Use a provider that sets either, or set auth.entitlements.memberships to "tenant" to keep the tenant module's memberships.`,
     };
   }
 
@@ -192,7 +261,7 @@ export function accessProviderMode(
     };
   }
 
-  const { user, tenant } = provider.suspension ?? {};
+  const { user, tenant, userKey } = provider.suspension ?? {};
   const truncatedClaim = providerTruncatedClaim(provider);
 
   return {
@@ -202,12 +271,13 @@ export function accessProviderMode(
       scope: chosen.scope,
       scopes: provider.scopes.map((scope) => scope.name),
       idType: chosen.idType,
-      functions: provider.functions,
+      functions: providerFunctions(provider, chosen.scope),
       ...(user || tenant
         ? {
             suspension: {
               ...(user ? { user } : {}),
               ...(tenant ? { tenant } : {}),
+              ...(userKey === undefined ? {} : { userKey }),
             },
           }
         : {}),

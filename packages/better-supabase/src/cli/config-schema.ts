@@ -258,6 +258,9 @@ const authorization = v.strictObject({
     portalSubjects: v.optional(v.string()),
     portalParties: v.optional(v.string()),
     subject: v.optional(v.string()),
+    subjectForTenant: v.optional(v.string()),
+    approverFor: v.optional(v.string()),
+    managedUsers: v.optional(v.string()),
   }),
   requires: v.optional(
     v.array(
@@ -274,6 +277,7 @@ const authorization = v.strictObject({
         key: v.string(),
         sqlComplete: v.optional(v.boolean()),
         scopes: v.optional(strings),
+        levels: v.optional(strings),
       }),
     ),
   ),
@@ -299,6 +303,7 @@ const authorization = v.strictObject({
       v.strictObject({
         table: v.string(),
         userColumn: v.string(),
+        userKey: v.optional(v.string()),
         scope: membershipScope,
         idColumn: v.string(),
         rolesTable: v.optional(v.string()),
@@ -310,6 +315,7 @@ const authorization = v.strictObject({
     v.strictObject({
       user: v.optional(disabledRow),
       tenant: v.optional(disabledRow),
+      userKey: v.optional(v.string()),
     }),
   ),
   roleSources: v.optional(
@@ -347,12 +353,25 @@ const authorization = v.strictObject({
     }),
   ),
   personas: v.optional(
+    v.union([
+      v.literal("roles"),
+      v.array(
+        v.strictObject({
+          name: scopeName,
+          setup: v.string(),
+          claims: v.optional(v.record(v.string(), v.unknown())),
+          permissions: strings,
+        }),
+      ),
+    ]),
+  ),
+  fixtureRoles: v.optional(
     v.array(
       v.strictObject({
         name: scopeName,
         setup: v.string(),
-        claims: v.optional(v.record(v.string(), v.unknown())),
         permissions: strings,
+        claims: v.optional(v.record(v.string(), v.unknown())),
       }),
     ),
   ),
@@ -374,6 +393,7 @@ const authorization = v.strictObject({
       activeOrganizationFrom: v.optional(activeTenantSource),
       ownedClaims: v.pipe(strings, v.minLength(1, "List at least one claim")),
       truncatedClaim: v.optional(v.string()),
+      teamIdsTruncatedClaim: v.optional(v.string()),
       registeredClaims: v.optional(
         v.array(v.strictObject({ name: v.string(), function: v.string() })),
       ),

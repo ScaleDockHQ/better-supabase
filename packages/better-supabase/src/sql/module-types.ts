@@ -499,6 +499,7 @@ export interface BlockSqlAccessProvider {
   readonly suspension?: {
     readonly user?: DisabledRow;
     readonly tenant?: DisabledRow;
+    readonly userKey?: string;
   };
   /**
    * An adopted `tenant` module on one of these tables reads role names the same

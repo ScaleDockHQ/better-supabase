@@ -316,7 +316,10 @@ describe("BS408", () => {
   it("reports a mode the provider can't back", async () => {
     const { memberIds: _, ...functions } = stubProvider.functions;
     expect(
-      await findings("BS408", config(withProvider({ functions }))),
+      await findings(
+        "BS408",
+        config(withProvider({ functions, memberships: [] })),
+      ),
     ).toEqual([
       {
         severity: "warning",

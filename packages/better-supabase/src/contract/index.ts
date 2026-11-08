@@ -6,6 +6,7 @@
 export type ContractApiVersion = 1;
 
 export type {
+  AuthorizationFixtureRole,
   AuthorizationFunctions,
   AuthorizationMembership,
   AuthorizationOperation,
