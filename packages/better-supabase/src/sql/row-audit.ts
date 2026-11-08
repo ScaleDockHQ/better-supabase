@@ -112,7 +112,7 @@ export function rowAuditData(
  * statement. The settings are the trigger's argument, so the row's key columns
  * fall back to its primary key when the trigger runs.
  */
-function auditTrigger(
+export function auditTrigger(
   target: string,
   names: Readonly<Record<string, string>>,
   deferred = true,

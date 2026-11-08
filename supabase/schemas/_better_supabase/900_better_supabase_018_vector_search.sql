@@ -1,6 +1,6 @@
 -- better-supabase module: vector-search
 -- @bsb-block vector-search@1 managed
--- @bsb-hash sha256:a3f89c6c471e2f4189c3d82e6e20f0c7e414386202fe6a1ce8bcfead222ab30b
+-- @bsb-hash sha256:3ae051dd0c77b2f1a1ea69058f3f18934930aedf437499bfbe707a5bb805ac67
 -- search_<table>(query, k) for each table in vectorSearch: the k nearest rows the caller can read, with pgvector iterative index scans so RLS filters still return k rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -74,21 +74,3 @@ end;
 $$;
 revoke execute on function "public"."search_notes_scores"(extensions.vector, integer) from public, anon;
 grant execute on function "public"."search_notes_scores"(extensions.vector, integer) to authenticated, service_role;
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_catalog.pg_index i
-    join pg_catalog.pg_class c on c.oid = i.indexrelid
-    join pg_catalog.pg_am am on am.oid = c.relam
-    join pg_catalog.pg_opclass oc on oc.oid = i.indclass[0]
-    join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = i.indkey[0]
-    where i.indrelid = '"public"."notes"'::regclass
-      and a.attname = 'embedding'
-      and am.amname in ('hnsw', 'ivfflat')
-      and oc.opcname = 'vector_cosine_ops'
-  ) then
-    raise notice '%', 'notes.embedding has no hnsw or ivfflat index with vector_cosine_ops, so search_notes scans the table';
-  end if;
-end;
-$$;

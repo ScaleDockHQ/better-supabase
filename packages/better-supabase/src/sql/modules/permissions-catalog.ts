@@ -1,6 +1,7 @@
 import type { BlockSqlContext } from "../context.ts";
 
 import { sqlString } from "../../core/template.ts";
+import { auditTrigger } from "../row-audit.ts";
 import { addForeignKey } from "../shared.ts";
 
 /**
@@ -21,6 +22,37 @@ export function catalogAudit(ctx: BlockSqlContext): string {
       "platformAssignments",
     ] as const
   ).filter((table) => ctx.hasTable(table));
+
+  // A schema diff reads the trigger `audit()` would create, so a declarative
+  // layout declares it. Only the migrations workflow calls `audit()` in file
+  // order, and it also removes the trigger when the audit config is off.
+  if (!ctx.rerunnable) {
+    if (!ctx.config.audit) {
+      return "";
+    }
+
+    return `
+-- The catalog is written directly by the service role, so a row trigger
+-- audits it.
+${tables
+  .map((table) => {
+    const { schema, name } = ctx.tableName(table);
+
+    return auditTrigger(
+      `${schema}.${name}`,
+      {
+        category: "access",
+        ...(table === "overrides"
+          ? {
+              tenant_column: ctx.col("overrides", "tenant").replaceAll('"', ""),
+            }
+          : {}),
+      },
+      false,
+    );
+  })
+  .join("\n")}`;
+  }
 
   const call = (table: string): string => {
     const target = sqlString(ctx.table(table));

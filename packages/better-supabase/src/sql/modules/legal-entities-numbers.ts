@@ -116,11 +116,26 @@ $$;
 revoke execute on function ${fn}() from public, anon, authenticated;
 drop trigger if exists ${sqlIdent(name)} on ${target};
 create trigger ${sqlIdent(name)} before insert or update of ${updateOf} on ${target}
-  for each row execute function ${fn}();
--- Documents that already share a number across the null and default spellings
--- stay as they are; the guard only checks new and changed rows. They are
--- listed by legal_entities_disable_check.
-do $$
+  for each row execute function ${fn}();`;
+}
+
+/**
+ * A warning for documents that already share a number across the null and
+ * default spellings. They stay as they are, since the guard only checks new and
+ * changed rows, and legal_entities_disable_check lists them. It reads rows, so
+ * it runs with the data file and not in the schema file.
+ */
+export function numberDuplicateWarningSql(
+  ctx: BlockSqlContext,
+  numbered: NumberedTable,
+): string {
+  const { own, table, columns } = numbered;
+  const entities = ctx.table("entities");
+  const e = (column: string): string => ctx.col("entities", column);
+  const c = (column: string): string => own.col(table, column);
+  const target = own.table(table);
+
+  return `do $$
 begin
   if exists (
     select 1 from ${target} x

@@ -1,6 +1,6 @@
 -- better-supabase module: numbering
 -- @bsb-block numbering@1 managed
--- @bsb-hash sha256:d0ed01866410bfc3f03cfd04243c60c1cd8311854d9daf563b1b6fe6ca4fd440
+-- @bsb-hash sha256:1f6fa5332d48d660d991c5be9e5f17c6bc1de138148c78c195653bb107cf4dc4
 -- Gapless numbers per tenant, entity and period. next_number locks the row in the caller's transaction, and a trigger fills the document column so a separate round trip cannot open a gap.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,27 +12,6 @@
 alter table "centrakit"."organization_number_sequences" add column if not exists "scope" text not null default '';
 alter table "centrakit"."organization_number_sequences" enable row level security;
 grant all on "centrakit"."organization_number_sequences" to service_role;
-do $$
-declare
-  v_constraint record;
-begin
-  for v_constraint in
-    select c.conname
-    from pg_catalog.pg_constraint c
-    where c.conrelid = '"centrakit"."organization_number_sequences"'::pg_catalog.regclass
-      and c.contype in ('p', 'u')
-      and not exists (
-        select 1
-        from pg_catalog.pg_attribute a
-        where a.attrelid = c.conrelid
-          and a.attnum = any (c.conkey)
-          and a.attname = 'scope'
-      )
-  loop
-    execute pg_catalog.format('alter table "centrakit"."organization_number_sequences" drop constraint %I', v_constraint.conname);
-  end loop;
-end
-$$;
 create unique index if not exists number_sequences_series_key on "centrakit"."organization_number_sequences" ("tenant_id", "entity", "scope", "period");
 
 create or replace function better_supabase.format_assigned_number(template text, n bigint, at timestamptz)

@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:ae48eca2374140055e0386b14b945c44b5d444ce656243c55c5d86e3c00d2380
+-- @bsb-hash sha256:7f716a8f8fb412157bdbe50b484df75b01e69e376d6d5f80aa20e5a7ef95e1ce
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -257,28 +257,12 @@ alter table "better_supabase"."attachments" add constraint "bsb_attachments_exte
   check (("source" is null) = ("external_id" is null));
 create unique index attachments_external_idx on "better_supabase"."attachments" ("tenant_id", "source", "external_id") where "source" is not null;
 create index attachments_document_type_idx on "better_supabase"."attachments" ("document_type_id") where "document_type_id" is not null;
-do $$
-begin
-  update "better_supabase"."attachments" set "storage_status" = 'stored' where "uploaded_at" is not null and "storage_status" = 'pending_upload';
-end;
-$$;
 
 -- The bucket, size limit and MIME types come from the module options, so a
 -- re-run applies changed options to an existing table.
 -- "object_path" is a plain column a trigger fills: logical replication (PowerSync)
 -- skips generated columns. An install from before keeps its values when the
 -- expression is dropped.
-do $$
-begin
-  if exists (
-    select 1 from pg_attribute
-    where attrelid = 'better_supabase.attachments'::regclass
-      and attname = 'object_path' and attgenerated <> ''
-  ) then
-    alter table "better_supabase"."attachments" alter column "object_path" drop expression;
-  end if;
-end;
-$$;
 create or replace function "better_supabase"."attachment_object_path"()
 returns trigger
 language plpgsql
@@ -294,20 +278,8 @@ revoke execute on function "better_supabase"."attachment_object_path"() from pub
 create trigger bsb_attachments_object_path
   before insert or update on "better_supabase"."attachments"
   for each row execute function "better_supabase"."attachment_object_path"();
--- options.path: the column comment records the template the path was built
--- from, so a changed template rewrites every row's path.
-do $$
-declare
-  v_current text := coalesce(
-    col_description('better_supabase.attachments'::regclass,
-      (select attnum from pg_attribute where attrelid = 'better_supabase.attachments'::regclass and attname = 'object_path')::integer),
-    'better-supabase path: {organization_id}/attachments/{id}');
-begin
-  if v_current is distinct from 'better-supabase path: {organization_id}/attachments/{id}' then
-    update "better_supabase"."attachments" set "object_path" = null;
-  end if;
-end;
-$$;
+-- options.path: the data file recomputes the path of a row that no longer
+-- matches the template, so a changed template rewrites it.
 comment on column "better_supabase"."attachments"."object_path" is 'better-supabase path: {organization_id}/attachments/{id}';
 alter table "better_supabase"."attachments" alter column "bucket" set default 'attachments';
 alter table "better_supabase"."attachments" add constraint "bsb_attachments_bucket"
@@ -1121,7 +1093,7 @@ create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions"
 -- ==== data supabase/better-supabase-data/900_better_supabase_034_attachments.sql
 -- better-supabase module: attachments
 -- @bsb-block-data attachments
--- @bsb-hash sha256:02de0562851ddc0bdd7c2c366780e923a59690ba658d99c2f953b5f5d62b7368
+-- @bsb-hash sha256:d479ca3c49bb53afc1d0fde215b4b72a12ce07df42bb1814331d8e8e56f82c27
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -1130,6 +1102,11 @@ create policy bsb_tenant_scope_delete on "better_supabase"."attachment_versions"
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
 values ('attachments', 'attachments', false, 52428800, null)
 on conflict (id) do update set public = excluded.public;
+-- options.path: a row whose path no longer matches the template gets a new one.
+update "better_supabase"."attachments" as x set "object_path" = null
+where x."object_path" is distinct from (select "tenant_id"::text || '/attachments/' || "id"::text from (select x.*) as r);
+-- A record uploaded before the storage status existed is stored.
+update "better_supabase"."attachments" set "storage_status" = 'stored' where "uploaded_at" is not null and "storage_status" = 'pending_upload';
 
 insert into better_supabase.blocks (name, version, mode)
 values ('attachments', 9, 'managed')

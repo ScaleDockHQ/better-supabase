@@ -304,8 +304,10 @@ function priorityCheck(ctx: BlockSqlContext, n: NotifyNames): string {
     .map(sqlString)
     .join(", ");
 
-  return `
-do $$
+  // A schema diff replaces a check whose values changed; only a migration
+  // applied in file order has to drop the old one first.
+  const drop = ctx.rerunnable
+    ? `do $$
 begin
   if exists (
     select 1 from pg_constraint k, unnest(array[${values}]::text[]) p
@@ -316,7 +318,11 @@ begin
   end if;
 end;
 $$;
-${addCheck({ table, name, expression: `${n.col("events", "priority")} in (${values})` })}`;
+`
+    : "";
+
+  return `
+${drop}${addCheck({ table, name, expression: `${n.col("events", "priority")} in (${values})` })}`;
 }
 
 /** Columns version 9 added, for managed tables created before it. */

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:98c7b45f5a93325ff3919fd750070f0b9f051b261516d89a35ed3280480d061b
+-- @bsb-hash sha256:cac9f7699321166f4badb60e140e820bc719f8f1747418e1517b644f8b1d0910
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -30,19 +30,9 @@ alter table better_supabase.webhook_inbox add column tenant text;
 alter table better_supabase.webhook_inbox add column checkpoint jsonb not null default '{}';
 -- Message ids are unique per source and tenant: two tenants of one provider
 -- can send the same id. A null tenant counts as one tenant.
-do $$
-begin
-  if not exists (
-    select 1 from pg_catalog.pg_constraint
-    where conrelid = 'better_supabase.webhook_inbox'::regclass
-      and conname = 'webhook_inbox_source_tenant_message_id_key'
-  ) then
-    alter table better_supabase.webhook_inbox
-      add constraint webhook_inbox_source_tenant_message_id_key
-      unique nulls not distinct (source, tenant, message_id);
-  end if;
-end;
-$$;
+alter table better_supabase.webhook_inbox
+  add constraint webhook_inbox_source_tenant_message_id_key
+  unique nulls not distinct (source, tenant, message_id);
 create index webhook_inbox_ready_idx
   on better_supabase.webhook_inbox (source, available_at, id) where status in ('pending', 'processing');
 create index webhook_inbox_tenant_idx
@@ -307,7 +297,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:135a933bb3f723cc7460b5131e56bd816e75f261e75c2f91917796c35e585d88
+-- @bsb-hash sha256:45e0b66931d73b19fd49d371cf5b46001fcee3e5887c4981a260826a475a777b
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -336,19 +326,9 @@ alter table better_supabase.webhook_inbox add column tenant text;
 alter table better_supabase.webhook_inbox add column checkpoint jsonb not null default '{}';
 -- Message ids are unique per source and tenant: two tenants of one provider
 -- can send the same id. A null tenant counts as one tenant.
-do $$
-begin
-  if not exists (
-    select 1 from pg_catalog.pg_constraint
-    where conrelid = 'better_supabase.webhook_inbox'::regclass
-      and conname = 'webhook_inbox_source_tenant_message_id_key'
-  ) then
-    alter table better_supabase.webhook_inbox
-      add constraint webhook_inbox_source_tenant_message_id_key
-      unique nulls not distinct (source, tenant, message_id);
-  end if;
-end;
-$$;
+alter table better_supabase.webhook_inbox
+  add constraint webhook_inbox_source_tenant_message_id_key
+  unique nulls not distinct (source, tenant, message_id);
 create index webhook_inbox_ready_idx
   on better_supabase.webhook_inbox (source, available_at, id) where status in ('pending', 'processing');
 create index webhook_inbox_tenant_idx
@@ -617,7 +597,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:98c7b45f5a93325ff3919fd750070f0b9f051b261516d89a35ed3280480d061b
+-- @bsb-hash sha256:cac9f7699321166f4badb60e140e820bc719f8f1747418e1517b644f8b1d0910
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -646,19 +626,9 @@ alter table better_supabase.webhook_inbox add column tenant text;
 alter table better_supabase.webhook_inbox add column checkpoint jsonb not null default '{}';
 -- Message ids are unique per source and tenant: two tenants of one provider
 -- can send the same id. A null tenant counts as one tenant.
-do $$
-begin
-  if not exists (
-    select 1 from pg_catalog.pg_constraint
-    where conrelid = 'better_supabase.webhook_inbox'::regclass
-      and conname = 'webhook_inbox_source_tenant_message_id_key'
-  ) then
-    alter table better_supabase.webhook_inbox
-      add constraint webhook_inbox_source_tenant_message_id_key
-      unique nulls not distinct (source, tenant, message_id);
-  end if;
-end;
-$$;
+alter table better_supabase.webhook_inbox
+  add constraint webhook_inbox_source_tenant_message_id_key
+  unique nulls not distinct (source, tenant, message_id);
 create index webhook_inbox_ready_idx
   on better_supabase.webhook_inbox (source, available_at, id) where status in ('pending', 'processing');
 create index webhook_inbox_tenant_idx
@@ -923,7 +893,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_009_webhook_inbox.sql
 -- better-supabase module: webhook-inbox
 -- @bsb-block webhook-inbox@9 managed
--- @bsb-hash sha256:bd18a810bed571b4a6fd38c9644bf15b2f270a39ace60f53460e33377d51023b
+-- @bsb-hash sha256:a99daeebb28a590048b0650b3fa6abfe60047688fd5edf3a6b74a1375b93c47f
 -- Stores verified webhooks once per message id, per tenant when given, then processes them with leases, retries and checkpoints, in its own table or one of the app's.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -952,19 +922,9 @@ alter table better_supabase.webhook_inbox add column tenant text;
 alter table better_supabase.webhook_inbox add column checkpoint jsonb not null default '{}';
 -- Message ids are unique per source and tenant: two tenants of one provider
 -- can send the same id. A null tenant counts as one tenant.
-do $$
-begin
-  if not exists (
-    select 1 from pg_catalog.pg_constraint
-    where conrelid = 'better_supabase.webhook_inbox'::regclass
-      and conname = 'webhook_inbox_source_tenant_message_id_key'
-  ) then
-    alter table better_supabase.webhook_inbox
-      add constraint webhook_inbox_source_tenant_message_id_key
-      unique nulls not distinct (source, tenant, message_id);
-  end if;
-end;
-$$;
+alter table better_supabase.webhook_inbox
+  add constraint webhook_inbox_source_tenant_message_id_key
+  unique nulls not distinct (source, tenant, message_id);
 create index webhook_inbox_ready_idx
   on better_supabase.webhook_inbox (source, available_at, id) where status in ('pending', 'processing');
 create index webhook_inbox_tenant_idx

@@ -267,6 +267,26 @@ export const touched = (n: HookNames, table: string, alias = ""): string =>
     ? `, ${alias}${n.col(table, "updatedAt")} = now()`
     : "";
 
+/**
+ * The grants that satisfy `v_permission`, by the wildcards the provider honours
+ * (ADR 0372): the key, then `*`, then each `prefix.*`.
+ */
+function heldPatterns(wildcards: "all" | "prefix" | "none"): string {
+  const prefixes = `array(
+    select array_to_string(p[1:i], '.') || '.*'
+    from (select string_to_array(v_permission, '.') as p) parts,
+      generate_series(1, cardinality(parts.p) - 1) i
+  )`;
+
+  const held: Record<typeof wildcards, string> = {
+    all: `array[v_permission, '*'] || ${prefixes}`,
+    prefix: `array[v_permission] || ${prefixes}`,
+    none: "array[v_permission]",
+  };
+
+  return held[wildcards];
+}
+
 function publish(ctx: BlockSqlContext, n: HookNames): string {
   const fn = ctx.fn("publish_webhook_event");
   const id = ctx.idType;
@@ -356,11 +376,7 @@ begin
     select array_to_string(segments[1:i], '.') || '.*'
     from generate_series(1, cardinality(segments) - 1) i
   );
-  v_held := array[v_permission, '*'] || array(
-    select array_to_string(p[1:i], '.') || '.*'
-    from (select string_to_array(v_permission, '.') as p) parts,
-      generate_series(1, cardinality(parts.p) - 1) i
-  );${lock}
+  v_held := ${heldPatterns(ctx.wildcards)};${lock}
   insert into ${n.table("deliveries")} (${columns.map(([column]) => column).join(", ")})
   select ${columns.map(([, value]) => value).join(", ")}
   from ${n.table("endpoints")} d

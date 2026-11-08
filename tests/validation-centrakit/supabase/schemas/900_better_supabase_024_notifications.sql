@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:9f5147af83921bb1c923aaf7e6ec11b2a88f21224bbeb0e651b40617bca0b91d
+-- @bsb-hash sha256:40b3d9032cc925604e6f042289c2872ae60c62749bd10a706e427dc4a00f1086
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,16 +11,6 @@ create index if not exists notification_events_subject_idx on "centrakit"."notif
 create index if not exists notification_events_actor_idx on "centrakit"."notification_events" ("actor_user_id");
 create index if not exists notification_events_created_by_idx on "centrakit"."notification_events" ("created_by");
 create index if not exists notification_events_created_at_idx on "centrakit"."notification_events" ("created_at");
-do $$
-begin
-  if exists (
-    select 1 from pg_constraint k, unnest(array['low', 'normal', 'high', 'urgent']::text[]) p
-    where k.conrelid = '"centrakit"."notification_events"'::regclass and k.conname = 'notification_events_priority_check'
-      and pg_get_constraintdef(k.oid) not like '%' || quote_literal(p) || '%'
-  ) then
-  end if;
-end;
-$$;
 alter table "centrakit"."notification_events" enable row level security;
 grant select on "centrakit"."notification_events" to authenticated;
 grant all on "centrakit"."notification_events" to service_role;

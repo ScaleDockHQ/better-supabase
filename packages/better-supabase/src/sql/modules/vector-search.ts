@@ -23,6 +23,7 @@ export const VECTOR_SEARCH: BlockSqlDefinition = {
   build: (_ctx, layout) => vectorSearchSql(vectorSchemaOf(layout)),
   extras: (_ctx, layout) =>
     vectorSearchFunctions(layout.vectorSearch ?? [], vectorSchemaOf(layout)),
+  data: (_ctx, layout) => vectorIndexNotices(layout.vectorSearch ?? []),
 };
 
 /** An embedding column `db.$search` can query. */
@@ -230,6 +231,41 @@ begin
 const RESTORE_SCAN = `  perform set_config('hnsw.iterative_scan', coalesce(previous_scan, 'off'), true);
 end;`;
 
+/**
+ * A notice for each table whose embedding column has no hnsw or ivfflat index
+ * with the operator class its search uses. It is advice when the data file
+ * runs, not a schema object, so it stays out of the schema file.
+ */
+function vectorIndexNotices(tables: readonly VectorSearchTable[]): string {
+  return tables
+    .map((entry) => {
+      const [schema, table] = splitTable(entry.table);
+      const target = `${sqlIdent(schema)}.${sqlIdent(table)}`;
+      const type = entry.type ?? "vector";
+      const opclass = `${type}_${OPERATOR_CLASSES[entry.distance]}`;
+
+      return `do $$
+begin
+  if not exists (
+    select 1
+    from pg_catalog.pg_index i
+    join pg_catalog.pg_class c on c.oid = i.indexrelid
+    join pg_catalog.pg_am am on am.oid = c.relam
+    join pg_catalog.pg_opclass oc on oc.oid = i.indclass[0]
+    join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = i.indkey[0]
+    where i.indrelid = ${sqlString(target)}::regclass
+      and a.attname = ${sqlString(entry.column)}
+      and am.amname in ('hnsw', 'ivfflat')
+      and oc.opcname = ${sqlString(opclass)}
+  ) then
+    raise notice '%', ${sqlString(`${entry.table}.${entry.column} has no hnsw or ivfflat index with ${opclass}, so search_${table} scans the table`)};
+  end if;
+end;
+$$;`;
+    })
+    .join("\n");
+}
+
 function vectorSearchFunctions(
   tables: readonly VectorSearchTable[],
   vector: string,
@@ -333,25 +369,7 @@ ${ITERATIVE_SCAN}
 ${RESTORE_SCAN}
 $$;
 revoke execute on function ${scores}(${types}) from public, anon;
-grant execute on function ${scores}(${types}) to authenticated, service_role;
-do $$
-begin
-  if not exists (
-    select 1
-    from pg_catalog.pg_index i
-    join pg_catalog.pg_class c on c.oid = i.indexrelid
-    join pg_catalog.pg_am am on am.oid = c.relam
-    join pg_catalog.pg_opclass oc on oc.oid = i.indclass[0]
-    join pg_catalog.pg_attribute a on a.attrelid = i.indrelid and a.attnum = i.indkey[0]
-    where i.indrelid = ${sqlString(target)}::regclass
-      and a.attname = ${sqlString(entry.column)}
-      and am.amname in ('hnsw', 'ivfflat')
-      and oc.opcname = ${sqlString(`${type}_${OPERATOR_CLASSES[entry.distance]}`)}
-  ) then
-    raise notice '%', ${sqlString(`${entry.table}.${entry.column} has no hnsw or ivfflat index with ${type}_${OPERATOR_CLASSES[entry.distance]}, so search_${table} scans the table`)};
-  end if;
-end;
-$$;`;
+grant execute on function ${scores}(${types}) to authenticated, service_role;`;
   });
 
   return `\n-- config.vectorSearch\n${functions.join("\n\n")}\n`;

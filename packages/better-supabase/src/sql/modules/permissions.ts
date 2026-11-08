@@ -233,26 +233,21 @@ ${
 create index if not exists platform_roles_role_idx on ${ctx.table("platformAssignments")} (${ctx.col("platformAssignments", "role")});`
     : ""
 }
-do $$
-declare
-  t text;
-begin
-  foreach t in array array[${[
-    "roles",
-    "permissions",
-    "rolePermissions",
-    "overrides",
-    "platformAssignments",
-  ]
-    .filter((table) => ctx.hasTable(table))
-    .map((table) => sqlString(ctx.table(table)))
-    .join(", ")}] loop
-    execute format('alter table %s enable row level security', t);
-    execute format('revoke all on %s from public, anon, authenticated', t);
-    execute format('grant all on %s to service_role', t);
-  end loop;
-end;
-$$;${catalogAudit(ctx)}${membershipRoleKey(ctx)}`;
+${[
+  "roles",
+  "permissions",
+  "rolePermissions",
+  "overrides",
+  "platformAssignments",
+]
+  .filter((table) => ctx.hasTable(table))
+  .map((table) => ctx.table(table))
+  .map(
+    (name) => `alter table ${name} enable row level security;
+revoke all on ${name} from public, anon, authenticated;
+grant all on ${name} to service_role;`,
+  )
+  .join("\n")}${catalogAudit(ctx)}${membershipRoleKey(ctx)}`;
 }
 
 /**

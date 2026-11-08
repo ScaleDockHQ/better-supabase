@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:24978af3cb9ac325d0c25d33ee41ca4f8a5d834411738a433b230e849d1e5f36
+-- @bsb-hash sha256:2f5c3cc4b41106b56e60665b42401e9ac8097bbdbe2bdc8236c010d63221457a
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -534,28 +534,28 @@ create table "better_supabase"."platform_roles" (
   primary key ("user_id", "role_id")
 );
 create index platform_roles_role_idx on "better_supabase"."platform_roles" ("role_id");
-do $$
-declare
-  t text;
-begin
-  foreach t in array array['"better_supabase"."roles"', '"better_supabase"."permissions"', '"better_supabase"."role_permissions"', '"better_supabase"."permission_overrides"', '"better_supabase"."platform_roles"'] loop
-    execute format('alter table %s enable row level security', t);
-    execute format('revoke all on %s from public, anon, authenticated', t);
-    execute format('grant all on %s to service_role', t);
-  end loop;
-end;
-$$;
+alter table "better_supabase"."roles" enable row level security;
+revoke all on "better_supabase"."roles" from public, anon, authenticated;
+grant all on "better_supabase"."roles" to service_role;
+alter table "better_supabase"."permissions" enable row level security;
+revoke all on "better_supabase"."permissions" from public, anon, authenticated;
+grant all on "better_supabase"."permissions" to service_role;
+alter table "better_supabase"."role_permissions" enable row level security;
+revoke all on "better_supabase"."role_permissions" from public, anon, authenticated;
+grant all on "better_supabase"."role_permissions" to service_role;
+alter table "better_supabase"."permission_overrides" enable row level security;
+revoke all on "better_supabase"."permission_overrides" from public, anon, authenticated;
+grant all on "better_supabase"."permission_overrides" to service_role;
+alter table "better_supabase"."platform_roles" enable row level security;
+revoke all on "better_supabase"."platform_roles" from public, anon, authenticated;
+grant all on "better_supabase"."platform_roles" to service_role;
 -- The catalog is written directly by the service role, so a row trigger
 -- audits it.
-do $$
-begin
-  execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."roles"'), 'access', null);
-  execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."permissions"'), 'access', null);
-  execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."role_permissions"'), 'access', null);
-  execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."permission_overrides"'), 'access', 'tenant_id');
-  execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."platform_roles"'), 'access', null);
-end;
-$$;
+create trigger bsb_audit after insert or update or delete on better_supabase.roles for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"category":"access"}');
+create trigger bsb_audit after insert or update or delete on better_supabase.permissions for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"category":"access"}');
+create trigger bsb_audit after insert or update or delete on better_supabase.role_permissions for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"category":"access"}');
+create trigger bsb_audit after insert or update or delete on better_supabase.permission_overrides for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"category":"access","tenant_column":"tenant_id"}');
+create trigger bsb_audit after insert or update or delete on better_supabase.platform_roles for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"category":"access"}');
 
 create or replace function better_supabase.member_can(member uuid, tenant uuid, permission text)
 returns boolean

@@ -1,6 +1,6 @@
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:a2d9b1684cda7ec1f840b855732b1822ddf024d8ef689cbafd146b0ebe80ddfc
+-- @bsb-hash sha256:0c485b357c6b089191d19e5aa3ab1a8d73620311494b1246460f2de4412e3f82
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -19,12 +19,6 @@ alter table "public"."profiles" add column if not exists "disabled_at" timestamp
 alter table "public"."profiles" add column if not exists "updated_at" timestamptz not null default now();
 
 create unique index if not exists profiles_username_idx on "public"."profiles" (lower("username"));
-do $$
-begin
-exception when check_violation then
-  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"public"."profiles"';
-end;
-$$;
 alter table "public"."profiles" enable row level security;
 create policy bsb_profiles_read on "public"."profiles"
   for select to authenticated
