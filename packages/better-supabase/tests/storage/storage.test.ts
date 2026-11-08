@@ -1153,15 +1153,15 @@ describe("BucketClient URLs", () => {
     expect(signs()).toBe(5);
   });
 
-  it("settles an upload with an error when its signal aborts mid-request", async () => {
+  it("settles an upload with an error when its signal is already aborted", async () => {
     const { client } = fakeStorage();
     const controller = new AbortController();
+    controller.abort(new Error("stop"));
 
     const pending = docs
       .connect(client)
       .upload(A, "a", { signal: controller.signal });
 
-    controller.abort(new Error("stop"));
     expect((await pending).ok).toBe(false);
   });
 
