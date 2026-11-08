@@ -2,6 +2,7 @@
   "roots": ["apps/examples/nextjs/src"],
   "pendingRoots": ["tests/init-fixture/nextjs/src"],
   "suspenseInFeatures": {
+    "features/assistant/components/assistant-chat-lazy.tsx": "the chat panel's code loads after the first paint, and its skeleton holds the space",
     "features/assistant/components/message-text-lazy.tsx": "the Markdown renderer loads on the first answer, and the plain text of the answer is the fallback",
     "features/assistant/components/spec-view-lazy.tsx": "the json-render runtime loads after the first paint behind a skeleton of the same card",
     "features/billing/components/billing-overview.tsx": "PlanGrid shows the plan picker with the seeded plans while the managed picker reads the subscription",
