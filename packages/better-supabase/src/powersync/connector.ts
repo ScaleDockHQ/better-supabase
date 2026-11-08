@@ -29,16 +29,16 @@ export interface CrudQueueLike {
  * and `K` its primary key; every generated repository fits.
  */
 /** The write option a replay passes: keep the values the device recorded. */
-export interface UploadWriteArgs {
+export interface UploadWriteOptions {
   readonly override: true;
 }
 
 export interface UploadRepository<I = Record<string, unknown>, K = string> {
-  upsert(data: I, args?: UploadWriteArgs): PromiseLike<Result<unknown>>;
+  upsert(data: I, args?: UploadWriteOptions): PromiseLike<Result<unknown>>;
   update(
     id: K,
     patch: Partial<I>,
-    args?: UploadWriteArgs,
+    args?: UploadWriteOptions,
   ): PromiseLike<Result<unknown>>;
   delete(id: K): PromiseLike<Result<unknown>>;
 }
@@ -51,7 +51,7 @@ export interface CreateUploadRepository<
   I = Record<string, unknown>,
   K = string,
 > {
-  create(data: I, args?: UploadWriteArgs): PromiseLike<Result<unknown>>;
+  create(data: I, args?: UploadWriteOptions): PromiseLike<Result<unknown>>;
   delete(id: K): PromiseLike<Result<unknown>>;
 }
 
@@ -263,7 +263,7 @@ function unsupportedOp(entry: CrudEntryLike, route: string): Result<never> {
  * against mistakes in app code, not untrusted clients; a column the server must
  * own needs its trigger (`bsb_updated_at`, `track_actor`).
  */
-const REPLAY: UploadWriteArgs = { override: true };
+const REPLAY: UploadWriteOptions = { override: true };
 
 /**
  * Turns a repository into a function route. By default a `PUT` upserts, a

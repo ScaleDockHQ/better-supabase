@@ -370,6 +370,12 @@
       "since": "0.54"
     },
     {
+      "from": "UploadWriteArgs",
+      "to": "UploadWriteOptions",
+      "kind": "type",
+      "since": "0.56"
+    },
+    {
       "from": "AccountingSettings",
       "to": "AccountingSetup",
       "kind": "type",
