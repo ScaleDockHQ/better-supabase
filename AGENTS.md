@@ -454,6 +454,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0424: Inline the subject check in the attachments policies.
 - 0425: Count defaults to the estimated mode.
 - 0426: Check tenants as a set in block policies.
+- 0427: Scale baseline and the measure-first verdicts.
 
 ## Pre-release pins
 
