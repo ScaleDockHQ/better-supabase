@@ -1,0 +1,296 @@
+---
+title: From 0.56 to 1.0
+description: What to change when upgrading from better-supabase 0.56 to 1.0. One naming convention for config keys, exports, SQL objects and blocks, declarative module files, CLI contract 3, and the codemods that apply most of it. The organization key moves to auth.tenant by hand.
+---
+
+1.0 gives every name one spelling and makes the files better-supabase writes
+declarative. The renames ship without aliases, so a project that keeps an old
+name fails with a message that names the new one. Most changes have a codemod;
+three need you: the `organization` config key, scripts that pass renamed CLI
+flags, and a cloud design URL that you saved before this release.
+
+An app on an older version than 0.56 upgrades to 0.56 first, then follows this
+guide. Each change is also in the
+[changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
+
+| Section                                                     | Needs code                                                |
+| ----------------------------------------------------------- | --------------------------------------------------------- |
+| [Order of work](#order-of-work)                             | Run the codemods, `gen`, `upgrade` and your SQL workflow  |
+| [Config keys](#config-keys)                                 | Run `codemod naming`, then move `organization` by hand    |
+| [Exports and types](#exports-and-types)                     | Run `codemod naming` and `codemod generators`             |
+| [Blocks](#blocks)                                           | Run `codemod naming`, then `upgrade`                      |
+| [Database names](#database-names)                           | Run `codemod naming`, `upgrade`, then apply the migration |
+| [Declarative module files](#declarative-module-files)       | Run `upgrade` and commit the result                       |
+| [Your own columns and tables](#your-own-columns-and-tables) | Run `codemod extra-columns`, `owned-columns` and `config` |
+| [Generated client code](#generated-client-code)             | Run `gen`, then `codemod table-modules`                   |
+| [CLI](#cli)                                                 | Change scripts, CI and cron entries                       |
+| [Removed](#removed)                                         | Check that nothing depends on a shim                      |
+| [Stays as it is](#stays-as-it-is)                           | None; read the notes                                      |
+
+## Order of work
+
+1. Move to 0.56, run `better-supabase doctor`, and commit a clean tree.
+2. Bump `better-supabase` to 1.0 and the peers it lists.
+3. Run the codemods, in this order, and commit after each one:
+
+   ```bash
+   better-supabase codemod owned-columns
+   better-supabase codemod extra-columns
+   better-supabase codemod config
+   better-supabase codemod generators
+   better-supabase codemod naming
+   better-supabase codemod table-modules
+   ```
+
+   `codemod owned-columns` and `codemod extra-columns` come first because they
+   read options and columns that this release stops accepting.
+
+4. Move the `organization` key to `auth.tenant` by hand (see
+   [Config keys](#config-keys)).
+5. Run `better-supabase gen` to rewrite the generated files, then
+   `better-supabase upgrade` to rewrite the module files.
+6. Write the migration with your SQL workflow (`supabase db schema declarative
+sync` for pg-delta, or `better-supabase db diff`) and read it before you
+   apply it. `codemod naming` has already written the rename migrations for
+   columns, tables, constraints, policies and permission keys, so the diff holds
+   only what is left.
+7. Run `better-supabase doctor` and clear what it reports. BS260 lists a source
+   file that still compares against an old hint code.
+
+## Config keys
+
+Each key has one spelling. `codemod naming` rewrites the keys that stay under
+the same parent in the file that calls `defineConfig`.
+
+| Old                                                                                                | New                                                                                        |
+| -------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------ |
+| `subjects`                                                                                         | `recordTypes`                                                                              |
+| `gen.recordTypes`                                                                                  | `gen.records`                                                                              |
+| `gen.output`                                                                                       | `gen.file`                                                                                 |
+| `database.seed.output`, `database.seed.sample.output`, `database.realtime.policies.output`         | `database.seed.file`, `database.seed.sample.file`, `database.realtime.policies.file`       |
+| `tooling.env.output`, `tooling.keys.output`, `tooling.doctor.output`, `api.specs.outputs[].output` | `tooling.env.file`, `tooling.keys.file`, `tooling.doctor.file`, `api.specs.outputs[].file` |
+| `integrations` (flat), and the `integrations` field of a preset                                    | `adapters`                                                                                 |
+| `organization` (flat)                                                                              | `auth.tenant`                                                                              |
+
+`blocks.<name>.subjects` keeps its name, because it binds a block to record
+types.
+
+The `organization` key moves to another parent, so the codemod reports it and
+leaves it. Move it yourself:
+
+```ts title="better-supabase.config.ts"
+export default defineConfig({
+  // before
+  // organization: { claim: "org_id", column: "organization_id" },
+  auth: { tenant: { claim: "org_id", column: "organization_id" } },
+});
+```
+
+The resolver reads `auth.tenant.claim` as the tenant claim and the rest of the
+object as the tenant settings.
+
+Two more config entries are refused instead of renamed. A
+`columns.<table>.<column>: null` for an optional column that the view you map
+lacks anyway, and a `columns.<table>.tenant` that repeats `sql.tenantColumn`.
+`codemod config` removes both, and doctor BS379 names them.
+
+## Exports and types
+
+`api/naming.json` lists every rename, and `codemod naming` applies the ones
+that touch your code.
+
+| Old                                                                                                                                 | New                                                                              |
+| ----------------------------------------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------- |
+| `buildJsonSchema`, `buildApiModel`                                                                                                  | `toJsonSchema`, `defineApiModel`                                                 |
+| `createRuleSink`, `workItemRecurrenceSink`                                                                                          | `automationSink`, `taskRecurrenceSink`                                           |
+| `defineSupabase`, `getBetterSupabase` (Svelte)                                                                                      | `createSupabase`, `betterSupabase`                                               |
+| `SessionEntryConfig`, `GuardEntryConfig`                                                                                            | `SessionEntryOptions`, `GuardEntryOptions`                                       |
+| `ChainProofFailure`, `ParseScaledFailure`, `RefreshFailure`, `StorageFailure`, `SvelteKitFailure`, `TelemetryFailure`, `XhrFailure` | the same names ending in `Error`                                                 |
+| `BSB_STACK`, `BSB_CLOUD_URL`                                                                                                        | `BETTER_SUPABASE_STACK`, `BETTER_SUPABASE_CLOUD_URL`                             |
+| `AUTH_HOOK_SECRET`, `BEFORE_USER_CREATED_SECRET`                                                                                    | `BETTER_SUPABASE_AUTH_HOOK_SECRET`, `BETTER_SUPABASE_BEFORE_USER_CREATED_SECRET` |
+| `better-supabase/ai-sdk/workflow/react`                                                                                             | `better-supabase/ai-sdk/workflow-react`                                          |
+| `CHAIN_SIGNER`, `APPEND_ONLY`, `FISCAL_YEAR_CLOSED` (hint codes)                                                                    | `AUDIT_CHAIN_SIGNER`, `TABLE_APPEND_ONLY`, `PERIOD_CLOSED`                       |
+| `ENGAGEMENT_NO_TRANSCRIBER`, `EngagementInput`, `EngagementEventData`                                                               | `ACTIVITY_NO_TRANSCRIBER`, `ActivityInput`, `ActivityEventData`                  |
+
+Every exported type that ended in `Args` or `Settings` is a `*Options`,
+`*Params` or `*Values` type with no alias: `AddArgs` is `AddOptions`,
+`ListArgs` is `ListParams`, `CliArgs` is `CliValues`, `RateLimitSettings` is
+`RateLimitOptions`, `AccountingSettings` is `AccountingSetup` and
+`BucketSettings` is `StorageBucketOptions`. The full table is in the
+[changelog](https://github.com/ScaleDockHQ/better-supabase/blob/main/packages/better-supabase/CHANGELOG.md).
+
+`better-supabase/config` no longer exports the generators (`zod`, `valibot`,
+`jsonSchema`, `toJsonSchema`, `standardSchema`, `factories`, `nuqs`). Import each
+one from `better-supabase/generators/<name>`; `codemod generators` rewrites the
+imports and lists any generator that still uses the `apiVersion: 1` shape.
+Generators are plugins at `apiVersion: 2`, and `zod` 4.x and `valibot` 1.x are
+optional peers with a tested range.
+
+Three events use the lifecycle verbs:
+
+| Old                   | New                     |
+| --------------------- | ----------------------- |
+| `vex_statement.saved` | `vex_statement.updated` |
+| `team_member.removed` | `team_member.deleted`   |
+| `reaction.removed`    | `reaction.deleted`      |
+
+## Blocks
+
+| Old                                                             | New                                                          |
+| --------------------------------------------------------------- | ------------------------------------------------------------ |
+| `better-supabase/blocks/time-tracking`                          | `better-supabase/blocks/time-entries`                        |
+| `blocks["time-tracking"]`, `db.$blocks.timeTracking`            | `blocks["time-entries"]`, `db.$blocks.timeEntries`           |
+| `createTimeTracking`, `timeTrackingBlock`, `timeTrackingEvents` | `createTimeEntries`, `timeEntriesBlock`, `timeEntriesEvents` |
+| `time_tracking.read`, `.track`, `.approve`, `.manage`           | `time_entries.read`, `.track`, `.approve`, `.manage`         |
+| `better-supabase/blocks/bulk`                                   | `better-supabase/blocks/bulk-actions`                        |
+| `blocks.bulk`, `db.$blocks.bulk`                                | `blocks["bulk-actions"]`, `db.$blocks.bulkActions`           |
+| `createBulk`, `bulkBlock`, `bulkEvents`                         | `createBulkActions`, `bulkActionsBlock`, `bulkActionsEvents` |
+| `bulk.run`, `bulk.*`                                            | `bulk_actions.run`, `bulk_actions.*`                         |
+
+`upgrade` writes the migration that renames the registry row and the permission
+keys in place, so roles and overrides keep their grants. The bulk run keeps its
+names: the `bulk_runs` table, `start_bulk`, `bulk_run.completed` and the
+`BULK_*` hint codes. The `rank` block keeps its name (ADR 0393).
+
+The tasks block's default entity is `task`, not `work_item`. Its functions take
+a `task` argument, its events carry `taskId`, its subject paths start with
+`tasks/` and the goal metric is `tasks.completed`. An app that names the entity
+`work_item` in `blocks.tasks.names` keeps its tables and functions.
+
+The `vector-search` block installs itself for an app with a `vectorSearch` table
+or a `-- @bsb vector-search` tag. List it only to set its `schema` option.
+
+## Database names
+
+`codemod naming` writes the migration for an installed app. No data moves, and
+the `upgrade` that follows replaces the functions that read the new names.
+
+| Old                                                                                                  | New                                                                                                |
+| ---------------------------------------------------------------------------------------------------- | -------------------------------------------------------------------------------------------------- |
+| `organization_id` on block tables                                                                    | `tenant_id`                                                                                        |
+| `<role>_user_id` (`owner_user_id`, `reviewer_user_id`, `actor_user_id`)                              | `<role>_id` (`owner_id`, `reviewer_id`, `actor_id`)                                                |
+| `deleted_at` on `drive_nodes`, `memories`, `messages`                                                | `archived_at`                                                                                      |
+| `locked_until`, `leased_until`, `snoozed_until`, `paused_until`, `claimed_until`                     | `lock_expires_at`, `lease_expires_at`, `snooze_expires_at`, `pause_expires_at`, `claim_expires_at` |
+| `scheduled_for`, `purge_after`, `not_before`, `effective_from`                                       | `scheduled_at`, `purge_at`, `not_before_at`, `effective_at`                                        |
+| `valid_from`, `valid_until` on passes and prices                                                     | `starts_at`, `expires_at`                                                                          |
+| `engagement_subjects`, `engagement_recordings`, `engagement_notes`, `engagement_transcript_segments` | `activity_subjects`, `activity_recordings`, `activity_notes`, `activity_transcript_segments`       |
+| `stream_kv`, `invoice_e_endpoints`, `workflow_step_library`                                          | `stream_entries`, `e_invoice_endpoints`, `workflow_step_templates`                                 |
+| `bsb.uid()`, `bsb.owns(uuid)`, `bsb.is_member(uuid)`, `bsb.can(uuid, text)`                          | the same functions in `better_supabase`                                                            |
+| `bsb.recorded`, `bsb.lane_move` (`set_config` keys)                                                  | `better_supabase.recorded`, `better_supabase.lane_move`                                            |
+
+Constraints, triggers and policies that a block generates carry a `bsb_`
+prefix: policies are `bsb_<name>`, triggers are `bsb_*`, check constraints are
+`bsb_<table>_<column>_check`, unique constraints end in `_key` and exclusion
+constraints in `_excl`. Apps that adopt their own tables keep their column names and map
+`tenant` in `columns`; `memberships.organization_id` and `auth.users.deleted_at`
+do not change. The full column list is in the changelog.
+
+Migrations the CLI writes are named `<stamp>_better_supabase_<name>_<hash>.sql`.
+The stamp is later than every migration in the folder, and migrations from
+earlier releases are still found by their suffix.
+
+## Declarative module files
+
+The files `upgrade` writes are declarative DDL: no `drop ... if exists`, no
+`if not exists` on tables, indexes or the columns of tables a block owns, and no
+`do` block that creates objects. A schema diff reads each file as the end state.
+Shared helpers sit once in `900_better_supabase_000_prelude.sql`, and event
+triggers and triggers on `auth` tables sit in
+`900_better_supabase_999_unscoped.sql`. Row audit triggers are static
+`create constraint trigger bsb_audit` statements in each block's file.
+
+Run `better-supabase upgrade`, commit the files, then run your SQL workflow's
+sync. The migrations workflow still writes statements that can run again.
+`better-supabase upgrade --check` fails on `transaction=false`, a top-level
+`insert`, an object two files declare and duplicate policies.
+
+`powersync streams` also declares the `powersync` publication in
+`supabase/schemas/powersync_publication.sql` when the repo has that folder, so
+`declarative sync --strict-coverage` stays empty. Run it again and commit the
+file.
+
+Doctor has new rules for these files: BS365 to BS368 (Supabase practices),
+BS369 to BS377 (declarative coverage), BS378 to BS380, BS381 and BS382
+(projection bypass) and BS620 to BS622.
+
+## Your own columns and tables
+
+A column that your schema file adds to a block's table (`alter table ... add
+column`) is a field of that block. The `extraColumns` option and its prefixed
+forms are removed from every block, and `codemod extra-columns` moves them into
+the file that alters the table, or into `<table>.ext.sql`. For a table you
+create, list the columns in its comment as `@bsb fields plan, seats`.
+
+`codemod owned-columns` declares the columns blocks add to tables you own as
+`<table>.block-columns.sql`. A later release stops adding such columns, so run it
+now (ADR 0373).
+
+`blocks.memberships.options.sameTenant` defaults to the foreign keys your schema
+declares. `upgrade` writes a `bsb_same_tenant_<column>` trigger for each
+single-column key between two tenant tables; set `sameTenant: false` to write
+none.
+
+## Generated client code
+
+`gen` writes one module per table and one slice module per block by default.
+The server's schema is `generated-schema.ts`, and `generated.ts` exports
+`clientSchema` for a browser client.
+
+1. Run `better-supabase gen`, then `better-supabase codemod table-modules`. It
+   imports `schema` from `generated-schema` and reads tables in `"use client"`
+   files through the table modules.
+2. Build the browser's client over `clientSchema`, register the tables it uses
+   and pass the block slices it uses to `createClient({ blocks })`.
+3. To keep the single module, set `gen.tableModules: false` and
+   `gen.blockModules: false`.
+
+The `Vue`, `Solid` and `Svelte` hooks read through the table module like the
+React hooks do, and doctor BS621 warns when a `"use client"` file imports
+`generated-schema`, `blocks.generated` or `blocks.config`. Frameworks are
+registrations: `defineFramework` from `better-supabase/plugins` builds a
+binding, and `gen.hooks` takes any registered name.
+
+## CLI
+
+CLI contract 3 follows the Vercel CLI guidelines.
+
+| Old                                          | New                                          |
+| -------------------------------------------- | -------------------------------------------- |
+| exit code 3                                  | exit code 2 with `userActionRequired: true`  |
+| `--confirm <token>`                          | `--yes --effects-digest <digest>`            |
+| `consent_required`, `error.token`            | `confirmation_required`, `data.digest`       |
+| `error.code`, `error.detail` on stdout       | `reason`, `message` on stderr                |
+| `cli-result-v1.json`, `cli-commands-v1.json` | `cli-result-v2.json`, `cli-commands-v2.json` |
+| `db seed --apply`                            | `db seed --yes`                              |
+| `doctor --fix`                               | `doctor --yes`                               |
+| `dev env --write`                            | `dev env --out`                              |
+| `gen --emit <file>`                          | `gen --metadata <doc> --only <file>`         |
+| `gen --out-dir`                              | `gen --metadata <doc> --out <dir>`           |
+| `gen --watch --interval 500`                 | `dev --interval 500`                         |
+| `better-supabase db prune-workflows`         | `better-supabase workflows prune`            |
+
+An old flag exits 2 with `flag_renamed` and the replacement, so CI tells you
+which line to change. Search your scripts, CI files and cron entries for the old
+forms. `better-supabase cache purge [--dry-run]` deletes the CLI cache.
+
+## Removed
+
+- The 0.46 and 0.47 rename shims. Permission keys, event types, hint codes,
+  subject types and entity keys from before those releases no longer resolve.
+- The module upgrades for the tables 0.47 renamed. Upgrades start at 0.53.
+- `$apiResult`, the `triggerSql` overload, the module `version` option, the
+  `openapi` config key (use `specs`), the `canApprove` template and
+  `approvals.distinctApprover`, `BLOCK_EVENT_RENAMES` and the 0.15 block renames.
+
+## Stays as it is
+
+- Rows keep the configured casing, and `$client` and `queryRaw` use database
+  names.
+- The generated file layout (`schema.ts`, `tables/`, `blocks/<instance>.ts`)
+  does not change in 1.0. ADR 0393 lists what is deferred: reads through a view
+  named after a block instance, child PowerSync streams, the removal of
+  `positionalTeamWrites`, the owned-column default flip and the drive `grants`
+  mode.
+- Cloud design URLs that you saved before this release carry the old
+  `integrations` field. Ask the cloud app to open and save the design again, or
+  rename the field to `adapters` in the design file.
