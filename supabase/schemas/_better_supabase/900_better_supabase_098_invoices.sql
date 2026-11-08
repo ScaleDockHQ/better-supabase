@@ -1,6 +1,6 @@
 -- better-supabase module: invoices
 -- @bsb-block invoices@3 managed
--- @bsb-hash sha256:ca726dc8c59ebecb114e194f8e52a9cd6f1b4356085d327d0ceecadab4f47646
+-- @bsb-hash sha256:d1c6877cd6c0213ac6faf964dd33aa2913a091dfd75200b6b27d456c985f49ce
 -- Invoices an organization sends its own customers and bills from its suppliers: drafts with lines, a gapless number per direction on issue, payments, credit notes, void and write-off, overdue and aging per currency, credit limits, the three-way match of a purchase bill, party payments split over invoices with the rest kept as credit, dunning levels, and invoices from accepted quotes.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -279,24 +279,24 @@ create policy bsb_invoice_approvals_read on "better_supabase"."invoice_approvals
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
-create table "better_supabase"."invoice_e_endpoints" (
+create table "better_supabase"."e_invoice_endpoints" (
   "id" uuid primary key default gen_random_uuid(),
   "tenant_id" uuid not null,
-  "party_kind" text not null constraint bsb_invoice_e_endpoints_party_kind_check check ("party_kind" in ('organization', 'legal_entity', 'company')),
-  "party_id" text not null constraint bsb_invoice_e_endpoints_party_id_check check (length("party_id") >= 1 and length("party_id") <= 150),
+  "party_kind" text not null constraint bsb_e_invoice_endpoints_party_kind_check check ("party_kind" in ('organization', 'legal_entity', 'company')),
+  "party_id" text not null constraint bsb_e_invoice_endpoints_party_id_check check (length("party_id") >= 1 and length("party_id") <= 150),
   -- The Electronic Address Scheme code from the Peppol EAS list, such as 0106.
-  "scheme" text not null constraint bsb_invoice_e_endpoints_scheme_check check ("scheme" ~ '^[0-9]{4}$'),
-  "endpoint_id" text not null constraint bsb_invoice_e_endpoints_endpoint_id_check check (length("endpoint_id") >= 1 and length("endpoint_id") <= 200),
+  "scheme" text not null constraint bsb_e_invoice_endpoints_scheme_check check ("scheme" ~ '^[0-9]{4}$'),
+  "endpoint_id" text not null constraint bsb_e_invoice_endpoints_endpoint_id_check check (length("endpoint_id") >= 1 and length("endpoint_id") <= 200),
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now()
 );
-create unique index invoice_e_endpoints_party_key on "better_supabase"."invoice_e_endpoints" ("tenant_id", "party_kind", "party_id");
-create index invoice_e_endpoints_lookup_idx on "better_supabase"."invoice_e_endpoints" ("tenant_id", "scheme", "endpoint_id");
-alter table "better_supabase"."invoice_e_endpoints" enable row level security;
-revoke all on "better_supabase"."invoice_e_endpoints" from public, anon, authenticated;
-grant select on "better_supabase"."invoice_e_endpoints" to authenticated;
-grant all on "better_supabase"."invoice_e_endpoints" to service_role;
-create policy bsb_invoice_e_endpoints_read on "better_supabase"."invoice_e_endpoints"
+create unique index e_invoice_endpoints_party_key on "better_supabase"."e_invoice_endpoints" ("tenant_id", "party_kind", "party_id");
+create index e_invoice_endpoints_lookup_idx on "better_supabase"."e_invoice_endpoints" ("tenant_id", "scheme", "endpoint_id");
+alter table "better_supabase"."e_invoice_endpoints" enable row level security;
+revoke all on "better_supabase"."e_invoice_endpoints" from public, anon, authenticated;
+grant select on "better_supabase"."e_invoice_endpoints" to authenticated;
+grant all on "better_supabase"."e_invoice_endpoints" to service_role;
+create policy bsb_e_invoice_endpoints_read on "better_supabase"."e_invoice_endpoints"
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')));
 
@@ -2875,7 +2875,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 declare
-  v_row "better_supabase"."invoice_e_endpoints";
+  v_row "better_supabase"."e_invoice_endpoints";
 begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
@@ -2889,7 +2889,7 @@ begin
     raise exception 'party_kind is organization, legal_entity or company, and party_id is a non-empty text of at most 150 characters' using errcode = '22023', hint = 'E_INVOICE_ENDPOINT_INVALID';
   end if;
   if set_invoice_e_endpoint.scheme is null and set_invoice_e_endpoint.endpoint_id is null then
-    delete from "better_supabase"."invoice_e_endpoints" x
+    delete from "better_supabase"."e_invoice_endpoints" x
     where x."tenant_id" = set_invoice_e_endpoint.tenant
       and x."party_kind" = set_invoice_e_endpoint.party_kind
       and x."party_id" = set_invoice_e_endpoint.party_id;
@@ -2900,7 +2900,7 @@ begin
     or length(set_invoice_e_endpoint.endpoint_id) > 200 then
     raise exception 'an endpoint is a four-digit EAS scheme and a non-empty id of at most 200 characters' using errcode = '22023', hint = 'E_INVOICE_ENDPOINT_INVALID';
   end if;
-  insert into "better_supabase"."invoice_e_endpoints" ("tenant_id", "party_kind", "party_id", "scheme", "endpoint_id")
+  insert into "better_supabase"."e_invoice_endpoints" ("tenant_id", "party_kind", "party_id", "scheme", "endpoint_id")
   values (set_invoice_e_endpoint.tenant, set_invoice_e_endpoint.party_kind, set_invoice_e_endpoint.party_id, set_invoice_e_endpoint.scheme, trim(set_invoice_e_endpoint.endpoint_id))
   on conflict ("tenant_id", "party_kind", "party_id") do update
     set "scheme" = excluded."scheme", "endpoint_id" = excluded."endpoint_id", "updated_at" = now()
@@ -2913,7 +2913,7 @@ grant execute on function "better_supabase"."set_invoice_e_endpoint"(uuid, text,
 
 -- The Peppol participant ids of an invoice: the seller (its legal entity, else
 -- the organization) and the buyer (its company). Each is null when none is set.
-create or replace function "better_supabase"."invoice_e_endpoints"(invoice uuid)
+create or replace function "better_supabase"."e_invoice_endpoints"(invoice uuid)
 returns jsonb
 language plpgsql
 stable
@@ -2925,21 +2925,21 @@ declare
   v_seller jsonb;
   v_buyer jsonb;
 begin
-  select * into v_row from "better_supabase"."invoices" x where x."id" = invoice_e_endpoints.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false));
+  select * into v_row from "better_supabase"."invoices" x where x."id" = e_invoice_endpoints.invoice and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'invoices.read'), false));
   if v_row."id" is null then
     raise exception 'no such invoice you can read' using errcode = 'P0002', hint = 'INVOICE_NOT_FOUND';
   end if;
   select coalesce(
-    (select jsonb_build_object('scheme', e."scheme", 'id', e."endpoint_id") from "better_supabase"."invoice_e_endpoints" e where e."tenant_id" = v_row."tenant_id" and e."party_kind" = 'legal_entity' and e."party_id" = v_row.legal_entity_id::text),
-    (select jsonb_build_object('scheme', e."scheme", 'id', e."endpoint_id") from "better_supabase"."invoice_e_endpoints" e where e."tenant_id" = v_row."tenant_id" and e."party_kind" = 'organization' and e."party_id" = v_row."tenant_id"::text)
+    (select jsonb_build_object('scheme', e."scheme", 'id', e."endpoint_id") from "better_supabase"."e_invoice_endpoints" e where e."tenant_id" = v_row."tenant_id" and e."party_kind" = 'legal_entity' and e."party_id" = v_row.legal_entity_id::text),
+    (select jsonb_build_object('scheme', e."scheme", 'id', e."endpoint_id") from "better_supabase"."e_invoice_endpoints" e where e."tenant_id" = v_row."tenant_id" and e."party_kind" = 'organization' and e."party_id" = v_row."tenant_id"::text)
   ) into v_seller;
-  select jsonb_build_object('scheme', e."scheme", 'id', e."endpoint_id") into v_buyer from "better_supabase"."invoice_e_endpoints" e
+  select jsonb_build_object('scheme', e."scheme", 'id', e."endpoint_id") into v_buyer from "better_supabase"."e_invoice_endpoints" e
   where e."tenant_id" = v_row."tenant_id" and e."party_kind" = 'company' and e."party_id" = v_row."company_id"::text;
   return jsonb_build_object('seller', v_seller, 'buyer', v_buyer);
 end;
 $$;
-revoke execute on function "better_supabase"."invoice_e_endpoints"(uuid) from public, anon;
-grant execute on function "better_supabase"."invoice_e_endpoints"(uuid) to authenticated, service_role;
+revoke execute on function "better_supabase"."e_invoice_endpoints"(uuid) from public, anon;
+grant execute on function "better_supabase"."e_invoice_endpoints"(uuid) to authenticated, service_role;
 
 -- The party that has a participant id: { partyKind, partyId }, or null. A
 -- received document's supplier is found by it.
@@ -2956,7 +2956,7 @@ begin
   end if;
   return (
     select jsonb_build_object('partyKind', e."party_kind", 'partyId', e."party_id")
-    from "better_supabase"."invoice_e_endpoints" e
+    from "better_supabase"."e_invoice_endpoints" e
     where e."tenant_id" = find_e_endpoint_party.tenant
       and e."scheme" = find_e_endpoint_party.scheme
       and lower(e."endpoint_id") = lower(find_e_endpoint_party.endpoint_id)
@@ -4812,20 +4812,20 @@ create policy bsb_tenant_scope_update on "better_supabase"."invoice_approvals" a
 create policy bsb_tenant_scope_delete on "better_supabase"."invoice_approvals" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
-create policy bsb_tenant_scope_select on "better_supabase"."invoice_e_endpoints" as restrictive
+create policy bsb_tenant_scope_select on "better_supabase"."e_invoice_endpoints" as restrictive
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
     or ("tenant_id" in (select better_supabase.tenant_ids_with('invoices.read')))
   );
-create policy bsb_tenant_scope_insert on "better_supabase"."invoice_e_endpoints" as restrictive
+create policy bsb_tenant_scope_insert on "better_supabase"."e_invoice_endpoints" as restrictive
   for insert to public
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-create policy bsb_tenant_scope_update on "better_supabase"."invoice_e_endpoints" as restrictive
+create policy bsb_tenant_scope_update on "better_supabase"."e_invoice_endpoints" as restrictive
   for update to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()))
   with check ("tenant_id" in (select better_supabase.member_organization_ids()));
-create policy bsb_tenant_scope_delete on "better_supabase"."invoice_e_endpoints" as restrictive
+create policy bsb_tenant_scope_delete on "better_supabase"."e_invoice_endpoints" as restrictive
   for delete to public
   using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."e_invoice_deliveries" as restrictive
@@ -5159,15 +5159,15 @@ as $$ select "better_supabase"."set_invoice_e_endpoint"($1, $2, $3, $4, $5) $$;
 revoke execute on function "api"."set_invoice_e_endpoint"(uuid, text, text, text, text) from public, anon;
 grant execute on function "api"."set_invoice_e_endpoint"(uuid, text, text, text, text) to authenticated, service_role;
 
-create or replace function "api"."invoice_e_endpoints"(invoice uuid)
+create or replace function "api"."e_invoice_endpoints"(invoice uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
-as $$ select "better_supabase"."invoice_e_endpoints"($1) $$;
-revoke execute on function "api"."invoice_e_endpoints"(uuid) from public, anon;
-grant execute on function "api"."invoice_e_endpoints"(uuid) to authenticated, service_role;
+as $$ select "better_supabase"."e_invoice_endpoints"($1) $$;
+revoke execute on function "api"."e_invoice_endpoints"(uuid) from public, anon;
+grant execute on function "api"."e_invoice_endpoints"(uuid) to authenticated, service_role;
 
 create or replace function "api"."find_e_endpoint_party"(tenant uuid, scheme text, endpoint_id text)
 returns jsonb

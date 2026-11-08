@@ -15,7 +15,7 @@ set local role authenticated;
 
 create function pg_temp.start_run(source text) returns void language plpgsql as $$
 begin
-  perform set_config('bsb.run', (better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', source, '{}'::jsonb) ->> 'id'), true);
+  perform set_config('better_supabase.run', (better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', source, '{}'::jsonb) ->> 'id'), true);
 end;
 $$;
 
@@ -23,11 +23,11 @@ select pg_temp.start_run('erp-newer');
 reset role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
-select better_supabase.mark_import_running(current_setting('bsb.run')::uuid);
+select better_supabase.mark_import_running(current_setting('better_supabase.run')::uuid);
 
 -- Run one: three terms, two tax codes, one invoice.
 select is(
-  (select better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'payment_term',
+  (select better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'payment_term',
     '[{"key":"N14","data":{"code":"N14","name":"Net 14","days":14}},
       {"key":"N30","data":{"code":"N30","name":"Net 30","days":30}},
       {"key":"N60","data":{"code":"N60","name":"Net 60","days":60}}]'::jsonb) ->> 'inserted'),
@@ -35,16 +35,16 @@ select is(
   'run one inserts three payment terms'
 );
 select is(
-  (select better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'tax_code',
+  (select better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'tax_code',
     '[{"key":"VAT21","data":{"code":"VAT21","name":"VAT 21%","type":"sales","rateBps":2100,"returnBoxes":["1a"]}},
       {"key":"VAT9","data":{"code":"VAT9","name":"VAT 9%","type":"sales","rateBps":900,"returnBoxes":["1b"]}}]'::jsonb) ->> 'inserted'),
   '2',
   'run one inserts two tax codes'
 );
-select better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'invoice',
+select better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'invoice',
   '[{"key":"inv-2001","data":{"number":"INV-2001","status":"issued","issuedOn":"2026-01-10","dueOn":"2026-02-09","currency":"EUR","title":"January",
     "lines":[{"description":"Service","quantity":1,"unitAmount":10000,"taxRateBps":2100}]}}]'::jsonb);
-select better_supabase.finish_import_run(current_setting('bsb.run')::uuid);
+select better_supabase.finish_import_run(current_setting('better_supabase.run')::uuid);
 
 -- A user edits N60 after the import.
 update better_supabase.payment_terms set name = 'Sixty days (edited)', updated_at = now() + interval '1 hour'
@@ -62,12 +62,12 @@ select pg_temp.start_run('erp-newer');
 reset role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
-select better_supabase.mark_import_running(current_setting('bsb.run')::uuid);
+select better_supabase.mark_import_running(current_setting('better_supabase.run')::uuid);
 
 create temporary table out (name text primary key, result jsonb) on commit drop;
 grant all on out to service_role, authenticated;
 
-insert into out values ('terms', better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'payment_term',
+insert into out values ('terms', better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'payment_term',
   '[{"key":"N14","data":{"code":"N14","name":"Net 14","days":21}},
     {"key":"N30","data":{"code":"N30","name":"Net 30","days":30}},
     {"key":"N45","data":{"code":"N45","name":"Net 45","days":45}},
@@ -94,7 +94,7 @@ select is(
   'the conflicting record keeps the user''s edit and is not overwritten'
 );
 -- Tax codes: only the changed one updates.
-insert into out values ('codes', better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'tax_code',
+insert into out values ('codes', better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'tax_code',
   '[{"key":"VAT21","data":{"code":"VAT21","name":"VAT 21%","type":"sales","rateBps":2100,"returnBoxes":["1a"]}},
     {"key":"VAT9","data":{"code":"VAT9","name":"VAT low rate","type":"sales","rateBps":900,"returnBoxes":["1b"]}}]'::jsonb));
 select is(
@@ -109,7 +109,7 @@ select is(
 );
 
 -- An imported invoice is kept as imported; a changed source is a warning.
-insert into out values ('invoice', better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'invoice',
+insert into out values ('invoice', better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'invoice',
   '[{"key":"inv-2001","data":{"number":"INV-2001","status":"issued","issuedOn":"2026-01-10","dueOn":"2026-02-09","currency":"EUR","title":"January (corrected)",
     "lines":[{"description":"Service","quantity":2,"unitAmount":10000,"taxRateBps":2100}]}}]'::jsonb));
 select is(
@@ -128,10 +128,10 @@ select is(
   'no second invoice appears'
 );
 
-select better_supabase.finish_import_run(current_setting('bsb.run')::uuid);
+select better_supabase.finish_import_run(current_setting('better_supabase.run')::uuid);
 
 select is(
-  (select better_supabase.get_import_run(current_setting('bsb.run')::uuid) -> 'counts' -> 'payment_term' ->> 'conflicted'),
+  (select better_supabase.get_import_run(current_setting('better_supabase.run')::uuid) -> 'counts' -> 'payment_term' ->> 'conflicted'),
   '1',
   'the run reports the edited record as a conflict in its counts'
 );

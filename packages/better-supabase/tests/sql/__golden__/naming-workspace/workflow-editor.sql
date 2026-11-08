@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_044_workflow_editor.sql
 -- better-supabase module: workflow-editor
 -- @bsb-block workflow-editor@4 managed
--- @bsb-hash sha256:f0dc944aa9e22ea7e268c0dfbee6f48966c417a662a65aff786a197d1b139c64
+-- @bsb-hash sha256:2f75b50c1f3b4706ce02527fc4e41834a321a2885be5fa9b30ce8c441b074a0e
 -- Workflow definitions a tenant edits as an engine-neutral node graph, with draft, published and archived versions, triggers (webhook tokens stored hashed), credential references a CredentialProvider resolves, a synced step library, per-node run status pinged on the run's topic, and failed and slow alerts written as workflow_alert.triggered outbox events.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -185,22 +185,22 @@ create policy bsb_workflow_credentials_read on "better_supabase"."workflow_crede
 
 -- The steps the deployment provides, synced from code: the palette of the
 -- builder and the names a published graph may use.
-create table "better_supabase"."workflow_step_library" (
-  "name" text primary key constraint bsb_workflow_step_library_name_check check ("name" ~ '^[A-Za-z][A-Za-z0-9_.-]{0,99}$'),
-  "title" text not null constraint bsb_workflow_step_library_title_check check (length("title") >= 1 and length("title") <= 200),
+create table "better_supabase"."workflow_step_templates" (
+  "name" text primary key constraint bsb_workflow_step_templates_name_check check ("name" ~ '^[A-Za-z][A-Za-z0-9_.-]{0,99}$'),
+  "title" text not null constraint bsb_workflow_step_templates_title_check check (length("title") >= 1 and length("title") <= 200),
   "description" text,
   "input_schema" jsonb not null default '{}'::jsonb,
   "output_schema" jsonb not null default '{}'::jsonb,
   "credential_kind" text,
   "updated_at" timestamptz not null default now()
 );
-alter table "better_supabase"."workflow_step_library" add column "operation" text
-  constraint bsb_workflow_step_library_operation_check check (length("operation") >= 1 and length("operation") <= 200);
-alter table "better_supabase"."workflow_step_library" enable row level security;
-revoke all on "better_supabase"."workflow_step_library" from public, anon, authenticated;
-grant select on "better_supabase"."workflow_step_library" to authenticated;
-grant all on "better_supabase"."workflow_step_library" to service_role;
-create policy bsb_workflow_step_library_read on "better_supabase"."workflow_step_library"
+alter table "better_supabase"."workflow_step_templates" add column "operation" text
+  constraint bsb_workflow_step_templates_operation_check check (length("operation") >= 1 and length("operation") <= 200);
+alter table "better_supabase"."workflow_step_templates" enable row level security;
+revoke all on "better_supabase"."workflow_step_templates" from public, anon, authenticated;
+grant select on "better_supabase"."workflow_step_templates" to authenticated;
+grant all on "better_supabase"."workflow_step_templates" to service_role;
+create policy bsb_workflow_step_templates_read on "better_supabase"."workflow_step_templates"
   for select to authenticated
   using (true);
 
@@ -372,7 +372,7 @@ begin
     elsif v_node ->> 'kind' = 'trigger' then
       v_triggers := v_triggers + 1;
     elsif v_node ->> 'kind' = 'step' and not exists (
-      select 1 from "better_supabase"."workflow_step_library" s where s."name" = v_node ->> 'step'
+      select 1 from "better_supabase"."workflow_step_templates" s where s."name" = v_node ->> 'step'
     ) then
       v_errors := array_append(v_errors, format('Node %s uses step %s, which is not in the step library', v_node ->> 'id', coalesce(v_node ->> 'step', 'null')));
     end if;
@@ -688,7 +688,7 @@ as $$
     select coalesce(
       '{}'::jsonb ->> (n.value ->> 'step'),
       (select coalesce('{}'::jsonb ->> s."operation", s."operation")
-        from "better_supabase"."workflow_step_library" s where s."name" = n.value ->> 'step'),
+        from "better_supabase"."workflow_step_templates" s where s."name" = n.value ->> 'step'),
       'workflow_editor.run'
     ) as p
     from jsonb_array_elements(
@@ -1796,7 +1796,7 @@ as $$
 declare
   v_count integer;
 begin
-  insert into "better_supabase"."workflow_step_library" ("name", "title", "description", "input_schema", "output_schema", "credential_kind", "operation")
+  insert into "better_supabase"."workflow_step_templates" ("name", "title", "description", "input_schema", "output_schema", "credential_kind", "operation")
   select e.key, coalesce(e.value ->> 'title', e.key), e.value ->> 'description',
     coalesce(e.value -> 'inputSchema', '{}'::jsonb), coalesce(e.value -> 'outputSchema', '{}'::jsonb), e.value ->> 'credentialKind',
     nullif(e.value ->> 'operation', '')
@@ -1809,11 +1809,11 @@ begin
     "credential_kind" = excluded."credential_kind",
     "operation" = excluded."operation",
     "updated_at" = now();
-  delete from "better_supabase"."workflow_step_library" x
+  delete from "better_supabase"."workflow_step_templates" x
   where not exists (
     select 1 from jsonb_each(coalesce(steps, '{}'::jsonb)) e where e.key = x."name"
   );
-  select count(*) into v_count from "better_supabase"."workflow_step_library";
+  select count(*) into v_count from "better_supabase"."workflow_step_templates";
   return v_count;
 end;
 $$;
@@ -1835,7 +1835,7 @@ as $$
     'credentialKind', x."credential_kind",
     'operation', x."operation",
     'updatedAt', x."updated_at"
-  ) order by x."name"), '[]'::jsonb) from "better_supabase"."workflow_step_library" x;
+  ) order by x."name"), '[]'::jsonb) from "better_supabase"."workflow_step_templates" x;
 $$;
 revoke execute on function "better_supabase"."workflow_steps_list"() from public, anon;
 grant execute on function "better_supabase"."workflow_steps_list"() to authenticated, service_role;

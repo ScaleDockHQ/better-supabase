@@ -1,6 +1,6 @@
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:986e96949cae8b5289f7a2241765e498220a3713106cd6a2705c1499a9a71be3
+-- @bsb-hash sha256:4b4e639b135e7edd84433bece161e6943810c6c9b2d2c9357f815ed6ac697274
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -277,7 +277,7 @@ begin
   end if;
   if tg_op = 'INSERT' or new."stage_id" is distinct from old."stage_id" then
     if tg_op = 'UPDATE' and old."stage_id" is not null
-      and coalesce(current_setting('bsb.lane_move', true), '') <> old."stage_id"::text || ':' || new."stage_id"::text
+      and coalesce(current_setting('better_supabase.lane_move', true), '') <> old."stage_id"::text || ':' || new."stage_id"::text
       and exists (select 1 from "better_supabase"."pipeline_transitions" x where x."pipeline_id" = new."pipeline_id")
       and not exists (
         select 1 from "better_supabase"."pipeline_transitions" x
@@ -404,7 +404,7 @@ begin
   end if;
   if tg_op = 'INSERT' or new."stage_id" is distinct from old."stage_id" then
     if tg_op = 'UPDATE' and old."stage_id" is not null
-      and coalesce(current_setting('bsb.lane_move', true), '') <> old."stage_id"::text || ':' || new."stage_id"::text
+      and coalesce(current_setting('better_supabase.lane_move', true), '') <> old."stage_id"::text || ':' || new."stage_id"::text
       and exists (select 1 from "better_supabase"."pipeline_transitions" x where x."pipeline_id" = new."pipeline_id")
       and not exists (
         select 1 from "better_supabase"."pipeline_transitions" x
@@ -525,7 +525,7 @@ begin
   end if;
   if tg_op = 'INSERT' or new."stage_id" is distinct from old."stage_id" then
     if tg_op = 'UPDATE' and old."stage_id" is not null
-      and coalesce(current_setting('bsb.lane_move', true), '') <> old."stage_id"::text || ':' || new."stage_id"::text
+      and coalesce(current_setting('better_supabase.lane_move', true), '') <> old."stage_id"::text || ':' || new."stage_id"::text
       and exists (select 1 from "better_supabase"."pipeline_transitions" x where x."pipeline_id" = new."pipeline_id")
       and not exists (
         select 1 from "better_supabase"."pipeline_transitions" x
@@ -652,7 +652,7 @@ begin
   end if;
   if tg_op = 'INSERT' or new."stage_id" is distinct from old."stage_id" then
     if tg_op = 'UPDATE' and old."stage_id" is not null
-      and coalesce(current_setting('bsb.lane_move', true), '') <> old."stage_id"::text || ':' || new."stage_id"::text
+      and coalesce(current_setting('better_supabase.lane_move', true), '') <> old."stage_id"::text || ':' || new."stage_id"::text
       and exists (select 1 from "better_supabase"."pipeline_transitions" x where x."pipeline_id" = new."pipeline_id")
       and not exists (
         select 1 from "better_supabase"."pipeline_transitions" x
@@ -779,7 +779,7 @@ begin
   end if;
   if tg_op = 'INSERT' or new."stage_id" is distinct from old."stage_id" then
     if tg_op = 'UPDATE' and old."stage_id" is not null
-      and coalesce(current_setting('bsb.lane_move', true), '') <> old."stage_id"::text || ':' || new."stage_id"::text
+      and coalesce(current_setting('better_supabase.lane_move', true), '') <> old."stage_id"::text || ':' || new."stage_id"::text
       and exists (select 1 from "better_supabase"."pipeline_transitions" x where x."pipeline_id" = new."pipeline_id")
       and not exists (
         select 1 from "better_supabase"."pipeline_transitions" x
@@ -1261,7 +1261,7 @@ begin
   if v_used then
     -- The stage trigger lets this one change through even where the allowed
     -- stage changes would not.
-    perform set_config('bsb.lane_move', v_stage::text || ':' || v_to::text, true);
+    perform set_config('better_supabase.lane_move', v_stage::text || ':' || v_to::text, true);
     case v_subject_type
     when 'deal' then
       update "better_supabase"."deals" r set "stage_id" = archive_pipeline_stage.move_to where r."stage_id" = archive_pipeline_stage.stage;
@@ -1276,7 +1276,7 @@ begin
     else
       null;
   end case;
-    perform set_config('bsb.lane_move', '', true);
+    perform set_config('better_supabase.lane_move', '', true);
   end if;
   update "better_supabase"."pipeline_stages" x set "archived_at" = now(), "updated_at" = now() where x."id" = archive_pipeline_stage.stage;
   perform "better_supabase".emit_event('pipeline_stage.archived', jsonb_build_object('organizationId', v_tenant, 'pipelineId', v_pipeline, 'stageId', v_stage), 'pipelines/' || v_pipeline::text, (v_tenant::text)::text, null, 'better-supabase/pipelines');

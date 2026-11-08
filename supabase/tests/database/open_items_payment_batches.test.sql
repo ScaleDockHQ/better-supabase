@@ -29,7 +29,7 @@ insert into ids values
   ('customer', (better_supabase.save_company('00000000-0000-4000-8000-000000000001', null, '{"name": "Open item customer"}') ->> 'id')::uuid);
 
 select set_config(
-  'bsb.run',
+  'better_supabase.run',
   (better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', 'open_items', '{}'::jsonb) ->> 'id'),
   true
 );
@@ -37,7 +37,7 @@ select set_config(
 reset role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
-select better_supabase.mark_import_running(current_setting('bsb.run')::uuid);
+select better_supabase.mark_import_running(current_setting('better_supabase.run')::uuid);
 
 create temporary table out (name text primary key, result jsonb) on commit drop;
 grant all on out to authenticated, service_role;
@@ -53,7 +53,7 @@ select set_config('t.items', jsonb_build_array(
 )::text, true);
 
 insert into out values ('first', better_supabase.import_upsert_batch(
-  current_setting('bsb.run')::uuid, 'open_item', current_setting('t.items')::jsonb));
+  current_setting('better_supabase.run')::uuid, 'open_item', current_setting('t.items')::jsonb));
 select is(
   (select (result - 'warnings' - 'errors' - 'dryRun') from out where name = 'first'),
   '{"inserted":3,"updated":0,"unchanged":0,"conflicted":0}'::jsonb,
@@ -61,7 +61,7 @@ select is(
 );
 
 insert into out values ('second', better_supabase.import_upsert_batch(
-  current_setting('bsb.run')::uuid, 'open_item', current_setting('t.items')::jsonb));
+  current_setting('better_supabase.run')::uuid, 'open_item', current_setting('t.items')::jsonb));
 select is(
   (select (result - 'warnings' - 'errors' - 'dryRun') from out where name = 'second'),
   '{"inserted":0,"updated":0,"unchanged":3,"conflicted":0}'::jsonb,

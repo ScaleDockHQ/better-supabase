@@ -159,6 +159,40 @@ function generatedCheckRenames(projectSql: string | undefined): string[] {
 }
 
 /**
+ * The constraints, indexes and policies of a renamed table whose name starts
+ * with the table's old name (after an optional `bsb_`): they take the new name,
+ * which a table rename leaves alone. Run after the table rename, as a nested
+ * block.
+ */
+function dependentRenames(schema: string, from: string, to: string): string {
+  const table = literal(`${quote(schema)}.${quote(to)}`);
+  const swap = `regexp_replace(x.name, '^(bsb_)?' || ${literal(from)}, '\\1' || ${literal(to)})`;
+
+  return `    declare
+      x record;
+    begin
+      for x in
+        select 'constraint' as kind, k.conname::text as name from pg_catalog.pg_constraint k where k.conrelid = ${table}::regclass
+        union all
+        select 'index', i.relname::text from pg_catalog.pg_index ix join pg_catalog.pg_class i on i.oid = ix.indexrelid
+          where ix.indrelid = ${table}::regclass and not exists (select 1 from pg_catalog.pg_constraint k where k.conindid = i.oid)
+        union all
+        select 'policy', p.polname::text from pg_catalog.pg_policy p where p.polrelid = ${table}::regclass
+        order by 1 desc, 2
+      loop
+        if x.name ~ ('^(bsb_)?' || ${literal(from)} || '(_|$)') then
+          execute case x.kind
+            when 'constraint' then format('alter table %s rename constraint %I to %I', ${table}, x.name, ${swap})
+            when 'index' then format('alter index %I.%I rename to %I', ${literal(schema)}, x.name, ${swap})
+            else format('alter policy %I on %s rename to %I', x.name, ${table}, ${swap})
+          end;
+        end if;
+      end loop;
+    end;
+`;
+}
+
+/**
  * The statements that rename installed SQL objects, or `undefined` when no
  * rename applies. Each one checks that the old object exists, so an app that
  * never installed the block runs the migration unchanged. With `projectSql`, a
@@ -173,8 +207,12 @@ export function renameMigrationSql(
       case "table": {
         const { schema, name } = qualifiedOf(rename.from);
 
+        if (projectSql !== undefined && !projectSql.includes(name)) {
+          return [];
+        }
+
         return [
-          `if to_regclass(${literal(`${quote(schema)}.${quote(name)}`)}) is not null then\n    alter table ${quote(schema)}.${quote(name)} rename to ${quote(rename.to)};\n  end if;`,
+          `if to_regclass(${literal(`${quote(schema)}.${quote(name)}`)}) is not null then\n    alter table ${quote(schema)}.${quote(name)} rename to ${quote(rename.to)};\n${dependentRenames(schema, name, rename.to)}  end if;`,
         ];
       }
 

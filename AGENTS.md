@@ -412,6 +412,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0346: Soft-deleted block rows carry archived_at.
 - 0347: User references are named by their role.
 - 0348: Block tables name their tenant column tenant_id.
+- 0349: Three block tables take their convention names, and settings live in better_supabase.
 
 ## Pre-release pins
 

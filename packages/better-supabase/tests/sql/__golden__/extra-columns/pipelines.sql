@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:e019fb23cc6437e64314787dd4100010d04ef8b4f8932f315600b3872013fe9d
+-- @bsb-hash sha256:78b67d2d38d80155b55162a260556dddd5b6b990d93f83ceceb69ca1efbc23ba
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -428,9 +428,9 @@ begin
   if v_used then
     -- The stage trigger lets this one change through even where the allowed
     -- stage changes would not.
-    perform set_config('bsb.lane_move', v_stage::text || ':' || v_to::text, true);
+    perform set_config('better_supabase.lane_move', v_stage::text || ':' || v_to::text, true);
     null;
-    perform set_config('bsb.lane_move', '', true);
+    perform set_config('better_supabase.lane_move', '', true);
   end if;
   update "better_supabase"."pipeline_stages" x set "archived_at" = now(), "updated_at" = now() where x."id" = archive_pipeline_stage.stage;
   null;

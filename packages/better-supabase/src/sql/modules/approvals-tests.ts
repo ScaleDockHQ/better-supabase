@@ -36,12 +36,12 @@ begin
     end if;
   end loop;
   perform set_config('request.jwt.claims', '', true);
-  perform set_config('bsb.parity', bad::text, true);
+  perform set_config('better_supabase.parity', bad::text, true);
 end;
 $$;
 
 select extensions.is(
-  current_setting('bsb.parity')::bigint,
+  current_setting('better_supabase.parity')::bigint,
   0::bigint,
   'approval_eligible_ids returns the pending requests approval_eligible accepts, for every user'
 );

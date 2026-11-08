@@ -1,6 +1,6 @@
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:7563fea81363c912f8fda70ce4fe7f73c9cb8f18ebecca96e825bed68fe08076
+-- @bsb-hash sha256:5d694c39f261b6f8c84308bea46d3f9a306f3783cdf49e5510852d27cea4bfe8
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -159,7 +159,7 @@ begin
     from (select 1) one
     left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
   end if;
-  if position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0 then
+  if position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0 then
     return null;
   end if;
   row_tenant := case when row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end;
@@ -286,7 +286,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), redacted as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -334,7 +334,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), redacted as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -384,7 +384,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), redacted as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -809,7 +809,7 @@ begin
   )
   returning "id" into entry_id;
   if audit_event.target_type is not null and audit_event.record_id is not null then
-    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event.target_type || ':' || audit_event.record_id, true);
+    perform pg_catalog.set_config('better_supabase.recorded', coalesce(pg_catalog.current_setting('better_supabase.recorded', true), '') || E'\n' || audit_event.target_type || ':' || audit_event.record_id, true);
   end if;
   if coalesce(restricted, '{}') <> '{}' or ip is not null or nullif(user_agent, '') is not null or nullif(session_id, '') is not null then
     insert into "centrakit"."audit_log_restricted_details" ("event_id", "ip_address", "user_agent", "restricted_metadata")
@@ -964,7 +964,7 @@ begin
   )
   returning "id" into entry_id;
   if audit_event_trusted.target_type is not null and audit_event_trusted.record_id is not null then
-    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event_trusted.target_type || ':' || audit_event_trusted.record_id, true);
+    perform pg_catalog.set_config('better_supabase.recorded', coalesce(pg_catalog.current_setting('better_supabase.recorded', true), '') || E'\n' || audit_event_trusted.target_type || ':' || audit_event_trusted.record_id, true);
   end if;
   if coalesce(restricted, '{}') <> '{}' or ip is not null or nullif(user_agent, '') is not null or nullif(session_id, '') is not null then
     insert into "centrakit"."audit_log_restricted_details" ("event_id", "ip_address", "user_agent", "restricted_metadata")

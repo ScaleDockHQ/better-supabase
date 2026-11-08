@@ -110,8 +110,8 @@ select is(
 
 -- Unchanged: no write, no audit row.
 reset role;
-select set_config('bsb.audit', (select count(*)::text from better_supabase.audit_events), true);
-select set_config('bsb.updated', (select updated_at::text from public.customers where name = 'Alpha'), true);
+select set_config('better_supabase.audit', (select count(*)::text from better_supabase.audit_events), true);
+select set_config('better_supabase.updated', (select updated_at::text from public.customers where name = 'Alpha'), true);
 select set_config('request.jwt.claims', '{"sub":"00000000-0000-4000-8000-0000000000a1","role":"authenticated","app_metadata":{"tenant_id":"00000000-0000-4000-8000-000000000001"}}', true);
 set local role authenticated;
 select set_config(
@@ -135,12 +135,12 @@ select is(
 reset role;
 select is(
   (select updated_at::text from public.customers where name = 'Alpha'),
-  current_setting('bsb.updated'),
+  current_setting('better_supabase.updated'),
   'an unchanged item does not touch the target'
 );
 select is(
   (select count(*)::text from better_supabase.audit_events),
-  current_setting('bsb.audit'),
+  current_setting('better_supabase.audit'),
   'an unchanged item writes no audit row'
 );
 

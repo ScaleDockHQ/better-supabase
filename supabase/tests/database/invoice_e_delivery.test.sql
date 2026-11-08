@@ -26,7 +26,7 @@ select is(
   'the organization gets a participant id'
 );
 select is(
-  better_supabase.invoice_e_endpoints(current_setting('test.invoice')::uuid) -> 'seller',
+  better_supabase.e_invoice_endpoints(current_setting('test.invoice')::uuid) -> 'seller',
   '{"scheme": "0106", "id": "12345678"}'::jsonb,
   'the seller reads the organization id when its legal entity has none'
 );
@@ -83,7 +83,7 @@ select set_config(
 );
 set local role authenticated;
 select throws_ok(
-  format($$select better_supabase.invoice_e_endpoints(%L)$$, current_setting('test.invoice')),
+  format($$select better_supabase.e_invoice_endpoints(%L)$$, current_setting('test.invoice')),
   'P0002',
   null,
   'another organization cannot read the invoice''s ids'

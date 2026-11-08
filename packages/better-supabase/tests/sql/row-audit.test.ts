@@ -72,7 +72,7 @@ describe("row audit of block tables", () => {
       .map((file) => file.contents)
       .join("\n");
 
-    expect(sql).toContain("current_setting('bsb.recorded', true)");
-    expect(sql).toContain("set_config('bsb.recorded'");
+    expect(sql).toContain("current_setting('better_supabase.recorded', true)");
+    expect(sql).toContain("set_config('better_supabase.recorded'");
   });
 });

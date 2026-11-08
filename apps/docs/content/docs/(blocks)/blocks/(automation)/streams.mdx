@@ -133,7 +133,7 @@ Chunks are stored as `bytea`. `append` accepts strings or `Uint8Array` values, a
 
 ## resumable-stream on Postgres
 
-To use the `resumable-stream` package itself, `better-supabase/streams/resumable` provides a publisher and a subscriber that run on the `stream_kv` functions and Realtime broadcasts, so a deployment with Supabase needs no Redis.
+To use the `resumable-stream` package itself, `better-supabase/streams/resumable` provides a publisher and a subscriber that run on the `stream_entries` functions and Realtime broadcasts, so a deployment with Supabase needs no Redis.
 
 ```ts
 import { createResumableStreamContext } from "resumable-stream/generic";

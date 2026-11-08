@@ -530,7 +530,7 @@ export function invoiceEDelivery<F extends object>(
         (value) => endpointOf(value) ?? null,
       ),
     eInvoiceEndpoints: (invoiceId) =>
-      call("invoice_e_endpoints", { invoice: invoiceId }, endpointsOf),
+      call("e_invoice_endpoints", { invoice: invoiceId }, endpointsOf),
     eInvoiceDeliveries: ({ organizationId, ...options }) =>
       call(
         "list_e_invoice_deliveries",

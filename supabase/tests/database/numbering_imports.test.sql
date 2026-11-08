@@ -22,7 +22,7 @@ create temporary table ids (name text primary key, id uuid) on commit drop;
 grant all on ids to authenticated, service_role;
 
 select set_config(
-  'bsb.run',
+  'better_supabase.run',
   (better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', 'numbering', '{}'::jsonb) ->> 'id'),
   true
 );
@@ -69,8 +69,8 @@ select is(
 );
 
 -- During a session the importer's numbers are kept as they are.
-select better_supabase.mark_import_running(current_setting('bsb.run')::uuid);
-select better_supabase.begin_import_session(current_setting('bsb.run')::uuid);
+select better_supabase.mark_import_running(current_setting('better_supabase.run')::uuid);
+select better_supabase.begin_import_session(current_setting('better_supabase.run')::uuid);
 
 select is(
   (select better_supabase.issue_invoice(id, current_date, null, null, 'INV-23000365') ->> 'identifier' from inv where name = 'de_old'),

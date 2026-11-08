@@ -21,7 +21,7 @@ select set_config('t.loc', better_supabase.save_location('00000000-0000-4000-800
 select better_supabase.adjust_stock(current_setting('t.v')::uuid, current_setting('t.loc')::uuid, 10, 'receipt', 'in');
 
 select set_config(
-  'bsb.run',
+  'better_supabase.run',
   (better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', 'erp-quiet', '{}'::jsonb) ->> 'id'),
   true
 );
@@ -29,7 +29,7 @@ select set_config(
 reset role;
 select set_config('request.jwt.claims', '{"role":"service_role"}', true);
 set local role service_role;
-select better_supabase.mark_import_running(current_setting('bsb.run')::uuid);
+select better_supabase.mark_import_running(current_setting('better_supabase.run')::uuid);
 
 create temporary table before_import as
 select
@@ -45,21 +45,21 @@ grant select on before_import to authenticated, service_role;
 create temporary table batches (result jsonb) on commit drop;
 grant all on batches to authenticated, service_role;
 
-insert into batches values (better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'invoice', jsonb_build_array(jsonb_build_object(
+insert into batches values (better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'invoice', jsonb_build_array(jsonb_build_object(
   'key', 'inv-1', 'data', jsonb_build_object(
     'number', 'INV-1', 'status', 'paid', 'issuedOn', '2025-11-03', 'dueOn', '2025-12-03', 'currency', 'EUR',
     'lines', jsonb_build_array(jsonb_build_object('description', 'Consulting', 'quantity', 1, 'unitAmount', 10000, 'taxRateBps', 2100)),
     'payments', jsonb_build_array(jsonb_build_object('amount', 12100, 'paidAt', '2025-11-20T10:00:00Z')))))));
-insert into batches values (better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'quote',
+insert into batches values (better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'quote',
   '[{"key":"q-1","data":{"number":"Q-1","status":"accepted","title":"Website","currency":"EUR",
     "lines":[{"description":"Design","quantity":1,"unitAmount":50000,"taxRateBps":2100}]}}]'::jsonb));
-insert into batches values (better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'order',
+insert into batches values (better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'order',
   '[{"key":"ord-1","data":{"number":"ORD-1","status":"completed","currency":"EUR","email":"old@example.com",
     "placedAt":"2025-05-01T08:00:00Z","paidAt":"2025-05-01T08:05:00Z","completedAt":"2025-05-03T08:00:00Z",
     "lines":[{"sku":"PUMP-1","title":"Pump","quantity":3,"unitAmount":"500"}],
     "totals":{"subtotal":"1500","taxTotal":"0","total":"1500"},
     "payments":[{"amount":"1500","paidAt":"2025-05-01T08:05:00Z"}]}}]'::jsonb));
-insert into batches values (better_supabase.import_upsert_batch(current_setting('bsb.run')::uuid, 'stock_count',
+insert into batches values (better_supabase.import_upsert_batch(current_setting('better_supabase.run')::uuid, 'stock_count',
   '[{"key":"count-1","data":{"location":"WH1","note":"Year end","lines":[{"sku":"PUMP-1","counted":7}]}}]'::jsonb));
 
 select is(
@@ -101,7 +101,7 @@ select is(
 );
 
 -- A listed event still goes out; an unlisted one stays quiet.
-select better_supabase.begin_import_session(current_setting('bsb.run')::uuid);
+select better_supabase.begin_import_session(current_setting('better_supabase.run')::uuid);
 select isnt(
   better_supabase.emit_event('customer.synced', '{"a":1}'::jsonb), null,
   'an event the config lists as emit is raised during an import'

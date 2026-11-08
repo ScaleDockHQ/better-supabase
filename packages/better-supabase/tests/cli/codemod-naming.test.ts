@@ -136,6 +136,7 @@ describe("renameMigrationSql", () => {
             rename.kind !== "sqlFunction" &&
             rename.kind !== "trigger" &&
             rename.kind !== "column" &&
+            rename.kind !== "table" &&
             rename.kind !== "constraint" &&
             rename.kind !== "index",
         ),
@@ -206,7 +207,7 @@ describe("renameMigrationSql", () => {
   it("renames tables, columns and policies behind existence checks", () => {
     const sql = renameMigrationSql([
       {
-        from: "better_supabase.stream_kv",
+        from: "better_supabase.stream_entries",
         to: "stream_entries",
         kind: "table",
         since: "0.54",
@@ -229,7 +230,7 @@ describe("renameMigrationSql", () => {
 
     expect(sql).toContain("-- destructive: reviewed");
     expect(sql).toContain(
-      'alter table "better_supabase"."stream_kv" rename to "stream_entries"',
+      'alter table "better_supabase"."stream_entries" rename to "stream_entries"',
     );
     expect(sql).toContain(
       'alter table "better_supabase"."tokens" rename column "valid_until" to "expires_at"',

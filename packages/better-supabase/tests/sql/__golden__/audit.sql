@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:21ac9a5e173740b983ab74d828568e0cae27b1703d00862ce3d82dda9bcf9344
+-- @bsb-hash sha256:b495f8b7df475b7156147479f1519aeb926f78c1a5304574dfdf23d7e2ba795d
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -176,7 +176,7 @@ begin
     from (select 1) one
     left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
   end if;
-  if position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0 then
+  if position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0 then
     return null;
   end if;
   row_tenant := case when row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end;
@@ -317,7 +317,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -377,7 +377,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -439,7 +439,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -902,7 +902,7 @@ begin
   )
   returning "id" into entry_id;
   if audit_event.target_type is not null and audit_event.record_id is not null then
-    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event.target_type || ':' || audit_event.record_id, true);
+    perform pg_catalog.set_config('better_supabase.recorded', coalesce(pg_catalog.current_setting('better_supabase.recorded', true), '') || E'\n' || audit_event.target_type || ':' || audit_event.record_id, true);
   end if;
   return entry_id::text;
 end;
@@ -1079,7 +1079,7 @@ begin
   )
   returning "id" into entry_id;
   if audit_event_trusted.target_type is not null and audit_event_trusted.record_id is not null then
-    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event_trusted.target_type || ':' || audit_event_trusted.record_id, true);
+    perform pg_catalog.set_config('better_supabase.recorded', coalesce(pg_catalog.current_setting('better_supabase.recorded', true), '') || E'\n' || audit_event_trusted.target_type || ':' || audit_event_trusted.record_id, true);
   end if;
   return entry_id::text;
 end;
@@ -1763,7 +1763,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:e472232cae002a6a7c3265e9f5331c7424e45ffd4ba712cd48770f9985e23359
+-- @bsb-hash sha256:67e0abf3e628c788e1830cd9ea7ff6a1c0c0982a4ec2f749693b427897ef08e3
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1938,7 +1938,7 @@ begin
     from (select 1) one
     left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
   end if;
-  if position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0 then
+  if position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0 then
     return null;
   end if;
   row_tenant := case when row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end;
@@ -2086,7 +2086,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -2150,7 +2150,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -2216,7 +2216,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -2683,7 +2683,7 @@ begin
   )
   returning "id" into entry_id;
   if audit_event.target_type is not null and audit_event.record_id is not null then
-    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event.target_type || ':' || audit_event.record_id, true);
+    perform pg_catalog.set_config('better_supabase.recorded', coalesce(pg_catalog.current_setting('better_supabase.recorded', true), '') || E'\n' || audit_event.target_type || ':' || audit_event.record_id, true);
   end if;
   return entry_id::text;
 end;
@@ -2860,7 +2860,7 @@ begin
   )
   returning "id" into entry_id;
   if audit_event_trusted.target_type is not null and audit_event_trusted.record_id is not null then
-    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event_trusted.target_type || ':' || audit_event_trusted.record_id, true);
+    perform pg_catalog.set_config('better_supabase.recorded', coalesce(pg_catalog.current_setting('better_supabase.recorded', true), '') || E'\n' || audit_event_trusted.target_type || ':' || audit_event_trusted.record_id, true);
   end if;
   return entry_id::text;
 end;
@@ -3709,7 +3709,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:9e2efd2253f754a00f8bf3e8dcfb0cbd9cbd25d40aa9948cfdf1a082f4e5e218
+-- @bsb-hash sha256:9e7774241d1a9231042517cd9bb648fcbe2b6591e492f585284564989a7d2487
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3884,7 +3884,7 @@ begin
     from (select 1) one
     left join "app_private"."audited_tables" a on a."target" = tg_relid::regclass;
   end if;
-  if position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0 then
+  if position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0 then
     return null;
   end if;
   row_tenant := case when row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end;
@@ -4025,7 +4025,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -4085,7 +4085,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -4147,7 +4147,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -4610,7 +4610,7 @@ begin
   )
   returning "id" into entry_id;
   if audit_event.target_type is not null and audit_event.record_id is not null then
-    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event.target_type || ':' || audit_event.record_id, true);
+    perform pg_catalog.set_config('better_supabase.recorded', coalesce(pg_catalog.current_setting('better_supabase.recorded', true), '') || E'\n' || audit_event.target_type || ':' || audit_event.record_id, true);
   end if;
   return entry_id::text;
 end;
@@ -4787,7 +4787,7 @@ begin
   )
   returning "id" into entry_id;
   if audit_event_trusted.target_type is not null and audit_event_trusted.record_id is not null then
-    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event_trusted.target_type || ':' || audit_event_trusted.record_id, true);
+    perform pg_catalog.set_config('better_supabase.recorded', coalesce(pg_catalog.current_setting('better_supabase.recorded', true), '') || E'\n' || audit_event_trusted.target_type || ':' || audit_event_trusted.record_id, true);
   end if;
   return entry_id::text;
 end;
@@ -5471,7 +5471,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:bf4e39040b76c2d8b9b51a54a89bfbfd745116719d8b4f9e4439f49c1dfcbb49
+-- @bsb-hash sha256:8c29ca14836742859c44c80397d45a884351226739bca6eb6613fbc9dd7225b4
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5646,7 +5646,7 @@ begin
     from (select 1) one
     left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
   end if;
-  if position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0 then
+  if position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0 then
     return null;
   end if;
   row_tenant := case when row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end;
@@ -5787,7 +5787,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -5847,7 +5847,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -5909,7 +5909,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -6372,7 +6372,7 @@ begin
   )
   returning "id" into entry_id;
   if audit_event.target_type is not null and audit_event.record_id is not null then
-    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event.target_type || ':' || audit_event.record_id, true);
+    perform pg_catalog.set_config('better_supabase.recorded', coalesce(pg_catalog.current_setting('better_supabase.recorded', true), '') || E'\n' || audit_event.target_type || ':' || audit_event.record_id, true);
   end if;
   return entry_id::text;
 end;
@@ -6549,7 +6549,7 @@ begin
   )
   returning "id" into entry_id;
   if audit_event_trusted.target_type is not null and audit_event_trusted.record_id is not null then
-    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event_trusted.target_type || ':' || audit_event_trusted.record_id, true);
+    perform pg_catalog.set_config('better_supabase.recorded', coalesce(pg_catalog.current_setting('better_supabase.recorded', true), '') || E'\n' || audit_event_trusted.target_type || ':' || audit_event_trusted.record_id, true);
   end if;
   return entry_id::text;
 end;
@@ -7352,7 +7352,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:65636a449d739f6c08bc4a541a83da0b99242a7c5d758e7b56d070b5e67c2adf
+-- @bsb-hash sha256:e1df5d242a03ef1e163cd91440fce2e43f4951574a371bfa80b6542e8546bd96
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7520,7 +7520,7 @@ begin
     from (select 1) one
     left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
   end if;
-  if position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0 then
+  if position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0 then
     return null;
   end if;
   row_tenant := case when row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end;
@@ -7645,7 +7645,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -7689,7 +7689,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -7735,7 +7735,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -8166,7 +8166,7 @@ begin
   )
   returning "id" into entry_id;
   if audit_event.target_type is not null and audit_event.record_id is not null then
-    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event.target_type || ':' || audit_event.record_id, true);
+    perform pg_catalog.set_config('better_supabase.recorded', coalesce(pg_catalog.current_setting('better_supabase.recorded', true), '') || E'\n' || audit_event.target_type || ':' || audit_event.record_id, true);
   end if;
   return entry_id::text;
 end;
@@ -8327,7 +8327,7 @@ begin
   )
   returning "id" into entry_id;
   if audit_event_trusted.target_type is not null and audit_event_trusted.record_id is not null then
-    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event_trusted.target_type || ':' || audit_event_trusted.record_id, true);
+    perform pg_catalog.set_config('better_supabase.recorded', coalesce(pg_catalog.current_setting('better_supabase.recorded', true), '') || E'\n' || audit_event_trusted.target_type || ':' || audit_event_trusted.record_id, true);
   end if;
   return entry_id::text;
 end;
@@ -8968,7 +8968,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:a9020ca90a86e8e17ac847b00833d3a02e1fadcd4d4aeadc9c36dcda3ef1788f
+-- @bsb-hash sha256:20d43ae932f0d5ebdcb0eff88675f264b85a9bf3e121069be5fd92b8e69ce73c
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9143,7 +9143,7 @@ begin
     from (select 1) one
     left join "better_supabase"."audited_tables" a on a."target" = tg_relid::regclass;
   end if;
-  if position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0 then
+  if position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0 then
     return null;
   end if;
   row_tenant := case when row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end;
@@ -9284,7 +9284,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -9344,7 +9344,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -9406,7 +9406,7 @@ begin
       select c.*, case when c.row_data ->> coalesce(entry.tenant_column, 'organization_id') ~* '^[0-9a-f-]{36}$' then (c.row_data ->> coalesce(entry.tenant_column, 'organization_id'))::uuid end as row_tenant
       from changed c
       where (c.op <> 'update' or c.changed_columns is not null)
-        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('bsb.recorded', true), '') || E'\n') > 0)
+        and not (position(E'\n' || coalesce(entry.target_type, tg_table_name) || ':' || coalesce((select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)), '') || E'\n' in coalesce(current_setting('better_supabase.recorded', true), '') || E'\n') > 0)
     ), final as (
       select k.op, k.row_data, k.changed_columns, k.row_tenant,
         k.old_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.old_row ? r), '{}') as old_row,
@@ -9869,7 +9869,7 @@ begin
   )
   returning "id" into entry_id;
   if audit_event.target_type is not null and audit_event.record_id is not null then
-    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event.target_type || ':' || audit_event.record_id, true);
+    perform pg_catalog.set_config('better_supabase.recorded', coalesce(pg_catalog.current_setting('better_supabase.recorded', true), '') || E'\n' || audit_event.target_type || ':' || audit_event.record_id, true);
   end if;
   return entry_id::text;
 end;
@@ -10046,7 +10046,7 @@ begin
   )
   returning "id" into entry_id;
   if audit_event_trusted.target_type is not null and audit_event_trusted.record_id is not null then
-    perform pg_catalog.set_config('bsb.recorded', coalesce(pg_catalog.current_setting('bsb.recorded', true), '') || E'\n' || audit_event_trusted.target_type || ':' || audit_event_trusted.record_id, true);
+    perform pg_catalog.set_config('better_supabase.recorded', coalesce(pg_catalog.current_setting('better_supabase.recorded', true), '') || E'\n' || audit_event_trusted.target_type || ':' || audit_event_trusted.record_id, true);
   end if;
   return entry_id::text;
 end;

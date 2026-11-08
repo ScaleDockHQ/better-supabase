@@ -90,9 +90,9 @@ select is(
 );
 
 -- A fixed number from an import follows the same rule.
-select set_config('bsb.run', better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', 'gap-numbers', '{}'::jsonb) ->> 'id', true);
-select better_supabase.mark_import_running(current_setting('bsb.run')::uuid);
-select better_supabase.begin_import_session(current_setting('bsb.run')::uuid);
+select set_config('better_supabase.run', better_supabase.start_import_run('00000000-0000-4000-8000-000000000001', 'gap-numbers', '{}'::jsonb) ->> 'id', true);
+select better_supabase.mark_import_running(current_setting('better_supabase.run')::uuid);
+select better_supabase.begin_import_session(current_setting('better_supabase.run')::uuid);
 
 select is(
   pg_temp.hint_of(format($$select better_supabase.issue_invoice(%L, date '2026-05-04', null, null, 'INV-1')$$, (select id from drafts where name = 'import'))),

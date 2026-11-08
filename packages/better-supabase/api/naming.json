@@ -1616,6 +1616,24 @@
       "kind": "column",
       "since": "0.54",
       "table": "better_supabase.webhook_endpoints"
+    },
+    {
+      "from": "better_supabase.stream_kv",
+      "to": "stream_entries",
+      "kind": "table",
+      "since": "0.54"
+    },
+    {
+      "from": "better_supabase.invoice_e_endpoints",
+      "to": "e_invoice_endpoints",
+      "kind": "table",
+      "since": "0.54"
+    },
+    {
+      "from": "better_supabase.workflow_step_library",
+      "to": "workflow_step_templates",
+      "kind": "table",
+      "since": "0.54"
     }
   ],
   "allowlist": {

@@ -183,7 +183,7 @@ const NAMES: BlockSqlNames = {
       },
     },
     steps: {
-      name: "workflow_step_library",
+      name: "workflow_step_templates",
       app: {},
       columns: {
         name: "name",
@@ -469,7 +469,7 @@ create table if not exists ${l} (
 alter table ${l} add column if not exists ${cl("operation")} text
   check (length(${cl("operation")}) between 1 and 200);
 ${lockModuleTable(ctx, "steps", { read: true })}
-${renderPolicy(makePolicy({ table: l, name: "workflow_step_library_read", command: "select", roles: ["authenticated"], using: "true" }), { target: l })}
+${renderPolicy(makePolicy({ table: l, name: "workflow_step_templates_read", command: "select", roles: ["authenticated"], using: "true" }), { target: l })}
 
 ${nodeKindsDdl(ctx)}
 

@@ -22,7 +22,7 @@ better-supabase add workflow-editor   # adds workflows, tenant and access as wel
 | `workflow_triggers`          | What starts a definition: `kind` (`manual`, `webhook`, `schedule`, `event`, `form`, `chat`), `config`, `enabled`                               |
 | `workflow_webhook_tokens`    | The SHA-256 of each webhook trigger's token; only the service role reads it                                                                    |
 | `workflow_credentials`       | A tenant's credentials by `kind` and `name`, as a `credential_ref`; never the secret itself                                                    |
-| `workflow_step_library`      | The steps your deployment provides, which the canvas offers as its palette                                                                     |
+| `workflow_step_templates`    | The steps your deployment provides, which the canvas offers as its palette                                                                     |
 | `workflow_node_runs`         | The status, attempts, output and error of each node of a run                                                                                   |
 | `workflow_alerts`            | Alerts on a definition's failed runs, or runs that stay unfinished past a threshold                                                            |
 | `workflow_alert_fires`       | Which alert fired for which run, so each fires once; only the service role reads it                                                            |

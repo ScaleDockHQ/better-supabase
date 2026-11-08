@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_040_streams.sql
 -- better-supabase module: streams
 -- @bsb-block streams@3 managed
--- @bsb-hash sha256:f335b92789d4e4b27fd20f1bb6309fc5591133f2ed9233cd6d6dac043164b257
+-- @bsb-hash sha256:eef2d4a711198e4c91a46f270c8efd62e34c28d5ae7b3e8be2ecb0349412f61e
 -- Ordered byte chunks a writer appends and any reader resumes from an index: idempotent batches, a cancel flag the writer reads on its next append, owner reads through RLS, a payload-free Realtime ping on a private topic per stream, and a purge for expired streams.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -52,15 +52,15 @@ create policy bsb_stream_chunks_owner_read on "better_supabase"."stream_chunks"
 -- publisher (get, set with a TTL, incr), for postgresPublisher. A value that is
 -- not an integer makes stream_kv_incr fail with Redis's own error text, which
 -- is how the package learns a stream is DONE. The service role only.
-create table "better_supabase"."stream_kv" (
-  "key" text primary key constraint bsb_stream_kv_key_check check (length("key") >= 1 and length("key") <= 400),
+create table "better_supabase"."stream_entries" (
+  "key" text primary key constraint bsb_stream_entries_key_check check (length("key") >= 1 and length("key") <= 400),
   "value" text not null,
   "expires_at" timestamptz
 );
-create index stream_kv_expires_idx on "better_supabase"."stream_kv" ("expires_at") where "expires_at" is not null;
-alter table "better_supabase"."stream_kv" enable row level security;
-revoke all on "better_supabase"."stream_kv" from public, anon, authenticated;
-grant all on "better_supabase"."stream_kv" to service_role;
+create index stream_entries_expires_idx on "better_supabase"."stream_entries" ("expires_at") where "expires_at" is not null;
+alter table "better_supabase"."stream_entries" enable row level security;
+revoke all on "better_supabase"."stream_entries" from public, anon, authenticated;
+grant all on "better_supabase"."stream_entries" to service_role;
 
 create or replace function "better_supabase"."stream_kv_get"(key text)
 returns text
@@ -68,7 +68,7 @@ language sql
 stable
 set search_path = ''
 as $$
-  select k."value" from "better_supabase"."stream_kv" k
+  select k."value" from "better_supabase"."stream_entries" k
   where k."key" = stream_kv_get.key
     and (k."expires_at" is null or k."expires_at" > now());
 $$;
@@ -82,7 +82,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  insert into "better_supabase"."stream_kv" ("key", "value", "expires_at")
+  insert into "better_supabase"."stream_entries" ("key", "value", "expires_at")
   values (key, value, case when ex is null then null else now() + make_interval(secs => ex) end)
   on conflict ("key") do update
     set "value" = excluded."value", "expires_at" = excluded."expires_at";
@@ -102,19 +102,19 @@ declare
   v_value text;
   v_next bigint;
 begin
-  delete from "better_supabase"."stream_kv" where "key" = stream_kv_incr.key and "expires_at" <= now();
-  insert into "better_supabase"."stream_kv" ("key", "value") values (key, '1')
+  delete from "better_supabase"."stream_entries" where "key" = stream_kv_incr.key and "expires_at" <= now();
+  insert into "better_supabase"."stream_entries" ("key", "value") values (key, '1')
   on conflict ("key") do nothing
   returning "value" into v_value;
   if found then
     return 1;
   end if;
-  select "value" into v_value from "better_supabase"."stream_kv" where "key" = stream_kv_incr.key for update;
+  select "value" into v_value from "better_supabase"."stream_entries" where "key" = stream_kv_incr.key for update;
   if v_value !~ '^-?[0-9]{1,18}$' then
     raise exception 'ERR value is not an integer or out of range' using errcode = '22023';
   end if;
   v_next := v_value::bigint + 1;
-  update "better_supabase"."stream_kv" set "value" = v_next::text where "key" = stream_kv_incr.key;
+  update "better_supabase"."stream_entries" set "value" = v_next::text where "key" = stream_kv_incr.key;
   return v_next;
 end;
 $$;
@@ -347,7 +347,7 @@ begin
   )
   delete from "better_supabase"."streams" st using doomed where st."id" = doomed."id";
   get diagnostics v_count = row_count;
-  delete from "better_supabase"."stream_kv" where "expires_at" <= now();
+  delete from "better_supabase"."stream_entries" where "expires_at" <= now();
   return v_count;
 end;
 $$;
