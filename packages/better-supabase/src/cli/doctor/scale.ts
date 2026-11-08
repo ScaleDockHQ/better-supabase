@@ -7,6 +7,7 @@ import { EDGE_FUNCTION_RULES } from "./edge-functions.ts";
 import { statementsView } from "./live.ts";
 import { OVERRIDE_RULES } from "./overrides.ts";
 import { catalogOf, policyObject, qualified, tableObject } from "./shared.ts";
+import { TENANT_TRIGGER_RULES } from "./tenant-triggers.ts";
 
 /** Row-level `bsb_*` triggers on one table before BS387 reports it. */
 export const TRIGGER_PILE_UP = 6;
@@ -549,9 +550,10 @@ const SCALE_CHECKS: readonly Rule[] = [
   },
 ];
 
-/** The scale, override and Edge Function rules. */
+/** The scale, override, Edge Function and tenant trigger rules. */
 export const SCALE_RULES: readonly Rule[] = [
   ...SCALE_CHECKS,
   ...OVERRIDE_RULES,
   ...EDGE_FUNCTION_RULES,
+  ...TENANT_TRIGGER_RULES,
 ];

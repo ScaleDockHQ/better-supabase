@@ -188,11 +188,11 @@ const FUNCTION_BODY = /* @__PURE__ */ new RegExp(
 const ROW_COLUMN = /\b(?:new|old)\s*\.\s*"?([a-z_][\w$]*)"?/gi;
 
 /**
- * The columns each app trigger reads or writes through `new.<column>` or
- * `old.<column>`, by `schema.table`. Triggers named `bsb_*` are the blocks' own
- * and don't count, so a check the app already makes is never emitted twice.
+ * The function body of each app trigger, by `schema.table`. Triggers named
+ * `bsb_*` are the blocks' own and don't count, so a check the app already makes
+ * is never emitted twice.
  */
-function appTriggerColumns(
+export function appTriggerBodies(
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
 ): Readonly<Record<string, readonly string[]>> {
@@ -205,7 +205,7 @@ function appTriggerColumns(
     }
   }
 
-  const found = new Map<string, Set<string>>();
+  const found = new Map<string, string[]>();
 
   for (const text of texts) {
     for (const match of text.matchAll(APP_TRIGGER)) {
@@ -218,19 +218,36 @@ function appTriggerColumns(
         continue;
       }
 
-      const body = bodies.get(qualified(match[3]!)) ?? "";
-      const columns = found.get(table) ?? new Set<string>();
-
-      for (const column of body.matchAll(ROW_COLUMN)) {
-        columns.add(column[1]!.toLowerCase());
-      }
-
-      found.set(table, columns);
+      found.set(table, [
+        ...(found.get(table) ?? []),
+        bodies.get(qualified(match[3]!)) ?? "",
+      ]);
     }
   }
 
+  return Object.fromEntries(found);
+}
+
+/**
+ * The columns each app trigger reads or writes through `new.<column>` or
+ * `old.<column>`, by `schema.table`.
+ */
+function appTriggerColumns(
+  files: readonly { readonly text: string }[],
+  schemas: readonly string[],
+): Readonly<Record<string, readonly string[]>> {
   return Object.fromEntries(
-    [...found].map(([table, columns]) => [table, [...columns]]),
+    Object.entries(appTriggerBodies(files, schemas)).map(([table, bodies]) => {
+      const columns = new Set<string>();
+
+      for (const body of bodies) {
+        for (const column of body.matchAll(ROW_COLUMN)) {
+          columns.add(column[1]!.toLowerCase());
+        }
+      }
+
+      return [table, [...columns]];
+    }),
   );
 }
 

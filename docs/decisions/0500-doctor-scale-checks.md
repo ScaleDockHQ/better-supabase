@@ -43,6 +43,10 @@ a rule can't assume the guard exists yet.
   table in a seed file, and a data statement in an app schema file for a table a
   migration or block data file also writes.
 
+- BS340 accepts a foreign key column that an app trigger reads or writes, the
+  same rule `sameTenant.auto` applies (ADR 0430), by reading the trigger
+  functions from the schema files (`appTriggerBodies`). BS398 reports such a
+  trigger whose body never mentions the tenant column.
 - `supabase db advisors` (ADR 0460): the installed CLI 2.122.0 lists `--db-url`,
   `--type` (`all`, `security`, `performance`), `--level` and `--fail-on`, which
   doctor passes. The JSON body was not captured against a database here, so the

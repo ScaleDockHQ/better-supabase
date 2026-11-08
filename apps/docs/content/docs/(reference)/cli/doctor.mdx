@@ -1855,6 +1855,18 @@ table, the rows have two owners. Remove the statement from the schema file and
 keep the rows in the data migration or a seed. Files a block module wrote are
 left out.
 
+### BS398
+
+**Warning: an app trigger replaces the same-tenant check without the tenant.**
+`sameTenant.auto` emits no check for a foreign key column that an app trigger
+(any trigger not named `bsb_*`) reads or writes through `new.<column>` or
+`old.<column>`, because the app is taken to guard it, and BS340 accepts that
+column for the same reason. A trigger that touches the column but never mentions
+the tenant column guards nothing about the tenant, so nothing checks the
+referenced row. Compare the tenant of the referenced row in the trigger, or list
+the reference in `blocks.memberships.options.sameTenant` so the block emits the
+check. Doctor reads the trigger functions in the schema files.
+
 ### BS369
 
 **Warning: an app file declares an object a block module declares.** A table,
