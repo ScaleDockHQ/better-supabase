@@ -12,7 +12,7 @@ import { expect, test } from "@playwright/test";
 
 async function signIn(page: Page): Promise<void> {
   await page.goto("/en/login");
-  await page.getByLabel("Email").fill("admin@acme.test");
+  await page.getByRole("textbox", { name: "Email" }).fill("admin@acme.test");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => !url.pathname.endsWith("/login"));
@@ -80,7 +80,7 @@ test("the sign-in form is static and the sign-up link is instant", async ({
     await signUp.click();
     await page.waitForURL((url) => url.pathname === "/en/signup");
 
-    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Email" })).toBeVisible();
   });
 });
 
@@ -96,7 +96,7 @@ test("the sign-up form is static and the sign-in link is instant", async ({
     await signIn.click();
     await page.waitForURL((url) => url.pathname === "/en/login");
 
-    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Email" })).toBeVisible();
   });
 });
 

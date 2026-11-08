@@ -8936,6 +8936,7 @@ msgctxt "inbox.tzwHXE"
 msgid "Someone is typing…"
 msgstr "Someone is typing…"
 
+#: src/features/inbox/components/help-sheet-lazy.tsx
 #: src/features/inbox/components/help-sheet.tsx
 msgctxt "inbox.SENRqu"
 msgid "Help"
@@ -13805,6 +13806,12 @@ msgctxt "rules.OvzONl"
 msgid "Off"
 msgstr "Off"
 
+#: src/features/search/components/command-search-lazy.tsx
+#: src/features/search/components/command-search.tsx
+msgctxt "search.xmcVZ0"
+msgid "Search"
+msgstr "Search"
+
 #: src/features/search/components/command-search.tsx
 msgctxt "search.SMrXWc"
 msgid "Favorites"
@@ -13819,11 +13826,6 @@ msgstr "Recent"
 msgctxt "search.TkYZBT"
 msgid "Customers"
 msgstr "Customers"
-
-#: src/features/search/components/command-search.tsx
-msgctxt "search.xmcVZ0"
-msgid "Search"
-msgstr "Search"
 
 #: src/features/search/components/command-search.tsx
 msgctxt "search.sOh6hT"

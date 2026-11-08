@@ -25,11 +25,36 @@ function hovered(current: Intent): Intent {
 export function LazyOnIntent({
   renderTrigger,
   children,
+  shortcut = false,
 }: {
   renderTrigger: (handlers: IntentHandlers) => ReactNode;
   children: ReactNode;
+  /**
+   * Cmd+K or Ctrl+K counts as a click, and once the code mounts the same
+   * shortcut is sent to it, for a menu that opens on the shortcut.
+   */
+  shortcut?: boolean;
 }) {
   const [intent, setIntent] = useState<Intent>("none");
+
+  useEffect(() => {
+    if (!shortcut || intent !== "none") {
+      return;
+    }
+
+    const listen = (event: KeyboardEvent) => {
+      if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === "k") {
+        event.preventDefault();
+        setIntent("click");
+      }
+    };
+
+    window.addEventListener("keydown", listen);
+
+    return () => {
+      window.removeEventListener("keydown", listen);
+    };
+  }, [shortcut, intent]);
 
   const closed = renderTrigger({
     onPointerEnter: () => {
@@ -50,22 +75,38 @@ export function LazyOnIntent({
   return (
     <Suspense fallback={closed}>
       {children}
-      <OpenOnClick enabled={intent === "click"} />
+      <OpenOnClick enabled={intent === "click"} shortcut={shortcut} />
     </Suspense>
   );
 }
 
 /** Opens the menu the user already clicked on, once it has mounted. */
-function OpenOnClick({ enabled }: { enabled: boolean }) {
+function OpenOnClick({
+  enabled,
+  shortcut,
+}: {
+  enabled: boolean;
+  shortcut: boolean;
+}) {
   const anchor = useRef<HTMLSpanElement>(null);
 
   useEffect(() => {
-    if (enabled) {
-      anchor.current?.parentElement
-        ?.querySelector<HTMLElement>("[aria-haspopup='menu']")
-        ?.click();
+    if (!enabled) {
+      return;
     }
-  }, [enabled]);
+
+    if (shortcut) {
+      window.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "k", ctrlKey: true }),
+      );
+
+      return;
+    }
+
+    anchor.current?.parentElement
+      ?.querySelector<HTMLElement>("[aria-haspopup]")
+      ?.click();
+  }, [enabled, shortcut]);
 
   return <span ref={anchor} hidden />;
 }
