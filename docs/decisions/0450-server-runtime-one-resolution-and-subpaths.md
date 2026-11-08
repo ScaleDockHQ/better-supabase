@@ -40,7 +40,6 @@ it resolves, then builds the context. The fold stays for composite servers.
 
 Keeping re-exports from `server` kept the bundle cost, which was the problem.
 
-
 ## Consequences
 
 `tests/server` counts `resolveAuth` calls and asserts the new `from` semantics. The `./server` size baseline drops and the three new entries have
