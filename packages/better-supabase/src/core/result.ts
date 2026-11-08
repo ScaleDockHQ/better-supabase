@@ -61,6 +61,9 @@ export function err<E = DbError>(error: E): Err<E> {
   return { ok: false, data: null, error };
 }
 
+/** Unwraps a result inside `AsyncResult.pipe`, stopping the pipe on an error. */
+export type Bind = <U>(next: PromiseLike<Result<U>>) => Promise<U>;
+
 /**
  * A lazy-free `PromiseLike<Result<T>>` with helpers. `await` gives the
  * `Result`; `.orThrow()` gives the data or throws a `DbException`.
@@ -73,7 +76,30 @@ export class AsyncResult<T> implements PromiseLike<Result<T>> {
   }
 
   static from<T>(run: () => Promise<Result<T>>): AsyncResult<T> {
-    return new AsyncResult(Promise.resolve().then(run));
+    try {
+      return new AsyncResult(run());
+    } catch (cause) {
+      return AsyncResult.err<T>(toDbError(cause));
+    }
+  }
+
+  /**
+   * Runs `run` as one `AsyncResult`. `bind` unwraps a nested result and stops
+   * `run` at the first error, so a verb that chains several calls pays one
+   * promise chain instead of one per `andThen`.
+   */
+  static pipe<T>(run: (bind: Bind) => Promise<Result<T>>): AsyncResult<T> {
+    return AsyncResult.from(() =>
+      run(async <U>(next: PromiseLike<Result<U>>): Promise<U> => {
+        const result = await next;
+
+        if (!result.ok) {
+          throw new DbException(result.error);
+        }
+
+        return result.data;
+      }),
+    );
   }
 
   static ok<T>(data: T): AsyncResult<T> {
