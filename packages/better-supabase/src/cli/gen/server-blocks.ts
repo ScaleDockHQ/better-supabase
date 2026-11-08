@@ -15,7 +15,7 @@ import { GENERATED_HEADER } from "./emit.ts";
 import { q, runtimeSubpath } from "./shared.ts";
 
 /** `blocks.<name>.ts`, next to `blocks.config.ts`. */
-export function serverBlocksPath(
+function serverBlocksPath(
   config: Pick<ResolvedConfig, "output">,
   name: string,
 ): string {
@@ -23,7 +23,7 @@ export function serverBlocksPath(
 }
 
 /** The export of a server set: `core` is `coreBlocks`. */
-export function serverBlocksName(name: string): string {
+function serverBlocksName(name: string): string {
   return `${camelOf(name)}Blocks`;
 }
 
