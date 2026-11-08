@@ -99,6 +99,21 @@ describe("powersync streams", () => {
     });
   });
 
+  it("declares the publication in the schema files when the repo has them", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+
+    const result = await runPowerSync(config(["notifications"]), {}, now);
+    expect(result.code).toBe(0);
+
+    const declared = await readFile(
+      join(root, "supabase/schemas/powersync_publication.sql"),
+      "utf-8",
+    );
+
+    expect(declared).toContain("create publication powersync for table");
+    expect(declared).toContain("notification");
+  });
+
   it("adds a new migration when the synced tables change", async () => {
     await runPowerSync(config(["notifications"]), {}, now);
 

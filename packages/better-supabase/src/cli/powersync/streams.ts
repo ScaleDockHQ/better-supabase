@@ -846,6 +846,15 @@ export function publicationSql(
     : `${header}\n${added.map((table) => `alter publication powersync add table ${quoted(table)};`).join("\n")}\n`;
 }
 
+/**
+ * The `powersync` publication as a declarative schema file. A publication is
+ * not tracked by migrations alone: `declarative sync --strict-coverage` drops
+ * one that no schema file declares, so the file lists every synced table.
+ */
+export function publicationDeclaration(tables: readonly string[]): string {
+  return `-- ${GENERATED}: the block tables PowerSync replicates.\ncreate publication powersync for table ${tables.map((table) => qualifiedIdent(table)).join(", ")};\n`;
+}
+
 const propertyName = (name: string): string =>
   /^[A-Za-z_$][\w$]*$/.test(name) ? name : JSON.stringify(name);
 

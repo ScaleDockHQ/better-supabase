@@ -47,11 +47,12 @@ pnpm better-supabase powersync streams --check   # exit 1 when a file is out of 
 
 ## What it writes
 
-| File                                                    | What it holds                                                                    |
-| ------------------------------------------------------- | -------------------------------------------------------------------------------- |
-| `powersync/sync-streams.yaml`                           | One auto-subscribed stream per table, filtered to the signed-in user             |
-| `powersync/schema.ts`                                   | A PowerSync `Table` per synced table, and `blockTables` to spread into `Schema`  |
-| `supabase/migrations/<stamp>_powersync_publication.sql` | Creates the `powersync` publication with the synced tables, or adds the new ones |
+| File                                                    | What it holds                                                                                   |
+| ------------------------------------------------------- | ----------------------------------------------------------------------------------------------- |
+| `powersync/sync-streams.yaml`                           | One auto-subscribed stream per table, filtered to the signed-in user                            |
+| `powersync/schema.ts`                                   | A PowerSync `Table` per synced table, and `blockTables` to spread into `Schema`                 |
+| `supabase/migrations/<stamp>_powersync_publication.sql` | Creates the `powersync` publication with the synced tables, or adds the new ones                |
+| `supabase/schemas/powersync_publication.sql`            | Declares the publication with every synced table, when the repo has a `supabase/schemas` folder |
 
 Each block syncs only the rows the user can read:
 

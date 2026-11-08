@@ -19,11 +19,13 @@ import {
   isPowerSyncBlock,
   POWERSYNC_BLOCKS,
   powersyncOutput,
+  publicationDeclaration,
   publicationSql,
 } from "../powersync/streams.ts";
 import {
   appSchemaTexts,
   migrationsDir,
+  schemasDirOf,
   snapshotColumnTypes,
 } from "../sql-layout.ts";
 import { hasMigrationSuffix, migrationFile } from "../sql/migration-names.ts";
@@ -295,10 +297,27 @@ export async function runPowerSync(
   const out = resolve(config.root, args.out ?? settings?.out ?? "powersync");
   const migration = await publicationMigration(config, output.published, now);
 
+  const schemasDir = resolve(config.root, await schemasDirOf(config));
+
+  // A repo on declarative schemas declares the publication there too, or the
+  // strict coverage sync would drop it.
+  const declaration: PlannedFile[] =
+    existsSync(schemasDir) && output.published.length > 0
+      ? [
+          {
+            path: join(schemasDir, "powersync_publication.sql"),
+            contents: publicationDeclaration(output.published),
+            policy: "generated",
+            note: "declares the powersync publication",
+          },
+        ]
+      : [];
+
   const plan = {
     root: config.root,
     regenerate: REGENERATE,
     files: [
+      ...declaration,
       { path: join(out, "sync-streams.yaml"), contents: output.streams },
       { path: join(out, "schema.ts"), contents: output.schema },
       ...(migration === undefined ? [] : [migration]),

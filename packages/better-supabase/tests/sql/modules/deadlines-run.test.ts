@@ -341,10 +341,9 @@ $$;`,
 
     const [plan] = upgradePlan([{ module: "deadlines", version: 1 }]);
 
-    const current = renderBlocks(
-      ["memberships", "permissions", "deadlines"],
-      { rerunnable: true },
-    )
+    const current = renderBlocks(["memberships", "permissions", "deadlines"], {
+      rerunnable: true,
+    })
       .filter((file) => file.module === "deadlines" && file.kind === "schema")
       .map((file) => file.contents)
       .join("\n");
