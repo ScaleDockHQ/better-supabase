@@ -1,0 +1,275 @@
+-- better-supabase module: profiles
+-- @bsb-block profiles@3 managed
+-- @bsb-hash sha256:d6a0376a138f53412fb2c700e7519f0fb0ed404b8434c2a8504314994002e4b4
+-- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
+-- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
+-- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+create table "better_supabase"."profiles" (
+  "id" uuid primary key references auth.users (id) on delete cascade,
+  "email" text,
+  "username" text,
+  "full_name" text,
+  "first_name" text,
+  "last_name" text,
+  "avatar_url" text,
+  "avatar_path" text,
+  "locale" text,
+  "active_organization_id" uuid,
+  "active_team_id" uuid,
+  "onboarding" jsonb not null default '{}',
+  "disabled_at" timestamptz,
+  "created_at" timestamptz not null default now(),
+  "updated_at" timestamptz not null default now()
+);
+
+create unique index profiles_username_idx on "better_supabase"."profiles" (lower("username"));
+alter table "better_supabase"."profiles" add constraint bsb_profiles_username_check check (
+  "username" is null or (
+    length("username") >= 3
+    and length("username") <= 32
+    and "username" ~* '^[a-z][a-z0-9_]*$'
+    and lower("username") <> all (array['admin', 'administrator', 'api', 'app', 'auth', 'billing', 'help', 'login', 'logout', 'me', 'null', 'root', 'settings', 'signup', 'support', 'system', 'www'])
+  )
+) not valid;
+do $$
+begin
+  alter table "better_supabase"."profiles" validate constraint bsb_profiles_username_check;
+exception when check_violation then
+  raise warning '% has usernames that break profiles_username_check, so only new ones are checked', '"better_supabase"."profiles"';
+end;
+$$;
+alter table "better_supabase"."profiles" enable row level security;
+create policy bsb_profiles_read on "better_supabase"."profiles"
+  for select to authenticated
+  using ("id" = (select auth.uid()));
+create policy bsb_profiles_update on "better_supabase"."profiles"
+  for update to authenticated
+  using (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
+  with check (("id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
+grant select on "better_supabase"."profiles" to authenticated;
+grant all on "better_supabase"."profiles" to service_role;
+
+
+-- Users update only these columns; the rest go through the module's functions.
+revoke update on "better_supabase"."profiles" from authenticated;
+grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
+
+-- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
+-- definer functions (switch_organization, the email mirror) run as their
+-- owner and pass.
+create or replace function "better_supabase"."guard_profile"()
+returns trigger
+language plpgsql
+set search_path = ''
+as $$
+begin
+  if current_user in ('authenticated', 'anon') and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and (
+    new."id" is distinct from old."id"
+    or new."email" is distinct from old."email"
+    or new."disabled_at" is distinct from old."disabled_at"
+    or new."active_organization_id" is distinct from old."active_organization_id"
+    or new."active_team_id" is distinct from old."active_team_id"
+    or new."created_at" is distinct from old."created_at"
+  ) then
+    raise exception 'These profile columns are managed by the service' using errcode = '42501', hint = 'PROFILE_COLUMN_READONLY';
+  end if;
+  new."updated_at" := now();
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."guard_profile"() from public, anon, authenticated;
+create trigger "bsb_profile_guard" before update on "better_supabase"."profiles"
+  for each row execute function "better_supabase"."guard_profile"();
+
+-- A free username from base: lowercased, stripped to [a-z0-9_], starting
+-- with a letter, then suffixed with a number while it is reserved or
+-- another profile has it.
+create or replace function "better_supabase"."allocate_username"(base text, user_id uuid default null)
+returns text
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  stem text := left(regexp_replace(lower(coalesce(base, '')), '[^a-z0-9_]+', '', 'g'), 28);
+  candidate text;
+  n integer := 0;
+begin
+  if stem !~ '^[a-z]' then
+    stem := left('u' || stem, 28);
+  end if;
+  if length(stem) < 3 then
+    stem := 'user';
+  end if;
+  candidate := stem;
+  while candidate = any(array['admin', 'administrator', 'api', 'app', 'auth', 'billing', 'help', 'login', 'logout', 'me', 'null', 'root', 'settings', 'signup', 'support', 'system', 'www']) or exists (
+    select 1 from "better_supabase"."profiles" p
+    where lower(p."username") = candidate and p."id" is distinct from user_id
+  ) loop
+    n := n + 1;
+    candidate := stem || n::text;
+  end loop;
+  return candidate;
+end;
+$$;
+revoke execute on function "better_supabase"."allocate_username"(text, uuid) from public, anon;
+grant execute on function "better_supabase"."allocate_username"(text, uuid) to authenticated, service_role;
+
+-- Creates the user's profile from auth.users when it has none: metadata
+-- keys (blocks.profiles.options.metadata), the email and a username. The
+-- after_profile_sync hook runs only for a profile it created.
+create or replace function "better_supabase"."sync_profile"(user_id uuid)
+returns boolean
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_variable
+declare
+  u auth.users;
+  meta jsonb;
+  created boolean := false;
+  attempt integer := 0;
+begin
+  select * into u from auth.users where id = user_id;
+  if not found then
+    return false;
+  end if;
+  meta := coalesce(u.raw_user_meta_data, '{}');
+  if not exists (select 1 from "better_supabase"."profiles" p where p."id" = user_id) then
+    loop
+      begin
+        insert into "better_supabase"."profiles" ("id", "full_name", "first_name", "last_name", "avatar_url", "email", "username")
+        values (user_id, coalesce(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), nullif(concat_ws(' ', nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), '')), '')), coalesce(nullif(btrim(coalesce(meta ->> 'first_name', meta ->> 'given_name')), ''), nullif(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1), '')), coalesce(nullif(btrim(coalesce(meta ->> 'last_name', meta ->> 'family_name')), ''), nullif(btrim(substr(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), length(split_part(nullif(btrim(coalesce(meta ->> 'full_name', meta ->> 'name')), ''), ' ', 1)) + 1)), '')), nullif(btrim(coalesce(meta ->> 'avatar_url', meta ->> 'picture')), ''), lower(u.email), "better_supabase"."allocate_username"(coalesce(nullif(btrim(coalesce(meta ->> 'user_name', meta ->> 'preferred_username', meta ->> 'username')), ''), split_part(u.email, '@', 1)), user_id));
+        created := true;
+        exit;
+      exception when unique_violation then
+        -- Another sign-up took the username between allocation and insert.
+        attempt := attempt + 1;
+        if attempt >= 3 or exists (select 1 from "better_supabase"."profiles" p where p."id" = user_id) then
+          exit;
+        end if;
+      end;
+    end loop;
+  end if;
+  if created then
+    declare
+      v_hook regprocedure := to_regprocedure('"public"."after_profile_sync"(uuid)');
+    begin
+      if v_hook is not null then
+        execute format('select %s($1::uuid)', v_hook::oid::regproc)
+          using user_id;
+      end if;
+    end;
+  end if;
+  return created;
+end;
+$$;
+revoke execute on function "better_supabase"."sync_profile"(uuid) from public, anon, authenticated;
+grant execute on function "better_supabase"."sync_profile"(uuid) to service_role;
+
+-- Profiles for users that have none, after installing on an existing project.
+create or replace function "better_supabase"."backfill_profiles"()
+returns integer
+language sql
+security definer
+set search_path = ''
+as $$
+  select count(*)::integer from auth.users u where "better_supabase"."sync_profile"(u.id)
+$$;
+revoke execute on function "better_supabase"."backfill_profiles"() from public, anon, authenticated;
+grant execute on function "better_supabase"."backfill_profiles"() to service_role;
+create or replace function "better_supabase"."my_profile"()
+returns jsonb
+language sql
+stable
+security definer
+set search_path = ''
+as $$
+  select to_jsonb(p) from "better_supabase"."profiles" p where p."id" = (select auth.uid())
+$$;
+revoke execute on function "better_supabase"."my_profile"() from public, anon;
+grant execute on function "better_supabase"."my_profile"() to authenticated, service_role;
+
+create or replace function "better_supabase"."update_my_profile"(attrs jsonb)
+returns boolean
+language plpgsql
+volatile
+security invoker
+set search_path = ''
+as $$
+declare
+  updated integer;
+  v_caller uuid := (select auth.uid());
+begin
+  declare
+    v_hook regprocedure := to_regprocedure('"public"."before_profile_update"(jsonb, uuid)');
+  begin
+    if v_hook is not null then
+      execute format('select %s($1::jsonb, $2::uuid)', v_hook::oid::regproc)
+        using attrs, v_caller;
+    end if;
+  end;
+  update "better_supabase"."profiles" p
+  set "full_name" = case when update_my_profile.attrs ? 'full_name' then update_my_profile.attrs ->> 'full_name' else p."full_name" end,
+    "first_name" = case when update_my_profile.attrs ? 'first_name' then update_my_profile.attrs ->> 'first_name' else p."first_name" end,
+    "last_name" = case when update_my_profile.attrs ? 'last_name' then update_my_profile.attrs ->> 'last_name' else p."last_name" end,
+    "avatar_url" = case when update_my_profile.attrs ? 'avatar_url' then update_my_profile.attrs ->> 'avatar_url' else p."avatar_url" end,
+    "avatar_path" = case when update_my_profile.attrs ? 'avatar_path' then update_my_profile.attrs ->> 'avatar_path' else p."avatar_path" end,
+    "locale" = case when update_my_profile.attrs ? 'locale' then update_my_profile.attrs ->> 'locale' else p."locale" end,
+    "username" = case when update_my_profile.attrs ? 'username' then update_my_profile.attrs ->> 'username' else p."username" end,
+    "onboarding" = case when update_my_profile.attrs ? 'onboarding' then update_my_profile.attrs -> 'onboarding' else p."onboarding" end,
+    "updated_at" = now()
+  where p."id" = v_caller;
+  get diagnostics updated = row_count;
+  if updated > 0 then
+    declare
+      v_hook regprocedure := to_regprocedure('"public"."after_profile_update"(uuid)');
+    begin
+      if v_hook is not null then
+        execute format('select %s($1::uuid)', v_hook::oid::regproc)
+          using v_caller;
+      end if;
+    end;
+  end if;
+  return updated > 0;
+end;
+$$;
+revoke execute on function "better_supabase"."update_my_profile"(jsonb) from public, anon;
+grant execute on function "better_supabase"."update_my_profile"(jsonb) to authenticated, service_role;
+create or replace function "better_supabase"."on_auth_user_created"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  -- A failure here would abort the sign-up. The user gets an account
+  -- without a profile instead, and backfill_profiles() creates it later.
+  begin
+    perform "better_supabase"."sync_profile"(new.id);
+  exception when others then
+    raise warning 'No profile for user %: % (SQLSTATE %). Run backfill_profiles() once it is fixed.',
+      new.id, sqlerrm, sqlstate;
+  end;
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."on_auth_user_created"() from public, anon, authenticated;
+
+-- Keeps the profile's email equal to the confirmed address in auth.users,
+-- lowercased so lookups and unique indexes match regardless of case.
+create or replace function "better_supabase"."mirror_profile_email"()
+returns trigger
+language plpgsql
+security definer
+set search_path = ''
+as $$
+begin
+  update "better_supabase"."profiles" set "email" = lower(new.email) where "id" = new.id and "email" is distinct from lower(new.email);
+  return new;
+end;
+$$;
+revoke execute on function "better_supabase"."mirror_profile_email"() from public, anon, authenticated;

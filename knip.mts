@@ -183,6 +183,9 @@ const config: KnipConfig = {
     "tests/validation-declarative": {
       entry: ["src/**/*.ts", "better-supabase.config.ts"],
     },
+    "tests/validation-lienlink": {
+      entry: ["src/**/*.ts", "better-supabase.config.ts"],
+    },
   },
 };
 

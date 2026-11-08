@@ -423,6 +423,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0372: Let a provider choose the wildcard grants permission_matches honours.
 - 0373: Keep the owned-column default flip deferred.
 - 0390: Hold the declarative base layer to a fixture of its own.
+- 0391: Check the projection shape in a Lienlink fixture, and fix two gaps it found.
 
 ## Pre-release pins
 
