@@ -62,6 +62,20 @@ export interface DataState<T> {
   /** True until the first answer arrives. */
   readonly isPending: boolean;
   readonly status: "idle" | "loading" | "success" | "error";
+  /**
+   * `true` while the read waits for a connection: the last data stays and no
+   * error is set. Absent until the controller is told it is offline or online.
+   */
+  readonly offline?: boolean;
+}
+
+/** What the data controllers take besides their source (ADR 0344). */
+export interface DataOfflineOptions {
+  /**
+   * Starts paused, for a component that mounts while the app is already
+   * offline. `setOffline` keeps it current afterwards.
+   */
+  readonly offline?: boolean;
 }
 
 /**
@@ -70,6 +84,14 @@ export interface DataState<T> {
  */
 export interface DataWrites<S extends DataSource> {
   readonly refetch: () => void;
+  /**
+   * Pauses reads and holds writes while offline (`true`), then runs them when
+   * the connection returns (`false`). A held write keeps its optimistic row and
+   * rolls back if it fails after the reconnect. Reads and writes of an engine
+   * over a local database never wait: the device answers them. Calling it with
+   * the current value changes nothing.
+   */
+  readonly setOffline: (offline: boolean) => void;
   readonly create: (
     input: FirstArg<S["create"]>,
   ) => Promise<DataOf<S["create"]>>;
@@ -154,9 +176,63 @@ function mapRows(
   return Array.isArray(data) ? each(data) : data;
 }
 
+/**
+ * Whether the app is offline, and who waits for it to end. An engine over a
+ * local database has no gate: its reads and writes run on the device.
+ */
+interface Gate {
+  offline: boolean;
+  /** `true` once a value was given, so the state reports `offline`. */
+  known: boolean;
+  /** Resolves once the app is online. */
+  readonly online: () => Promise<void>;
+  /** Returns whether the value changed. */
+  readonly set: (next: boolean) => boolean;
+}
+
+function gateFor(
+  engine: DataEngine,
+  options: DataOfflineOptions | undefined,
+): Gate {
+  const waiting = new Set<() => void>();
+  const local = engine.connect !== undefined;
+
+  const gate: Gate = {
+    offline: !local && options?.offline === true,
+    known: options?.offline !== undefined,
+    online: () =>
+      new Promise<void>((resolve) => {
+        waiting.add(resolve);
+      }),
+    set: (next) => {
+      gate.known = true;
+
+      if (local || next === gate.offline) {
+        return false;
+      }
+
+      gate.offline = next;
+
+      if (!next) {
+        for (const resolve of [...waiting]) {
+          resolve();
+        }
+
+        waiting.clear();
+      }
+
+      return true;
+    },
+  };
+
+  return gate;
+}
+
 function writes<S extends DataSource>(
   target: DataTarget<S>,
   refetch: () => void,
+  gate: Gate,
+  setOffline: (offline: boolean) => void,
 ): DataWrites<S> {
   const { source, scope, engine } = target;
   const lists = [...scope, "list"];
@@ -166,6 +242,10 @@ function writes<S extends DataSource>(
     rollback: readonly (() => void)[],
   ): Promise<T> => {
     try {
+      if (gate.offline) {
+        await gate.online();
+      }
+
       return await unwrap(run());
     } catch (error) {
       for (const restore of rollback) {
@@ -180,6 +260,7 @@ function writes<S extends DataSource>(
 
   return {
     refetch,
+    setOffline,
     create: (input) => {
       const optimistic = { ...fields(input), id: undefined };
 
@@ -230,31 +311,67 @@ function readController<S extends DataSource, T>(
   target: DataTarget<S>,
   key: DataKey,
   load: () => Promise<unknown>,
+  options?: DataOfflineOptions,
 ): Controller<DataState<T>, DataWrites<S>> {
   const { engine } = target;
+  const gate = gateFor(engine, options);
 
   const snapshot = (): DataState<T> => {
     const entry = engine.entry(key);
+    const held = gate.offline && entry.status === "loading";
 
     return {
       // SAFETY: the engine holds what `load` resolved to, a `T`.
       data: entry.data as T | undefined,
       error: entry.error,
       isPending: entry.data === undefined && entry.status !== "error",
-      status: entry.status,
+      // A read that waits for the connection shows no spinner or error.
+      status: held
+        ? entry.data === undefined
+          ? "idle"
+          : "success"
+        : entry.status,
+      ...(gate.known ? { offline: gate.offline } : {}),
     };
   };
 
+  // While offline a read waits, and one that fails because the connection
+  // dropped waits for the next reconnect instead of settling as an error.
+  const gated = async (): Promise<unknown> => {
+    for (;;) {
+      if (gate.offline) {
+        await gate.online();
+      }
+
+      try {
+        return await load();
+      } catch (error) {
+        if (!gate.offline) {
+          throw error;
+        }
+      }
+    }
+  };
+
   return defineController(snapshot(), (state) => ({
-    actions: writes(target, () => {
-      engine.refetch(key);
-    }),
+    actions: writes(
+      target,
+      () => {
+        engine.refetch(key);
+      },
+      gate,
+      (next) => {
+        if (gate.set(next)) {
+          state.set(snapshot());
+        }
+      },
+    ),
     start: () => {
       const update = (): void => {
         state.set(snapshot());
       };
 
-      const stop = engine.watch(key, load, update);
+      const stop = engine.watch(key, gated, update);
       update();
 
       return stop;
@@ -266,11 +383,15 @@ function readController<S extends DataSource, T>(
 export function createDataList<S extends DataSource>(
   target: DataTarget<S>,
   args: DataListOptions<S> | undefined,
+  options?: DataOfflineOptions,
 ): Controller<DataState<DataRows<S>>, DataWrites<S>> {
   const list = verb(target.source, "list");
 
-  return readController(target, [...target.scope, "list", args ?? null], () =>
-    unwrap(args === undefined ? list() : list(args)),
+  return readController(
+    target,
+    [...target.scope, "list", args ?? null],
+    () => unwrap(args === undefined ? list() : list(args)),
+    options,
   );
 }
 
@@ -278,11 +399,15 @@ export function createDataList<S extends DataSource>(
 export function createDataOne<S extends DataSource>(
   target: DataTarget<S>,
   id: DataId<S>,
+  options?: DataOfflineOptions,
 ): Controller<DataState<DataRow<S>>, DataWrites<S>> {
   const get = verb(target.source, "get");
 
-  return readController(target, [...target.scope, "get", id], () =>
-    unwrap(get(id)),
+  return readController(
+    target,
+    [...target.scope, "get", id],
+    () => unwrap(get(id)),
+    options,
   );
 }
 

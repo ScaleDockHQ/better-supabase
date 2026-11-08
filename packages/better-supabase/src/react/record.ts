@@ -2,7 +2,15 @@
 
 import type { ReactNode } from "react";
 
-import { createContext, createElement, use, useMemo } from "react";
+import {
+  createContext,
+  createElement,
+  use,
+  useContext,
+  useEffect,
+  useMemo,
+  useState,
+} from "react";
 
 import type { BlockEnv } from "../blocks/block-env.ts";
 import type { DbError } from "../core/errors.ts";
@@ -26,6 +34,7 @@ import { createBlocks } from "../blocks/create-blocks.ts";
 import { useController } from "../blocks/react-controller.ts";
 import { useBlockEnv } from "../blocks/react-env.ts";
 import { rpcTransport } from "../core/block-transport.ts";
+import { dbError } from "../core/errors.ts";
 import { createRecordController } from "../records/controller.ts";
 import {
   plainData,
@@ -33,6 +42,7 @@ import {
   recordSubject,
   runBindingWrite,
 } from "../records/record-type.ts";
+import { OfflineContext } from "./offline.ts";
 
 /** What a write resolves to: a `Result`, or a Server Action's `ActionResult`. */
 type WriteSettled<T> =
@@ -87,12 +97,22 @@ export interface RecordState<B extends RecordTypeBlocks, N extends string> {
   /** What the caller may do; every flag is `true` without `initial.can`. */
   readonly can: RecordCan<B, N>;
   readonly status: SubscriptionStatus;
+  /**
+   * `true` while the app is offline (`OfflineContext`): loads wait, the
+   * bindings keep their last data and a write queues until the connection
+   * returns. Absent until the provider is told the app's online state.
+   */
+  readonly offline?: boolean;
 }
 
 export interface RecordActionsOf<B extends RecordTypeBlocks, N extends string> {
   /** Loads the named bindings again, or every binding. */
   refresh(names?: readonly N[]): Promise<void>;
-  /** Runs one binding write, then loads that binding again. */
+  /**
+   * Runs one binding write, then loads that binding again. While offline, a
+   * write queues in one slot per binding and write name: a later call replaces
+   * its input and shares its promise, and the write runs once on reconnect.
+   */
   write<const S extends N, const W extends BindingWritesOf<B, S>>(
     binding: S,
     write: W,
@@ -109,6 +129,14 @@ export interface RecordContextValue<
   readonly state: RecordState<B, N>;
   readonly actions: RecordActionsOf<B, N>;
   readonly meta: { readonly feature: RecordType<T, B> };
+}
+
+/** A write that waits for the connection, and the promise its callers share. */
+interface QueuedWrite {
+  input: unknown;
+  readonly promise: Promise<WriteSettled<unknown>>;
+  readonly settle: (settled: WriteSettled<unknown>) => void;
+  readonly run: (input: unknown) => Promise<WriteSettled<unknown>>;
 }
 
 type AnyHandlers = Readonly<
@@ -193,7 +221,10 @@ export function createRecordProvider<
     const clients = useMemo(() => clientsOf(env, feature), [env]);
     const subject = useMemo(() => recordSubject(feature, id), [id]);
 
-    const { view } = useController(
+    const offline = useContext(OfflineContext);
+    const [queued] = useState(() => new Map<string, QueuedWrite>());
+
+    const { controller, view } = useController(
       () =>
         createRecordController({
           source: { blocks: feature.blocks, clients },
@@ -202,9 +233,43 @@ export function createRecordProvider<
           subject,
           bindings: names,
           topic,
+          offline,
         }),
       [clients, env, subject, topic],
     );
+
+    useEffect(() => {
+      controller.actions.setOffline(offline);
+
+      if (offline) {
+        return;
+      }
+
+      const waiting = [...queued.values()];
+      queued.clear();
+
+      for (const each of waiting) {
+        void each.run(each.input).then(each.settle);
+      }
+    }, [controller, offline, queued]);
+
+    useEffect(() => {
+      const waiting = queued;
+
+      return () => {
+        for (const each of waiting.values()) {
+          each.settle({
+            ok: false,
+            data: null,
+            error: dbError("network", "The queued write was cancelled.", {
+              status: 503,
+            }),
+          });
+        }
+
+        waiting.clear();
+      };
+    }, [queued]);
 
     const value = useMemo((): RecordContextValue<T, B, N> => {
       const bindings: Partial<PlainBindings<B, N>> = {
@@ -214,7 +279,7 @@ export function createRecordProvider<
         ...(plainData(view.bindings ?? {}) as Partial<PlainBindings<B, N>>),
       };
 
-      const write = async (
+      const perform = async (
         binding: string,
         name: string,
         input: unknown,
@@ -245,12 +310,47 @@ export function createRecordProvider<
         return settled;
       };
 
+      const write = (
+        binding: string,
+        name: string,
+        input: unknown,
+      ): Promise<WriteSettled<unknown>> => {
+        if (!offline) {
+          return perform(binding, name, input);
+        }
+
+        const key = `${binding}.${name}`;
+        const waiting = queued.get(key);
+
+        if (waiting !== undefined) {
+          waiting.input = input;
+
+          return waiting.promise;
+        }
+
+        let settle: QueuedWrite["settle"] = () => undefined;
+
+        const promise = new Promise<WriteSettled<unknown>>((resolve) => {
+          settle = resolve;
+        });
+
+        queued.set(key, {
+          input,
+          promise,
+          settle,
+          run: (latest) => perform(binding, name, latest),
+        });
+
+        return promise;
+      };
+
       return {
         state: {
           subject,
           bindings,
           can: initial?.can ?? recordCan<B, N>(feature, undefined),
           status: view.status,
+          ...(view.offline === undefined ? {} : { offline: view.offline }),
         },
         // SAFETY: `write` runs the write the binding and name select and
         // resolves to its plain output, as `RecordActionsOf` types it.
@@ -260,7 +360,7 @@ export function createRecordProvider<
         },
         meta: { feature },
       };
-    }, [clients, id, initial, subject, view, writes]);
+    }, [clients, id, initial, offline, queued, subject, view, writes]);
 
     return createElement(Context, { value }, children);
   }

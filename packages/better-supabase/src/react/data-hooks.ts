@@ -1,4 +1,4 @@
-import { useContext } from "react";
+import { useContext, useEffect } from "react";
 
 import type {
   DataId,
@@ -18,6 +18,7 @@ import {
 } from "../bindings/data-hooks.ts";
 import { useController } from "../blocks/react-controller.ts";
 import { ClientContext } from "./context.ts";
+import { OfflineContext } from "./offline.ts";
 
 /** What `useList` and `useOne` return: the read and the writes. */
 export type DataView<S extends DataSource, T> = DataState<T> & DataWrites<S>;
@@ -59,16 +60,23 @@ export const defineListHook =
     (args) => {
       const client = useClient();
       const target = dataTarget(client, name, select, table);
+      const offline = useContext(OfflineContext);
 
-      return useController(
-        () => createDataList(target, args),
+      const { controller, view } = useController(
+        () => createDataList(target, args, { offline }),
         [
           client.db,
           target.engine,
           dataArgsKey(target.scope),
           dataArgsKey(args),
         ],
-      ).view;
+      );
+
+      useEffect(() => {
+        controller.actions.setOffline(offline);
+      }, [controller, offline]);
+
+      return view;
     };
 
 /** The record hook for one table or block instance (see `defineListHook`). */
@@ -82,11 +90,18 @@ export const defineOneHook =
     (id) => {
       const client = useClient();
       const target = dataTarget(client, name, select, table);
+      const offline = useContext(OfflineContext);
 
-      return useController(
-        () => createDataOne(target, id),
+      const { controller, view } = useController(
+        () => createDataOne(target, id, { offline }),
         [client.db, target.engine, dataArgsKey(target.scope), dataArgsKey(id)],
-      ).view;
+      );
+
+      useEffect(() => {
+        controller.actions.setOffline(offline);
+      }, [controller, offline]);
+
+      return view;
     };
 
 /**
