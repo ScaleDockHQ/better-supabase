@@ -22,12 +22,13 @@ const fresh = async (app: NewApp): Promise<string> => {
   return dir;
 };
 
-// Every adapter tier-1 app and one app per package manager. A supported
-// framework with no binding of its own (SvelteKit, TanStack Start, React
-// Router) is detected by its data hooks library.
+// Every adapter tier-1 app and one app per package manager. SvelteKit, TanStack
+// Start and React Router have bindings of their own (ADR 0582): `init` writes
+// `gen.hooks`, their server middleware file and a hint for the server adapter.
 const APPS: readonly (NewApp & {
   readonly install: string;
   readonly adapters: readonly string[];
+  readonly framework?: { readonly file: string; readonly server: string };
 })[] = [
   {
     name: "next",
@@ -63,6 +64,7 @@ const APPS: readonly (NewApp & {
     manager: "pnpm",
     install: "pnpm add",
     adapters: ["client"],
+    framework: { file: "src/hooks.server.ts", server: "sveltekit" },
   },
   {
     name: "tanstack-start",
@@ -74,13 +76,23 @@ const APPS: readonly (NewApp & {
     manager: "npm",
     install: "npm install",
     adapters: ["client"],
+    framework: { file: "lib/supabase/middleware.ts", server: "tanstack-start" },
   },
   {
     name: "react-router",
-    dependencies: { "react-router": "7.0.0", react: "19.0.0", vite: "7.0.0" },
+    dependencies: {
+      "@react-router/dev": "7.0.0",
+      "react-router": "7.0.0",
+      react: "19.0.0",
+      vite: "7.0.0",
+    },
     manager: "yarn",
     install: "yarn add",
     adapters: ["client"],
+    framework: {
+      file: "lib/supabase/middleware.server.ts",
+      server: "react-router",
+    },
   },
 ];
 
@@ -158,6 +170,31 @@ describe.each(APPS)("init --yes in a new $name app", (app) => {
       ).toMatchObject({ code: 0 });
 
       await typecheck(dir, ["lib/supabase/index.ts"]);
+    },
+  );
+});
+
+const FRAMEWORK_APPS = APPS.flatMap(({ framework, ...app }) =>
+  framework === undefined ? [] : [{ ...app, ...framework }],
+);
+
+describe.each(FRAMEWORK_APPS)("init --yes in a new $name app", (app) => {
+  it(
+    "writes the server file of its binding and names the server adapter",
+    { timeout: TIMEOUT },
+    async () => {
+      const dir = await fresh(app);
+      const init = await run(["init", "--yes", "--cwd", dir]);
+      const after = await readFiles(dir);
+
+      expect(init).toMatchObject({ code: 0 });
+      expect(after.get(app.file)).toContain(`better-supabase/${app.server}`);
+      expect(init.stderr + init.stdout).toContain(
+        `Server adapter for ${app.name}: better-supabase/${app.server}.`,
+      );
+      expect(after.get("better-supabase.config.ts")).toContain(
+        `hooks: '${app.name}'`,
+      );
     },
   );
 });

@@ -450,6 +450,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0484: Ship bucket definitions to the browser from `better-supabase/storage/client`.
 - 0580: Turn a feature off when an owned table lacks its column.
 - 0581: Time AsyncResult against a promise chain in the type bench.
+- 0582: Detect SvelteKit, TanStack Start and React Router with their own bindings, and pin adapterBase use.
 
 ## Pre-release pins
 

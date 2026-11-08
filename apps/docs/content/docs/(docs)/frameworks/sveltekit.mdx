@@ -48,6 +48,8 @@ entries reads the bindings. Compose the hook with others through SvelteKit's
 `sequence`. The bridge makes the request body readable twice, so an entry and
 a form action both see it.
 
+`better-supabase init` detects SvelteKit from `@sveltejs/kit`, sets `gen.hooks` to `sveltekit` and writes `src/hooks.server.ts` with the `handle` hook above, unless the file exists.
+
 ## Session snapshot
 
 The helpers from `createSvelteKit(betterSupabase)` share one verified session

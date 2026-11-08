@@ -2853,7 +2853,15 @@
             {
               "anyOf": [
                 {
-                  "enum": ["react", "svelte", "vue", "solid"],
+                  "enum": [
+                    "sveltekit",
+                    "tanstack-start",
+                    "react-router",
+                    "react",
+                    "svelte",
+                    "vue",
+                    "solid"
+                  ],
                   "type": "string"
                 },
                 {
@@ -2871,7 +2879,15 @@
                 "framework": {
                   "anyOf": [
                     {
-                      "enum": ["react", "svelte", "vue", "solid"],
+                      "enum": [
+                        "sveltekit",
+                        "tanstack-start",
+                        "react-router",
+                        "react",
+                        "svelte",
+                        "vue",
+                        "solid"
+                      ],
                       "type": "string"
                     },
                     {

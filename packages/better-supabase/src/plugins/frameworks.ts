@@ -3,6 +3,12 @@
  * adds one.
  */
 
+import {
+  reactRouterTemplates,
+  sveltekitTemplates,
+  tanstackStartTemplates,
+} from "./framework-templates.ts";
+
 /**
  * `supported` bindings get the full test matrix; `community` ones a smoke test
  * (ADR 0094).
@@ -135,8 +141,38 @@ export function defineFramework(
   return binding;
 }
 
-/** The frameworks `gen.hooks` supports without registration. */
+/**
+ * The frameworks `gen.hooks` supports without registration. A meta-framework
+ * comes before the library it builds on, since `detect` returns the first match
+ * (ADR 0582).
+ */
 export const BUILT_IN_FRAMEWORKS: readonly FrameworkBinding[] = [
+  defineFramework({
+    name: "sveltekit",
+    tier: "supported",
+    detect: ["@sveltejs/kit"],
+    hooksSubpath: "svelte",
+    serverSubpath: "sveltekit",
+    templates: sveltekitTemplates,
+  }),
+  defineFramework({
+    name: "tanstack-start",
+    tier: "supported",
+    detect: ["@tanstack/react-start"],
+    hooksSubpath: "react",
+    hooksDirective: '"use client";',
+    serverSubpath: "tanstack-start",
+    templates: tanstackStartTemplates,
+  }),
+  defineFramework({
+    name: "react-router",
+    tier: "supported",
+    detect: ["@react-router/dev"],
+    hooksSubpath: "react",
+    hooksDirective: '"use client";',
+    serverSubpath: "react-router",
+    templates: reactRouterTemplates,
+  }),
   defineFramework({
     name: "react",
     tier: "supported",
