@@ -22,6 +22,25 @@ const memoAt = (now: { ms: number }, max?: number) =>
   });
 
 describe("sessionMemo", () => {
+  it("counts into shared counters, so two memos report one total", async () => {
+    const counters = { hits: 0, misses: 0 };
+
+    const first = sessionMemo<Value>((value) => value.exp, { counters });
+    const second = sessionMemo<Value>((value) => value.exp, { counters });
+    const load = async () => ({ user: "a", exp: null });
+
+    await first.get("token", load);
+    await first.get("token", load);
+    await second.get("other", load);
+
+    expect(counters).toEqual({ hits: 1, misses: 2 });
+    expect(first.stats()).toEqual({ hits: 1, misses: 2, size: 1 });
+    expect(second.stats()).toEqual({ hits: 1, misses: 2, size: 1 });
+
+    first.clear();
+    expect(counters).toEqual({ hits: 0, misses: 0 });
+  });
+
   it("shares one in-flight verification between concurrent lookups", async () => {
     const memo = memoAt({ ms: 0 });
     const load = vi.fn(async () => ({ user: "a", exp: null }));

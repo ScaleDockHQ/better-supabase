@@ -1544,6 +1544,7 @@
       "SessionEntryOptions",
       "SessionLookup",
       "SessionMemo",
+      "SessionMemoCounters",
       "SessionMemoOptions",
       "SessionMemoStats",
       "SessionRejection",

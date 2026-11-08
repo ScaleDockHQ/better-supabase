@@ -338,6 +338,7 @@ export type { PasswordGrantOptions } from "../auth/sign-in.ts";
 
 export type {
   SessionMemo,
+  SessionMemoCounters,
   SessionMemoOptions,
   SessionMemoStats,
   SessionSnapshot,

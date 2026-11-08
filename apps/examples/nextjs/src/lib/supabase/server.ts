@@ -25,28 +25,30 @@ const options: NextOptions = {
   authorizer: permissionsAuthorizer({ permissions, load: myPermissions }),
 };
 
-const buildServer = () => createServer(betterSupabase, options);
-
-type BsbServer = ReturnType<typeof buildServer>;
-
 declare global {
-  var bsbExampleServer: BsbServer | undefined;
+  var bsbExampleSessionCounters: { hits: number; misses: number } | undefined;
 }
 
 /**
  * Next.js bundles each route handler apart from the pages, so this module is
- * evaluated once per bundle. One server per process keeps one session memo, and
- * `/api/bs-sessions` then counts the lookups the pages make.
+ * evaluated once per bundle and each bundle builds its own server and memo. One
+ * counter per process makes `/api/bs-sessions` count the lookups the pages
+ * make.
  */
-function sharedServer(): BsbServer {
-  globalThis.bsbExampleServer ??= buildServer();
+function sharedCounters(): { hits: number; misses: number } {
+  globalThis.bsbExampleSessionCounters ??= { hits: 0, misses: 0 };
 
-  return globalThis.bsbExampleServer;
+  return globalThis.bsbExampleSessionCounters;
 }
+
+const counters = sharedCounters();
 
 // Built here, not inside `createNext`, so the testing route can read its
 // session memo: how many renders verified a token instead of reusing one.
-const bsbServer = sharedServer();
+const bsbServer = createServer(betterSupabase, {
+  ...options,
+  sessions: { counters },
+});
 
 export const bsb = createNext(betterSupabase, {
   ...options,
