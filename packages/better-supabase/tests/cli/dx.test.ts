@@ -583,6 +583,18 @@ describe("env", () => {
     );
   });
 
+  it("exits 1 when the status JSON has no API URL or key", async () => {
+    await project({}, { "status.json": JSON.stringify({ DB_URL: "x" }) });
+
+    const result = await run(
+      ["dev", "env", "--status-file", "status.json", "--cwd", dir],
+      { io: { stdout: () => {}, stderr: () => {} } },
+    );
+
+    expect(result.code).toBe(1);
+    expect(result.stderr).toContain("has no API_URL or publishable key");
+  });
+
   it("writes plain and prefixed variables with --out and --prefix next", async () => {
     await project({}, { "status.json": JSON.stringify(status) });
 

@@ -428,6 +428,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0392: Generate PowerSync streams from the app's projection views.
 - 0380: Engagements are activities, and events use the lifecycle verbs.
 - 0381: One confirm flag and one out flag.
+- 0385: The naming catalog rules have no thresholds.
 
 ## Pre-release pins
 
