@@ -1,4 +1,5 @@
 import type { BlockSqlFile } from "../../sql/index.ts";
+import type { Projection } from "./projection.ts";
 
 import { SPEC_PINS } from "../../index.ts";
 import { addedColumnTypes, declaredColumnTypes } from "../../sql/index.ts";
@@ -47,6 +48,12 @@ export interface PowerSyncInput {
    * organization syncs its files.
    */
   readonly readRoles?: ReadonlyMap<string, readonly string[]>;
+  /**
+   * The app's views over the synced tables, by `schema.table`
+   * (`projectionsOf`). A table with one streams the view's columns and rows
+   * under the view's names, because the client reads the view.
+   */
+  readonly projections?: ReadonlyMap<string, Projection>;
 }
 
 /** A synced table: `schema.table`, its stream query and its columns. */
@@ -384,7 +391,10 @@ function membershipTables(
       qualified: table,
       name: baseName(table),
       stream: `${instance.key}_roles`,
-      query: `SELECT ${ident(tenant)} || ':' || user_id || ':' || role AS id, * FROM ${qualifiedIdent(table)} WHERE user_id = auth.user_id()`,
+      with: {
+        member_orgs: `SELECT ${ident(tenant)} FROM ${qualifiedIdent(memberships)} WHERE user_id = auth.user_id()`,
+      },
+      query: `SELECT ${roleColumns.has("id") ? "" : `${ident(tenant)} || ':' || user_id || ':' || role AS id, `}* FROM ${qualifiedIdent(table)} WHERE ${ident(tenant)} IN member_orgs`,
       columns: roleColumns,
     });
   }
@@ -707,6 +717,84 @@ function syncedTables(
   }
 }
 
+/** The authorization provider's version of a user's permissions, kept on a row. */
+const VERSION_COLUMN = /^(?:authz|permissions?)_ver(?:sion)?$/;
+
+const STAR = /^SELECT ((?:[^*]*?, )?)\* FROM /;
+
+const isBigint = (type: string | undefined): boolean =>
+  type === "bigint" || type === "int8";
+
+/**
+ * `table` with the provider's version column left out (the native client
+ * refreshes on the provider's broadcast, ADR 0129), a bigint id sent as text,
+ * and the columns and rows of the app's view over it when there is one. A
+ * stream that already lists its columns stays as it is.
+ */
+function streamedFrom(
+  table: SyncedTable,
+  projection: Projection | undefined,
+): SyncedTable {
+  const match = STAR.exec(table.query);
+
+  const dropped = [...table.columns.keys()].some((column) =>
+    VERSION_COLUMN.test(column),
+  );
+
+  const bigintId = isBigint(table.columns.get("id"));
+
+  if (match === null || (!dropped && !bigintId && projection === undefined)) {
+    return table;
+  }
+
+  const selected = (
+    projection === undefined
+      ? [...table.columns.keys()].map((column) => ({
+          source: column,
+          name: column,
+        }))
+      : projection.columns.filter((column) => table.columns.has(column.source))
+  ).filter((column) => !VERSION_COLUMN.test(column.source));
+
+  const list = selected.map((column) => {
+    if (column.source === "id" && bigintId) {
+      return `id::text AS ${ident(column.name)}`;
+    }
+
+    return column.source === column.name
+      ? ident(column.source)
+      : `${ident(column.source)} AS ${ident(column.name)}`;
+  });
+
+  // A table that has its own id streams it; the composite key only stands in
+  // when the table has none.
+  const prefix = selected.some((column) => column.name === "id")
+    ? ""
+    : match[1]!;
+
+  const rest = table.query.slice(match[0].length);
+  const where = projection?.where;
+
+  const query = `SELECT ${prefix}${list.join(", ")} FROM ${rest}${
+    where === undefined
+      ? ""
+      : /\sWHERE\s/.test(rest)
+        ? ` AND (${where})`
+        : ` WHERE (${where})`
+  }`;
+
+  return {
+    ...table,
+    query,
+    columns: new Map(
+      selected.map((column) => [
+        column.name,
+        table.columns.get(column.source)!,
+      ]),
+    ),
+  };
+}
+
 const yamlString = (text: string): string => JSON.stringify(text);
 
 function streamsYaml(tables: readonly SyncedTable[]): string {
@@ -793,7 +881,13 @@ function schemaModule(
 /** The sync streams, publication and PowerSync schema for `input.instances`. */
 export function powersyncOutput(input: PowerSyncInput): PowerSyncOutput {
   const byInstance = input.instances.map(
-    (instance) => [instance.key, syncedTables(input, instance)] as const,
+    (instance) =>
+      [
+        instance.key,
+        syncedTables(input, instance).map((table) =>
+          streamedFrom(table, input.projections?.get(table.qualified)),
+        ),
+      ] as const,
   );
 
   const tables = byInstance.flatMap(([, synced]) => synced);

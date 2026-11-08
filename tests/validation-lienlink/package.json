@@ -1,0 +1,22 @@
+{
+  "name": "@better-supabase/validation-lienlink",
+  "private": true,
+  "description": "Lienlink's shape: blocks own the better_supabase tables and the app projects them through views in public.",
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "sql:check": "better-supabase upgrade --check",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "better-supabase": "workspace:*",
+    "oxlint": "catalog:",
+    "pg": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

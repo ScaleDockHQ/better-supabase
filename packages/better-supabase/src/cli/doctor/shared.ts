@@ -10,6 +10,15 @@ import type { DoctorContext, SqlObject } from "./rules.ts";
 import { toCatalog } from "../introspect/catalog.ts";
 import { detectWorkflow, sqlWorkflow, tomlGet } from "../supabase-toml.ts";
 
+/**
+ * A policy that is `false` for every row. An insert policy has no `using`, so
+ * its `with check (false)` is the denial.
+ */
+export const deniesAll = (policy: CatalogPolicy): boolean =>
+  /^\s*false\s*$/i.test(
+    (policy.command === "insert" ? policy.check : policy.using) ?? "",
+  );
+
 const catalogs = new WeakMap<Snapshot, Catalog>();
 
 /**

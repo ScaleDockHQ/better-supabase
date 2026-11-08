@@ -179,6 +179,13 @@ const config: KnipConfig = {
     "tests/types/ts-7.1": { entry: ["*.ts", "mapper/*.{ts,js}"] },
     // Modules ported from production apps; their exports are the app's API.
     "tests/validation-*": { entry: ["src/**/*.ts"] },
+    // The CLI loads the config file, not the tests.
+    "tests/validation-declarative": {
+      entry: ["src/**/*.ts", "better-supabase.config.ts"],
+    },
+    "tests/validation-lienlink": {
+      entry: ["src/**/*.ts", "better-supabase.config.ts"],
+    },
   },
 };
 

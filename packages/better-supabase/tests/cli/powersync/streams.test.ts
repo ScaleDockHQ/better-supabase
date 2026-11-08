@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { projectionsOf } from "../../../src/cli/powersync/projection.ts";
 import {
   powersyncColumnType,
   powersyncOutput,
@@ -228,8 +229,14 @@ describe("powersyncOutput for memberships, teams and profiles", () => {
       memberships: ["memberships", "membership_roles"],
     });
 
+    // Bounded by organization only: every member's roles in the user's
+    // organizations, and a disabled membership doesn't narrow the list.
     expect(roles.streams).toContain(
-      `query: "SELECT organization_id || ':' || user_id || ':' || role AS id, * FROM better_supabase.membership_roles WHERE user_id = auth.user_id()"`,
+      `query: "SELECT organization_id || ':' || user_id || ':' || role AS id, * FROM better_supabase.membership_roles WHERE organization_id IN member_orgs"`,
+    );
+
+    expect(roles.streams).toContain(
+      'member_orgs: "SELECT organization_id FROM better_supabase.memberships WHERE user_id = auth.user_id()"',
     );
 
     expect(roles.streams).toContain(
@@ -256,6 +263,114 @@ describe("powersyncOutput for memberships, teams and profiles", () => {
     expect(extended.schema).toMatch(
       /export const memberships = new Table\(\{[^}]*last_seen_at: column\.text/,
     );
+  });
+});
+
+describe("powersyncOutput shaping", () => {
+  const base = renderBlocks(["memberships", "attachments"], { modules: {} });
+
+  const run = (
+    app: string,
+    projections?: Parameters<typeof powersyncOutput>[0]["projections"],
+  ) =>
+    powersyncOutput({
+      files: [
+        ...base,
+        {
+          path: "supabase/schemas/app.sql",
+          module: "app",
+          kind: "schema",
+          contents: app,
+        },
+      ],
+      instances: [
+        { key: "memberships", block: "memberships" },
+        { key: "attachments", block: "attachments" },
+      ],
+      importFrom: "@powersync/common",
+      ...(projections === undefined ? {} : { projections }),
+    });
+
+  it("leaves the provider's version column out of the stream and the schema", () => {
+    const synced = run(
+      "alter table better_supabase.memberships add column authz_version bigint, add column note text;",
+    );
+
+    expect(synced.streams).toMatch(
+      /memberships WHERE|FROM better_supabase\.memberships/,
+    );
+    expect(synced.streams).not.toContain("authz_version");
+    expect(synced.schema).not.toContain("authz_version");
+    expect(synced.schema).toContain("note: column.text");
+    expect(synced.streams).toContain("note");
+  });
+
+  it("sends a bigint id as text and keeps the real id of an adopted table", () => {
+    const adopted = powersyncOutput({
+      files: [],
+      instances: [{ key: "memberships", block: "memberships" }],
+      own: new Map([
+        [
+          "memberships",
+          new Map([
+            [
+              "public.memberships",
+              new Map([
+                ["id", "bigint"],
+                ["organization_id", "uuid"],
+                ["user_id", "uuid"],
+                ["role", "text"],
+              ]),
+            ],
+          ]),
+        ],
+      ]),
+      importFrom: "@powersync/common",
+    });
+
+    expect(adopted.streams).toContain(
+      "SELECT id::text AS id, organization_id, user_id, role FROM public.memberships WHERE user_id = auth.user_id()",
+    );
+  });
+
+  it("streams the columns and rows of the app's view under the view's names", () => {
+    const projections = projectionsOf([
+      {
+        text: `create view public.job_attachments with (security_invoker = true) as
+          select id, tenant_id as organization_id, name from better_supabase.attachments where subject_type = 'job';`,
+      },
+    ]);
+
+    const synced = run("", projections);
+
+    expect(synced.streams).toContain(
+      "SELECT id, tenant_id AS organization_id, name FROM better_supabase.attachments WHERE",
+    );
+    expect(synced.streams).toContain("AND (subject_type = 'job')");
+    expect(synced.schema).toMatch(
+      /export const attachments = new Table\(\{\n {2}organization_id: column\.text,\n {2}name: column\.text,\n\}\);/,
+    );
+  });
+});
+
+describe("projectionsOf", () => {
+  it("reads a view over one table and skips joins and expressions", () => {
+    const found = projectionsOf([
+      {
+        text: `create view public.a as select x, y as z from b.t;
+create view public.c as select t.x from b.t join b.u on true;
+create view public.d as select lower(x) as x from b.v;`,
+      },
+    ]);
+
+    expect([...found.keys()]).toEqual(["b.t"]);
+    expect(found.get("b.t")).toEqual({
+      view: "public.a",
+      columns: [
+        { source: "x", name: "x" },
+        { source: "y", name: "z" },
+      ],
+    });
   });
 });
 

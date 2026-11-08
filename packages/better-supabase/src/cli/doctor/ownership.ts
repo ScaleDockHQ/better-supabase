@@ -62,6 +62,47 @@ const RENAME = new RegExp(
   "i",
 );
 
+const TRIGGER = new RegExp(
+  String.raw`^create\s+(?:or\s+replace\s+)?(?:constraint\s+)?trigger\s+${IDENT_PART}\s+(before|after|instead of)\s+.*?\s+on\s+${NAMED}`,
+  "i",
+);
+
+/** The text inside each balanced `check (...)` of a statement. */
+function checkBodies(statement: string): string[] {
+  const bodies: string[] = [];
+
+  for (const match of statement.matchAll(/\bcheck\s*\(/gi)) {
+    let depth = 1;
+    let at = match.index + match[0].length;
+    const start = at;
+
+    while (at < statement.length && depth > 0) {
+      const char = statement[at];
+
+      depth += char === "(" ? 1 : char === ")" ? -1 : 0;
+      at += 1;
+    }
+
+    bodies.push(statement.slice(start, at - 1));
+  }
+
+  return bodies;
+}
+
+/** A body with a `between` and an `and` or `or` besides the between's own. */
+function mixesBetween(body: string): boolean {
+  if (!/\bbetween\b/i.test(body)) {
+    return false;
+  }
+
+  const rest = body.replaceAll(
+    /\bbetween\s+(?:\([^)]*\)|[^\s()]+)\s+and\s+(?:\([^)]*\)|[^\s()]+)/gi,
+    " ",
+  );
+
+  return /\b(?:and|or)\b/i.test(rest);
+}
+
 /** `schema.name` unquoted, with `public` for a bare name. */
 const plain = (name: string): string => {
   const parts = name
@@ -393,6 +434,62 @@ export const OWNERSHIP_RULES: readonly Rule[] = [
           target: group.table,
           location: { file: group.files[0]!.file, line: group.files[0]!.line },
         }),
+      ),
+  },
+  {
+    code: "BS378",
+    severity: "warning",
+    title: "A trigger aimed at a view",
+    description:
+      "A `before` or `after` trigger on a view never fires for the rows of the table under it, and Postgres only accepts `instead of` triggers on a view. Put the trigger on the table the view selects from, or make it an `instead of` trigger that writes that table. Reads every schema file.",
+    check(context) {
+      const files = schemaFiles(context);
+
+      const views = new Set(
+        [...buildModel(files).objects.values()]
+          .flat()
+          .filter((object) => object.kind === "view")
+          .map((object) => bare(object.name)),
+      );
+
+      return files.flatMap((file) =>
+        splitStatements(file.text).flatMap((statement): FindingInput[] => {
+          const match = TRIGGER.exec(statement.text.replaceAll(/\s+/g, " "));
+
+          return match !== null &&
+            match[1]!.toLowerCase() !== "instead of" &&
+            views.has(plain(match[2]!))
+            ? [
+                {
+                  message: `${file.path}:${String(statement.line)}: the ${match[1]!.toLowerCase()} trigger is aimed at the view ${plain(match[2]!)}. Aim it at the table under the view, or use \`instead of\`.`,
+                  target: file.path,
+                  location: { file: file.path, line: statement.line },
+                },
+              ]
+            : [];
+        }),
+      );
+    },
+  },
+  {
+    code: "BS380",
+    severity: "warning",
+    title: "A check constraint mixes between with and or or",
+    description:
+      "Postgres rewrites `x between a and b` into two comparisons, so a check that joins a `between` to other conditions with `and` or `or` reads back from the database in another shape than the file declares, and the next diff proposes the same constraint again. Write the two comparisons out, or put the `between` alone in its own check. Reads the app's schema files.",
+    check: (context) =>
+      schemaFiles(context).flatMap((file) =>
+        ownerOf(file.path, file.text).kind === "app"
+          ? splitStatements(file.text).flatMap((statement): FindingInput[] =>
+              checkBodies(statement.text)
+                .filter(mixesBetween)
+                .map(() => ({
+                  message: `${file.path}:${String(statement.line)}: a check constraint joins a between to other conditions. Write the comparisons out.`,
+                  target: file.path,
+                  location: { file: file.path, line: statement.line },
+                })),
+            )
+          : [],
       ),
   },
   {

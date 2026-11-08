@@ -351,3 +351,52 @@ describe("BS376 and BS377", () => {
     ).toEqual([]);
   });
 });
+
+describe("BS378", () => {
+  const view = "create view public.v as select id from public.tasks;";
+
+  it("flags a before or after trigger on a view", () => {
+    const found = run([
+      { path: "supabase/schemas/app.sql", text: MODULE },
+      {
+        path: "supabase/schemas/views.sql",
+        text: `${view}\ncreate trigger t before insert on public.v for each row execute function public.touch();`,
+      },
+    ]).filter((finding) => finding.code === "BS378");
+
+    expect(found).toHaveLength(1);
+    expect(found[0]?.message).toContain("public.v");
+  });
+
+  it("accepts an instead of trigger and a trigger on a table", () => {
+    expect(
+      run([
+        { path: "supabase/schemas/app.sql", text: MODULE },
+        {
+          path: "supabase/schemas/views.sql",
+          text: `${view}\ncreate trigger a instead of insert on public.v for each row execute function public.touch();\ncreate trigger b before insert on public.tasks for each row execute function public.touch();`,
+        },
+      ]).filter((finding) => finding.code === "BS378"),
+    ).toStrictEqual([]);
+  });
+});
+
+describe("BS380", () => {
+  const check = (expression: string) =>
+    run([
+      {
+        path: "supabase/schemas/app.sql",
+        text: `create table public.t (a int, b int, constraint c check (${expression}));`,
+      },
+    ]).filter((finding) => finding.code === "BS380");
+
+  it("flags a between joined to another condition", () => {
+    expect(check("a between 1 and 5 and b > 0")).toHaveLength(1);
+    expect(check("b > 0 or a between 1 and 5")).toHaveLength(1);
+  });
+
+  it("accepts a lone between and plain comparisons", () => {
+    expect(check("a between 1 and 5")).toStrictEqual([]);
+    expect(check("a >= 1 and a <= 5 and b > 0")).toStrictEqual([]);
+  });
+});

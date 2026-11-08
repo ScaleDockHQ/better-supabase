@@ -1,0 +1,22 @@
+{
+  "name": "@better-supabase/validation-declarative",
+  "private": true,
+  "description": "An app that owns its tables in supabase/schemas and adopts better-supabase modules, held to an empty declarative sync.",
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "sql:check": "better-supabase upgrade --check",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "@types/pg": "catalog:",
+    "better-supabase": "workspace:*",
+    "oxlint": "catalog:",
+    "pg": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}
