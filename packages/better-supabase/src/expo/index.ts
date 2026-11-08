@@ -33,6 +33,7 @@ import { toExpo } from "../bridges/expo.ts";
 import { claimsOf } from "../core/claims.ts";
 import { DbException } from "../core/db-exception.ts";
 import { toProblem } from "../core/problem.ts";
+import { adapterBase } from "../server/adapter-base.ts";
 import { unexpectedResponse } from "../server/adapter.ts";
 import {
   accessOf,
@@ -46,7 +47,7 @@ import {
 } from "../server/cache-tags.ts";
 import { withBetterSupabase } from "../server/composite.ts";
 import { refreshFor } from "../server/request-kind.ts";
-import { defaultExpose, guard, respond } from "../server/respond.ts";
+import { guard, respond } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { GuardOptions, MiddlewareOptions } from "../server/respond.ts";
@@ -326,7 +327,7 @@ export function createExpo<
   options: ExpoOptions<V> = {},
 ): BetterExpo<M, F, E, C, P, B, V> {
   const server = createServer(betterSupabase, options);
-  const expose = options.exposeErrors ?? defaultExpose();
+  const { expose } = adapterBase(server, options);
   const handoffs = new Map<string, Handoff>();
   const boots = new Map<string, BootEntry>();
 

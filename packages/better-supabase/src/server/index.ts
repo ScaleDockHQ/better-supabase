@@ -10,6 +10,10 @@ export { PRIMARY_COOKIE } from "./replicas.ts";
 
 export type { ReplicaState } from "./replicas.ts";
 
+export { adapterBase } from "./adapter-base.ts";
+
+export type { AdapterBase, AdapterBaseOptions } from "./adapter-base.ts";
+
 export { createServer, extendServer } from "./server.ts";
 
 export { TENANT_HEADER } from "./server-types.ts";

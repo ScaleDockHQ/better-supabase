@@ -74,3 +74,20 @@ const qwik = defineFramework({
   ],
 });
 ```
+
+## Share the adapter plumbing
+
+A server adapter for another framework starts from `adapterBase(server,
+options)` in `better-supabase/server`. It returns the parts every adapter
+repeats: `expose` (the `exposeErrors` option, or true in development), `flush`
+(hands pending event sink sends to the option's `waitUntil`, or to the one you
+found on the platform), `refuse` (the Problem Details response for a refused
+caller) and `extend` (the core server plus your adapter's methods). Call
+`flush` in a `finally`, so a handler that throws still hands its sends over.
+
+```ts
+import { adapterBase, createServer } from "better-supabase/server";
+
+const server = createServer(betterSupabase, options);
+const { expose, flush, refuse } = adapterBase(server, options);
+```

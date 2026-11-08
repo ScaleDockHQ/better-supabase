@@ -50,6 +50,7 @@ import { isQuerySpec } from "../core/spec.ts";
 import { validate } from "../core/standard.ts";
 import { EMPTY_STATS } from "../core/stats.ts";
 import { tagFor } from "../core/tags.ts";
+import { adapterBase } from "../server/adapter-base.ts";
 import { bearerRequest, handle } from "../server/adapter.ts";
 import {
   accessOf,
@@ -65,7 +66,7 @@ import {
   formDataObject,
 } from "../server/kit.ts";
 import { resourceRouter } from "../server/resources.ts";
-import { defaultExpose, guard, settle } from "../server/respond.ts";
+import { guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 import {
   blockActionOf,
@@ -127,7 +128,7 @@ export function createNext<
     createServer(betterSupabase, options);
 
   const core = serverCore(base);
-  const expose = options.exposeErrors ?? defaultExpose();
+  const { expose } = adapterBase(base, options);
 
   if (
     options.cacheTags !== false &&
