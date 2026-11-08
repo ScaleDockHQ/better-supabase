@@ -65,7 +65,13 @@ export function parseAdvisorOutput(text: string): readonly Lint[] {
     throw new TypeError("supabase db advisors printed no lints");
   }
 
-  return list.filter(isLint);
+  const lints = list.filter(isLint);
+
+  if (list.length > 0 && lints.length === 0) {
+    throw new TypeError("supabase db advisors printed an unknown lint shape");
+  }
+
+  return lints;
 }
 
 export interface CliAdvisorOptions {

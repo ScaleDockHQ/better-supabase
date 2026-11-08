@@ -139,3 +139,11 @@ describe("withFallback", () => {
     ).toEqual(["cli"]);
   });
 });
+
+describe("parseAdvisorOutput shape drift", () => {
+  it("throws when no entry looks like a lint, so the caller falls back", () => {
+    expect(() => parseAdvisorOutput('[{"rule":"x"}]')).toThrow(
+      "unknown lint shape",
+    );
+  });
+});
