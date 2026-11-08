@@ -55,7 +55,7 @@ describe("seed", () => {
     const open = fakeConnect(db.pg);
 
     const result = await seed(
-      ["--entry", "supabase/seed.mjs", "--out", "db/seed.sql", "--apply"],
+      ["--entry", "supabase/seed.mjs", "--out", "db/seed.sql", "--yes"],
       open,
     );
 
@@ -93,7 +93,7 @@ describe("seed", () => {
 
     const open = fakeConnect(db.pg);
     await expect(
-      seed(["--entry", "supabase/seed.mjs", "--apply"], open),
+      seed(["--entry", "supabase/seed.mjs", "--yes"], open),
     ).rejects.toThrow("duplicate key");
     expect(db.texts().at(-1)).toBe("rollback");
     expect(open.closed()).toBe(1);
@@ -119,19 +119,17 @@ describe("seed", () => {
         },
       );
 
+    await run("postgresql://u:pw@db.abc.supabase.co:5432/postgres", ["--yes"]);
+    await run("postgresql://postgres@127.0.0.1:54322/postgres", ["--yes"]);
     await run("postgresql://u:pw@db.abc.supabase.co:5432/postgres", [
-      "--apply",
-    ]);
-    await run("postgresql://postgres@127.0.0.1:54322/postgres", ["--apply"]);
-    await run("postgresql://u:pw@db.abc.supabase.co:5432/postgres", [
-      "--apply",
+      "--yes",
       "--dry-run",
     ]);
 
     expect(requests).toEqual([
       {
         effect: "database-write",
-        detail: "seed --apply inserts rows into db.abc.supabase.co:5432",
+        detail: "seed --yes inserts rows into db.abc.supabase.co:5432",
       },
     ]);
   });

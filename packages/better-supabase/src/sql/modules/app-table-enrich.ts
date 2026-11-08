@@ -49,7 +49,7 @@ const qualified = (table: string): string =>
  * Each implicit column the app's table lacks, added with `add column if not
  * exists`, nullable unless it has a default. The id is unique instead of the
  * primary key, which the table may already have. The scope column gets a `not
- * valid` not-null check, which `db backfill` and `doctor --fix` (BS236)
+ * valid` not-null check, which `db backfill` and `doctor --yes` (BS236)
  * complete.
  */
 export function enrichSql(table: EnrichTable): string {

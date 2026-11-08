@@ -591,7 +591,7 @@ Runs SQL files and seeds against the database, backfills columns, and diffs the 
 Commands
   query     Runs each file as one multi-statement script, in order, optionally in a single transaction
   diff      Turns the declarative schema into a migration, diffing inside the running stack when the shadow database can't start
-  seed      Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --apply
+  seed      Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --yes
   backfill  Fills the null values of a column in batches, from the table a foreign key references or from a literal
 
 Global options
@@ -731,10 +731,9 @@ Docs: https://bettersupabase.com/docs/cli/db#query
 exports[`help > documents db seed 1`] = `
 "Usage: better-supabase db seed [options]
 
-Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --apply
+Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --yes
 
 Options
-  --apply                 Also insert the rows into the database ($DATABASE_URL, $SUPABASE_DB_URL, --db-url-stdin, or the local stack)
   --entry <file>          Defaults to database.seed.entry (supabase/seed.ts)
   --out <file>            Defaults to database.seed.output (supabase/seeds/000_better_supabase.sql)
   --defaults              Call the installed blocks' seed_<block>_defaults functions for --tenant (default every organization)
@@ -764,7 +763,7 @@ Global options
   --debug                    Print stack traces, the commands the CLI runs, and timings on stderr
   -h, --help                 Show help
 
-Side effects: Writes files, writes to the database with --apply, writes to the database with --tenant, writes to the database with --defaults, calls the Better Supabase cloud with --sample.
+Side effects: Writes files, writes to the database with --yes, writes to the database with --tenant, writes to the database with --defaults, calls the Better Supabase cloud with --sample.
 Docs: https://bettersupabase.com/docs/cli/db#seed
 "
 `;
@@ -816,11 +815,11 @@ exports[`help > documents dev env 1`] = `
 Writes the local stack's URL and keys from \`supabase status\` to an env file, keeping its other lines
 
 Options
-  --write <file>, --out  Env file to write, or - to print the variables. Defaults to env.output, then .env.local
-  --prefix <prefix>      Browser variable prefix: next, vite, expo, nuxt, astro, sveltekit, a literal prefix, or "none". Defaults to env.prefix, then one detected from your framework
-  --status-file <file>   Read \`supabase status -o json\` output from a file
-  --dry-run              Print what would change, with a diff, and write nothing
-  --check                Write nothing; exit 1 with a diff when a file would change
+  --out <file>          Env file to write, or - to print the variables. Defaults to env.output, then .env.local
+  --prefix <prefix>     Browser variable prefix: next, vite, expo, nuxt, astro, sveltekit, a literal prefix, or "none". Defaults to env.prefix, then one detected from your framework
+  --status-file <file>  Read \`supabase status -o json\` output from a file
+  --dry-run             Print what would change, with a diff, and write nothing
+  --check               Write nothing; exit 1 with a diff when a file would change
 
 Global options
   --cwd <dir>                Project directory
@@ -837,7 +836,7 @@ Global options
 
 Examples
   # Write the URL, keys and JWKS URL, plain and with NEXT_PUBLIC_
-  $ better-supabase dev env --write .env.supabase.local --prefix next
+  $ better-supabase dev env --out .env.supabase.local --prefix next
 
 Side effects: Writes files.
 Docs: https://bettersupabase.com/docs/cli/dev#env
@@ -1006,7 +1005,6 @@ Options
   --as <uuid>                   Plan as this authenticated user, and measure the claims the custom access token hook returns for them (BS405)
   --claims <json>               Plan with these JWT claims ({"role":"authenticated",...})
   --fix-grants                  Print the grant and revoke SQL BS404 asks for, to add to your schema or migration
-  --fix                         Run the SQL that resolves findings which carry a fix, such as validating a not valid check (BS236), against the database
   --update-baseline             Rewrite tooling.doctor.baseline to accept this run's errors and warnings, keeping each entry's reason
 
 Global options
@@ -1028,7 +1026,7 @@ Examples
   # Writes the findings for code scanning
   $ better-supabase doctor --format sarif --out doctor.sarif
 
-Side effects: Reads the database, writes to the database with --fix, calls the Supabase Management API with --project-ref, downloads from GitHub.
+Side effects: Reads the database, writes to the database with --yes, calls the Supabase Management API with --project-ref, downloads from GitHub.
 Docs: https://bettersupabase.com/docs/cli/doctor
 "
 `;
@@ -1040,14 +1038,12 @@ Writes the typed client from the database, then every other generated file the c
 
 Options
   --metadata <path|->                   Read a GeneratorMetadata document (- for stdin) and print one file on stdout
-  --emit <file>                         With --metadata, the file to print: schema, types, zod, valibot, json-schema, standard-schema. Defaults to schema
-  --out-dir <dir>                       With --metadata, write every generated file into this directory instead of printing one
-  --only <list,...>                     Tasks to run: types, sql, powersync, spec, seed, env. Defaults to gen.tasks, or every task the config sets up
+  --only <list,...>                     Tasks to run: types, sql, powersync, spec, seed, env. Defaults to gen.tasks, or every task the config sets up. With --metadata, the one file to print: schema, types, zod, valibot, json-schema, standard-schema
   --check                               Fail when a generated file is out of date
   --dry-run                             Print what would change and write nothing
   --force                               Overwrite a file at a generated path that the CLI did not write
   --save-snapshot                       Read the database and save the schema as a snapshot file instead of generating
-  --out <file>                          With --save-snapshot: defaults to database.source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json
+  --out <file>                          With --save-snapshot: the snapshot file, defaulting to database.source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json. With --metadata: the directory to write every generated file into
   --kind <snapshot|generator-metadata>  With --save-snapshot: snapshot (the default) or generator-metadata (postgrest-typegen's input)
   --snapshot <file>                     Read a saved snapshot instead of the database
   --db-url-stdin                        Read the connection string from stdin instead of the config, $DATABASE_URL or $SUPABASE_DB_URL

@@ -23,7 +23,7 @@ export const SAVE_SNAPSHOT_ARGS = {
   out: {
     type: "string",
     description:
-      "With --save-snapshot: defaults to database.source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json",
+      "With --save-snapshot: the snapshot file, defaulting to database.source.snapshot, supabase/snapshot.json, or supabase/generator-metadata.json. With --metadata: the directory to write every generated file into",
     valueHint: "file",
   },
   kind: {

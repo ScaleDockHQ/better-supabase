@@ -140,11 +140,6 @@ const ARGS = {
     description:
       "Print the grant and revoke SQL BS404 asks for, to add to your schema or migration",
   },
-  fix: {
-    type: "boolean",
-    description:
-      "Run the SQL that resolves findings which carry a fix, such as validating a not valid check (BS236), against the database",
-  },
   "update-baseline": {
     type: "boolean",
     description:
@@ -188,13 +183,13 @@ export interface DoctorOptions {
   readonly dbUrl?: string;
   /** Ends the database connection (Ctrl-C). */
   readonly signal?: AbortSignal;
-  /** Asks before `--fix` writes to a database that is not local. */
+  /** Asks before `--yes` writes to a database that is not local. */
   readonly requireConsent?: (request: ConsentRequest) => void;
-  /** Reports each statement `--fix` ran, on stderr. */
+  /** Reports each statement `--yes` ran, on stderr. */
   readonly log?: (line: string) => void;
 }
 
-/** Where `--fix` writes, for the consent detail: a host, or the project. */
+/** Where `--yes` writes, for the consent detail: a host, or the project. */
 async function fixTarget(
   config: ResolvedConfig,
   env: CliEnv,
@@ -250,7 +245,7 @@ async function applyFixes(
       await database.query("rollback").catch(() => []);
       left.push({
         ...finding,
-        message: `${finding.message} doctor --fix failed: ${errorText(cause)}`,
+        message: `${finding.message} doctor --yes failed: ${errorText(cause)}`,
       });
     }
   }
@@ -373,7 +368,7 @@ export async function runDoctor(
 
   const source: SnapshotSource = {
     // Statistics, plans, hook calls and fixes need the database, not the saved snapshot.
-    ...(stats || planning || hookUser || args.fix === true
+    ...(stats || planning || hookUser || args.yes === true
       ? { live: true }
       : {}),
     ...(snapshotPath ? { snapshotPath } : {}),
@@ -521,7 +516,7 @@ export async function runDoctor(
   try {
     ran = await runRules(context, rules);
 
-    if (args.fix === true) {
+    if (args.yes === true) {
       const count = ran.filter((finding) => finding.fix !== undefined).length;
 
       ({ left: ran } = await applyFixes(
@@ -533,7 +528,7 @@ export async function runDoctor(
           if (!target.local) {
             options.requireConsent?.({
               effect: "database-write",
-              detail: `doctor --fix runs ${String(count)} fix(es) against ${target.where}`,
+              detail: `doctor --yes runs ${String(count)} fix(es) against ${target.where}`,
             });
           }
         },
@@ -714,7 +709,7 @@ export const doctorCommand: AnyCommand = defineCliCommand({
         ...(args["explain-write"] === undefined ? [] : ["--explain-write"]),
         ...(args.args === undefined ? [] : ["--args"]),
         ...(args.as === undefined ? [] : ["--as"]),
-        ...(args.fix === true ? ["--fix"] : []),
+        ...(args.yes === true ? ["--yes"] : []),
       ]);
 
       let snapshot: Snapshot;

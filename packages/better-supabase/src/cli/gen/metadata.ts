@@ -40,7 +40,7 @@ type Emit = (typeof EMITS)[number];
 const isEmit = (value: string): value is Emit =>
   EMITS.some((emit) => emit === value);
 
-/** The configured generator for an `--emit` target, or one with its defaults. */
+/** The configured generator for an `--only` target, or one with its defaults. */
 function emitGenerator(
   config: ResolvedConfig,
   emit: Emit,
@@ -73,7 +73,7 @@ function emitGenerator(
 
     default: {
       const unhandled: never = emit;
-      throw new Error(`unknown --emit ${String(unhandled)}`);
+      throw new Error(`unknown --only ${String(unhandled)}`);
     }
   }
 }
@@ -128,7 +128,7 @@ async function renderEmit(
   if (!file || picked.length > 1) {
     throw new CliError(
       "usage",
-      `--emit ${emit} expects one file, and the generator wrote ${picked.length}. Pass --out-dir <dir> to write them all.`,
+      `--only ${emit} expects one file, and the generator wrote ${picked.length}. Pass --out <dir> to write them all.`,
     );
   }
 
@@ -165,8 +165,8 @@ export async function readMetadataSnapshot(
 }
 
 /**
- * The `gen` flags that decide whether `--metadata`, `--emit` and `--out-dir`
- * fit together.
+ * The `gen` flags that decide whether `--metadata`, `--only` and `--out` fit
+ * together.
  */
 export interface MetadataFlags {
   readonly metadata?: string;
@@ -200,13 +200,6 @@ export function refuseWithMetadata(conflicting: readonly string[]): void {
  */
 export function checkMetadataFlags(flags: MetadataFlags): void {
   if (flags.metadata === undefined) {
-    if (flags.emit !== undefined || flags.out !== undefined) {
-      throw new CliError(
-        "usage",
-        `${flags.emit === undefined ? "--out-dir" : "--emit"} only applies with --metadata`,
-      );
-    }
-
     return;
   }
 
@@ -214,11 +207,11 @@ export function checkMetadataFlags(flags: MetadataFlags): void {
 
   const problem =
     flags.out !== undefined && flags.emit !== undefined
-      ? "--emit picks the one file gen prints; --out-dir writes them all. Pass one of them."
+      ? "--only picks the one file gen prints; --out writes them all. Pass one of them."
       : flags.out === undefined && flags.check
-        ? "--check with --metadata needs --out-dir <dir>"
+        ? "--check with --metadata needs --out <dir>"
         : flags.out === undefined && flags.json
-          ? "--metadata prints the generated code on stdout, so --json has nothing to print. Pass --out-dir <dir> for the JSON summary."
+          ? "--metadata prints the generated code on stdout, so --json has nothing to print. Pass --out <dir> for the JSON summary."
           : undefined;
 
   if (problem !== undefined) {
@@ -249,8 +242,8 @@ export const METADATA_REJECTED = 65;
 
 /**
  * `gen --metadata`: the out-of-process generator contract of
- * `@supabase/typegen`. Without `--out-dir` it prints one file on stdout and
- * everything else on stderr; with `--out-dir` it writes the usual files there.
+ * `@supabase/typegen`. Without `--out` it prints one file on stdout and
+ * everything else on stderr; with `--out` it writes the usual files there.
  */
 export async function runMetadataGen(
   options: MetadataGenOptions,
@@ -261,7 +254,7 @@ export async function runMetadataGen(
   if (!isEmit(emit)) {
     throw new CliError(
       "invalid_value",
-      `--emit must be one of ${EMITS.join(", ")}, got "${emit}"`,
+      `--only must be one of ${EMITS.join(", ")}, got "${emit}"`,
     );
   }
 

@@ -31,7 +31,7 @@ export const NOT_VALID_RULES: readonly Rule[] = [
     severity: "info",
     title: "Not valid check ready to validate",
     description:
-      "A check constraint was added `not valid`, the expand step for a column that existing rows don't fill yet, and no row fails it any more. `doctor --fix` runs `alter table ... validate constraint`, which scans the table without blocking writes. After that, `set not null` on the column needs no scan. A check that rows still fail is reported as info, with the `db backfill` command for a not-null check; BS238 reports the scope column of an enriched app table instead. Needs a database; saved snapshots skip it.",
+      "A check constraint was added `not valid`, the expand step for a column that existing rows don't fill yet, and no row fails it any more. `doctor --yes` runs `alter table ... validate constraint`, which scans the table without blocking writes. After that, `set not null` on the column needs no scan. A check that rows still fail is reported as info, with the `db backfill` command for a not-null check; BS238 reports the scope column of an enriched app table instead. Needs a database; saved snapshots skip it.",
     async check(context) {
       const db = context.database;
 
@@ -109,8 +109,8 @@ order by 1, 2, 3`,
           findings.push({
             message: `${where} has the not valid check ${check.name} (${check.expression}), and rows still fail it.${
               column === undefined
-                ? " Fix those rows, then run `better-supabase doctor --fix`."
-                : ` Fill ${column} with \`better-supabase db backfill ${check.schema === "public" ? "" : `${check.schema}.`}${check.table}.${column} --from <table.column> via <column>\` (or --value), then run \`better-supabase doctor --fix\`.`
+                ? " Fix those rows, then run `better-supabase doctor --yes`."
+                : ` Fill ${column} with \`better-supabase db backfill ${check.schema === "public" ? "" : `${check.schema}.`}${check.table}.${column} --from <table.column> via <column>\` (or --value), then run \`better-supabase doctor --yes\`.`
             }`,
             target,
             object,
@@ -119,7 +119,7 @@ order by 1, 2, 3`,
         }
 
         findings.push({
-          message: `${where} has the not valid check ${check.name} (${check.expression}), and no row fails it. Run \`better-supabase doctor --fix\` to validate it${
+          message: `${where} has the not valid check ${check.name} (${check.expression}), and no row fails it. Run \`better-supabase doctor --yes\` to validate it${
             column === undefined
               ? "."
               : `; then \`alter table ${table} alter column ${sqlIdent(column)} set not null\` needs no scan.`

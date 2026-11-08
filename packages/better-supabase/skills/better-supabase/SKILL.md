@@ -151,7 +151,7 @@ the `better-supabase-auth` skill.
   column with a `not valid` not-null check: new rows need an owner, old rows
   stay reachable only by the service role. Fill them with
   `pnpm better-supabase db backfill <table>.<column> --from <table.column> via <column>`
-  (or `--value`), then run `pnpm better-supabase doctor --fix` to validate
+  (or `--value`), then run `pnpm better-supabase doctor --yes` to validate
   the check. Doctor reports the rows as BS238. See
   https://bettersupabase.com/docs/blocks/own-schemas.
 - A block's React hooks are registry items: `npx shadcn add
@@ -218,7 +218,7 @@ const customers = result.data;
 - No command takes a connection string as an argument. Set `$DATABASE_URL`, `$SUPABASE_DB_URL` or `database.source.dbUrl`, or pipe it in with `--db-url-stdin`.
 - `--json` prints one envelope on stdout: `status`, the result under `data`, Problem Details with a `code` under `error`, and the commands to run under `next`. `--yes` and `CI` turn prompts off.
 - Exit codes: 0 success, 1 a failure or finding (`--check` drift, doctor errors), 2 a usage, config or environment problem, 3 when the user has to act. Each error code is listed at https://bettersupabase.com/docs/cli/errors.
-- When the CLI detects an agent it prints JSON and never prompts. Failures print one error document line on stderr (`reason`, `message`, `next`, `data`, `userActionRequired`, `retryable`). Exit code 2 with `input_required` lists `data.missing` flags and their `data.choices`; run the `next` command with the value filled in. `confirmation_required` means the user must agree first (`--force` over their files, `db seed --apply` on a remote database): ask them, then run the `next` command with `--yes --effects-digest <digest>`. Never pass `--effects-digest` without asking. See https://bettersupabase.com/docs/cli/agent-mode.
+- When the CLI detects an agent it prints JSON and never prompts. Failures print one error document line on stderr (`reason`, `message`, `next`, `data`, `userActionRequired`, `retryable`). Exit code 2 with `input_required` lists `data.missing` flags and their `data.choices`; run the `next` command with the value filled in. `confirmation_required` means the user must agree first (`--force` over their files, `db seed --yes` on a remote database): ask them, then run the `next` command with `--yes --effects-digest <digest>`. Never pass `--effects-digest` without asking. See https://bettersupabase.com/docs/cli/agent-mode.
 - `better-supabase mcp` serves the same commands as MCP tools on stdio, read-only unless started with `--allow-writes`. A write tool first returns `confirmation_required` with a `data.digest`; ask the user, then call it again with the same arguments and `effectsDigest` set to the digest. See https://bettersupabase.com/docs/cli/mcp.
 
 ## Don't

@@ -253,7 +253,7 @@ describe("doctor command", () => {
     });
   });
 
-  it("runs the fixes with --fix after consent, and drops the fixed findings", async () => {
+  it("runs the fixes with --yes after consent, and drops the fixed findings", async () => {
     const ran: string[] = [];
 
     const database = {
@@ -282,7 +282,7 @@ describe("doctor command", () => {
     const snapshot = await parseSnapshot(fixture);
 
     const result = await doctor(
-      ["--only", "BS236", "--fix", "--json"],
+      ["--only", "BS236", "--yes", "--json"],
       // SAFETY: the fake returns the rows BS236 asks for.
       { snapshot, database, requireConsent, log } as Parameters<
         typeof runDoctor
@@ -300,7 +300,7 @@ describe("doctor command", () => {
     expect(findings(result)).toEqual([]);
 
     const local = await doctor(
-      ["--only", "BS236", "--fix", "--json"],
+      ["--only", "BS236", "--yes", "--json"],
       // SAFETY: as above, with a fix that fails.
       {
         snapshot,
@@ -322,13 +322,13 @@ describe("doctor command", () => {
 
     expect(requireConsent).toHaveBeenCalledExactlyOnceWith({
       effect: "database-write",
-      detail: "doctor --fix runs 1 fix(es) against db.example.com:5432",
+      detail: "doctor --yes runs 1 fix(es) against db.example.com:5432",
     });
     expect(findings(local)).toEqual([
       expect.objectContaining({
         code: "BS236",
         message: expect.stringContaining(
-          "doctor --fix failed: check constraint is violated by some row",
+          "doctor --yes failed: check constraint is violated by some row",
         ),
       }),
     ]);
@@ -349,7 +349,7 @@ describe("doctor command", () => {
     ];
 
     const clean = await doctor(
-      ["--only", "BS236", "--fix", "--json"],
+      ["--only", "BS236", "--yes", "--json"],
       // SAFETY: the fake answers BS236 with no not valid checks.
       {
         snapshot,
@@ -362,7 +362,7 @@ describe("doctor command", () => {
     expect(requireConsent).not.toHaveBeenCalled();
 
     const quiet = await doctor(
-      ["--only", "BS236", "--fix", "--json"],
+      ["--only", "BS236", "--yes", "--json"],
       // SAFETY: the fake returns BS236's rows and runs the fix; no log is passed.
       {
         snapshot,
@@ -385,7 +385,7 @@ describe("doctor command", () => {
     expect(findings(quiet)).toEqual([]);
 
     const failed = await doctor(
-      ["--only", "BS236", "--fix", "--json"],
+      ["--only", "BS236", "--yes", "--json"],
       // SAFETY: the fake returns BS236's rows, then fails the fix and its rollback.
       {
         snapshot,
@@ -410,13 +410,13 @@ describe("doctor command", () => {
 
     expect(requireConsent).toHaveBeenCalledExactlyOnceWith({
       effect: "database-write",
-      detail: "doctor --fix runs 1 fix(es) against the database",
+      detail: "doctor --yes runs 1 fix(es) against the database",
     });
     expect(findings(failed)).toEqual([
       expect.objectContaining({
         code: "BS236",
         message: expect.stringContaining(
-          "doctor --fix failed: connection lost",
+          "doctor --yes failed: connection lost",
         ),
       }),
     ]);

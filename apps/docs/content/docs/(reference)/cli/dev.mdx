@@ -79,12 +79,12 @@ Only the URL and the publishable key get the prefix. The secret key, the
 database URL and the JWT secret never do, because a prefixed variable is
 bundled into client code ([BS501](/docs/cli/doctor#bs501)).
 
-Values are never printed unless you pass `--write -`, which prints the
+Values are never printed unless you pass `--out -`, which prints the
 variables on stdout instead of writing a file. The file is readable by
 your user only (mode `0600`), even when its contents didn't change. `dev env`
 warns when the file isn't in `.gitignore`, and when your Supabase CLI only
 prints legacy keys.
-`--write <file>` (or its older name `--out`) writes another file than
+`--out <file>` writes another file than
 `.env.local` (`env.output` in the config sets it for every run, and
 `env.prefix` the prefix), and
 `--status-file <file>` reads saved `supabase status -o json` output instead of running the
@@ -94,7 +94,7 @@ never lands outside the project. `--dry-run` and `--check` name the file
 without showing the keys ([writing files](/docs/cli#writing-files)).
 
 ```bash
-pnpm better-supabase dev env --write .env.supabase.local --prefix next
+pnpm better-supabase dev env --out .env.supabase.local --prefix next
 ```
 
 A separate file keeps the stack's values apart from the ones you edit. In
@@ -223,7 +223,7 @@ Side effects: Stops or destroys local stacks.
 
 ### One stack per purpose
 
-`db seed --apply` and [`db query`](/docs/cli/db) connect to the stack in
+`db seed --yes` and [`db query`](/docs/cli/db) connect to the stack in
 `supabase/config.toml`. To keep a second stack for tests or a demo, give it
 its own `[db] port` in `supabase/stacks/<name>/config.toml` and pass
 `--stack <name>` or set `BETTER_SUPABASE_STACK=<name>`. Without a port there, the

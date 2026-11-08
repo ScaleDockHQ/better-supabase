@@ -104,7 +104,7 @@ export interface Finding {
   readonly location?: Location;
   readonly object?: SqlObject;
   readonly help: string;
-  /** SQL that `doctor --fix` runs against the database to resolve it. */
+  /** SQL that `doctor --yes` runs against the database to resolve it. */
   readonly fix?: string;
 }
 

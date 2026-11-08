@@ -16,6 +16,27 @@ const REMOVED: readonly RemovedFlag[] = [
     replacement: "--yes --effects-digest <digest>",
   },
   {
+    path: ["db", "seed"],
+    flag: "--apply",
+    replacement: "--yes (it inserts the rows; --dry-run previews)",
+  },
+  {
+    path: ["doctor"],
+    flag: "--fix",
+    replacement: "--yes (it runs the fixes against the database)",
+  },
+  { path: ["dev", "env"], flag: "--write", replacement: "--out <file>" },
+  {
+    path: ["gen"],
+    flag: "--emit",
+    replacement: "--only <file> with --metadata",
+  },
+  {
+    path: ["gen"],
+    flag: "--out-dir",
+    replacement: "--out <dir> with --metadata",
+  },
+  {
     path: ["gen"],
     flag: "--watch",
     replacement: "the dev command (better-supabase dev)",

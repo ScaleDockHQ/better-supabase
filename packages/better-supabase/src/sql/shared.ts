@@ -392,7 +392,7 @@ export function notNullCheckName(table: string, column: string): string {
  * adds `check (<column> is not null) not valid` once, without scanning the
  * table. Postgres checks it on every insert and update from then on, so add it
  * after `better-supabase db backfill` filled the column, or updates to rows
- * that are still null fail. `doctor --fix` validates it once no row is null
+ * that are still null fail. `doctor --yes` validates it once no row is null
  * (BS236), and then `set not null` needs no scan. `table` and `column` are
  * quoted identifiers, the table schema-qualified.
  */

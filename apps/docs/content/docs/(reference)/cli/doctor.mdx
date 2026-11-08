@@ -38,11 +38,10 @@ with 1 when there are errors, or with any warning under `--fail-on warning`.
 | `--claims <json>`          | With `--explain` or `--explain-write`: plan with these JWT claims                                                                                                                                                                                                  |
 | `--fix-grants`             | Print the grant and revoke SQL that [BS404](#bs404) asks for, as one block for a schema file or migration                                                                                                                                                          |
 | `--update-baseline`        | Rewrite the [baseline](#baseline) file to accept this run's errors and warnings                                                                                                                                                                                    |
-| `--fix`                    | Run the SQL of the findings that carry a fix against the database, such as validating a not valid check ([BS236](#bs236)), and leave them out of the report. Asks before it writes to a database that is not local                                                 |
 
 Doctor never prints env values, only variable names and line numbers.
 
-Side effects: Reads the database, writes to the database with `--fix`, calls the Supabase Management API with `--project-ref`, downloads from GitHub.
+Side effects: Reads the database, writes to the database with `--yes`, calls the Supabase Management API with `--project-ref`, downloads from GitHub.
 
 ## In CI
 
@@ -777,7 +776,7 @@ Add the constraint with `not valid`, then run
 without blocking writes. A `references` or `check` written inline in
 `add column` can't be `not valid`, so BS230 flags it too: add the column,
 then the constraint. For a check, [BS236](#bs236) tells you when the rows
-pass and `doctor --fix` validates it.
+pass and `doctor --yes` validates it.
 
 ### BS231
 
@@ -835,7 +834,7 @@ column nullable, adds `check (column is not null) not valid` so new rows must
 fill it, backfills the old rows with [`db backfill`](/docs/cli/db#backfill),
 and then validates the check. BS236 reads the checks the database holds as not
 valid and tests each one against the rows. When no row fails it, the finding
-carries the fix, and `doctor --fix` runs
+carries the fix, and `doctor --yes` runs
 `alter table ... validate constraint ...` without a statement timeout. That
 scans the table but doesn't block reads or writes. After it, `set not null` on
 the column needs no scan. When rows still fail, the finding names the
@@ -876,7 +875,7 @@ that already has rows adds the scope column (`organization_id`, or `user_id` in
 match nobody for a row without a value, so only the service role reads or
 writes it, and updates to it fail the check. BS238 counts those rows and names
 the [`db backfill`](/docs/cli/db#backfill) command that fills them; then
-`doctor --fix` validates the check ([BS236](#bs236)). BS238 needs a database,
+`doctor --yes` validates the check ([BS236](#bs236)). BS238 needs a database,
 so a saved snapshot skips it. The check is `not valid` on purpose; see
 [Your own schemas](/docs/blocks/own-schemas#why-the-check-is-not-valid).
 

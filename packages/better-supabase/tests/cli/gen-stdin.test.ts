@@ -88,8 +88,8 @@ describe("gen --metadata", () => {
     expect(fromFile.stdout).toBe(fromStdin.stdout);
   });
 
-  it("prints database.types.ts with --emit types, matching gen from the snapshot", async () => {
-    const result = await gen(["--metadata", "-", "--emit", "types"]);
+  it("prints database.types.ts with --only types, matching gen from the snapshot", async () => {
+    const result = await gen(["--metadata", "-", "--only", "types"]);
     expect(result.code).toBe(0);
 
     const config = resolveConfig(
@@ -104,16 +104,22 @@ describe("gen --metadata", () => {
   });
 
   it.each(["zod", "valibot"])(
-    "prints the %s generator's file with --emit",
+    "prints the %s generator's file with --only",
     async (emit) => {
-      const result = await gen(["--metadata", "-", "--emit", emit]);
+      const result = await gen(["--metadata", "-", "--only", emit]);
       expect(result.code).toBe(0);
       expect(result.stdout).toContain("export const validators");
     },
   );
 
-  it("prints the JSON Schema document with --emit json-schema", async () => {
-    const result = await gen(["--metadata", "-", "--emit", "json-schema"]);
+  it("prints the Standard Schema generator's file with --only standard-schema", async () => {
+    const result = await gen(["--metadata", "-", "--only", "standard-schema"]);
+    expect(result.code).toBe(0);
+    expect(result.stdout.length).toBeGreaterThan(0);
+  });
+
+  it("prints the JSON Schema document with --only json-schema", async () => {
+    const result = await gen(["--metadata", "-", "--only", "json-schema"]);
     expect(result.code).toBe(0);
     expect(JSON.parse(result.stdout)).toHaveProperty("$defs");
   });
@@ -146,15 +152,13 @@ describe("gen --metadata", () => {
     const cases = [
       [["--metadata", "-", "--watch"], /--watch was removed.*dev command/],
       [["--metadata", "-", "--snapshot", "s.json"], /--snapshot/],
-      [["--metadata", "-", "--emit", "sql"], /--emit must be one of/],
+      [["--metadata", "-", "--only", "sql"], /--only must be one of/],
       [
-        ["--metadata", "-", "--emit", "types", "--out-dir", "x"],
+        ["--metadata", "-", "--only", "types", "--out", "x"],
         /Pass one of them/,
       ],
       [["--metadata", "-", "--check"], /needs --out/],
       [["--metadata", "-", "--json"], /--json has nothing to print/],
-      [["--emit", "types"], /--emit only applies with --metadata/],
-      [["--out-dir", "x"], /--out-dir only applies with --metadata/],
     ] as const;
 
     for (const [args, reason] of cases as readonly (readonly [
@@ -169,7 +173,7 @@ describe("gen --metadata", () => {
   });
 
   it("writes the multi-file layout into --out, leaving the configured paths and the manifest alone", async () => {
-    const result = await gen(["--metadata", "-", "--out-dir", "out"]);
+    const result = await gen(["--metadata", "-", "--out", "out"]);
     expect(result.code).toBe(0);
     expect(result.stdout).toContain("out/generated.ts");
 
@@ -188,7 +192,7 @@ describe("gen --metadata", () => {
         join(root, "node_modules/.cache/better-supabase/gen-manifest.json"),
       ),
     ).toBe(false);
-    const check = await gen(["--metadata", "-", "--out-dir", "out", "--check"]);
+    const check = await gen(["--metadata", "-", "--out", "out", "--check"]);
     expect(check.code).toBe(0);
     expect(
       await readFile(join(root, "out/generated-schema.ts"), "utf-8"),

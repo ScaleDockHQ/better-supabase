@@ -579,7 +579,7 @@ export const MIGRATION_SAFETY_RULES: readonly Rule[] = [
     severity: "warning",
     title: "Constraint added without not valid",
     description:
-      "A migration adds a foreign key or check to an existing table without `not valid`, so Postgres checks every row while it holds the lock. That includes a `references` or `check` written inline in `add column`, which can't be `not valid`. Add the column first, then the constraint with `not valid`, then run `alter table ... validate constraint` in a later statement, which takes a lighter lock (`doctor --fix` does it for a check, BS236).",
+      "A migration adds a foreign key or check to an existing table without `not valid`, so Postgres checks every row while it holds the lock. That includes a `references` or `check` written inline in `add column`, which can't be `not valid`. Add the column first, then the constraint with `not valid`, then run `alter table ... validate constraint` in a later statement, which takes a lighter lock (`doctor --yes` does it for a check, BS236).",
     check: perStatement(constraintWithoutNotValid),
   },
   {

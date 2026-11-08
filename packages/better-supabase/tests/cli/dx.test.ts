@@ -583,7 +583,7 @@ describe("env", () => {
     );
   });
 
-  it("writes plain and prefixed variables with --write and --prefix next", async () => {
+  it("writes plain and prefixed variables with --out and --prefix next", async () => {
     await project({}, { "status.json": JSON.stringify(status) });
 
     const result = await run(
@@ -592,7 +592,7 @@ describe("env", () => {
         "env",
         "--status-file",
         "status.json",
-        "--write",
+        "--out",
         ".env.supabase.local",
         "--prefix",
         "next",
@@ -620,8 +620,8 @@ describe("env", () => {
   });
 
   it.each([
-    ["--write", "../.env.local"],
-    ["--write", "/tmp/better-supabase-escape.env"],
+    ["--out", "../.env.local"],
+    ["--out", "/tmp/better-supabase-escape.env"],
     ["--status-file", "../status.json"],
   ])("refuses %s %s outside the project root", async (flag, path) => {
     await project({}, { "status.json": JSON.stringify(status) });

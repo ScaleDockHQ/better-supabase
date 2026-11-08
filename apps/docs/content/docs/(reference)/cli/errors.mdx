@@ -79,6 +79,14 @@ names the old flag, and `data.suggestion` what to use instead, such as
 `--yes --effects-digest <digest>` for `--confirm` or the `dev` command for
 `gen --watch`. Exit code 2.
 
+| Removed flag          | Use instead                                            |
+| --------------------- | ------------------------------------------------------ |
+| `db seed --apply`     | `--yes`, which inserts the rows (`--dry-run` previews) |
+| `doctor --fix`        | `--yes`, which runs the fixes against the database     |
+| `dev env --write`     | `--out <file>`                                         |
+| `gen --emit <file>`   | `--only <file>` with `--metadata`                      |
+| `gen --out-dir <dir>` | `--out <dir>` with `--metadata`                        |
+
 ## `missing_value`
 
 The command needs a value it didn't get, such as a connection string on
@@ -201,7 +209,7 @@ holds the command to run with the answer filled in. Exit code 2. See
 
 The command would make a destructive change, and needs the user's explicit
 confirmation. Agent mode asks for it before `--force` overwrites files the CLI
-didn't write and before `db seed --apply` writes to a database that isn't on
+didn't write and before `db seed --yes` writes to a database that isn't on
 this machine. `data.effects` lists what would change. Rerun the command with
 `--yes --effects-digest <digest>`, the command that `next` shows (the digest is
 also in `data.digest`, and covers only that command line); `--yes` alone

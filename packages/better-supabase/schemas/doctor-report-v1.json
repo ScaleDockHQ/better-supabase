@@ -234,7 +234,7 @@
           },
           "fix": {
             "type": "string",
-            "description": "SQL that `doctor --fix` runs against the database to resolve the finding."
+            "description": "SQL that `doctor --yes` runs against the database to resolve the finding."
           },
           "location": {
             "type": "object",

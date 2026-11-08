@@ -18,20 +18,9 @@ const ARGS = {
       "Read a GeneratorMetadata document (- for stdin) and print one file on stdout",
     valueHint: "path|-",
   },
-  emit: {
-    type: "string",
-    description: `With --metadata, the file to print: ${EMITS.join(", ")}. Defaults to schema`,
-    valueHint: "file",
-  },
-  "out-dir": {
-    type: "string",
-    description:
-      "With --metadata, write every generated file into this directory instead of printing one",
-    valueHint: "dir",
-  },
   only: {
     type: "string",
-    description: `Tasks to run: ${GEN_TASKS.join(", ")}. Defaults to gen.tasks, or every task the config sets up`,
+    description: `Tasks to run: ${GEN_TASKS.join(", ")}. Defaults to gen.tasks, or every task the config sets up. With --metadata, the one file to print: ${EMITS.join(", ")}`,
     valueHint: "list",
   },
   check: {
@@ -60,8 +49,6 @@ export const genCommand: AnyCommand = defineCliCommand({
     if (args["save-snapshot"] === true) {
       const generating = [
         ["--metadata", args.metadata],
-        ["--emit", args.emit],
-        ["--out-dir", args["out-dir"]],
         ["--only", args.only],
         ["--force", args.force],
       ].find(([, value]) => value !== undefined && value !== false);
@@ -76,19 +63,26 @@ export const genCommand: AnyCommand = defineCliCommand({
       return saveSnapshot(args, context);
     }
 
-    const snapshotOnly = args.out ?? args.kind;
+    const snapshotOnly =
+      args.metadata === undefined ? (args.out ?? args.kind) : args.kind;
 
     if (snapshotOnly !== undefined) {
       throw new CliError(
         "usage",
-        `--${args.out === undefined ? "kind" : "out"} works with --save-snapshot.`,
+        args.out === undefined || args.metadata !== undefined
+          ? "--kind works with --save-snapshot."
+          : "--out works with --save-snapshot or --metadata.",
       );
     }
 
+    const emit = args.metadata === undefined ? undefined : args.only;
+
     checkMetadataFlags({
       ...(args.metadata === undefined ? {} : { metadata: args.metadata }),
-      ...(args.emit === undefined ? {} : { emit: args.emit }),
-      ...(args["out-dir"] === undefined ? {} : { out: args["out-dir"] }),
+      ...(emit === undefined ? {} : { emit }),
+      ...(args.metadata === undefined || args.out === undefined
+        ? {}
+        : { out: args.out }),
       check: args.check === true,
       json: context.json,
       conflicting: sourceFlags(args),
@@ -104,8 +98,8 @@ export const genCommand: AnyCommand = defineCliCommand({
         metadata: args.metadata,
         check: args.check === true,
         paint: context.paint,
-        ...(args.emit === undefined ? {} : { emit: args.emit }),
-        ...(args["out-dir"] === undefined ? {} : { out: args["out-dir"] }),
+        ...(emit === undefined ? {} : { emit }),
+        ...(args.out === undefined ? {} : { out: args.out }),
       });
     }
 

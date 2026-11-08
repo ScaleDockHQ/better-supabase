@@ -244,7 +244,7 @@ describe("blocks over an app's own declarative schema, on the local stack", () =
     expect(await readFile(join(root, INVOICES), "utf-8")).toBe(original);
   });
 
-  it("backfills the owner, then doctor --fix validates the check", async () => {
+  it("backfills the owner, then doctor --yes validates the check", async () => {
     expect(codes(await doctor(["--only", "BS236,BS238"]))).toEqual(["BS238"]);
 
     await expect(

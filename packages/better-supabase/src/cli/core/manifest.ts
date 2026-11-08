@@ -494,7 +494,7 @@ export const COMMANDS: readonly CommandSpec[] = [
         examples: [
           {
             command:
-              "better-supabase dev env --write .env.supabase.local --prefix next",
+              "better-supabase dev env --out .env.supabase.local --prefix next",
             description:
               "Write the URL, keys and JWKS URL, plain and with NEXT_PUBLIC_",
           },
@@ -598,11 +598,11 @@ export const COMMANDS: readonly CommandSpec[] = [
       {
         name: "seed",
         description:
-          "Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --apply",
+          "Renders the fixtures from defineSeed() (better-supabase/testing) to SQL, and runs them with --yes",
         docs: "/docs/cli/db#seed",
         effects: [
           FILES,
-          { kind: "database", access: "write", when: "--apply" },
+          { kind: "database", access: "write", when: "--yes" },
           { kind: "database", access: "write", when: "--tenant" },
           { kind: "database", access: "write", when: "--defaults" },
           { kind: "network", target: "cloud", when: "--sample" },
@@ -654,7 +654,7 @@ export const COMMANDS: readonly CommandSpec[] = [
     ],
     effects: [
       READS_DATABASE,
-      { kind: "database", access: "write", when: "--fix" },
+      { kind: "database", access: "write", when: "--yes" },
       MANAGEMENT_API,
       { kind: "network", target: "github" },
     ],

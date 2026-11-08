@@ -1193,7 +1193,7 @@ pnpm better-supabase db backfill projects.organization_id --value "'0b7c...'::uu
 ```
 
 It touches only rows where the column is null, so you can run it again until
-nothing is left. Then run `better-supabase doctor --fix`: it validates the
+nothing is left. Then run `better-supabase doctor --yes`: it validates the
 check ([BS236](/docs/cli/doctor#bs236)), which scans the table without
 blocking reads or writes.
 
@@ -1201,9 +1201,9 @@ blocking reads or writes.
 
 | Code                            | What it means                                                                                                                    |
 | ------------------------------- | -------------------------------------------------------------------------------------------------------------------------------- |
-| [BS236](/docs/cli/doctor#bs236) | a `not valid` check that no row fails any more; `doctor --fix` validates it                                                      |
+| [BS236](/docs/cli/doctor#bs236) | a `not valid` check that no row fails any more; `doctor --yes` validates it                                                      |
 | [BS237](/docs/cli/doctor#bs237) | an enriched table keeps permissive policies or grants of its own beyond what its scope grants                                    |
-| [BS238](/docs/cli/doctor#bs238) | an enriched table has rows without an owner; it names the `db backfill` command, and after it `doctor --fix` validates the check |
+| [BS238](/docs/cli/doctor#bs238) | an enriched table has rows without an owner; it names the `db backfill` command, and after it `doctor --yes` validates the check |
 | [BS342](/docs/cli/doctor#bs342) | a column of your table has a type the block can't write into                                                                     |
 | [BS347](/docs/cli/doctor#bs347) | a block's `bsb_` policy can let a user reach rows your own policies keep closed                                                  |
 | [BS348](/docs/cli/doctor#bs348) | your table keeps its own `updated_at` trigger, so the block adds none                                                            |
@@ -1239,7 +1239,7 @@ Only files with a block marker count, so your own files are never removed.
    your tables (it says the table is the app's and which columns it adds),
    then write the migration with `supabase db schema declarative sync`.
 5. Apply the migration, then run `better-supabase db backfill` for each scope
-   column BS238 reports, and `better-supabase doctor --fix` to validate the
+   column BS238 reports, and `better-supabase doctor --yes` to validate the
    checks.
 6. Run `better-supabase doctor` and work through BS237, BS347 and BS348.
 

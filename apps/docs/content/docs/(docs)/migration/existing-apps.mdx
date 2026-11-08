@@ -160,7 +160,7 @@ tenant, the restrictive `bsb_tenant_scope` policy. The scope column gets a
 `not valid` not-null check, so new rows must name an owner while existing
 rows stay until you fill them with
 [`better-supabase db backfill`](/docs/cli/db#backfill) and validate the
-check with `better-supabase doctor --fix`. See
+check with `better-supabase doctor --yes`. See
 [App tables](/docs/repository/tables#enriching-a-table-you-already-have).
 
 ## Choose an access model
@@ -265,6 +265,6 @@ explains the order.
 4. Add the blocks you don't have yet; they create their own tables.
 5. Add `tables.<name>` entries for your own tables, run
    `better-supabase db backfill` for each scope column doctor reports
-   (BS238), then `better-supabase doctor --fix`.
+   (BS238), then `better-supabase doctor --yes`.
 6. Move the session handling to an adapter and `bsb.proxy`, then move queries
    to repositories as you touch them.

@@ -29,7 +29,7 @@ has to keep.
 ## Flags
 
 - One meaning per flag across commands: `--out <file>` (with `-` for
-  stdout), `--out-dir <dir>`, `--format` for the renderer only, `--only` and
+  stdout), `--out <dir>`, `--format` for the renderer only, `--only` and
   `--ignore` to narrow what runs, `--force` only to overwrite, `--fail-on`
   for a severity. The table on `cli/index.mdx` is the reference.
 - Global flags live in `GLOBAL_ARGS`. A command flag that shares a global name

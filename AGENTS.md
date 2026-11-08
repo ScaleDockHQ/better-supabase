@@ -427,6 +427,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0391: Check the projection shape in a Lienlink fixture, and fix two gaps it found.
 - 0392: Generate PowerSync streams from the app's projection views.
 - 0380: Engagements are activities, and events use the lifecycle verbs.
+- 0381: One confirm flag and one out flag.
 
 ## Pre-release pins
 

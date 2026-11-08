@@ -60,9 +60,9 @@ export interface GenOptions extends SnapshotSource {
   /** Pre-loaded snapshot (tests, watch mode). */
   readonly snapshot?: Snapshot;
   /**
-   * Writes only the generated files (`gen --metadata --out-dir`): no read-set
-   * SQL module, and the manifest that removes files an earlier run wrote is
-   * neither read nor written.
+   * Writes only the generated files (`gen --metadata --out`): no read-set SQL
+   * module, and the manifest that removes files an earlier run wrote is neither
+   * read nor written.
    */
   readonly isolated?: boolean;
 }

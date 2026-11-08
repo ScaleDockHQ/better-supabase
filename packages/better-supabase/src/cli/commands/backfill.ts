@@ -785,7 +785,7 @@ export async function runBackfill(
       );
     } else {
       lines.push(
-        `No null values are left. \`better-supabase doctor --fix\` validates a not valid check on ${target.column}, and then the column can be set not null.`,
+        `No null values are left. \`better-supabase doctor --yes\` validates a not valid check on ${target.column}, and then the column can be set not null.`,
       );
     }
 

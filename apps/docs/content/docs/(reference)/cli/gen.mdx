@@ -5,7 +5,7 @@ description: Generate database types, typed models, relation metadata and valida
 
 ```bash
 better-supabase gen [--only <list>] [--check] [--snapshot <file>] [--db-url-stdin | --project-ref <ref>]
-better-supabase gen --metadata <path|-> [--emit <file> | --out-dir <dir> [--check]]
+better-supabase gen --metadata <path|-> [--only <file> | --out <dir> [--check]]
 ```
 
 `gen` is the one command to run after a schema or config change. It writes
@@ -226,8 +226,8 @@ types with `import type`, which costs nothing at runtime.
 | `--db-url-stdin`       | Reads the connection string from stdin; overrides the config, `$DATABASE_URL` and `$SUPABASE_DB_URL`.                                                            |
 | `--project-ref <ref>`  | Reads a hosted project through the Management API.                                                                                                               |
 | `--metadata <path\|->` | Reads a `GeneratorMetadata` document (`-` for stdin) and prints one file on stdout. See [From a GeneratorMetadata document](#from-a-generatormetadata-document). |
-| `--emit <file>`        | With `--metadata`, the file to print: `schema` (default), `types`, `zod`, `valibot`, `json-schema` or `standard-schema`.                                         |
-| `--out-dir <dir>`      | With `--metadata`, writes every generated file into this directory instead of printing one.                                                                      |
+| `--only <file>`        | With `--metadata`, the file to print: `schema` (default), `types`, `zod`, `valibot`, `json-schema` or `standard-schema`.                                         |
+| `--out <dir>`          | With `--metadata`, writes every generated file into this directory instead of printing one.                                                                      |
 
 With `--json`, the envelope's `data` is `{ "tables", "written" }` for `gen`
 and `{ "upToDate", "stale" }` for `gen --check`. When several tasks run,
@@ -765,9 +765,9 @@ It follows the registry's contract for an out-of-process tool:
   is one (`casing`, `schemas`, `tables`, `codecs`, generator options), and the
   defaults otherwise.
 
-`--emit` picks the file:
+`--only` picks the file:
 
-| `--emit`          | Prints                                                                                                                                                    |
+| `--only`          | Prints                                                                                                                                                    |
 | ----------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `schema`          | The `defineSchema` module, with the metadata written into it instead of a separate `generated.meta.js`. It imports `Database` from `databaseTypesOutput`. |
 | `types`           | `database.types.ts`, formatted when oxfmt is installed.                                                                                                   |
@@ -776,7 +776,7 @@ It follows the registry's contract for an out-of-process tool:
 | `json-schema`     | The `jsonSchema()` generator's document, likewise.                                                                                                        |
 | `standard-schema` | The `standardSchema()` generator's file, likewise.                                                                                                        |
 
-`--out-dir <dir>` writes the usual files (`database.types.ts`, the main module,
+`--out <dir>` writes the usual files (`database.types.ts`, the main module,
 its metadata module and each configured generator's file) into one directory
 instead, and `--check` compares them there. A generator with its own `output`
 keeps that path. It leaves the read-set SQL module
@@ -831,7 +831,7 @@ export const betterSupabase = externalLanguage(
       "gen",
       "--metadata",
       "-",
-      "--emit",
+      "--only",
       String(options.emit),
     ],
     installHint:
@@ -858,7 +858,7 @@ export const betterSupabase = externalLanguage(
 ```
 
 Once the entry is in the registry's `languages`, `user` options become flags
-of `supabase gen types`, so `supabase gen types --lang better-supabase --emit zod`
-prints what `better-supabase gen --metadata - --emit zod` prints for the same
+of `supabase gen types`, so `supabase gen types --lang better-supabase --only zod`
+prints what `better-supabase gen --metadata - --only zod` prints for the same
 database. The upstream registry doesn't ship this entry, so without it, pipe
 the document to `better-supabase gen --metadata -` yourself.

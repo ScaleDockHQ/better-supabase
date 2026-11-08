@@ -61,7 +61,7 @@ describe("__complete", () => {
     expect(options).toEqual(
       expect.arrayContaining([
         "--only",
-        "--out-dir",
+        "--out",
         "--check",
         "--json",
         "--agent",
@@ -132,7 +132,7 @@ describe("__complete", () => {
   });
 
   it("asks the shell for file names for free-form values", async () => {
-    const result = await run(["__complete", "--", "gen", "--out-dir", ""]);
+    const result = await run(["__complete", "--", "gen", "--out", ""]);
 
     expect(result.stdout).toBe(":files\n");
   });

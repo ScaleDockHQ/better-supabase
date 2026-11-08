@@ -102,12 +102,12 @@ export const seed = defineSeed(betterSupabase, {
 ```bash
 pnpm better-supabase db seed          # writes supabase/seeds/000_better_supabase.sql
 pnpm better-supabase db seed --check  # fails in CI when the SQL is stale
-pnpm better-supabase db seed --apply  # also inserts into the local database
+pnpm better-supabase db seed --yes  # also inserts into the local database
 ```
 
 `--entry <file>` and `--out <file>` override `database.seed.entry` and
 `database.seed.output`. `--dry-run` prints the diff and writes nothing; neither it nor
-`--check` runs `--apply`. `--apply` connects to `$DATABASE_URL` or `$SUPABASE_DB_URL`, or to the local stack;
+`--check` runs `--yes`. `--yes` connects to `$DATABASE_URL` or `$SUPABASE_DB_URL`, or to the local stack;
 to seed another database, pipe its connection string in with
 `--db-url-stdin`.
 
@@ -148,7 +148,7 @@ pnpm better-supabase db seed --tenant '*'   # every organization
 [organizations block](/docs/blocks/organizations) and inserts the rows for
 all of them in one transaction, so a failure leaves none behind. `--entry`
 overrides `database.seed.perTenant`. The database and consent rules are the ones
-`--apply` follows: the local stack needs no consent, any other database
+`--yes` follows: the local stack needs no consent, any other database
 does, and `--dry-run` connects to nothing. `tenant.slug` and `tenant.name`
 are set when the organization has them. Every insert is
 `on conflict do nothing`, so give rows a key when the seed may run twice
@@ -194,7 +194,7 @@ block's starting set (repeat it for more blocks) over
 (`database.seed.defaults.locale`, `en` by default). A variant that the block
 does not declare is refused. Setting `database.seed.defaults.onCreate` to
 `false` stops new organizations from getting defaults. The database and
-consent rules are the ones `--apply` follows.
+consent rules are the ones `--yes` follows.
 
 Blocks that declare defaults today are `risks`, `cases`, `leave`, `tax`,
 `pipelines` and `accounting`. `pipelines` offers the variants `b2b-sales` and
@@ -221,7 +221,7 @@ answers 402 and the command exits with code 2 and the upgrade address.
 `database.seed.sample` holds the defaults for `size`, `seed`, `locale` and
 `output`.
 
-Side effects: Writes files, writes to the database with `--apply`, writes to the database with `--tenant`, writes to the database with `--defaults`, calls the Better Supabase cloud with `--sample`.
+Side effects: Writes files, writes to the database with `--yes`, writes to the database with `--tenant`, writes to the database with `--defaults`, calls the Better Supabase cloud with `--sample`.
 
 ## backfill
 
@@ -305,7 +305,7 @@ needs the user's consent first. The JSON envelope returns `data.filled`,
 Each update fires the table's triggers, so audit, version and event triggers
 record every backfilled row. When nothing is left null, add the not-null check
 as `not valid` in a migration, then run
-[`doctor --fix`](/docs/cli/doctor#bs236), which validates it. Then
+[`doctor --yes`](/docs/cli/doctor#bs236), which validates it. Then
 `set not null` needs no scan:
 
 ```sql
