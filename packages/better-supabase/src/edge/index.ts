@@ -27,6 +27,7 @@ import { toEdge } from "../bridges/edge.ts";
 import { dbError } from "../core/errors.ts";
 import { problemResponse } from "../core/problem.ts";
 import { err } from "../core/result.ts";
+import { adapterBase } from "../server/adapter-base.ts";
 import { withFlush, unexpectedResponse } from "../server/adapter.ts";
 import { withBetterSupabase } from "../server/composite.ts";
 import { corsConfig, SUPABASE_CORS_HEADERS } from "../server/cors.ts";
@@ -34,7 +35,7 @@ import { withExtra } from "../server/extra.ts";
 import { EVERY_CALLER } from "../server/framework.ts";
 import { requireCaller } from "../server/kit.ts";
 import { resourceRouter } from "../server/resources.ts";
-import { defaultExpose, respond } from "../server/respond.ts";
+import { respond } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 import { compileRoutes, matchRoute } from "./routes.ts";
 
@@ -246,7 +247,7 @@ export function createEdge<
   } = {},
 ): BetterEdge<M, F, E, C, P, PermissionRef<A>, B, V> {
   const server = createServer(betterSupabase, options);
-  const expose = options.exposeErrors ?? defaultExpose();
+  const { expose } = adapterBase(server, options);
 
   const cors: CorsOptions | undefined =
     options.cors === true

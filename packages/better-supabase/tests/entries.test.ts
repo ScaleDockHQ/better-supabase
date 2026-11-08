@@ -9,6 +9,9 @@ const entryOf = (subpath: string): string =>
 
 /** Barrels whose implementation lives in sibling modules. */
 const PURE_BARRELS = [
+  "server/accounts",
+  "server/csv",
+  "server/rate-limit",
   "blocks",
   "fhir",
   "blocks/audit",

@@ -50,6 +50,7 @@ import { isQuerySpec } from "../core/spec.ts";
 import { validate } from "../core/standard.ts";
 import { EMPTY_STATS } from "../core/stats.ts";
 import { tagFor } from "../core/tags.ts";
+import { adapterBase } from "../server/adapter-base.ts";
 import { bearerRequest, handle } from "../server/adapter.ts";
 import {
   accessOf,
@@ -65,7 +66,7 @@ import {
   formDataObject,
 } from "../server/kit.ts";
 import { resourceRouter } from "../server/resources.ts";
-import { defaultExpose, guard, settle } from "../server/respond.ts";
+import { guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 import {
   blockActionOf,
@@ -127,7 +128,7 @@ export function createNext<
     createServer(betterSupabase, options);
 
   const core = serverCore(base);
-  const expose = options.exposeErrors ?? defaultExpose();
+  const { expose } = adapterBase(base, options);
 
   if (
     options.cacheTags !== false &&
@@ -230,10 +231,8 @@ export function createNext<
       const request = await requestScope();
       const verify = verifyOption(statsFor(request).stats);
 
-      // Scopes that resolve the same token share one verification; resolve
-      // then answers from the verified-token memo.
-      await base.snapshot(request, verify.onVerify);
-
+      // Scopes that resolve the same token share one verification through the
+      // verified-token memo, so resolve is the only pass.
       const resolution = await base.resolve(request, {
         refresh: false,
         ...verify,
@@ -249,13 +248,8 @@ export function createNext<
     incomingAt(box().generation);
 
   const getClaimsAt = cache(
-    async (_generation: number): Promise<SessionSnapshot<C> | null> => {
-      const committed = box().committed;
-
-      return committed
-        ? snapshotOf(committed.resolution.auth)
-        : base.snapshot(await requestScope());
-    },
+    async (generation: number): Promise<SessionSnapshot<C> | null> =>
+      snapshotOf((await incomingAt(generation)).resolution.auth),
   );
 
   const getClaims = (): Promise<SessionSnapshot<C> | null> =>

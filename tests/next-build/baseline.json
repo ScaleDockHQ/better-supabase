@@ -135,7 +135,7 @@
     "brotli": 489685
   },
   "/[locale]/(app)/customers/[id]/page": {
-    "raw": 1861974,
+    "raw": 1861986,
     "gzip": 604272,
     "brotli": 527660
   },

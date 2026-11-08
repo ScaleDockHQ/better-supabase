@@ -21,11 +21,11 @@ import type { BetterServer } from "../server/server-types.ts";
 
 import { around } from "../bridges/shared.ts";
 import { tanStackStartServer } from "../bridges/tanstack-start.ts";
+import { adapterBase } from "../server/adapter-base.ts";
 import { withFlush } from "../server/adapter.ts";
 import { frameworkEntry, localsOf } from "../server/framework.ts";
 import { requireCaller, runAction } from "../server/kit.ts";
 import { refusalResponse } from "../server/refusal.ts";
-import { defaultExpose } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 export interface TanStackStartOptions extends FrameworkOptions {
@@ -120,7 +120,7 @@ export function createTanStackStart<
   options: TanStackStartOptions & { readonly authorizer?: A } = {},
 ): BetterTanStackStart<M, F, E, C, P, PermissionRef<A>, B> {
   const server = createServer(betterSupabase, options);
-  const expose = options.exposeErrors ?? defaultExpose();
+  const { expose } = adapterBase(server, options);
   const requests = new WeakMap<object, Request>();
 
   type Locals = FrameworkLocals<M, F, E, C, P, B>;
