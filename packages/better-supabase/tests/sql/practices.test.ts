@@ -20,6 +20,12 @@ interface Rule {
   readonly name: string;
   readonly why: string;
   readonly count: (statements: readonly string[]) => number;
+  /**
+   * Counts the module's schema file of the `alone` and `with every module`
+   * variants only. Data files, upgrade steps and tests may hold `do` blocks: a
+   * schema diff never reads them.
+   */
+  readonly schemaOnly?: true;
 }
 
 const startsWith = (statement: string, pattern: RegExp): boolean =>
@@ -29,6 +35,13 @@ const POLICY = /^create policy /i;
 const FUNCTION = /^create (?:or replace )?function /i;
 const VIEW = /^create (?:or replace )?view /i;
 const TABLE = /^create table /i;
+const DO_BLOCK = /^do\s+(?:\$|language\b)/i;
+
+/**
+ * Dynamic SQL: `execute format(...)` or `execute '...'`, not `execute
+ * function`.
+ */
+const EXECUTES = /\bexecute\s+(?:(?:pg_catalog\.)?format\s*\(|')/i;
 
 const tableOfPolicy = (statement: string): string =>
   /\bon ((?:"[^"]+"|\w+)(?:\.(?:"[^"]+"|\w+))?)/i.exec(statement)?.[1] ?? "";
@@ -134,7 +147,35 @@ const RULES: readonly Rule[] = [
           /for each row/i.test(statement),
       ).length,
   },
+  {
+    name: "do-blocks",
+    schemaOnly: true,
+    why: "A top-level `do` block builds or changes objects at run time, which a schema diff cannot see (ADR 0251, ADR 0400).",
+    count: (statements) =>
+      statements.filter((statement) => startsWith(statement, DO_BLOCK)).length,
+  },
+  {
+    name: "do-blocks-with-execute",
+    schemaOnly: true,
+    why: "A `do` block that runs `execute` writes its statements as text, so the diff cannot see them either (ADR 0400).",
+    count: (statements) =>
+      statements.filter(
+        (statement) =>
+          startsWith(statement, DO_BLOCK) && EXECUTES.test(statement),
+      ).length,
+  },
 ];
+
+/**
+ * The schema files the `alone` and `with every module` variants of a golden
+ * renders.
+ */
+function aloneSchemaSections(text: string): string {
+  return text
+    .split(/^-- ==== /m)
+    .filter((section) => /^(?:alone|with every module): schema /.test(section))
+    .join("\n");
+}
 
 function measure(): Record<string, Counts> {
   const result: Record<string, Counts> = {};
@@ -142,14 +183,20 @@ function measure(): Record<string, Counts> {
   for (const file of readdirSync(golden)
     .filter((name) => name.endsWith(".sql"))
     .toSorted()) {
-    const statements = splitStatements(
-      readFileSync(join(golden, file), "utf-8"),
-    ).map((statement) => statement.text);
+    const text = readFileSync(join(golden, file), "utf-8");
+
+    const statements = splitStatements(text).map((statement) => statement.text);
+
+    const schemaStatements = splitStatements(aloneSchemaSections(text)).map(
+      (statement) => statement.text,
+    );
 
     const counts: Record<string, number> = {};
 
     for (const rule of RULES) {
-      const found = rule.count(statements);
+      const found = rule.count(
+        rule.schemaOnly === true ? schemaStatements : statements,
+      );
 
       if (found > 0) {
         counts[rule.name] = found;
@@ -213,6 +260,7 @@ describe("generated SQL practices", () => {
       "create policy p on t for update using (auth.jwt() -> 'user_metadata' = 'x')",
       "create view v as select 1",
       "create table t (id bigserial, at timestamp)",
+      "do $$ begin execute 'select 1'; end $$",
     ];
 
     expect(
@@ -226,6 +274,8 @@ describe("generated SQL practices", () => {
       "update-policy-without-select": 1,
       "security-definer-functions": 1,
       "row-triggers": 0,
+      "do-blocks": 1,
+      "do-blocks-with-execute": 1,
     });
   });
 });
