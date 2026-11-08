@@ -292,7 +292,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:e1130c4bb69003e80ce71a98f2bc7ddec8753c8316dc7165e04a59cccba2ca4a
+-- @bsb-hash sha256:676e9201f914125e56a802fe8574b0559753105ce59d7ce3ed079f49f4969ded
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -644,8 +644,8 @@ declare
   v_owner uuid;
   v_ok boolean;
 begin
-  select "subject_id", "tenant_id" into v_chat, v_tenant
-  from "better_supabase"."share_links" where "id" = revoke_ai_chat_share.id and "subject_type" = 'ai-chat';
+  select l."subject_id", l."tenant_id" into v_chat, v_tenant
+  from "better_supabase"."share_links" as l where l."id" = revoke_ai_chat_share.id and l."subject_type" = 'ai-chat';
   v_ok := "better_supabase"."revoke_share_link"(revoke_ai_chat_share.id);
   if v_ok and v_chat is not null then
     select owner_id into v_owner from "better_supabase".ai_chats where id::text = v_chat;

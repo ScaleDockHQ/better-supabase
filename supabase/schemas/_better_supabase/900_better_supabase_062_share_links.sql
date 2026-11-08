@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:bd07a4f7a39f4065f3421ba01536f3321bba78d9bd126aa9b863fcb0020c63a3
+-- @bsb-hash sha256:90302d6d752352c462a1ece3e4ad81478d295f21ebb9f837a13b0df24ad054c7
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -408,8 +408,8 @@ declare
   v_owner uuid;
   v_ok boolean;
 begin
-  select "subject_id", "tenant_id" into v_chat, v_tenant
-  from "better_supabase"."share_links" where "id" = revoke_ai_chat_share.id and "subject_type" = 'ai-chat';
+  select l."subject_id", l."tenant_id" into v_chat, v_tenant
+  from "better_supabase"."share_links" as l where l."id" = revoke_ai_chat_share.id and l."subject_type" = 'ai-chat';
   v_ok := "better_supabase"."revoke_share_link"(revoke_ai_chat_share.id);
   if v_ok and v_chat is not null then
     select owner_id into v_owner from "better_supabase".ai_chats where id::text = v_chat;

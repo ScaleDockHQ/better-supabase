@@ -30,7 +30,9 @@ const sync = async (dir: string): Promise<string> => {
   const { stdout, stderr } = await exec(
     SUPABASE,
     ["db", "schema", "declarative", "sync", "--no-apply", "--strict-coverage"],
-    { cwd: dir },
+    // The first plan pulls the shadow database image on a cold runner; a stuck
+    // run then fails with the CLI's own output instead of the test's timeout.
+    { cwd: dir, timeout: 240_000 },
   );
 
   return `${stdout}${stderr}`;
@@ -39,7 +41,7 @@ const sync = async (dir: string): Promise<string> => {
 describe.skipIf(!available)("the declarative sync after upgrade", () => {
   it(
     "is empty after the first and after a second upgrade",
-    { timeout: 120_000 },
+    { timeout: 600_000 },
     async () => {
       const dir = await copyFixture();
 

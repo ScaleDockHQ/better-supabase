@@ -430,7 +430,8 @@ grant execute on function "api"."${name}"(${types}) to service_role;`,
     );
 
     expect(clientCalls()).toEqual(listed);
-  });
+    // clientCalls renders every module; a loaded CI shard passes the 20 second default.
+  }, 90_000);
 
   it("revokes execute from anon on every function it does not grant to anon", () => {
     const signature = (text: string) =>
