@@ -29,6 +29,13 @@ interface ClientManifest {
   readonly entryJSFiles: Readonly<Record<string, readonly string[]>>;
 }
 
+/**
+ * The key of the nomodule polyfill bundle. Until 0.57 it was added to every
+ * route (113 KB raw, 35 KB brotli each), so each route's baseline before the
+ * change read 112594 raw bytes higher.
+ */
+const NOMODULE = "(nomodule polyfill)";
+
 /** Entries every route carries that do not belong to the route's own tree. */
 const SHARED_ENTRIES = /\/(?:not-found|global-error)$/;
 
@@ -109,7 +116,9 @@ async function routeChunks(): Promise<Map<string, Set<string>>> {
     await readFile(join(NEXT, "build-manifest.json"), "utf-8"),
   ) as BuildManifest;
 
-  const shared = [...build.rootMainFiles, ...build.polyfillFiles];
+  // `polyfillFiles` is the nomodule bundle: modern browsers never fetch it, so
+  // it is measured on its own (`NOMODULE`) and not charged to every route.
+  const shared = [...build.rootMainFiles];
   const routes = new Map<string, Set<string>>();
 
   const manifests = (await files(join(NEXT, "server/app")))
@@ -144,6 +153,12 @@ async function firstLoad(): Promise<Baseline> {
   for (const [route, chunks] of await routeChunks()) {
     result[route] = await measure(chunks);
   }
+
+  const build = JSON.parse(
+    await readFile(join(NEXT, "build-manifest.json"), "utf-8"),
+  ) as BuildManifest;
+
+  result[NOMODULE] = await measure(new Set(build.polyfillFiles));
 
   return result;
 }
@@ -293,15 +308,20 @@ describe("the Next.js example's first-load JavaScript", () => {
     async () => {
       const routes = await routeChunks();
 
-      const login = await routeSource(
-        routes.get("/[locale]/(auth)/login/page") ?? new Set(),
-      );
+      const count = async (route: string): Promise<number> =>
+        (
+          (await routeSource(routes.get(route) ?? new Set())).match(
+            /schema:"better_supabase"/g,
+          ) ?? []
+        ).length;
 
-      const slices = login.match(/schema:"better_supabase"/g)?.length ?? 0;
+      // The example installs more than 100 instances; the browser client wires
+      // 22, and only the routes under `(app)` load it (ADR 0480).
+      const slices = await count("/[locale]/(app)/customers/page");
 
-      // The example installs more than 100 instances; the browser client wires 22.
-      expect(slices, "slices on the login route").toBeGreaterThan(0);
-      expect(slices, "slices on the login route").toBeLessThanOrEqual(30);
+      expect(slices, "slices on the customers route").toBeGreaterThan(0);
+      expect(slices, "slices on the customers route").toBeLessThanOrEqual(30);
+      expect(await count("/[locale]/(auth)/login/page")).toBe(0);
 
       for (const [route, chunks] of routes) {
         const source = await routeSource(chunks);
@@ -309,6 +329,66 @@ describe("the Next.js example's first-load JavaScript", () => {
         // `ai-chat` has a list topic no client file reads.
         expect(source, `${route} has the ai-chat slice`).not.toContain(
           'listTopic:"ai-chats"',
+        );
+      }
+    },
+    120_000,
+  );
+
+  // Only the `(app)` layout, the OAuth consent page and the islands page render
+  // `DataProviders`. The sign-in routes load the browser client on submit, so
+  // they ship none of the data engine (ADR 0480).
+  it.skipIf(UPDATE)(
+    "keeps the data engine out of the sign-in routes",
+    async () => {
+      const routes = await routeChunks();
+
+      const markers = [
+        "GoTrueClient",
+        "RealtimeClient",
+        "Missing queryFn",
+        'key:"customers"',
+      ];
+
+      for (const route of [
+        "/[locale]/(auth)/login/page",
+        "/[locale]/(auth)/signup/page",
+        "/[locale]/(auth)/forgot-password/page",
+        "/[locale]/(auth)/reset-password/page",
+        "/[locale]/(auth)/mfa/page",
+      ]) {
+        const source = await routeSource(routes.get(route) ?? new Set());
+
+        expect(source.length, `${route} has chunks`).toBeGreaterThan(0);
+
+        for (const marker of markers) {
+          expect(source, `${route} loads ${marker}`).not.toContain(marker);
+        }
+      }
+
+      // The app routes still carry the engine, so the markers prove something.
+      const customers = await routeSource(
+        routes.get("/[locale]/(app)/customers/page") ?? new Set(),
+      );
+
+      expect(customers).toContain("GoTrueClient");
+    },
+    120_000,
+  );
+
+  // Markdown, syntax highlighting and json-render load when an answer renders.
+  it.skipIf(UPDATE)(
+    "defers the assistant's Markdown renderer",
+    async () => {
+      const routes = await routeChunks();
+
+      const assistant = await routeSource(
+        routes.get("/[locale]/(app)/assistant/page") ?? new Set(),
+      );
+
+      for (const marker of ["streamdown", "parse5", "vscode-textmate"]) {
+        expect(assistant, `the assistant loads ${marker}`).not.toContain(
+          marker,
         );
       }
     },
