@@ -192,7 +192,7 @@ const ROW_COLUMN = /\b(?:new|old)\s*\.\s*"?([a-z_][\w$]*)"?/gi;
  * `bsb_*` are the blocks' own and don't count, so a check the app already makes
  * is never emitted twice.
  */
-export function appTriggerBodies(
+function appTriggerBodies(
   files: readonly { readonly text: string }[],
   schemas: readonly string[],
 ): Readonly<Record<string, readonly string[]>> {
@@ -260,10 +260,17 @@ export function sameTenantLayout(
   schemas: readonly string[],
 ): Required<
   Pick<BlockSqlLayout, "foreignKeys" | "declaredColumns" | "appTriggerColumns">
-> {
+> & {
+  /**
+   * The function body of each app trigger, `schema.table` to bodies (doctor
+   * BS398).
+   */
+  readonly appTriggerBodies: Readonly<Record<string, readonly string[]>>;
+} {
   return {
     foreignKeys: declaredForeignKeys(files, schemas),
     appTriggerColumns: appTriggerColumns(files, schemas),
+    appTriggerBodies: appTriggerBodies(files, schemas),
     declaredColumns: Object.fromEntries(
       [...declaredTableColumns(files, schemas)].map(([table, columns]) => [
         table,

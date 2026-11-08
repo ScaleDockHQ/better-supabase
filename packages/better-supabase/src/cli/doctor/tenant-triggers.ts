@@ -1,6 +1,5 @@
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
-import { appTriggerBodies } from "../../sql/foreign-keys.ts";
 import {
   moduleLayout,
   sameTenantColumn,
@@ -58,7 +57,7 @@ export const TENANT_TRIGGER_RULES: readonly Rule[] = [
       const tenant = sameTenantColumn(moduleLayout(context.config));
       const guards = appTriggerGuards(context);
 
-      const bodies = appTriggerBodies(
+      const { appTriggerBodies: bodies } = sameTenantLayout(
         appFiles(context),
         context.config.schemas,
       );

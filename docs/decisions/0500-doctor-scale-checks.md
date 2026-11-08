@@ -45,7 +45,7 @@ a rule can't assume the guard exists yet.
 
 - BS340 accepts a foreign key column that an app trigger reads or writes, the
   same rule `sameTenant.auto` applies (ADR 0430), by reading the trigger
-  functions from the schema files (`appTriggerBodies`). BS398 reports such a
+  functions from the schema files (`sameTenantLayout` now also returns the bodies). BS398 reports such a
   trigger whose body never mentions the tenant column.
 - `supabase db advisors` (ADR 0460): the installed CLI 2.122.0 lists `--db-url`,
   `--type` (`all`, `security`, `performance`), `--level` and `--fail-on`, which
