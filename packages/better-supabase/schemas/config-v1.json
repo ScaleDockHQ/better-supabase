@@ -1373,6 +1373,10 @@
               },
               "additionalProperties": false
             },
+            "wildcards": {
+              "enum": ["all", "prefix", "none"],
+              "type": "string"
+            },
             "problems": {
               "type": "array",
               "items": {

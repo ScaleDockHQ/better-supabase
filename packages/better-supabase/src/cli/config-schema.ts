@@ -401,6 +401,7 @@ const authorization = v.strictObject({
   delegation: v.optional(
     v.strictObject({ scopes: v.optional(v.record(v.string(), strings)) }),
   ),
+  wildcards: v.optional(v.picklist(["all", "prefix", "none"])),
   problems: v.optional(strings),
 });
 

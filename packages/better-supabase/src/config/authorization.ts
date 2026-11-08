@@ -380,6 +380,13 @@ export interface AuthorizationProvider<Key extends string = string> {
      */
     readonly scopes?: Readonly<Record<string, readonly string[]>>;
   };
+  /**
+   * Which wildcard grants `permission_matches` honours: `all` (the default)
+   * lets `*` grant every key and `prefix.*` every key under the prefix,
+   * `prefix` only the second, and `none` an exact key. A provider whose grants
+   * never hold a wildcard sets `none`, so a stray `*` row can't widen access.
+   */
+  readonly wildcards?: "all" | "prefix" | "none";
   /** What the provider found wrong while building this, for doctor. */
   readonly problems?: readonly string[];
 }

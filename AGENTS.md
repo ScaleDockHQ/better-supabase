@@ -412,6 +412,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0346: Soft-deleted block rows carry archived_at.
 - 0350: Cascade notifications for every registered subject.
 - 0351: Type jsonb columns from the Standard Schema setup.
+- 0352: Let a provider choose the wildcard grants permission_matches honours.
 
 ## Pre-release pins
 

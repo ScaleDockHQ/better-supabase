@@ -228,6 +228,9 @@ export function accessProviderMode(
         ? { ownsPermissions: true }
         : {}),
       ...(truncatedClaim === undefined ? {} : { truncatedClaim }),
+      ...(provider.wildcards === undefined
+        ? {}
+        : { wildcards: provider.wildcards }),
     },
   };
 }

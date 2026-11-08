@@ -159,6 +159,27 @@ describe("access module", () => {
     expect(sql).not.toContain("ids_organization");
   });
 
+  it("renders permission_matches by the provider's wildcard setting", () => {
+    const matches = (wildcards?: "all" | "prefix" | "none") =>
+      provider({}, { ...PROVIDER, ...(wildcards ? { wildcards } : {}) });
+
+    expect(matches()).toContain("select granted = '*' or granted = wanted");
+    expect(matches("all")).toBe(matches());
+
+    const prefix = matches("prefix");
+
+    expect(prefix).not.toContain("granted = '*'");
+    expect(prefix).toContain("right(granted, 2) = '.*'");
+
+    const none = matches("none");
+
+    expect(none).toContain("select granted = wanted\n$$;");
+    expect(none).not.toContain("starts_with");
+
+    // The roles model gives the owner `*`, so it never reads the setting.
+    expect(access({})).toContain("select granted = '*' or granted = wanted");
+  });
+
   it("disables tenants and users from the provider's suspension rows", () => {
     const suspension = {
       user: { table: "public.profiles", id: "id", disabledAt: "banned_at" },
