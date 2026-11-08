@@ -18,11 +18,8 @@ npx better-supabase add impersonation
 ```
 
 ```ts title="src/lib/better-supabase.ts"
-import {
-  createServer,
-  sqlSupportStore,
-  supportSessions,
-} from "better-supabase/server";
+import { createServer, sqlSupportStore } from "better-supabase/server";
+import { supportSessions } from "better-supabase/server/accounts";
 
 export const bsb = createServer(betterSupabase, {
   env,
@@ -87,7 +84,8 @@ session id there instead of in the `bsb-support` cookie. Pass `sessionId` to
 read it from the request, or resolve the session yourself:
 
 ```ts title="src/server.ts"
-import { supportSessions, sqlSupportStore } from "better-supabase/server";
+import { sqlSupportStore } from "better-supabase/server";
+import { supportSessions } from "better-supabase/server/accounts";
 
 const support = supportSessions({
   store: sqlSupportStore(postgres.admin),
@@ -272,7 +270,7 @@ should read it.
 `ctx.storage` needs `SUPABASE_SECRET_KEY`. Outside a support session it is
 `undefined`; use `ctx.supabase.storage` there.
 `supportStorage({ admin, sql, adminSql, session, readOnly })` from
-`better-supabase/server` builds the same `StorageApi` from a service-role
+`better-supabase/server/accounts` builds the same `StorageApi` from a service-role
 `supabase.storage`, a `SqlClient` that runs as the target (writes need its
 `transaction`), the admin `SqlClient` (`postgres.admin`) and the session's
 `id`, `adminId` and `targetUserId`. Without `adminSql` and `session`, writes,

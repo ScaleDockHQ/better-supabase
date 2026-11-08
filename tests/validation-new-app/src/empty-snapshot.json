@@ -1,0 +1,50 @@
+{
+  "$schema": "https://unpkg.com/better-supabase/schemas/snapshot-v2.json",
+  "version": 2,
+  "schemas": ["better_supabase", "public"],
+  "generator": {
+    "version": 1,
+    "schemas": [
+      {
+        "id": 4000000,
+        "name": "better_supabase",
+        "owner": "postgres"
+      },
+      {
+        "id": 2200,
+        "name": "public",
+        "owner": "pg_database_owner"
+      }
+    ],
+    "tables": [],
+    "foreignTables": [],
+    "views": [],
+    "materializedViews": [],
+    "columns": [],
+    "primaryKeys": [],
+    "relationships": [],
+    "functions": [],
+    "types": []
+  },
+  "extras": {
+    "tables": [],
+    "buckets": [],
+    "realtime": [],
+    "roleSettings": {
+      "authenticator": {
+        "session_preload_libraries": "supautils, safeupdate",
+        "statement_timeout": "8s",
+        "lock_timeout": "8s"
+      },
+      "anon": {
+        "statement_timeout": "3s",
+        "idle_in_transaction_session_timeout": "60s"
+      },
+      "authenticated": {
+        "statement_timeout": "8s",
+        "idle_in_transaction_session_timeout": "60s"
+      }
+    },
+    "functions": []
+  }
+}

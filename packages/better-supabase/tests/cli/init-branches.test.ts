@@ -1,5 +1,5 @@
 import { existsSync } from "node:fs";
-import { mkdtemp, rm, writeFile } from "node:fs/promises";
+import { mkdir, mkdtemp, readFile, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { afterEach, beforeEach, describe, expect, it } from "vitest";
@@ -89,5 +89,40 @@ describe("init options", () => {
 
     expect(result.code).not.toBe(2);
     expect(existsSync(join(dir, "better-supabase.config.ts"))).toBe(false);
+  });
+});
+
+describe("init and the SQL workflow", () => {
+  const toml = async (text: string): Promise<void> => {
+    await mkdir(join(dir, "supabase"), { recursive: true });
+    await writeFile(join(dir, "supabase/config.toml"), text);
+  };
+
+  it("leaves a config.toml that lists schema_paths alone", async () => {
+    await project({});
+
+    const text = '[db.migrations]\nschema_paths = ["./schemas/*.sql"]\n';
+
+    await toml(text);
+
+    const result = await run(["init", "--yes", "--cwd", dir]);
+
+    expect(result.code).toBe(0);
+    expect(result.stdout).toContain("Skipped supabase/config.toml");
+    expect(await readFile(join(dir, "supabase/config.toml"), "utf-8")).toBe(
+      text,
+    );
+  });
+
+  it("turns pg-delta on when config.toml says nothing about the engine", async () => {
+    await project({});
+    await toml("[api]\nenabled = true\n");
+
+    const result = await run(["init", "--yes", "--cwd", dir]);
+
+    expect(result.code).toBe(0);
+    expect(
+      await readFile(join(dir, "supabase/config.toml"), "utf-8"),
+    ).toContain("[experimental.pgdelta]");
   });
 });

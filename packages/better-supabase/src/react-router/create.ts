@@ -20,11 +20,12 @@ import type { BetterServer } from "../server/server-types.ts";
 
 import { around, bufferInPlace } from "../bridges/shared.ts";
 import { problemResponse } from "../core/problem.ts";
+import { adapterBase } from "../server/adapter-base.ts";
 import { withFlush } from "../server/adapter.ts";
 import { actionInput, frameworkEntry, localsOf } from "../server/framework.ts";
 import { requireCaller, runAction } from "../server/kit.ts";
 import { refusalResponse } from "../server/refusal.ts";
-import { defaultExpose, settle } from "../server/respond.ts";
+import { settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 /** React Router's `RouterContextProvider`, typed structurally. */
@@ -134,7 +135,7 @@ export function createReactRouter<
   options: ReactRouterOptions & { readonly authorizer?: A },
 ): BetterReactRouter<M, F, E, C, P, PermissionRef<A>, B> {
   const server = createServer(betterSupabase, options);
-  const expose = options.exposeErrors ?? defaultExpose();
+  const { expose } = adapterBase(server, options);
   const run = around([frameworkEntry(server, options, expose)]);
   const key = options.createContext();
 

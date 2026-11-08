@@ -1,0 +1,67 @@
+---
+title: Postgres and Supabase practices
+description: The Supabase and Postgres practices better-supabase generates and checks, with the doctor code for each.
+---
+
+The generated SQL follows these practices, and doctor holds the schema files you
+write to the same bar. `tests/sql/practices.test.ts` counts the findings of the
+generated SQL per module, and a count can fall but never rise.
+
+## Security
+
+| Practice                                                                  | Doctor code                   |
+| ------------------------------------------------------------------------- | ----------------------------- |
+| Write `(select auth.uid())` in a policy, so Postgres calls it once        | BS384                         |
+| Never decide on `user_metadata`, which the user can edit                  | BS366                         |
+| Give every table with an update policy a select policy                    | BS365                         |
+| Create views with `security_invoker = true`                               | BS367                         |
+| Give a storage upsert insert, select and update policies                  | BS383                         |
+| Keep `security definer` functions in `better_supabase` with `search_path` | `tests/sql/practices.test.ts` |
+
+Server-only keys never get a `NEXT_PUBLIC_` prefix. The server reads the
+publishable and secret keys, and `withSupabase` takes only the four auth modes
+`user`, `publishable`, `secret` and `none`.
+
+## Indexes and types
+
+Index every column a policy filters on, with the tenant column first in a
+composite index (BS385). Foreign keys follow the same rule
+([BS211](/docs/cli/doctor#bs211)). Use `timestamptz`, identity columns and
+`text` with a check instead of `timestamp`, `serial` and `varchar(n)` (BS368).
+A table you read with `deleted_at is null` gets a partial index on that
+condition.
+
+## Migrations
+
+A hand migration starts with `set lock_timeout = '5s';` and creates indexes on
+existing tables with `create index concurrently`, in a file of its own because
+the statement can't run in a transaction block. Doctor's migration lint reports
+a missing `lock_timeout`, an index without `concurrently` and a `not valid`
+constraint that is never validated.
+
+## Reading and writing data
+
+List helpers page by keyset and clamp the page size, so one call can't read a
+whole table. Seeds write multi-row `insert ... on conflict` statements in
+batches, never one statement per row.
+
+## Connections
+
+Through Supavisor in transaction mode (port 6543), use `prepare: false` with
+postgres.js, `pgbouncer=true` with Prisma and a pool of 1 to 3 connections per
+serverless instance. `better-supabase/postgres` sends unnamed statements, which
+the pooler accepts. See [Which connection string](/docs/auth/postgres#which-connection-string).
+
+## Advisors
+
+Doctor runs `supabase db advisors` for a database on your machine when the CLI
+is 2.81.3 or later, and falls back to splinter at a pinned commit and hash
+otherwise. Hosted projects use the Management API.
+
+## Auth
+
+Token verification pins the issuer to `<url>/auth/v1` and the audience to
+`authenticated`, so a token another project or service signed with the same keys
+doesn't verify. An Edge Function that sets `verify_jwt = false` in
+`supabase/config.toml` verifies the caller in its handler, as the MCP function
+does with its OAuth token.

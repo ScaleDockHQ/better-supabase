@@ -601,7 +601,9 @@ the derived ones, `sameTenant: false` writes none, and `{ auto: false, entries }
 writes only the listed entries. Every single-column foreign key
 from a table with the tenant column to another table with it gets an entry,
 unless the key already includes the tenant column or a composite key on the
-same table pairs the column with the tenant column on both sides. The scan reads
+same table pairs the column with the tenant column on both sides, or an app
+trigger on the table (any trigger not named `bsb_*`) already reads or writes the
+column through `new.<column>`. The scan reads
 `references` on a column, `foreign key (...) references` table constraints
 and `alter table ... add constraint ... foreign key`; a key without a column
 list references the table's declared primary key. Keys over more than one

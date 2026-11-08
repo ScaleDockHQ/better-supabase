@@ -77,7 +77,7 @@ function setup(
 describe("deleteAccount", () => {
   it("takes the service client itself, from the server entry", async () => {
     const { betterSupabase, deleteUser, service } = setup();
-    const server = await import("../../src/server/index.ts");
+    const server = await import("../../src/server/accounts/index.ts");
     expect(
       await server.deleteAccount(betterSupabase, service(), USER).orThrow(),
     ).toEqual({ userId: USER, removed: {} });

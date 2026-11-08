@@ -1,7 +1,7 @@
 -- ==== memberships
 -- better-supabase module: memberships
 -- @bsb-block memberships@3 managed
--- @bsb-hash sha256:3ec0b61636811ca070b5a4d32513020243f017f87f7b374d5431f1c29cc986bd
+-- @bsb-hash sha256:a9aa6a5ee113f257ac3602d4f7c99d70940f848fc7f5d66a4c13596e8c033504
 -- Memberships with roles, member_organization_ids() and has_organization_role() for RLS policies, and membership_claims() for the access token hook. Adopt an existing memberships table through blocks.memberships.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -47,11 +47,6 @@ alter table "better_supabase"."membership_roles"
 alter table "better_supabase"."membership_roles" enable row level security;
 grant select on "better_supabase"."membership_roles" to authenticated;
 grant all on "better_supabase"."membership_roles" to service_role;
-
-insert into "better_supabase"."membership_roles" ("organization_id", "user_id", "role")
-select m."organization_id", m."user_id", m."role"::text from "better_supabase"."memberships" m
-where m."role" is not null
-on conflict do nothing;
 
 -- Writing "role" directly (update_member_role, a client policy, the service
 -- role) swaps the previous primary role for the new one and keeps the written
@@ -267,11 +262,17 @@ create policy bsb_tenant_scope_delete on "better_supabase"."memberships" as rest
 
 -- better-supabase module: memberships
 -- @bsb-block-data memberships
--- @bsb-hash sha256:0820ad92b94361500e57ffda4d2de42e2213687cbbe32e5f1981b88983f689fa
+-- @bsb-hash sha256:01807a57c2608444bd77875fbb02e8a50d3a9202f1a6aa1092a050e20162d87b
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
+
+-- Every membership holds its primary role in the role set.
+insert into "better_supabase"."membership_roles" ("organization_id", "user_id", "role")
+select m."organization_id", m."user_id", m."role"::text from "better_supabase"."memberships" m
+where m."role" is not null
+on conflict ("organization_id", "user_id", "role") do nothing;
 
 insert into better_supabase.blocks (name, version, mode)
 values ('memberships', 3, 'managed')

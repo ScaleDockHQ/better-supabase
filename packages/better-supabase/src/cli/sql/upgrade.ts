@@ -29,6 +29,7 @@ import { applyPlan, changeLines } from "../core/files.ts";
 import { display } from "../core/io.ts";
 import { fileDiff } from "../diff.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
+import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
 import { topicPolicyFile } from "../topic-policies.ts";
 import { migrationFile } from "./migration-names.ts";
 import {
@@ -43,6 +44,15 @@ import {
 import { layoutFor } from "./providers.ts";
 import { cacheOf, renderBlocksCached } from "./render-cache.ts";
 import { nextStep, write } from "./write.ts";
+
+/** The migration `upgrade` writes under pg-delta for steps a diff can't express. */
+const REVIEWED_SUFFIX = "_better_supabase_reviewed_upgrade.sql";
+
+const REVIEWED_HEADER = [
+  "-- better-supabase upgrade: steps pg-delta can't express (renames, backfills, expression changes).",
+  "-- Review them before you apply this migration; the module files hold everything else.",
+  "-- destructive: reviewed",
+].join("\n");
 
 /**
  * Rewrites the module files of modules behind the current version, and writes
@@ -182,13 +192,22 @@ export async function upgrade(
 
   if (steps.length > 0 && !migrations) {
     const dir = migrationsDir(config);
-    const contents = `-- better-supabase upgrade: steps that run before the schema diff.\n\n${steps.join("\n\n")}\n`;
+
+    const reviewed =
+      sqlWorkflow(config, await readSupabaseToml(config.root)) === "pg-delta";
+
+    // Under pg-delta the module files own every statement the diff can
+    // express, so what is left (renames, backfills, expression changes) is a
+    // hand migration that a person reviews before it runs.
+    const contents = reviewed
+      ? `${REVIEWED_HEADER}\n\n${steps.join("\n\n")}\n`
+      : `-- better-supabase upgrade: steps that run before the schema diff.\n\n${steps.join("\n\n")}\n`;
 
     const existing: string[] = await readdir(resolve(config.root, dir)).catch(
       () => [],
     );
 
-    const path = `${dir}/${migrationFile(existing, now(), "_better_supabase_block_upgrade.sql", contents).name}`;
+    const path = `${dir}/${migrationFile(existing, now(), reviewed ? REVIEWED_SUFFIX : "_better_supabase_block_upgrade.sql", contents).name}`;
 
     const applied = await applyPlan(
       sqlPlan(config, {

@@ -570,8 +570,12 @@ export function emitModule(model: Model, options: EmitOptions): string {
     table.columns.some((column) => column.storage !== undefined),
   );
 
+  // Only an enriched Database names EnrichDatabase; an unused import fails
+  // apps that set noUnusedLocals.
+  const enriched = enrichedDatabase(model);
+
   lines.push(
-    `import type { EnrichDatabase, GeneratedColumns, MutableWhere, OrderByArg, OrderByInput${storagePaths ? ", StoragePath" : ""}, WritableColumns } from ${q(runtime)};`,
+    `import type { ${enriched.length > 1 ? "EnrichDatabase, " : ""}GeneratedColumns, MutableWhere, OrderByArg, OrderByInput${storagePaths ? ", StoragePath" : ""}, WritableColumns } from ${q(runtime)};`,
   );
 
   if (options.databaseTypes === undefined) {
@@ -614,7 +618,7 @@ export function emitModule(model: Model, options: EmitOptions): string {
     "",
     "export type Json = string | number | boolean | null | { [key: string]: Json | undefined } | Json[];",
     "",
-    ...enrichedDatabase(model),
+    ...enriched,
     "",
   );
 

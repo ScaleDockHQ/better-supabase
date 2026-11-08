@@ -167,6 +167,11 @@ export interface ResolveAuthOptions {
    * false.
    */
   readonly secret?: boolean | readonly string[];
+  /**
+   * The `aud` a token must carry. Defaults to `authenticated`, the audience
+   * Supabase Auth gives every user token, so a token minted for another
+   * audience with the same keys never verifies here.
+   */
   readonly audience?: string | string[];
   /**
    * The `iss` a token must carry. By default a token whose `iss` is not the
@@ -304,6 +309,9 @@ function expiryOf(session: StoredSession): number | undefined {
 
   return typeof exp === "number" ? exp : undefined;
 }
+
+/** The `aud` Supabase Auth puts in every user access token. */
+const USER_AUDIENCE = "authenticated";
 
 type JwksSource = NonNullable<SupabaseEnv["jwks"]>;
 
@@ -605,7 +613,7 @@ async function verifyOnce(
   ) {
     const verified = await verifyHs256(token, options.jwtSecret, {
       now: Math.floor((options.now ?? Date.now)() / 1000),
-      ...(options.audience === undefined ? {} : { audience: options.audience }),
+      audience: options.audience ?? USER_AUDIENCE,
       ...(issuer === undefined ? {} : { issuer }),
     });
 
@@ -641,7 +649,7 @@ async function verifyOnce(
   const { data, error } = await verifyCredentials(credentials, {
     auth: modes,
     env: serverEnv(options, keys),
-    ...(options.audience === undefined ? {} : { audience: options.audience }),
+    audience: options.audience ?? USER_AUDIENCE,
     ...(issuer === undefined ? {} : { issuer }),
   });
 

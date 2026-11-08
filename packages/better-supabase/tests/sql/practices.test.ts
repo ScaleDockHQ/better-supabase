@@ -128,6 +128,28 @@ const RULES: readonly Rule[] = [
     },
   },
   {
+    name: "policy-bare-auth-call",
+    why: "A policy calls `auth.uid()` and `auth.jwt()` inside `(select ...)`, so Postgres evaluates it once per statement instead of once per row.",
+    count: (statements) =>
+      statements.filter(
+        (statement) =>
+          startsWith(statement, POLICY) &&
+          /(?<!select\s)\bauth\.(?:uid|jwt|role)\(\)/i.test(
+            statement.replaceAll(/\s+/g, " "),
+          ),
+      ).length,
+  },
+  {
+    name: "uncapped-page-limit",
+    why: "A list function clamps its page size; a raw `limit p_limit` lets one call read the whole table.",
+    count: (statements) =>
+      statements.filter(
+        (statement) =>
+          startsWith(statement, FUNCTION) &&
+          /\blimit\s+p_(?:limit|page_size|count)\b/i.test(statement),
+      ).length,
+  },
+  {
     name: "security-definer-functions",
     why: "Definer functions only go down; each moves to security invoker when it can.",
     count: (statements) =>
@@ -261,6 +283,8 @@ describe("generated SQL practices", () => {
       "create view v as select 1",
       "create table t (id bigserial, at timestamp)",
       "do $$ begin execute 'select 1'; end $$",
+      "create policy b on o for select using (owner = auth.uid())",
+      "create function l(p_limit int) returns setof t language sql as $$ select * from t limit p_limit $$",
     ];
 
     expect(
@@ -272,6 +296,8 @@ describe("generated SQL practices", () => {
       "bare-timestamp-column": 1,
       "serial-column": 1,
       "update-policy-without-select": 1,
+      "policy-bare-auth-call": 2,
+      "uncapped-page-limit": 1,
       "security-definer-functions": 1,
       "row-triggers": 0,
       "do-blocks": 1,

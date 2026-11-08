@@ -51,8 +51,20 @@ inside the schema folder (`supabase/schemas/block`), the data files still go
 next to the schema folder, and `declarative_schema_path` in
 `supabase/config.toml` moves both. `better-supabase add --adopt` writes those files into one
 migration, stamped after the newest one so it runs after the schema migration.
-Its statements are idempotent, and it writes nothing when the latest data
-migration already has them. `add` and `upgrade` say when to run it.
+Its statements are idempotent keyed upserts. It compares them with the
+statements of the data migrations already in the folder and writes only the
+ones no migration holds, so a block upgrade adds one small migration instead of
+repeating every row. It writes nothing when every statement is already there,
+and `--check` exits with 1 when one is missing. `add` and `upgrade` say when to
+run it. The `memberships` backfill of `membership_roles` (with
+`roles.many`) lives in this file too, not in the schema file.
+
+Your own reference data stays yours: `upgrade` never writes rows into
+`supabase/seeds`, and a block never seeds a table your seed files write to
+([doctor BS358](/docs/cli/doctor#bs358)). An insert in a data file that has no
+`on conflict` or `not exists` key fails [BS357](/docs/cli/doctor#bs357), and a
+`seed_<name>_defaults` function without a `p_locale` parameter fails
+[BS359](/docs/cli/doctor#bs359).
 
 Event triggers belong to no schema, so a diff limited to some schemas
 (`supabase db schema declarative sync -s public,better_supabase`) leaves
@@ -76,7 +88,7 @@ in file order.
 | Command                     | What it does                                                      | Side effects  |
 | --------------------------- | ----------------------------------------------------------------- | ------------- |
 | `add <block...>`            | Writes the module files and config entries, and wires the clients | Writes files. |
-| `add --adopt`               | Writes the data migration from `supabase/better-supabase-data`    | Writes files. |
+| `add --adopt`               | Writes the data statements no data migration holds yet            | Writes files. |
 | `upgrade`                   | Writes the upgrade steps, then every module file again            | Writes files. |
 | `remove <block...>`         | Takes blocks out of the config and deletes their module files     | Writes files. |
 | `blocks list --installed`   | Lists the installed blocks with their versions                    | None.         |
@@ -119,6 +131,10 @@ the migration. It needs `[experimental.pgdelta] enabled = true` in
 it to an existing `config.toml` under this workflow.
 
 ### migra (Declarative Schemas 1.0)
+
+The tables your earlier migrations create count as yours, as they do under
+`migrations`, so the module files that `upgrade` writes into `supabase/schemas`
+never create them again.
 
 The legacy engine reads `supabase/schemas` while the stack is stopped. The
 CLI and doctor name its command, `supabase db diff -f better_supabase_block`.
@@ -1360,7 +1376,7 @@ The [Hono](/docs/frameworks/hono#rate-limits) and
 draft-ietf-httpapi-ratelimit-headers (`SPEC_PINS.ratelimitHeaders`), and
 `RateLimit-Policy` when the route gives a `rule`. A refused request gets a
 429 with `Retry-After`. Elsewhere, `rateLimitHeader()` and
-`rateLimitPolicyHeader()` from `better-supabase/server` build the two fields.
+`rateLimitPolicyHeader()` from `better-supabase/server/rate-limit` build the two fields.
 
 ## Enforcing jsonb shapes
 
@@ -1853,10 +1869,16 @@ better-supabase upgrade
 
 It reads the version from each file's `@bsb-block` line (a file without one,
 written before the line existed, counts as version 1). It then writes the
-forward steps into `<timestamp>_better_supabase_block_upgrade.sql` in the
-`migrations` folder next to your `config.toml` and rewrites the module files. Create the schema migration afterwards, so the
-steps run first. `upgrade --check` exits with 1 when a module is behind or
-a file is stale, and `--dry-run` lists the steps without writing. The pgTAP
+forward steps into a migration in the `migrations` folder next to your
+`config.toml` and rewrites the module files. Under pg-delta that migration is
+`<timestamp>_better_supabase_reviewed_upgrade_<hash>.sql`, marked
+`-- destructive: reviewed`: it holds only what a schema diff can't express
+(renames, backfills, expression changes), and the module files hold every other
+statement, so `upgrade` never writes a schema migration. Under the other
+workflows it is `<timestamp>_better_supabase_block_upgrade_<hash>.sql`. Review
+the migration, then create the schema migration afterwards, so the steps run
+first. `upgrade --check` exits with 1 when a module is behind, a
+file is stale or a data statement is in no data migration, and `--dry-run` lists the steps without writing. The pgTAP
 files a module writes for your tables (the audit tests, say) carry no module
 version; `upgrade --check` keeps them current, and `upgrade` leaves them
 out.

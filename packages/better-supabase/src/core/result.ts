@@ -73,7 +73,11 @@ export class AsyncResult<T> implements PromiseLike<Result<T>> {
   }
 
   static from<T>(run: () => Promise<Result<T>>): AsyncResult<T> {
-    return new AsyncResult(Promise.resolve().then(run));
+    return new AsyncResult(
+      new Promise((resolve) => {
+        resolve(run());
+      }),
+    );
   }
 
   static ok<T>(data: T): AsyncResult<T> {

@@ -550,7 +550,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect((await sql(["sync"], config)).output).not.toContain("sql data");
 
     expect((await sql(["data", "--check"], config)).error).toMatch(
-      /^No data migration holds/,
+      /^\d+ data statements of .*memberships.* are in no data migration/,
     );
     expect((await sql(["data", "--dry-run"], config)).output).toMatch(
       /^Would create supabase\/migrations\/\d{14}_better_supabase_module_data_[0-9a-f]{8}\.sql$/,
@@ -580,12 +580,48 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect((await sql(["data", "--check"], config)).code).toBe(0);
 
     await writeFile(join(root, path), "select 1;\n");
-    expect(await sql(["data", "--check"], config)).toEqual({
-      code: 1,
-      data: { wrote: false },
-      error: `${path} doesn't hold the current rows and settings of the blocks. Run \`better-supabase add --adopt\` after the schema migration.`,
-    });
+    const stale = await sql(["data", "--check"], config);
+    expect(stale.code).toBe(1);
+    expect(stale.error).toMatch(
+      /^\d+ data statements? of .* in no data migration\. Run `better-supabase add --adopt`/,
+    );
     expect(await readFile(join(root, path), "utf-8")).toBe("select 1;\n");
+  });
+
+  it("writes only the data statements no data migration holds", async () => {
+    const config: ResolveInput = { blocks: ["memberships", "rate-limit"] };
+    await sql(["sync"], config);
+    const first = (await sql(["data"], config)).output!.replace("Created ", "");
+    const migrations = join(root, "supabase/migrations");
+
+    // The rate-limit rows were migrated by an earlier release; only the
+    // memberships row is still missing.
+    const text = await readFile(join(root, first), "utf-8");
+
+    const kept = text.replace(
+      /-- memberships\n[\s\S]*?(?=\n-- rate-limit)/,
+      "",
+    );
+
+    expect(kept).not.toContain("values ('memberships'");
+
+    await rm(join(root, first));
+    await writeFile(
+      join(migrations, "20200101000000_better_supabase_module_data.sql"),
+      kept,
+    );
+
+    expect((await sql(["data", "--check"], config)).error).toMatch(
+      /^1 data statement of memberships is in no data migration/,
+    );
+
+    const second = await sql(["data"], config);
+    const path = second.output!.replace("Created ", "");
+    const migration = await readFile(join(root, path), "utf-8");
+    expect(migration).toContain("values ('memberships', 3, 'managed')");
+    expect(migration).not.toContain("values ('rate-limit',");
+    expect(migration).toContain("set lock_timeout");
+    expect((await sql(["data", "--check"], config)).code).toBe(0);
   });
 
   it("writes a pgTAP file per audited table and removes the ones it no longer writes", async () => {
@@ -1148,7 +1184,8 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
 
     const upgrade = (await readdir(join(root, "supabase/migrations"))).find(
-      (name) => hasMigrationSuffix(name, "_better_supabase_block_upgrade.sql"),
+      (name) =>
+        hasMigrationSuffix(name, "_better_supabase_reviewed_upgrade.sql"),
     );
 
     const migration = await readFile(
@@ -1180,7 +1217,8 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(done.output).toContain("tasks: renamed after blocks.<name>.names");
 
     const upgrade = (await readdir(join(root, "supabase/migrations"))).find(
-      (name) => hasMigrationSuffix(name, "_better_supabase_block_upgrade.sql"),
+      (name) =>
+        hasMigrationSuffix(name, "_better_supabase_reviewed_upgrade.sql"),
     );
 
     expect(
@@ -1519,7 +1557,9 @@ create policy b on public.notes for select to authenticated using (true);
       expect(done.next).toEqual([
         { command: "supabase migration up", when: "applies the migration" },
       ]);
-      expect(done.output).not.toContain("_better_supabase_block_upgrade.sql");
+      expect(done.output).not.toContain(
+        "_better_supabase_reviewed_upgrade.sql",
+      );
       const all = await moduleMigrations();
       expect(all).toHaveLength(2);
 

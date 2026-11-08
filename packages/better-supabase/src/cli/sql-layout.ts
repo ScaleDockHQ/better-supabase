@@ -80,14 +80,13 @@ async function declarativeTexts(
   config: ResolvedConfig,
 ): Promise<{ readonly path: string; readonly text: string }[]> {
   const toml = await readSupabaseToml(config.root);
+  const workflow = sqlWorkflow(config, toml);
+  const { files } = await schemaPaths(config.root, toml, workflow);
 
-  const { files } = await schemaPaths(
-    config.root,
-    toml,
-    sqlWorkflow(config, toml),
-  );
-
-  if (files.length === 0) {
+  // Only pg-delta treats the schema files as the whole schema. Under migra the
+  // app's tables stay in the migrations, so reading the schema files alone
+  // would lose them once the modules' own files sit in that folder.
+  if (files.length === 0 || workflow !== "pg-delta") {
     return schemaTexts(config);
   }
 

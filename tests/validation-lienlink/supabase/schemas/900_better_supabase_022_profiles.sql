@@ -1,6 +1,6 @@
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:104f5add5b481ae4ee60bd6739abef3df18f02aea917c043e3eed06b782a552c
+-- @bsb-hash sha256:195e9272e4038d73a415119cebb19fcbe8ab10857e3096a69c84629a29759033
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -49,8 +49,8 @@ revoke update on "better_supabase"."profiles" from authenticated;
 grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
 
 -- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
--- definer functions (switch_organization, the email mirror) run as their
--- owner and pass.
+-- definer functions (the email mirror among them) run as their owner and
+-- pass.
 create or replace function "better_supabase"."guard_profile"()
 returns trigger
 language plpgsql

@@ -188,11 +188,11 @@ A proxy that does not use `bsb.proxy` can run the same check with
 `verifySession` covers document loads. An app that keeps the session in
 httpOnly cookies, with no browser Supabase client, also notices a revoked
 session, a ban or changed claims while a page stays open with
-`sessionStatusRoute` from `better-supabase/server` and `useSessionWatch` from
+`sessionStatusRoute` from `better-supabase/server/accounts` and `useSessionWatch` from
 `better-supabase/next/client`:
 
 ```ts title="app/api/session-status/route.ts"
-import { sessionStatusRoute } from "better-supabase/server";
+import { sessionStatusRoute } from "better-supabase/server/accounts";
 
 import { bsb } from "@/lib/supabase/server";
 

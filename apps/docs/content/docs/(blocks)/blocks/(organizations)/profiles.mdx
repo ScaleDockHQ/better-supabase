@@ -79,6 +79,10 @@ logs a warning with the error, and `select better_supabase.backfill_profiles()`
 as the service role creates the missing profiles once the cause is fixed.
 Run it once after installing on a project that already has users.
 
+The active organization and team columns exist only next to the `memberships`
+and `teams` blocks. An app with no organizations gets neither column, and the
+service-column guard leaves them out.
+
 ## Who can change what
 
 | Rule              | Default                                                                                                                                             |

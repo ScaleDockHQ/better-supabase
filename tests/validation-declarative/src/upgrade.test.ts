@@ -106,4 +106,73 @@ describe("upgrade on an app that owns its tables", () => {
       }
     },
   );
+
+  it(
+    "writes only module files and never a schema migration",
+    { timeout: TIMEOUT },
+    async () => {
+      const dir = await fresh();
+      const before = await readTree(dir);
+
+      await writeFile(
+        join(dir, "supabase/schemas/030_tasks.sql"),
+        `create table public.tasks (
+  id uuid primary key default gen_random_uuid(),
+  organization_id uuid not null references public.organizations (id),
+  owner_membership_id uuid references public.memberships (id)
+);
+`,
+      );
+
+      expect(await upgrade(dir)).toMatchObject({ code: 0 });
+
+      const after = await readTree(dir);
+
+      const added = [...after.keys()].filter((path) => !before.has(path));
+
+      expect(added).toStrictEqual(["supabase/schemas/030_tasks.sql"]);
+
+      const migrations = (tree: ReadonlyMap<string, string>) =>
+        [...tree].filter(([path]) => path.includes("migrations/"));
+
+      expect(migrations(after)).toStrictEqual(migrations(before));
+
+      // The module adds the same-tenant check for the app's new key.
+      const generated = [...after]
+        .filter(([path]) => isGenerated(path))
+        .map(([, text]) => text)
+        .join("\n");
+
+      expect(generated).toContain('"bsb_same_tenant_owner_membership_id"');
+
+      // An app trigger that already guards the column replaces it.
+      await writeFile(
+        join(dir, "supabase/schemas/030_tasks.sql"),
+        `${after.get("supabase/schemas/030_tasks.sql")}
+create function public.tasks_owner_same_organization() returns trigger
+language plpgsql as $$
+begin
+  if not exists (select 1 from public.memberships m where m.id = new.owner_membership_id and m.organization_id = new.organization_id) then
+    raise exception 'owner must belong to the organization';
+  end if;
+  return new;
+end;
+$$;
+create trigger tasks_owner_same_organization before insert or update on public.tasks
+  for each row execute function public.tasks_owner_same_organization();
+`,
+      );
+
+      expect(await upgrade(dir)).toMatchObject({ code: 0 });
+
+      const regenerated = [...(await readTree(dir))]
+        .filter(([path]) => isGenerated(path))
+        .map(([, text]) => text)
+        .join("\n");
+
+      expect(regenerated).not.toContain(
+        '"bsb_same_tenant_owner_membership_id"',
+      );
+    },
+  );
 });

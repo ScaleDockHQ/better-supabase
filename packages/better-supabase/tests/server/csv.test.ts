@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { csvColumns, csvResponse, toCsv } from "../../src/server/index.ts";
+import { csvColumns, csvResponse, toCsv } from "../../src/server/csv/index.ts";
 
 describe("csvResponse", () => {
   it("serves the rows as a CSV attachment", async () => {

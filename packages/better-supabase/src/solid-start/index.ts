@@ -20,11 +20,11 @@ import type { BetterServer } from "../server/server-types.ts";
 
 import { beforeRoute } from "../bridges/before-route.ts";
 import { nitroCloudflareEnv } from "../bridges/shared.ts";
+import { adapterBase } from "../server/adapter-base.ts";
 import { flushEvents } from "../server/adapter.ts";
 import { frameworkEntry, localsOf } from "../server/framework.ts";
 import { requireCaller, runAction } from "../server/kit.ts";
 import { refusalResponse } from "../server/refusal.ts";
-import { defaultExpose } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 
 export type { RefusalRedirects } from "../server/refusal.ts";
@@ -138,7 +138,7 @@ export function createSolidStart<
   options: SolidStartOptions & { readonly authorizer?: A },
 ): BetterSolidStart<M, F, E, C, P, PermissionRef<A>, B> {
   const server = createServer(betterSupabase, options);
-  const expose = options.exposeErrors ?? defaultExpose();
+  const { expose } = adapterBase(server, options);
   const run = beforeRoute([frameworkEntry(server, options, expose)]);
 
   type Locals = FrameworkLocals<M, F, E, C, P, B>;

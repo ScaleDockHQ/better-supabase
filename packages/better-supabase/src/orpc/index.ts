@@ -28,16 +28,12 @@ import { tenantOf, toSession } from "../auth/view.ts";
 import { claimsOf } from "../core/claims.ts";
 import { dbErrorOf } from "../core/errors.ts";
 import { toProblem } from "../core/problem.ts";
+import { adapterBase } from "../server/adapter-base.ts";
 import { flushEvents } from "../server/adapter.ts";
 import { authorizeCaller } from "../server/kit.ts";
 import { rateLimitGate } from "../server/rate-limit.ts";
 import { refreshFor } from "../server/request-kind.ts";
-import {
-  assertCookieRefresh,
-  defaultExpose,
-  guard,
-  settle,
-} from "../server/respond.ts";
+import { assertCookieRefresh, guard, settle } from "../server/respond.ts";
 import { createServer, extendServer } from "../server/server.ts";
 import { apiProcedures } from "./router.ts";
 
@@ -401,7 +397,7 @@ export function createOrpc<
   options: OrpcOptions = {},
 ): BetterOrpc<M, F, E, C, P, B> {
   const server = createServer(betterSupabase, options);
-  const expose = options.exposeErrors ?? defaultExpose();
+  const { expose } = adapterBase(server, options);
   const tenantClaim = claimsOf(betterSupabase.meta).tenant;
 
   const contexts = new WeakMap<

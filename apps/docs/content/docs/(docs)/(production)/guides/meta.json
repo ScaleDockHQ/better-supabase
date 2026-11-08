@@ -5,6 +5,7 @@
     "supabase-blocks",
     "data-api-grants",
     "read-replicas",
+    "postgres-practices",
     "offline-first",
     "without-a-session",
     "csv-downloads",

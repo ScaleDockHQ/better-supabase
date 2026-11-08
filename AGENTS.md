@@ -436,6 +436,11 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0394: Infer the notifications block and the settings schemas.
 - 0400: Count the remaining do blocks and let the webhook fan-out honour the provider's wildcards.
 - 0420: Pause data hooks and record pages offline, and stream child tables with their parent subject.
+- 0430: Upgrade writes no schema migration, and app triggers replace block triggers.
+- 0440: Seeds are a declarative data layer.
+- 0450: Resolve auth once per scope and split the server entry.
+- 0460: Check storage, initplan and policy-index practices in doctor, prefer `db advisors`, pin the audience.
+- 0470: Hold the app stages to three fixtures.
 - 0480: Keep the data client out of the sign-in routes and load heavy UI on first use.
 - 0481: Enforce a static shell for every route group and measure with the Turbopack analyzer.
 - 0482: Use the runtime's Temporal in the browser and load the polyfill only when it is missing.
