@@ -40,6 +40,7 @@ guide. Each change is also in the
    better-supabase codemod config
    better-supabase codemod generators
    better-supabase codemod naming
+   better-supabase codemod server-imports
    better-supabase codemod table-modules
    ```
 
@@ -124,6 +125,10 @@ Every exported type that ended in `Args` or `Settings` is a `*Options`,
 `jsonSchema`, `toJsonSchema`, `standardSchema`, `factories`, `nuqs`). Import each
 one from `better-supabase/generators/<name>`; `codemod generators` rewrites the
 imports and lists any generator that still uses the `apiVersion: 1` shape.
+`better-supabase/server` no longer exports the account helpers, the CSV helpers
+or the rate-limit header helpers. Import them from
+`better-supabase/server/accounts`, `better-supabase/server/csv` and
+`better-supabase/server/rate-limit`; `codemod server-imports` splits each import.
 Generators are plugins at `apiVersion: 2`, and `zod` 4.x and `valibot` 1.x are
 optional peers with a tested range.
 
