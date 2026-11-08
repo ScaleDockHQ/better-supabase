@@ -105,3 +105,13 @@ export function stableKey(parts: unknown): string | undefined {
 
   return text === UNCACHEABLE ? undefined : sha256Hex(text);
 }
+
+/**
+ * The stable text of `value` (sorted keys, tagged maps and sets), or
+ * `undefined` when it holds a function or state the text can't carry.
+ */
+export function stableText(value: unknown): string | undefined {
+  const text = stable(value);
+
+  return text === UNCACHEABLE ? undefined : text;
+}

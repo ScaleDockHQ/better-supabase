@@ -439,8 +439,62 @@ export interface ParseCache {
   readonly stats: { parsed: number; hits: number };
 }
 
-/** An in-memory parse cache. Each text is parsed once per content hash. */
-export function createParseCache(): ParseCache {
+/**
+ * Where parse results live between runs. The CLI installs one that reads and
+ * writes a file, so `src/sql` stays free of Node built-ins.
+ */
+export interface ParseStore {
+  readonly get: (key: string) => unknown;
+  readonly set: (key: string, value: ParsedFile) => void;
+}
+
+const STORE_KEY: unique symbol = Symbol.for("better-supabase.parse-store");
+
+// The bundle can hold this module twice (the `./sql` entry and the CLI chunks),
+// so the store lives on `globalThis`, where both copies find the same one.
+// SAFETY: only this module writes STORE_KEY on globalThis, and it writes a ParseStore or undefined.
+const shared = globalThis as { [STORE_KEY]?: ParseStore };
+
+/** Installs the store new parse caches read and write, or removes it. */
+export function setParseStore(store: ParseStore | undefined): void {
+  if (store === undefined) {
+    delete shared[STORE_KEY];
+  } else {
+    shared[STORE_KEY] = store;
+  }
+}
+
+function isParsedFile(value: unknown): value is ParsedFile {
+  return (
+    typeof value === "object" &&
+    value !== null &&
+    "objects" in value &&
+    Array.isArray(value.objects) &&
+    "alters" in value &&
+    Array.isArray(value.alters) &&
+    "creates" in value &&
+    Array.isArray(value.creates) &&
+    "tags" in value &&
+    Array.isArray(value.tags) &&
+    "policies" in value &&
+    Array.isArray(value.policies) &&
+    "doBlocks" in value &&
+    Array.isArray(value.doBlocks) &&
+    "inserts" in value &&
+    Array.isArray(value.inserts) &&
+    "outsideTransaction" in value &&
+    typeof value.outsideTransaction === "boolean"
+  );
+}
+
+/**
+ * A parse cache in memory, behind the installed store when there is one. Each
+ * text is parsed once per content hash, and a text an earlier run parsed is
+ * read from the store.
+ */
+export function createParseCache(
+  store: ParseStore | undefined = shared[STORE_KEY],
+): ParseCache {
   const entries = new Map<string, ParsedFile>();
   const stats = { parsed: 0, hits: 0 };
 
@@ -456,9 +510,19 @@ export function createParseCache(): ParseCache {
         return held;
       }
 
+      const stored = store?.get(key);
+
+      if (isParsedFile(stored)) {
+        stats.hits += 1;
+        entries.set(key, stored);
+
+        return stored;
+      }
+
       stats.parsed += 1;
       const parsed = parseDeclared(text);
       entries.set(key, parsed);
+      store?.set(key, parsed);
 
       return parsed;
     },

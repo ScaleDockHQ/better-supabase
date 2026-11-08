@@ -22,7 +22,11 @@ import type { Now } from "../sql/migrations.ts";
 import type { TemplateContext, TemplateFile } from "../templates.ts";
 
 import { groupConfig, resolveConfig } from "../../config/index.ts";
-import { frameworkRegistry } from "../../plugins/index.ts";
+import {
+  frameworkFiles,
+  frameworkRegistry,
+  serverImportOf,
+} from "../../plugins/index.ts";
 import {
   conventionConfig,
   designConfig,
@@ -526,6 +530,13 @@ async function runInit(
             },
       ),
       ...integrationFiles(integrations, templateContext),
+      ...(hooksBinding === undefined
+        ? []
+        : frameworkFiles(hooksBinding, {
+            srcDir: templateContext.srcDir,
+            generated: templateContext.generated,
+            tsExtensions: templateContext.tsExtensions,
+          })),
       ...(chosen === null
         ? []
         : [
@@ -571,6 +582,11 @@ async function runInit(
     project.frameworks.length > 0
       ? `Found ${project.frameworks.join(", ")}${where}.`
       : `No framework found${where}.`,
+    ...(hooksBinding === undefined || serverImportOf(hooksBinding) === undefined
+      ? []
+      : [
+          `Server adapter for ${hooksBinding.name}: ${serverImportOf(hooksBinding)}.`,
+        ]),
     ...(existing === undefined ? [] : ["", ...existingLines(existing)]),
     "",
     ...changeLines(applied),

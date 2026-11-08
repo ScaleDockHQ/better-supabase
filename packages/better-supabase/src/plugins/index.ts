@@ -12,6 +12,8 @@ export {
   defineFramework,
   FRAMEWORK_API_VERSION,
   frameworkProblem,
+  frameworkFiles,
   frameworkRegistry,
   hooksSubpathOf,
+  serverImportOf,
 } from "./frameworks.ts";

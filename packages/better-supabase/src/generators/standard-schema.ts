@@ -63,6 +63,10 @@ export function standardSchema(
     pure: true,
     provides: options.validators === false ? [] : ["validators"],
     workerSafe: true,
+    module: {
+      specifier: "better-supabase/generators/standard-schema",
+      export: "standardSchema",
+    },
     name: "standard-schema",
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =

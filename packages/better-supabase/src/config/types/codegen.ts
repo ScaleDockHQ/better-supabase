@@ -321,6 +321,14 @@ export interface GeneratorModel {
   readonly blocks: readonly GeneratorBlock[];
 }
 
+/** Where a worker thread loads a generator from. */
+export interface GeneratorModule {
+  /** A package specifier or a `file:` URL that `import()` resolves. */
+  readonly specifier: string;
+  /** The export that takes the generator's `options` and returns it. */
+  readonly export: string;
+}
+
 /**
  * Codegen extension point at `apiVersion: 2`. A generator is plain data plus
  * `generate`, so `gen` can cache its files and run it off the main thread.
@@ -344,10 +352,16 @@ export interface Generator {
    */
   readonly pure?: boolean;
   /**
-   * `generate` uses no closure from the config file, so it may run on a worker
-   * thread when the generator is given as a module (`generatorModule`).
+   * `generate` uses no closure from the config file, so `gen` may run it on a
+   * worker thread when `module` says where to load it from.
    */
   readonly workerSafe?: boolean;
+  /**
+   * The module a worker thread imports to build this generator again: its
+   * `export` is called with `options` and returns the generator. Without it a
+   * `workerSafe` generator still runs on the main thread.
+   */
+  readonly module?: GeneratorModule;
   readonly provides?: readonly GeneratorCapability[];
   generate(
     input: GeneratorInput,

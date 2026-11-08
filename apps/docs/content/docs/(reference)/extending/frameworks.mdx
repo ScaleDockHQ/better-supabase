@@ -37,7 +37,7 @@ that nothing registers is an error that lists the registered names.
 | `hooksSubpath`   | The `better-supabase/<subpath>` entry that exports `defineListHook` and `defineOneHook`. Defaults to `name`. |
 | `hooksModule`    | A full module specifier for hooks that live in another package. It takes precedence over `hooksSubpath`.     |
 | `hooksDirective` | A directive on the first line of `hooks.ts`, such as `"use client";`.                                        |
-| `serverSubpath`  | The runtime subpath of the framework's server adapter, when it has one.                                      |
+| `serverSubpath`  | The runtime subpath of the framework's server adapter. `init` names it, and `templates` receive it.          |
 | `templates`      | A function that returns the files `init` writes for the framework.                                           |
 
 ## What derives from the registry
@@ -50,3 +50,27 @@ party framework is a binding in the config.
 
 The bindings are plain data and a `templates` function, so `better-supabase
 config` prints them and the capability registry can list them.
+
+## Init templates and the server adapter
+
+When `init` detects a registered framework, it calls `templates` with the
+source directory (`srcDir`), the generated module path (`generated`), whether
+imports keep their `.ts` extension (`tsExtensions`) and `serverImport`, which is
+`better-supabase/<serverSubpath>` or `undefined`. Each returned file is written
+once, so a file your app already has stays yours. `init` also prints the server adapter specifier, so the next step is
+visible.
+
+```ts
+const qwik = defineFramework({
+  name: "qwik",
+  tier: "community",
+  detect: ["@builder.io/qwik"],
+  serverSubpath: "qwik-server",
+  templates: ({ srcDir, serverImport }) => [
+    {
+      path: `${srcDir}/lib/qwik-server.ts`,
+      contents: `export * from "${serverImport}";\n`,
+    },
+  ],
+});
+```

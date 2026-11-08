@@ -262,6 +262,10 @@ export function jsonSchema(
     options,
     pure: true,
     workerSafe: true,
+    module: {
+      specifier: "better-supabase/generators/json-schema",
+      export: "jsonSchema",
+    },
     name: "json-schema",
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =

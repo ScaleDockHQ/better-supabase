@@ -1,9 +1,19 @@
 import { mkdirSync, readFileSync, renameSync, writeFileSync } from "node:fs";
 import { dirname, resolve } from "node:path";
 
-import { clearMemo, setMemoBackend } from "../../sql/index.ts";
+import type { DiskModuleStore } from "./module-store.ts";
+import type { DiskParseStore } from "./parse-store.ts";
+
+import {
+  clearMemo,
+  setMemoBackend,
+  setModuleRenderStore,
+  setParseStore,
+} from "../../sql/index.ts";
 import { generatorHash } from "../sql/generator-hash.ts";
 import { VERSION } from "../version.ts";
+import { createDiskModuleStore } from "./module-store.ts";
+import { createDiskParseStore } from "./parse-store.ts";
 import { cacheEnabled, cacheRoot } from "./store.ts";
 
 /** Results kept per namespace, newest last, so the file stays small. */
@@ -92,16 +102,41 @@ function diskBackend(folder: string, salt: string) {
   };
 }
 
+let active: { parse: DiskParseStore; modules: DiskModuleStore } | undefined;
+let registered = false;
+
 /**
  * Points the generator's `memoized` calls at the project's cache folder, or at
  * nothing when this run has no cache. Call it once the config is known.
  */
 export async function installMemo(root: string): Promise<void> {
   clearMemo();
+  active?.parse.flush();
+  active?.modules.flush();
 
-  setMemoBackend(
-    cacheEnabled()
-      ? diskBackend(cacheRoot(root), `${VERSION}:${await generatorHash()}`)
-      : undefined,
-  );
+  if (!cacheEnabled()) {
+    setMemoBackend(undefined);
+    setParseStore(undefined);
+    setModuleRenderStore(undefined);
+    active = undefined;
+
+    return;
+  }
+
+  const salt = `${VERSION}:${await generatorHash()}`;
+  setMemoBackend(diskBackend(cacheRoot(root), salt));
+  const parse = createDiskParseStore(cacheRoot(root), salt);
+  setParseStore(parse);
+  const modules = createDiskModuleStore(cacheRoot(root), salt);
+  setModuleRenderStore(modules);
+  active = { parse, modules };
+
+  // The stores write once, when the process ends, instead of once per entry.
+  if (!registered) {
+    registered = true;
+    process.once("exit", () => {
+      active?.parse.flush();
+      active?.modules.flush();
+    });
+  }
 }

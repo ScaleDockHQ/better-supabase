@@ -276,6 +276,10 @@ export function valibot(options: ValibotGeneratorOptions = {}): Generator {
     pure: true,
     provides: options.validators === false ? [] : ["validators"],
     workerSafe: true,
+    module: {
+      specifier: "better-supabase/generators/valibot",
+      export: "valibot",
+    },
     name: "valibot",
     generate(input: GeneratorInput): GeneratedFile[] {
       const path =

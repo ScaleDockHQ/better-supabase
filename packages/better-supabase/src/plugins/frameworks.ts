@@ -17,6 +17,12 @@ export interface FrameworkTemplateContext {
   readonly generated: string;
   /** Whether relative imports keep their `.ts` extension. */
   readonly tsExtensions: boolean;
+  /**
+   * The specifier of the framework's server adapter
+   * (`better-supabase/<serverSubpath>`), or undefined when the binding has
+   * none.
+   */
+  readonly serverImport: string | undefined;
 }
 
 export interface FrameworkTemplateFile {
@@ -207,3 +213,19 @@ export function frameworkRegistry(
 /** The runtime subpath `hooks.ts` imports `defineListHook` from. */
 export const hooksSubpathOf = (binding: FrameworkBinding): string =>
   binding.hooksSubpath ?? binding.name;
+
+/** The specifier of a binding's server adapter, or undefined. */
+export const serverImportOf = (
+  binding: FrameworkBinding,
+): string | undefined =>
+  binding.serverSubpath === undefined
+    ? undefined
+    : `better-supabase/${binding.serverSubpath}`;
+
+/** The files `init` writes for a binding, relative to the project root. */
+export const frameworkFiles = (
+  binding: FrameworkBinding,
+  context: Omit<FrameworkTemplateContext, "serverImport">,
+): readonly FrameworkTemplateFile[] =>
+  binding.templates?.({ ...context, serverImport: serverImportOf(binding) }) ??
+  [];

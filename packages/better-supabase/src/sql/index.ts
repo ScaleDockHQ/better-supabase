@@ -24,9 +24,18 @@ export {
   duplicatePolicies,
   ownerOf,
   parseDeclared,
+  setParseStore,
   type Declaration,
+  type ParseStore,
   type SchemaModel,
 } from "./pipeline/model.ts";
+
+export {
+  moduleRenderStats,
+  setModuleRenderStore,
+  type ModuleRenderEntry,
+  type ModuleRenderStore,
+} from "./pipeline/module-cache.ts";
 
 export { renderKey } from "./pipeline/render-key.ts";
 

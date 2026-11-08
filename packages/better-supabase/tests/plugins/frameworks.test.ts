@@ -177,3 +177,39 @@ describe("init", () => {
     expect(plain?.contents).not.toContain("hooks:");
   });
 });
+
+describe("serverSubpath and templates", () => {
+  const binding = defineFramework({
+    name: "qwik",
+    tier: "community",
+    detect: ["@builder.io/qwik"],
+    serverSubpath: "qwik-server",
+    templates: (context) => [
+      {
+        path: `${context.srcDir}/lib/qwik.ts`,
+        contents: `import { handler } from '${context.serverImport}';\n`,
+      },
+    ],
+  });
+
+  const context = {
+    srcDir: "src",
+    generated: "src/g.ts",
+    tsExtensions: false,
+  } as const;
+
+  it("names the server adapter import", () => {
+    expect(plugins.serverImportOf(binding)).toBe("better-supabase/qwik-server");
+    expect(plugins.serverImportOf(qwik)).toBeUndefined();
+  });
+
+  it("hands the templates the context and the server import", () => {
+    expect(plugins.frameworkFiles(binding, context)).toEqual([
+      {
+        path: "src/lib/qwik.ts",
+        contents: "import { handler } from 'better-supabase/qwik-server';\n",
+      },
+    ]);
+    expect(plugins.frameworkFiles(qwik, context)).toEqual([]);
+  });
+});

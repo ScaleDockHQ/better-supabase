@@ -325,6 +325,7 @@ export function zod(options: ZodGeneratorOptions = {}): Generator {
     pure: true,
     provides: options.validators === false ? [] : ["validators"],
     workerSafe: true,
+    module: { specifier: "better-supabase/generators/zod", export: "zod" },
     name: "zod",
     generate(input: GeneratorInput): GeneratedFile[] {
       const path = options.output ?? siblingPath(input.config.output, "zod.ts");

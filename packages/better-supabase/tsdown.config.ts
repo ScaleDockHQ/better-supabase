@@ -417,6 +417,7 @@ const cli = defineConfig({
   entry: {
     "cli/index": "src/cli/index.ts",
     "cli/bin": "src/cli/bin.ts",
+    "cli/generator-worker": "src/cli/generators/worker.ts",
     "mapper/bin": "src/mapper/bin.ts",
   },
   platform: "node",
@@ -447,13 +448,17 @@ const cli = defineConfig({
       },
     },
     {
-      // The bins are executables, not modules anyone imports, so they ship no types.
+      // The bins and the generator worker are entry points, not modules anyone imports, so they ship no types.
       name: "no-bin-types",
       generateBundle: {
         order: "post",
         handler(_options, bundle) {
           for (const file of Object.keys(bundle)) {
-            if (/^(cli|mapper)\/bin\.d\.[cm]?ts(\.map)?$/.test(file)) {
+            if (
+              /^(cli\/(bin|generator-worker)|mapper\/bin)\.d\.[cm]?ts(\.map)?$/.test(
+                file,
+              )
+            ) {
               delete bundle[file];
             }
           }

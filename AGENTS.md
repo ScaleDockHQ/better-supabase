@@ -414,6 +414,10 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0348: Block tables name their tenant column tenant_id.
 - 0349: Three block tables take their convention names, and settings live in better_supabase.
 - 0350: Prune ended workflow runs with workflows prune.
+- 0360: Framework bindings supply init templates and name the server adapter.
+- 0361: Keep the parse cache of the schema model on disk.
+- 0362: Cache each module render on the inputs it read.
+- 0363: Run workerSafe generators on a worker pool.
 - 0370: Cascade notifications for every registered subject.
 - 0371: Type jsonb columns from the Standard Schema setup.
 - 0372: Let a provider choose the wildcard grants permission_matches honours.

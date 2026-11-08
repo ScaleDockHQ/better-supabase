@@ -97,6 +97,11 @@
       "seconds": 0.36,
       "rendered": 0,
       "written": 0
+    },
+    "audit": {
+      "seconds": 0.75,
+      "rendered": 45,
+      "written": 2
     }
   },
   "config": {
