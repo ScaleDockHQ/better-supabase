@@ -85,6 +85,17 @@ describe("an app with no organizations", () => {
       expect(await run(["upgrade", "--cwd", dir])).toMatchObject({ code: 0 });
       expect(await readTree(dir)).toStrictEqual(tree);
 
+      // The seed statements are data, so the check reports them until
+      // `add --adopt` writes the data migration.
+      expect(await run(["upgrade", "--check", "--cwd", dir])).toMatchObject({
+        code: 1,
+        stderr: expect.stringContaining("in no data migration"),
+      });
+
+      expect(await run(["add", "--adopt", "--cwd", dir])).toMatchObject({
+        code: 0,
+      });
+
       expect(await run(["upgrade", "--check", "--cwd", dir])).toMatchObject({
         code: 0,
       });
