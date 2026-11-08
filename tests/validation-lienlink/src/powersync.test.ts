@@ -49,7 +49,7 @@ const streamColumns = (yaml: string): Map<string, string[]> => {
 
     const query = /^ {4}query: "SELECT (.+?) FROM /.exec(line);
 
-    if (query !== null) {
+    if (query !== null && query[1] !== "*") {
       streams.set(
         current,
         query[1]!
@@ -77,8 +77,6 @@ describe("PowerSync streams over the projection views", () => {
         "streams",
         "--cwd",
         dir,
-        "--instance",
-        "attachments,memberships,teams,profiles",
         "--out",
         "powersync",
       ]);
@@ -108,6 +106,16 @@ describe("PowerSync streams over the projection views", () => {
             : [...columns, "id"].toSorted(),
         });
       }
+
+      // A child table streams with the jobs of the user's organizations.
+      const yaml = await readFile(
+        join(dir, "powersync/sync-streams.yaml"),
+        "utf-8",
+      );
+
+      expect(yaml).toContain(
+        "SELECT * FROM public.job_parties WHERE job_id IN (SELECT id FROM public.jobs WHERE organization_id IN active_orgs)",
+      );
 
       // The organizations stream keeps the switcher's columns, a subset of
       // the view's.

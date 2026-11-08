@@ -1,5 +1,7 @@
 import { describe, expect, it } from "vitest";
 
+import type { PowerSyncSubject } from "../../../src/cli/powersync/streams.ts";
+
 import { projectionsOf } from "../../../src/cli/powersync/projection.ts";
 import {
   powersyncColumnType,
@@ -329,6 +331,54 @@ describe("powersyncOutput shaping", () => {
       run("", projections, {
         subjects: new Map([["job", { ...jobs, tenant: false }]]),
       }).streams,
+    ).not.toContain("subject_id IN");
+  });
+
+  const quotes = {
+    table: "public.quotes",
+    id: "id",
+    tenant: "organization_id",
+  } as const;
+
+  const several = (where: string) =>
+    projectionsOf([
+      {
+        text: `create view public.case_attachments as
+          select id, tenant_id as organization_id, subject_type, subject_id from better_supabase.attachments where ${where};`,
+      },
+    ]);
+
+  it("scopes a view that keeps several subjects to each subject's own rows", () => {
+    const subjects = new Map<string, PowerSyncSubject>([
+      ["job", jobs],
+      ["quote", quotes],
+    ]);
+
+    for (const where of [
+      "subject_type in ('job', 'quote')",
+      "subject_type = 'job' or subject_type = 'quote'",
+    ]) {
+      const { streams } = run("", several(where), { subjects });
+
+      expect(streams).toContain(
+        "AND (subject_type = 'job' AND subject_id IN (SELECT id::text FROM public.jobs WHERE organization_id IN active_orgs AND deleted_at IS NULL) OR subject_type = 'quote' AND subject_id IN (SELECT id::text FROM public.quotes WHERE organization_id IN active_orgs))",
+      );
+      expect(streams).toContain(`(${where})`);
+    }
+  });
+
+  it("keeps a subject type the app doesn't register to its organization bound", () => {
+    const { streams } = run("", several("subject_type in ('job', 'note')"), {
+      subjects: new Map([["job", jobs]]),
+    });
+
+    expect(streams).toContain("OR subject_type = 'note')");
+    expect(streams).not.toContain("quotes");
+  });
+
+  it("leaves several unregistered subjects organization-wide", () => {
+    expect(
+      run("", several("subject_type in ('a', 'b')")).streams,
     ).not.toContain("subject_id IN");
   });
 

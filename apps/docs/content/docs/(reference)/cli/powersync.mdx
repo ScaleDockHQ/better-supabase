@@ -112,8 +112,15 @@ When a projection keeps one `subject_type` (`where subject_type = 'job'`) and
 a table tagged `@bsb subject type=job` has a tenant column, the attachments
 stream also keeps only the files whose `subject_id` is a row of that table in
 the user's organizations (and, with `deleted-at`, one that is not deleted). A
-file whose job is gone does not sync. A view that names several subject types,
-or a type no table registers, keeps the view's `where` alone.
+file whose job is gone does not sync.
+
+A view that names several subject types (`where subject_type in ('job', 'quote')`,
+or the same types joined with `or`) gets one branch per type: a file syncs when
+its `subject_type` is that type and its `subject_id` is a row of that type's table
+in the user's organizations. A type no table registers with a tenant column keeps
+only its `subject_type` and the organization bound. When no named type has a
+registered table, or the view names no type, the stream keeps the view's `where`
+alone.
 
 An app table that belongs to a parent subject syncs with `gen.powersync.children`:
 

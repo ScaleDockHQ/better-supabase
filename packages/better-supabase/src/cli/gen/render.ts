@@ -3,6 +3,7 @@ import { basename, dirname, join, resolve } from "node:path";
 import type { GeneratedFile, ResolvedConfig } from "../../config/index.ts";
 import type { Snapshot } from "../introspect/types.ts";
 
+import { blockTables } from "../../sql/index.ts";
 import { importPath } from "../core/io.ts";
 import { runGenerators } from "../generators/run.ts";
 import {
@@ -14,7 +15,7 @@ import {
   generateDatabaseTypes,
   oxfmtInstalled,
 } from "../introspect/typegen.ts";
-import { appColumnsFor } from "../sql-layout.ts";
+import { appColumnsFor, appSchemaTexts } from "../sql-layout.ts";
 import { apiTypeSchemas } from "./api-schemas.ts";
 import {
   emitBlockConfig,
@@ -35,6 +36,7 @@ import {
 } from "./emit.ts";
 import { emitHooks } from "./hooks.ts";
 import { buildModel, generatorModel } from "./model.ts";
+import { NO_PROJECTED_READS, projectedReads } from "./projected-reads.ts";
 import { emitRecords } from "./records.ts";
 import { withTableTags } from "./table-tags.ts";
 import { emitTableModules, tableModules } from "./tables.ts";
@@ -188,11 +190,26 @@ export async function render(
 
   const main = mapper ? 0 : 1;
 
+  const projected =
+    config.blockNames.length === 0
+      ? NO_PROJECTED_READS
+      : projectedReads(config, model.meta, await appSchemaTexts(config));
+
   const blockOptions = {
     ...runtime,
     ...(config.blockNames.length === 0
       ? {}
-      : { appColumns: await appColumnsFor(config) }),
+      : {
+          appColumns: await appColumnsFor(config),
+          ...(projected.viewKeys.size === 0
+            ? {}
+            : {
+                viewFanOut: {
+                  views: projected.viewKeys,
+                  tables: blockTables(config).byBlock,
+                },
+              }),
+        }),
   };
 
   const blockConfig = emitBlockConfig(config, blockOptions);
@@ -219,10 +236,14 @@ export async function render(
     files.push(...emitTableModules(model, modules, config, runtime));
   }
 
-  const hooks = emitHooks(config, Object.keys(model.meta.tables), {
-    ...runtime,
-    ...(modules === undefined ? {} : { tables: modules }),
-  });
+  // Clients read the app's view over a block table, so no hooks read the table.
+  const hooks = emitHooks(
+    config,
+    Object.keys(model.meta.tables).filter(
+      (key) => !projected.baseKeys.has(key),
+    ),
+    { ...runtime, ...(modules === undefined ? {} : { tables: modules }) },
+  );
 
   if (hooks) {
     files.push(hooks);

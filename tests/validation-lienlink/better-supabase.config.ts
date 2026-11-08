@@ -11,4 +11,14 @@ export default defineConfig({
     attachments: {},
     seeds: {},
   },
+  database: { source: { snapshot: "snapshot.json" } },
+  gen: {
+    powersync: {
+      instances: ["attachments", "memberships", "teams", "profiles"],
+      // job_parties syncs with the jobs of the user's organizations.
+      children: [
+        { table: "public.job_parties", parent: "job", column: "job_id" },
+      ],
+    },
+  },
 });

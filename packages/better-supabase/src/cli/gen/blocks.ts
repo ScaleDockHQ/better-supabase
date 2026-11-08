@@ -10,6 +10,7 @@ import type {
   PresetCatalog,
   PresetCatalogManifest,
 } from "../../preset/index.ts";
+import type { ViewFanOut } from "./block-names.ts";
 
 import { entityNames } from "../../blocks/index.ts";
 import {
@@ -1010,6 +1011,8 @@ export function emitBlockConfig(
   options: {
     readonly runtimeImport?: string;
     readonly appColumns?: AppColumns;
+    /** The views over block tables, for the tables a read lists. */
+    readonly viewFanOut?: ViewFanOut;
   } = {},
 ): GeneratedFile | undefined {
   if (config.blockNames.length === 0) {
@@ -1020,7 +1023,7 @@ export function emitBlockConfig(
   const events = appTableEvents(config);
   const runtime = options.runtimeImport ?? "better-supabase";
   const renamed = renamedBlockLines(entries);
-  const constants = nameConstantLines(config, entries);
+  const constants = nameConstantLines(config, entries, options.viewFanOut);
   const synced = config.gen.powersync?.instances;
 
   const instances = instanceMapLines(

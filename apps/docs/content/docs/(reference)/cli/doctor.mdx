@@ -1595,6 +1595,11 @@ a block runs over are yours to write and are not reported. Write the row
 through the block's API that [`createBlocks`](/docs/blocks/create-blocks)
 returns.
 
+A write through your own view over a block's table counts too: with
+`create view public.job_attachments ... from better_supabase.attachments`,
+`db.jobAttachments.update()` and `.from("job_attachments").insert()` are
+reported. Reads go through the view, writes go through the block.
+
 ### BS352
 
 **Warning: plain secret column next to a block that encrypts it.** One of

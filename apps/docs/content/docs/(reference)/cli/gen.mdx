@@ -74,7 +74,10 @@ the same generator behind `supabase gen types typescript`, and writes:
    [`betterSupabase.blocks()`](/docs/blocks/create-blocks#block-instances-on-db):
    import it from server code only. With `gen.clientBlocks` set, `blocks.client.ts`
    holds `clientBlocks`, `defineBlocks` over just the listed instances, so the
-   browser bundle carries those clients and no others. None of this needs a
+   browser bundle carries those clients and no others. The `reads` constant
+   lists, next to each table a read touches, the typed key of every view your schema
+   files project over it (`job_attachments` over `attachments`), so a cached read
+   served from the view is invalidated by a write to the table. None of this needs a
    database, only the config;
 5. with blocks that have a record binding installed, a
    [record type](/docs/repository/record-bindings#generated-record-types) per type in
@@ -82,7 +85,8 @@ the same generator behind `supabase gen types typescript`, and writes:
    `gen.records` is `false`;
 6. with `gen.hooks` set, `hooks.ts` next to the main module: a list hook and a
    record hook per table (`useCustomers`, `useCustomer`) for the
-   [data hooks](/docs/frontend/data-hooks) of that framework;
+   [data hooks](/docs/frontend/data-hooks) of that framework. A block table that
+   one of your views projects gets no hooks; its view's hooks read it;
 7. one file per configured generator (`zod()`, `valibot()`, `jsonSchema()`,
    `standardSchema()`);
 8. with `readSets` configured, the `read-sets` SQL module file: one function per

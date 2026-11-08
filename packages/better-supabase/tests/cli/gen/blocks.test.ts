@@ -15,6 +15,7 @@ import { renderFiles } from "../../../src/cli/gen/render.ts";
 import { resolveConfig as resolveDefault } from "../../../src/config/resolve.ts";
 import { zod } from "../../../src/generators/zod.ts";
 import { PRESET_CATALOG } from "../../../src/preset/catalog.generated.ts";
+import { blockTables } from "../../../src/sql/index.ts";
 import { loadFixtureSnapshot } from "../fixtures/render.ts";
 
 /**
@@ -621,6 +622,42 @@ describe("block reads in blocks.generated.ts", () => {
     );
     expect(file?.contents).toContain("export type DealsBoardResult = {");
     expect(file?.contents).toContain("readonly weighted: readonly {");
+  });
+});
+
+describe("block reads served from the app's views", () => {
+  const config = resolveConfig(
+    { blocks: { organizations: {}, memberships: {}, attachments: {} } },
+    "/project",
+  );
+
+  const tables = blockTables(config).byBlock;
+
+  it("lists the views over a table a read lists", () => {
+    const file = emitBlockConfig(config, {
+      viewFanOut: {
+        views: new Map([
+          ["better_supabase.attachments", ["jobAttachments"]],
+          ["better_supabase.memberships", ["memberships"]],
+        ]),
+        tables,
+      },
+    });
+
+    expect(file?.contents).toContain(
+      '["attachments", "jobAttachments"], "better_supabase")',
+    );
+
+    // organization_overview reads tables of the memberships instance.
+    expect(file?.contents).toMatch(
+      /\["organizations", "memberships", "invitations"\], "better_supabase"/,
+    );
+  });
+
+  it("writes the plain lists without views", () => {
+    expect(emitBlockConfig(config)?.contents).toContain(
+      '["attachments"], "better_supabase")',
+    );
   });
 });
 
