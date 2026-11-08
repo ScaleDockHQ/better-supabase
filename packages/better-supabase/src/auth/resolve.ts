@@ -25,7 +25,7 @@ import type { CookieRefresh } from "./ssr-client.ts";
 
 import { decodeJwtHeader, decodeJwtPayload } from "../core/base64.ts";
 import { dbError } from "../core/errors.ts";
-import { clearJwksCache, sharedJwks } from "../core/jwks-cache.ts";
+import { clearJwksCache, purgeJwks, sharedJwks } from "../core/jwks-cache.ts";
 import { consoleLogger } from "../core/logger.ts";
 import { actorOf, invalidActorError } from "./actor.ts";
 import { sessionStatus } from "./ended.ts";
@@ -418,6 +418,21 @@ function serverEnv(options: ResolveAuthOptions, jwks: InlineJwks): SupabaseEnv {
 export function clearKeyCaches(): void {
   clearHs256Keys();
   clearJwksCache();
+}
+
+/**
+ * Forgets the cached signing keys: the key set of `url`, or every key set and
+ * imported secret without one. Call it when a signing key was revoked, so the
+ * next verification fetches the set again instead of waiting for the cache.
+ */
+export function purgeKeys(url?: URL | string): void {
+  if (url === undefined) {
+    clearKeyCaches();
+
+    return;
+  }
+
+  purgeJwks(url);
 }
 
 async function verifyAndCheck(

@@ -1365,6 +1365,7 @@
       "PROBLEM_CONTENT_TYPE",
       "PROBLEM_TYPE_BASE",
       "problemResponse",
+      "purgeKeys",
       "readSession",
       "realtimeRelay",
       "realtimeTopicAccess",

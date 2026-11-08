@@ -296,6 +296,8 @@ export {
   snapshotOf,
 } from "../auth/snapshot.ts";
 
+export { purgeKeys } from "../auth/resolve.ts";
+
 export { passwordGrant, safeRedirectPath } from "../auth/sign-in.ts";
 
 export {

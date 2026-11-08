@@ -450,6 +450,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0484: Ship bucket definitions to the browser from `better-supabase/storage/client`.
 - 0520: Accept the 0.26 provider fields as optional additions.
 - 0521: Plan the access token hook: reuse a current refresh, slim OAuth tokens.
+- 0522: Cap the Supabase JWKS cache at 600 seconds and expose purgeKeys.
 
 ## Pre-release pins
 

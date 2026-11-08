@@ -9,7 +9,10 @@ import { err, ok } from "./result.ts";
 export type JwksInput = Jwks | URL | (() => Promise<Jwks>);
 
 export interface JwksSourceOptions extends JwksOfOptions {
-  /** How long a fetched key set is used before it is fetched again. Default: 300. */
+  /**
+   * How long a fetched key set is used before it is fetched again. Default: 300.
+   * A Supabase Auth key set (`/auth/v1/.well-known/jwks.json`) is capped at 600.
+   */
   readonly cacheSeconds?: number;
   /** The least time between two fetches for an unknown `kid`. Default: 30. */
   readonly refetchSeconds?: number;
@@ -27,6 +30,20 @@ export type JwksSource = (refresh: boolean) => Promise<Result<Jwks>>;
 /** A JWK Set as the issuer serves it, before any key is filtered out. */
 export interface RawJwks {
   readonly keys: readonly Readonly<Record<string, unknown>>[];
+}
+
+/**
+ * The longest a Supabase project's key set is used before it is fetched again,
+ * whatever `cacheSeconds` says. Signing keys rotate, and a revoked key keeps
+ * verifying until the set is fetched again.
+ */
+export const SUPABASE_JWKS_MAX_CACHE_SECONDS = 600;
+
+const SUPABASE_JWKS_PATH = "/auth/v1/.well-known/jwks.json";
+
+/** Whether `url` is a Supabase Auth key set (hosted, self-hosted or local). */
+export function isSupabaseJwksUrl(url: URL): boolean {
+  return url.pathname.endsWith(SUPABASE_JWKS_PATH);
 }
 
 /** The most bytes read from a JWKS response. */
@@ -93,6 +110,28 @@ export function clearJwksCache(): void {
   shared.byFetch = new WeakMap();
 }
 
+/**
+ * Forgets the shared key set of `url` (every fetch implementation's copy), so
+ * the next verification fetches it again; no argument forgets all of them. Use
+ * it after a key was revoked or rotated, instead of waiting for the cache.
+ */
+export function purgeJwks(url?: URL | string): void {
+  if (url === undefined) {
+    clearJwksCache();
+
+    return;
+  }
+
+  const href = typeof url === "string" ? new URL(url).href : url.href;
+  const shared = registry();
+
+  shared.byUrl.delete(href);
+
+  // A custom fetch keeps its own map, which a WeakMap can't enumerate: it is
+  // replaced as a whole.
+  shared.byFetch = new WeakMap();
+}
+
 function rawJwksOf(value: unknown): RawJwks {
   const keys: unknown[] =
     typeof value === "object" &&
@@ -153,7 +192,13 @@ export async function sharedJwks(
 ): Promise<Result<RawJwks>> {
   const entry = entryFor(url.href, options.fetch);
   const now = options.now ?? Date.now;
-  const cacheMs = (options.cacheSeconds ?? 300) * 1000;
+  const seconds = options.cacheSeconds ?? 300;
+
+  const cacheMs =
+    (isSupabaseJwksUrl(url)
+      ? Math.min(seconds, SUPABASE_JWKS_MAX_CACHE_SECONDS)
+      : seconds) * 1000;
+
   const refetchMs = (options.refetchSeconds ?? 30) * 1000;
   const age = entry.cached ? now() - entry.cached.at : Number.POSITIVE_INFINITY;
 
