@@ -88,6 +88,6 @@ caller) and `extend` (the core server plus your adapter's methods). Call
 ```ts
 import { adapterBase, createServer } from "better-supabase/server";
 
-const server = createServer(betterSupabase, options);
-const { expose, flush, refuse } = adapterBase(server, options);
+const bsb = createServer(betterSupabase, options);
+const { expose, flush, refuse } = adapterBase(bsb, options);
 ```
