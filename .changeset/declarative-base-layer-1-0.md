@@ -33,7 +33,7 @@ better-supabase upgrade
 
 **Removed.** The 0.46 and 0.47 rename shims, the module upgrades for tables 0.47 renamed (upgrades start at 0.53), `$apiResult`, the `triggerSql` overload, the module `version` option and the `openapi` config key.
 
-**Deferred.** The generated file layout, reads through a view named after a block instance, child PowerSync streams, `positionalTeamWrites` and the owned-column default flip are not in this release (ADR 0393). Cloud design URLs that were saved earlier carry the old `integrations` field.
+**Deferred.** The generated file layout, reads through a view named after a block instance, child PowerSync streams and the owned-column default flip are not in this release (ADR 0393). Cloud design URLs that were saved earlier carry the old `integrations` field.
 
 | Old                                                                     | New                                                                |
 | ----------------------------------------------------------------------- | ------------------------------------------------------------------ |

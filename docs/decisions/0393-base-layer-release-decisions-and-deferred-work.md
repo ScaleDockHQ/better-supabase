@@ -45,7 +45,6 @@ Each item waits for a change of its own.
   hooks and block clients still read the block table (ADR 0392).
 - PowerSync streams for a child table joined to an app parent subject, and
   attachment streams scoped beyond the view's `where` (ADR 0392).
-- Removing `positionalTeamWrites`.
 - The owned-column default flip (ADR 0373). It needs a migration note and runs
   after the renames, as ADR 0373 says.
 - Inferring the notifications block's settings and the `standardSchema` settings
