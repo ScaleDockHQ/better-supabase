@@ -18,7 +18,7 @@ const { items, page } = await db.customers
 // page: { number: 2, size: 25, total: 81, pages: 4, hasMore: true }
 ```
 
-`withCount: true` is shorthand for `count: "exact"`. Without a count, `total` and
+`withCount: true` is shorthand for `count: "estimated"`: the total is exact up to 1,000 rows and the planner's estimate above it. Pass `count: "exact"` for an exact total, which scans every matching row. Without a count, `total` and
 `pages` are `null`; with one, their type is `number`. `hasMore` comes from fetching
 one extra row, so it never needs a count. Without `orderBy`, pages are
 ordered by the primary key, so they never overlap.

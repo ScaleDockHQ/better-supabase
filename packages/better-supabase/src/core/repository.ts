@@ -516,7 +516,7 @@ export function createRepository(
           { where: args?.["where"] },
           {
             selection: { columns: [], includes: [] },
-            count: mode === "planned" || mode === "estimated" ? mode : "exact",
+            count: mode === "planned" || mode === "exact" ? mode : "estimated",
             head: true,
           },
         );
@@ -672,7 +672,7 @@ export function createRepository(
     const { size, offset } = window;
 
     const count =
-      args["count"] ?? (args["withCount"] === true ? "exact" : undefined);
+      args["count"] ?? (args["withCount"] === true ? "estimated" : undefined);
 
     const orderBy = builder.orderBy(table, args["orderBy"]);
 
@@ -789,7 +789,7 @@ export function createRepository(
           orderBy: [],
           limit: undefined,
           offset: undefined,
-          count: "exact",
+          count: args["count"] === "exact" ? "exact" : "estimated",
           head: true,
         }),
         args,
