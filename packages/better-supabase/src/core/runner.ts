@@ -387,7 +387,9 @@ export class OperationRunner {
         table: op.table,
         kind,
         intent,
-        rows: (copy ??= cloneRows(data.rows)),
+        get rows(): Row[] {
+          return (copy ??= cloneRows(data.rows));
+        },
         ...rest,
       };
 
