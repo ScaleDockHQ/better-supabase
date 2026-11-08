@@ -9,7 +9,9 @@ import { expect, test } from "@playwright/test";
 // this one adds the chunks a route pulls in while it hydrates, so a lazy chunk
 // that every visit fetches anyway shows up here (ADR 0480).
 
-// Static first load is about 700 KB; the toaster and the polyfill check add the rest.
+// Measured on a production build: /en/login 824406 and /en/signup 786462 decoded
+// bytes (700 KB of static first load plus the toaster and the lazy chunks that
+// load while it hydrates). The budget leaves about 3% for chunk changes.
 const SIGN_IN_BUDGET = 850_000;
 
 async function scriptBytes(page: Page, path: string): Promise<number> {
@@ -26,7 +28,14 @@ async function scriptBytes(page: Page, path: string): Promise<number> {
 
   await page.goto(path, { waitUntil: "networkidle" });
 
-  return (await Promise.all(sizes)).reduce((total, size) => total + size, 0);
+  const total = (await Promise.all(sizes)).reduce((sum, size) => sum + size, 0);
+
+  test
+    .info()
+    .annotations.push({ type: "script bytes", description: `${total}` });
+  console.log(`script bytes ${path}: ${total}`);
+
+  return total;
 }
 
 test("the sign-in route downloads a small amount of JavaScript", async ({
