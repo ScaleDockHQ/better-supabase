@@ -292,6 +292,32 @@ describe("BS107 without the tenant plugin", () => {
     expect(await run("BS107", context(snap))).toEqual([]);
   });
 
+  it("counts a restrictive with check (false) policy as covering insert", async () => {
+    const snap = snapshot((tables) => {
+      table(tables, "notes").policies = [
+        policy("notes_read", "select", "is_member(organization_id)"),
+        {
+          name: "notes_no_insert",
+          command: "insert",
+          roles: ["authenticated"],
+          permissive: false,
+          using: null,
+          check: "false",
+        },
+        ...(["update", "delete"] as const).map((command) => ({
+          name: `notes_no_${command}`,
+          command,
+          roles: ["authenticated"],
+          permissive: false,
+          using: "false",
+          check: null,
+        })),
+      ];
+    });
+
+    expect(await run("BS107", context(snap))).toEqual([]);
+  });
+
   it("counts a restrictive using (false) policy as covering the command", async () => {
     const snap = snapshot((tables) => {
       table(tables, "notes").policies = [

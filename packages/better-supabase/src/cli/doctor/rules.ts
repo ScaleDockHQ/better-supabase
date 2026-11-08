@@ -60,6 +60,7 @@ import { SCHEMA_DESIGN_RULES } from "./schema-design.ts";
 import { SEED_RULES } from "./seeds.ts";
 import {
   catalogOf,
+  deniesAll,
   exposed,
   lineOf,
   policyObject,
@@ -542,9 +543,7 @@ const OWN_RULES: readonly Rule[] = [
 
         const denying = table.policies.filter(
           (policy) =>
-            !policy.permissive &&
-            forAuthenticated(policy) &&
-            /^\s*false\s*$/i.test(policy.using ?? ""),
+            !policy.permissive && forAuthenticated(policy) && deniesAll(policy),
         );
 
         const covered = new Set(
@@ -561,7 +560,7 @@ const OWN_RULES: readonly Rule[] = [
 
         return [
           {
-            message: `${qualified(table)} is tenant-scoped but has no ${missing.join(", ")} policy for authenticated, so ${missing.join(" and ")} silently match no rows. Add the policies, or state the intent with a restrictive \`using (false)\` policy.`,
+            message: `${qualified(table)} is tenant-scoped but has no ${missing.join(", ")} policy for authenticated, so ${missing.join(" and ")} silently match no rows. Add the policies, or state the intent with a restrictive \`using (false)\` policy (\`with check (false)\` for insert).`,
             target: qualified(table),
             object: tableObject(table),
           },
