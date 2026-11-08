@@ -250,6 +250,15 @@ export async function moduleLayoutFor(
   };
 }
 
+/** The schema files the app wrote, not the ones blocks did. */
+export async function appSchemaTexts(
+  config: ResolvedConfig,
+): Promise<Awaited<ReturnType<typeof declarativeTexts>>> {
+  return (await declarativeTexts(config)).filter(
+    (source) => !writtenByBlocks(source),
+  );
+}
+
 /** The columns the app's schema files add to block tables, by table. */
 export async function appColumnsFor(
   config: ResolvedConfig,

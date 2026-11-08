@@ -4,6 +4,7 @@ import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 import { toSnake } from "../../index.ts";
 import { blockTables } from "../../sql/index.ts";
 import { appTablesOf } from "./app-tables.ts";
+import { PROJECTION_RULES } from "./projections.ts";
 
 /**
  * A supabase-js write: `.from("x").insert(`, with an optional `.schema("s")`
@@ -170,4 +171,5 @@ export const BLOCK_WRITE_RULES: readonly Rule[] = [
       "A source file calls `.from(\"x\").insert()`, `.update()`, `.upsert()` or `.delete()`, or `create()`, `insert()`, `update()`, `upsert()` or `delete()` on the typed client's table (`db.webhookEndpoints.create()`), on a table a block creates (`blockTables(config).byBlock`). The write skips the block's functions, so its events, hooks and the checks it runs before a write don't run, and the block's other tables can disagree with the row. Write it through the block's API from `createBlocks`. Tables of yours that a block runs over are yours to write and are not reported.",
     check: directBlockWrites,
   },
+  ...PROJECTION_RULES,
 ];

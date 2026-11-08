@@ -1,5 +1,5 @@
 import { run } from "better-supabase/cli";
-import { appendFile, rm } from "node:fs/promises";
+import { appendFile, mkdir, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
@@ -7,7 +7,7 @@ import { copyFixture, ROOT } from "./fixture.ts";
 
 // The snapshot stands in for a database, so these tests need no stack.
 const OWNERSHIP =
-  "BS369,BS370,BS371,BS372,BS373,BS374,BS375,BS376,BS377,BS378,BS380,BS622";
+  "BS369,BS370,BS371,BS372,BS373,BS374,BS375,BS376,BS377,BS378,BS380,BS381,BS382,BS622";
 
 const dirs: string[] = [];
 
@@ -137,6 +137,27 @@ describe("doctor on the lienlink fixture", () => {
             "create policy jobs_member_select_again on public.jobs for select to authenticated using (organization_id in (select better_supabase.member_organization_ids()));",
         }),
       ).toStrictEqual({ code: 1, codes: ["BS375"] });
+    },
+  );
+
+  it(
+    "fails on a native client that names the table a view projects",
+    { timeout: TIMEOUT },
+    async () => {
+      const dir = await copyFixture();
+
+      dirs.push(dir);
+      await mkdir(join(dir, "src"));
+      await writeFile(
+        join(dir, "src/native.ts"),
+        // Built from parts so this file doesn't match the rule it seeds.
+        `export const engine = ${["powersync", "Engine"].join("")}(database, { tables: { "better_supabase.attachments": route } });\n`,
+      );
+
+      expect(await doctor(dir, OWNERSHIP)).toStrictEqual({
+        code: 1,
+        codes: ["BS381"],
+      });
     },
   );
 });

@@ -1807,6 +1807,26 @@ rewrites `x between a and b` into two comparisons, so a check that joins a
 and the next diff proposes the same constraint again. Write the comparisons out.
 Reads the app's schema files.
 
+### BS381
+
+**Warning: a call names a block table that the app projects through a view.** An
+app view over a block table (`public.job_attachments` over
+`better_supabase.attachments`) is what clients read: it names the columns they
+may see, and `better-supabase powersync streams` syncs the same columns.
+`createNativeClient`, `powersyncEngine`, `attachmentQueueRoute` or `queryEngine`
+given the block table's name skips the view. The qualified name always counts;
+the bare name counts when the view is called something else. Name the view
+instead. Reads the app's schema files and the files in `doctor.sources`.
+
+### BS382
+
+**Error: a subject's config entry and its table comment disagree.** The
+`@bsb subject` tag on a table is the registry of the app's subjects, and a
+`subjects.<type>` entry can set the same options. When both give an option
+(`table`, `id`, `idType`, `tenant`, `title`, `url`, `scope`, `deletedAt`,
+`cascade`) and the values differ, `gen` keeps the config's and the comment says
+something else. Remove one, or make them agree.
+
 ### BS353
 
 **Warning: declared link needs the relations block.** A block declares a

@@ -14,13 +14,18 @@ import { blockReadRoles } from "../../sql/index.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { applyPlan, PLAN_ARGS, planResult } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
+import { projectionsOf } from "../powersync/projection.ts";
 import {
   isPowerSyncBlock,
   POWERSYNC_BLOCKS,
   powersyncOutput,
   publicationSql,
 } from "../powersync/streams.ts";
-import { migrationsDir, snapshotColumnTypes } from "../sql-layout.ts";
+import {
+  appSchemaTexts,
+  migrationsDir,
+  snapshotColumnTypes,
+} from "../sql-layout.ts";
 import { hasMigrationSuffix, migrationFile } from "../sql/migration-names.ts";
 import { layoutFor } from "../sql/providers.ts";
 import { renderBlocksCached } from "../sql/render-cache.ts";
@@ -258,14 +263,25 @@ export async function runPowerSync(
   );
 
   const layout = await layoutFor(config, {}, config.blockNames);
+  const app = await appSchemaTexts(config);
   let output: ReturnType<typeof powersyncOutput>;
 
   try {
     output = powersyncOutput({
-      files: await renderBlocksCached(config, config.blockNames, layout),
+      // The app's own files carry the columns it adds to block tables.
+      files: [
+        ...(await renderBlocksCached(config, config.blockNames, layout)),
+        ...app.map(({ path, text }) => ({
+          path,
+          module: "app",
+          kind: "schema" as const,
+          contents: text,
+        })),
+      ],
       instances,
       own,
       readRoles: readRolesOf(config, layout, instances),
+      projections: projectionsOf(app),
       importFrom: settings?.import ?? "@powersync/common",
     });
   } catch (cause) {

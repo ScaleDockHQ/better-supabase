@@ -424,6 +424,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0373: Keep the owned-column default flip deferred.
 - 0390: Hold the declarative base layer to a fixture of its own.
 - 0391: Check the projection shape in a Lienlink fixture, and fix two gaps it found.
+- 0392: Generate PowerSync streams from the app's projection views.
 
 ## Pre-release pins
 
