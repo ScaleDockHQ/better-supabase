@@ -451,6 +451,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0520: Accept the 0.26 provider fields as optional additions.
 - 0521: Plan the access token hook: reuse a current refresh, slim OAuth tokens.
 - 0522: Cap the Supabase JWKS cache at 600 seconds and expose purgeKeys.
+- 0523: Measure the JWT matrix: hook time is small, memberships claim bytes are not.
 
 ## Pre-release pins
 
