@@ -4,7 +4,6 @@ import { formatMoney, money } from "better-supabase/commerce";
 import { useAction } from "better-supabase/react";
 import { ArrowRightIcon, HistoryIcon } from "lucide-react";
 import { useExtracted, useFormatter, useLocale } from "next-intl";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
@@ -23,6 +22,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { ProjectHistoryField, ProjectVersion } from "../project-types";

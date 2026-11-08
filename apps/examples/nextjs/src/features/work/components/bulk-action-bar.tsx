@@ -6,7 +6,6 @@ import { useAction } from "better-supabase/react";
 import { Trash2Icon, TriangleAlertIcon, XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import {
   Alert,
@@ -33,6 +32,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { WorkItemRow } from "../work-types";

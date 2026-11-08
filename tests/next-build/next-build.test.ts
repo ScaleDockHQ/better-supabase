@@ -180,10 +180,18 @@ const SIZES = ["raw", "gzip", "brotli"] as const;
  * builds (raw stays identical). Compressed sizes may move by this much; raw
  * bytes never.
  */
-const COMPRESSION_SLACK = 64;
+const COMPRESSION_SLACK = 0.0025;
 
-function slack(key: keyof Size): number {
-  return key === "raw" ? 0 : COMPRESSION_SLACK;
+/**
+ * Moving a module between chunks changes the chunk registration code each chunk
+ * carries, so a route can move by a few dozen raw bytes when an unrelated
+ * module changes chunks (+82 bytes on `/people/time` with no module added to
+ * it). A module that lands in a route is far larger than this.
+ */
+const RAW_SLACK = 128;
+
+function slack(key: keyof Size, allowed: number): number {
+  return key === "raw" ? RAW_SLACK : Math.ceil(allowed * COMPRESSION_SLACK);
 }
 
 const UPDATE = Boolean(process.env["NEXT_BUILD_UPDATE"]);
@@ -229,7 +237,8 @@ describe("the Next.js example's first-load JavaScript", () => {
 
       const grown = Object.entries(current).flatMap(([route, size]) =>
         SIZES.flatMap((key) => {
-          const allowed = sizeOf(baseline, route)[key] + slack(key);
+          const base = sizeOf(baseline, route)[key];
+          const allowed = base + slack(key, base);
 
           return size[key] > allowed
             ? [`${route} ${key}: ${allowed} -> ${size[key]}`]
@@ -263,9 +272,9 @@ describe("the Next.js example's first-load JavaScript", () => {
         const kept = { ...before };
 
         for (const size of SIZES) {
-          if (now[size] > before[size]) {
+          if (now[size] > before[size] + slack(size, before[size])) {
             grown.push(`${route} ${size}: ${before[size]} -> ${now[size]}`);
-          } else {
+          } else if (now[size] < before[size]) {
             kept[size] = now[size];
           }
         }
@@ -404,6 +413,37 @@ describe("the Next.js example's first-load JavaScript", () => {
           marker,
         );
       }
+    },
+    120_000,
+  );
+
+  // A `lazy()` or `next/dynamic` boundary defers nothing when another module
+  // imports its target statically (a barrel, a provider, a recipe). Each marker
+  // is a string that only the lazy module contains; no route may carry it in
+  // its first load (ADR 0484).
+  it.skipIf(UPDATE)(
+    "keeps lazily loaded modules out of every route's first load",
+    async () => {
+      const markers = new Map([
+        ["the Help sheet", "acme:help:"],
+        ["the mobile sidebar", "Displays the mobile sidebar."],
+        ["sonner", "data-sonner-toaster"],
+        ["the Markdown renderer", "streamdown"],
+      ]);
+
+      const leaks: string[] = [];
+
+      for (const [route, chunks] of await routeChunks()) {
+        const source = await routeSource(chunks);
+
+        for (const [name, marker] of markers) {
+          if (source.includes(marker)) {
+            leaks.push(`${route} carries ${name}`);
+          }
+        }
+      }
+
+      expect(leaks, "lazy modules in a first load").toEqual([]);
     },
     120_000,
   );

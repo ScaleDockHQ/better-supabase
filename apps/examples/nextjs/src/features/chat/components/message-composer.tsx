@@ -8,7 +8,6 @@ import { useAction } from "better-supabase/react";
 import { PaperclipIcon, SendIcon, XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useRef, useState } from "react";
-import { toast } from "sonner";
 
 import type { MessageDraft } from "@/hooks/use-messaging";
 
@@ -18,6 +17,7 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useSupabase } from "@/lib/hooks";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { confirmChatUpload, startChatUpload } from "../chat-actions";

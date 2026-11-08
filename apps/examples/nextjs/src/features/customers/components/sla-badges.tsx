@@ -3,7 +3,6 @@
 import { useAction } from "better-supabase/react";
 import { TimerIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
@@ -16,6 +15,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Loaded, SlaClockRow } from "../customers-queries";

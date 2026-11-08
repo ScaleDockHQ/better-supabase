@@ -6,7 +6,6 @@ import type { Money } from "better-supabase/commerce";
 import { DbException } from "better-supabase";
 import { formatMoney } from "better-supabase/commerce";
 import { useExtracted, useLocale } from "next-intl";
-import { toast } from "sonner";
 
 import type { PlanCatalog } from "@/hooks/use-billing";
 
@@ -20,6 +19,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { usePlanPicker } from "@/hooks/use-billing";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { PlanOption } from "../billing-queries";

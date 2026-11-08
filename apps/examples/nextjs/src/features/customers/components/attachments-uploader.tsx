@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useEffect, useEffectEvent, useRef, useState } from "react";
-import { toast } from "sonner";
 
 import type {
   AttachmentFileInput,
@@ -52,6 +51,7 @@ import {
 import { Progress } from "@/components/ui/progress";
 import { removeCustomerAttachments } from "@/features/customers/customers-actions";
 import { useAttachmentUpload } from "@/hooks/use-attachments";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { AttachmentRow, Loaded } from "../customers-queries";

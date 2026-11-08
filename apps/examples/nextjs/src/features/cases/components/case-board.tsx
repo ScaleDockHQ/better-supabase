@@ -3,7 +3,6 @@
 import { useAction } from "better-supabase/react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
 import * as v from "valibot";
 
 import { Badge } from "@/components/reui/badge";
@@ -18,6 +17,7 @@ import {
 } from "@/components/reui/kanban";
 import { Card, CardContent } from "@/components/ui/card";
 import { Link } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { CaseBoardData, CaseCard } from "../cases-queries";

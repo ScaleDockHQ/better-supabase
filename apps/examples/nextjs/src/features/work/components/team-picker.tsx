@@ -4,7 +4,6 @@ import { useActionForm } from "better-supabase/react";
 import { UsersIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useTransition } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -25,6 +24,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usePathname, useRouter } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { TeamOption } from "../work-types";

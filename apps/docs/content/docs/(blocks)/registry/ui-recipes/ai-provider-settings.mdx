@@ -22,7 +22,6 @@ import { useAction } from "better-supabase/react";
 import { CpuIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useId, useState, useTransition } from "react";
-import { toast } from "sonner";
 
 import {
   Alert,
@@ -93,6 +92,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useRouter } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Provider } from "../ai-provider-options";

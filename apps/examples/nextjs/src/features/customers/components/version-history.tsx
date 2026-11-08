@@ -5,7 +5,6 @@ import type { JsonPatchOperation } from "better-supabase/blocks/versions";
 import { useAction } from "better-supabase/react";
 import { HistoryIcon, TriangleAlertIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { toast } from "sonner";
 
 import {
   Alert,
@@ -54,6 +53,7 @@ import {
 } from "@/components/ui/empty";
 import { Skeleton } from "@/components/ui/skeleton";
 import { snapshotCustomerVersions } from "@/features/customers/customers-actions";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Loaded, VersionRow } from "../customers-queries";

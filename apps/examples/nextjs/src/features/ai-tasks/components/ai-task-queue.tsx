@@ -7,7 +7,6 @@ import { useAction } from "better-supabase/react";
 import { CalendarClockIcon, PauseIcon, PlayIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useTransition } from "react";
-import { toast } from "sonner";
 
 import {
   Alert,
@@ -42,6 +41,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useRouter } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { AiTaskRow, AiTasksRead } from "../ai-tasks-queries";
