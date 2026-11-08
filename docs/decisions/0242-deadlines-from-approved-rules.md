@@ -57,3 +57,24 @@ Rejected: an expression language (the grammar above is the closed set the
 fifty-state bundle uses); per-group compute (the barred cascade crosses
 groups); a shared holiday table (statutory holiday lists differ per
 jurisdiction and must freeze with the version).
+
+## Amendment (2026-11, subject access and stale groups)
+
+Deadlines are subject rows, so they follow the subject's read access the way
+`attachments` and `documents` do: the module takes `blocks.deadlines.on`, or
+`config.subjects` when it is unset (ADR 0020), and renders
+`deadline_subject_readable`, a security invoker check on the subject row and
+its read permission (key, provider `rows`, `owner`, `check`). The read
+policy, `list_deadlines`, `compute_deadlines`, `recompute_deadlines` and
+`satisfy_deadline` require it; `list_deadlines` runs as the caller, so the
+subject table's own policies apply as well. An unlisted subject type fails,
+as in `attachments`. The facts trigger keeps running without a check.
+
+`compute_deadlines` without a group also deletes the subject's pending rows
+of the same jurisdiction and kind whose group the applying version no longer
+has. Satisfied rows stay: they record an action taken, and a later rule
+version must not erase that.
+
+Rejected: requiring the `subjects` block and `can_subject` (it is optional,
+and most adopters of `deadlines` don't install it); deleting satisfied rows
+of dropped groups (the proof of a filing would disappear with a rule edit).

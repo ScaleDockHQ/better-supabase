@@ -23,6 +23,7 @@ import {
   triggerGrant,
   userGrant,
 } from "../shared.ts";
+import { subjectReadable, subjectsOption } from "../subjects.ts";
 import { evaluatorSql } from "./deadlines-evaluator.ts";
 import { validatorSql } from "./deadlines-validator.ts";
 import {
@@ -323,6 +324,11 @@ function build(ctx: BlockSqlContext): string {
   const allowed = (tenant: string, permission: string): string =>
     `(${SERVICE_CALLER} or (${tenant} is not null and ${ctx.can("tenant", tenant, permission)}))`;
 
+  const subjects = subjectsOption(ctx);
+
+  const visible = (type: string, id: string, tenant: string): string =>
+    `(${SERVICE_CALLER} or ${fn("deadline_subject_readable")}(${type}, ${id}, ${tenant}))`;
+
   const serviceOnly = (what: string): string =>
     `if not ${SERVICE_CALLER} then
     ${fail("DEADLINE_FORBIDDEN", `only the service role may ${what}`)}
@@ -392,7 +398,7 @@ function build(ctx: BlockSqlContext): string {
       name: sqlIdent(`${deadlinesName}_read`),
       command: "select",
       roles: ["authenticated"],
-      using: ctx.scope.check(d("tenant"), read),
+      using: `${ctx.scope.check(d("tenant"), read)} and ${fn("deadline_subject_readable")}(${d("subjectType")}, ${d("subjectId")}, ${d("tenant")})`,
     }),
     { target: deadlines },
   );
@@ -502,6 +508,25 @@ create unique index if not exists ${sqlIdent(`bsb_${deadlinesName}_subject_group
 create index if not exists ${sqlIdent(`${deadlinesName}_version_idx`)} on ${deadlines} (${d("ruleVersion")});
 create index if not exists ${sqlIdent(`${deadlinesName}_due_idx`)} on ${deadlines} (${d("tenant")}, ${d("dueOn")}) where ${d("state")} = 'pending';
 ${lockTable(deadlines, { read: true })}
+
+-- Whether the caller may read the subject a deadline belongs to: its row is
+-- visible to them (the subject table's own policies apply) and they hold its
+-- read permission, as blocks.deadlines.on or config.subjects declares it.
+-- Without subjects every subject passes; with them an unlisted type fails.
+-- plpgsql, so a subject table a later module creates binds late.
+create or replace function ${fn("deadline_subject_readable")}(subject_type text, subject_id text, tenant ${idType})
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return ${subjects.length === 0 ? "true" : `coalesce(${subjectReadable(ctx, subjects, { type: "deadline_subject_readable.subject_type", id: "deadline_subject_readable.subject_id", tenant: "deadline_subject_readable.tenant" })}, false)`};
+end;
+$$;
+revoke execute on function ${fn("deadline_subject_readable")}(text, text, ${idType}) from public, anon;
+grant execute on function ${fn("deadline_subject_readable")}(text, text, ${idType}) to authenticated, service_role;
 ${readPolicy}
 ${evaluatorSql(fn, userGrant, triggerGrant)}
 ${validatorSql(fn, userGrant, triggerGrant)}
@@ -695,8 +720,10 @@ ${triggerGrant(`${fn("deadline_store")}(${idType}, text, text, text, text, uuid,
 -- Computes a subject's deadlines from its facts with the rule set version that
 -- applies on as_of (today by default): every group of the version, or only
 -- group_key, and stores one row per group (one per month for a periodic
--- rule). Returns the rows. A satisfied row is returned unchanged. Needs
--- deadlines.write.
+-- rule). Returns the rows. A satisfied row is returned unchanged and kept as
+-- history. Without group_key, a pending row of this jurisdiction and kind
+-- that the evaluation no longer yields (its group was dropped or yields no
+-- row) is deleted. Needs deadlines.write and read access to the subject.
 create or replace function ${fn("compute_deadlines")}(tenant ${idType}, subject_type text, subject_id text, jurisdiction text, kind text, facts jsonb default '{}', as_of date default current_date, group_key text default null)
 returns jsonb
 language plpgsql
@@ -717,6 +744,9 @@ begin
     or compute_deadlines.as_of is null then
     ${fail("DEADLINE_INVALID", "a deadline needs a subject type, a subject id, facts as an object and a date", "22023")}
   end if;
+  if not ${visible("compute_deadlines.subject_type", "compute_deadlines.subject_id", "compute_deadlines.tenant")} then
+    ${fail("DEADLINE_FORBIDDEN", "not allowed to compute deadlines for this subject")}
+  end if;
   v_version := ${fn("rule_version_at")}(compute_deadlines.jurisdiction, compute_deadlines.kind, compute_deadlines.as_of);
   if v_version is null then
     ${fail("DEADLINE_RULES_NOT_FOUND", "no approved rule set version applies", "P0002")}
@@ -732,7 +762,13 @@ begin
   return ${fn("deadline_store")}(compute_deadlines.tenant, compute_deadlines.subject_type, compute_deadlines.subject_id,
     compute_deadlines.jurisdiction, compute_deadlines.kind, (v_version ->> 'id')::uuid, compute_deadlines.facts, compute_deadlines.as_of,
     v_results, case when compute_deadlines.group_key is null
-      then array(select g.value ->> 'key' from jsonb_array_elements(v_version -> 'groups') g(value))
+      then array(
+        select g.value ->> 'key' from jsonb_array_elements(v_version -> 'groups') g(value)
+        union
+        select x.${d("groupKey")} from ${deadlines} x
+        where x.${d("tenant")} = compute_deadlines.tenant and x.${d("subjectType")} = compute_deadlines.subject_type
+          and x.${d("subjectId")} = compute_deadlines.subject_id and x.${d("jurisdiction")} = compute_deadlines.jurisdiction
+          and x.${d("kind")} = compute_deadlines.kind)
       else array[compute_deadlines.group_key] end) -> 'rows';
 end;
 $$;
@@ -789,7 +825,7 @@ $$;
 ${triggerGrant(`${fn("deadline_recompute")}(text, text, text, jsonb)`)}
 
 -- Re-evaluates a subject's pending deadlines with extra facts. Needs
--- deadlines.write.
+-- deadlines.write and read access to the subject.
 create or replace function ${fn("recompute_deadlines")}(tenant ${idType}, subject_type text, subject_id text, facts jsonb default '{}')
 returns integer
 language plpgsql
@@ -800,6 +836,9 @@ as $$
 begin
   if not ${allowed("recompute_deadlines.tenant", write)} then
     ${fail("DEADLINE_FORBIDDEN", "not allowed to compute deadlines")}
+  end if;
+  if not ${visible("recompute_deadlines.subject_type", "recompute_deadlines.subject_id", "recompute_deadlines.tenant")} then
+    ${fail("DEADLINE_FORBIDDEN", "not allowed to compute deadlines for this subject")}
   end if;
   return ${fn("deadline_recompute")}(recompute_deadlines.tenant::text, recompute_deadlines.subject_type, recompute_deadlines.subject_id, recompute_deadlines.facts);
 end;
@@ -831,7 +870,7 @@ $$;
 ${triggerGrant(`${fn("deadline_fact_trigger")}()`)}
 
 -- Records the action that satisfied a deadline (one period of a periodic rule
--- on its own). Needs deadlines.write.
+-- on its own). Needs deadlines.write and read access to the subject.
 create or replace function ${fn("satisfy_deadline")}(deadline_id uuid, action text default null)
 returns jsonb
 language plpgsql
@@ -843,7 +882,8 @@ declare
   v_row ${deadlines};
 begin
   select * into v_row from ${deadlines} x where x.${d("id")} = satisfy_deadline.deadline_id for update;
-  if not found or not ${allowed(`v_row.${d("tenant")}`, read)} then
+  if not found or not ${allowed(`v_row.${d("tenant")}`, read)}
+    or not ${visible(`v_row.${d("subjectType")}`, `v_row.${d("subjectId")}`, `v_row.${d("tenant")}`)} then
     ${missing}
   end if;
   if not ${allowed(`v_row.${d("tenant")}`, write)} then
@@ -861,13 +901,15 @@ end;
 $$;
 ${userGrant(`${fn("satisfy_deadline")}(uuid, text)`)}
 
--- An organization's deadlines, soonest first. filters is { subjectType,
+-- An organization's deadlines on the subjects the caller may read, soonest
+-- first. Security invoker, so the read policy and the subject tables' own
+-- policies decide which rows it returns. filters is { subjectType,
 -- subjectId, groupKey, period, state, result, provisional, dueBefore, limit }.
 create or replace function ${fn("list_deadlines")}(tenant ${idType}, filters jsonb default '{}')
 returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_variable
@@ -952,7 +994,11 @@ export const DEADLINES: BlockSqlDefinition = {
   upgrades: [TO_GROUPS],
   deprecated: DEPRECATED,
   // The deprecated wrappers get no api entry point; they go in 0.58.
-  internal: ["evaluate_deadline_rule", "compute_deadline"],
+  internal: [
+    "evaluate_deadline_rule",
+    "compute_deadline",
+    "deadline_subject_readable",
+  ],
   names: NAMES,
   contract,
   build,

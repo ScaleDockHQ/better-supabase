@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:d35dbdceb540f1c24e3d26b79afc425e837cc7d207446b2fb78a15dd8a18c394
+-- @bsb-hash sha256:78ee31d5c2eea1792379b6596a82a218ebb8087f76393a44f5003dacb80a6cea
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -116,9 +116,28 @@ alter table "better_supabase"."deadlines" enable row level security;
 revoke all on "better_supabase"."deadlines" from public, anon, authenticated;
 grant select on "better_supabase"."deadlines" to authenticated;
 grant all on "better_supabase"."deadlines" to service_role;
+
+-- Whether the caller may read the subject a deadline belongs to: its row is
+-- visible to them (the subject table's own policies apply) and they hold its
+-- read permission, as blocks.deadlines.on or config.subjects declares it.
+-- Without subjects every subject passes; with them an unlisted type fails.
+-- plpgsql, so a subject table a later module creates binds late.
+create or replace function "better_supabase"."deadline_subject_readable"(subject_type text, subject_id text, tenant uuid)
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
 create policy bsb_deadlines_read on "better_supabase"."deadlines"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"));
 
 -- An ISO date (YYYY-MM-DD) held in a jsonb string, or null.
 create or replace function "better_supabase"."deadline_date"(value jsonb)
@@ -1446,8 +1465,10 @@ revoke execute on function "better_supabase"."deadline_store"(uuid, text, text, 
 -- Computes a subject's deadlines from its facts with the rule set version that
 -- applies on as_of (today by default): every group of the version, or only
 -- group_key, and stores one row per group (one per month for a periodic
--- rule). Returns the rows. A satisfied row is returned unchanged. Needs
--- deadlines.write.
+-- rule). Returns the rows. A satisfied row is returned unchanged and kept as
+-- history. Without group_key, a pending row of this jurisdiction and kind
+-- that the evaluation no longer yields (its group was dropped or yields no
+-- row) is deleted. Needs deadlines.write and read access to the subject.
 create or replace function "better_supabase"."compute_deadlines"(tenant uuid, subject_type text, subject_id text, jurisdiction text, kind text, facts jsonb default '{}', as_of date default current_date, group_key text default null)
 returns jsonb
 language plpgsql
@@ -1468,6 +1489,9 @@ begin
     or compute_deadlines.as_of is null then
     raise exception 'a deadline needs a subject type, a subject id, facts as an object and a date' using errcode = '22023', hint = 'DEADLINE_INVALID';
   end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(compute_deadlines.subject_type, compute_deadlines.subject_id, compute_deadlines.tenant)) then
+    raise exception 'not allowed to compute deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
   v_version := "better_supabase"."rule_version_at"(compute_deadlines.jurisdiction, compute_deadlines.kind, compute_deadlines.as_of);
   if v_version is null then
     raise exception 'no approved rule set version applies' using errcode = 'P0002', hint = 'DEADLINE_RULES_NOT_FOUND';
@@ -1483,7 +1507,13 @@ begin
   return "better_supabase"."deadline_store"(compute_deadlines.tenant, compute_deadlines.subject_type, compute_deadlines.subject_id,
     compute_deadlines.jurisdiction, compute_deadlines.kind, (v_version ->> 'id')::uuid, compute_deadlines.facts, compute_deadlines.as_of,
     v_results, case when compute_deadlines.group_key is null
-      then array(select g.value ->> 'key' from jsonb_array_elements(v_version -> 'groups') g(value))
+      then array(
+        select g.value ->> 'key' from jsonb_array_elements(v_version -> 'groups') g(value)
+        union
+        select x."group_key" from "better_supabase"."deadlines" x
+        where x."tenant_id" = compute_deadlines.tenant and x."subject_type" = compute_deadlines.subject_type
+          and x."subject_id" = compute_deadlines.subject_id and x."jurisdiction" = compute_deadlines.jurisdiction
+          and x."kind" = compute_deadlines.kind)
       else array[compute_deadlines.group_key] end) -> 'rows';
 end;
 $$;
@@ -1541,7 +1571,7 @@ $$;
 revoke execute on function "better_supabase"."deadline_recompute"(text, text, text, jsonb) from public, anon, authenticated;
 
 -- Re-evaluates a subject's pending deadlines with extra facts. Needs
--- deadlines.write.
+-- deadlines.write and read access to the subject.
 create or replace function "better_supabase"."recompute_deadlines"(tenant uuid, subject_type text, subject_id text, facts jsonb default '{}')
 returns integer
 language plpgsql
@@ -1552,6 +1582,9 @@ as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (recompute_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', recompute_deadlines.tenant, 'deadlines.write'), false))) then
     raise exception 'not allowed to compute deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(recompute_deadlines.subject_type, recompute_deadlines.subject_id, recompute_deadlines.tenant)) then
+    raise exception 'not allowed to compute deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
   end if;
   return "better_supabase"."deadline_recompute"(recompute_deadlines.tenant::text, recompute_deadlines.subject_type, recompute_deadlines.subject_id, recompute_deadlines.facts);
 end;
@@ -1584,7 +1617,7 @@ $$;
 revoke execute on function "better_supabase"."deadline_fact_trigger"() from public, anon, authenticated;
 
 -- Records the action that satisfied a deadline (one period of a periodic rule
--- on its own). Needs deadlines.write.
+-- on its own). Needs deadlines.write and read access to the subject.
 create or replace function "better_supabase"."satisfy_deadline"(deadline_id uuid, action text default null)
 returns jsonb
 language plpgsql
@@ -1599,7 +1632,8 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."deadlines" x where x."id" = satisfy_deadline.deadline_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deadlines.read'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deadlines.read'), false)))
+    or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(v_row."subject_type", v_row."subject_id", v_row."tenant_id")) then
     raise exception 'no such deadline' using errcode = 'P0002', hint = 'DEADLINE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deadlines.write'), false))) then
@@ -1618,13 +1652,15 @@ $$;
 revoke execute on function "better_supabase"."satisfy_deadline"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."satisfy_deadline"(uuid, text) to authenticated, service_role;
 
--- An organization's deadlines, soonest first. filters is { subjectType,
+-- An organization's deadlines on the subjects the caller may read, soonest
+-- first. Security invoker, so the read policy and the subject tables' own
+-- policies decide which rows it returns. filters is { subjectType,
 -- subjectId, groupKey, period, state, result, provisional, dueBefore, limit }.
 create or replace function "better_supabase"."list_deadlines"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_variable
@@ -1663,7 +1699,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."deadlines" as restri
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."deadlines" as restrictive
   for insert to public
@@ -1732,7 +1768,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:f35b6f4bfd51f73fab46384e50783f45d004f1ebab7c35ac2f31b69caf1b5274
+-- @bsb-hash sha256:adb0f6c07d1ea3d7f53337d11576d0ad95e7fe7d98cfd73d9490657f62124a60
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1847,9 +1883,28 @@ alter table "better_supabase"."deadlines" enable row level security;
 revoke all on "better_supabase"."deadlines" from public, anon, authenticated;
 grant select on "better_supabase"."deadlines" to authenticated;
 grant all on "better_supabase"."deadlines" to service_role;
+
+-- Whether the caller may read the subject a deadline belongs to: its row is
+-- visible to them (the subject table's own policies apply) and they hold its
+-- read permission, as blocks.deadlines.on or config.subjects declares it.
+-- Without subjects every subject passes; with them an unlisted type fails.
+-- plpgsql, so a subject table a later module creates binds late.
+create or replace function "better_supabase"."deadline_subject_readable"(subject_type text, subject_id text, tenant uuid)
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
 create policy bsb_deadlines_read on "better_supabase"."deadlines"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"));
 
 -- An ISO date (YYYY-MM-DD) held in a jsonb string, or null.
 create or replace function "better_supabase"."deadline_date"(value jsonb)
@@ -3196,8 +3251,10 @@ revoke execute on function "better_supabase"."deadline_store"(uuid, text, text, 
 -- Computes a subject's deadlines from its facts with the rule set version that
 -- applies on as_of (today by default): every group of the version, or only
 -- group_key, and stores one row per group (one per month for a periodic
--- rule). Returns the rows. A satisfied row is returned unchanged. Needs
--- deadlines.write.
+-- rule). Returns the rows. A satisfied row is returned unchanged and kept as
+-- history. Without group_key, a pending row of this jurisdiction and kind
+-- that the evaluation no longer yields (its group was dropped or yields no
+-- row) is deleted. Needs deadlines.write and read access to the subject.
 create or replace function "better_supabase"."compute_deadlines"(tenant uuid, subject_type text, subject_id text, jurisdiction text, kind text, facts jsonb default '{}', as_of date default current_date, group_key text default null)
 returns jsonb
 language plpgsql
@@ -3218,6 +3275,9 @@ begin
     or compute_deadlines.as_of is null then
     raise exception 'a deadline needs a subject type, a subject id, facts as an object and a date' using errcode = '22023', hint = 'DEADLINE_INVALID';
   end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(compute_deadlines.subject_type, compute_deadlines.subject_id, compute_deadlines.tenant)) then
+    raise exception 'not allowed to compute deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
   v_version := "better_supabase"."rule_version_at"(compute_deadlines.jurisdiction, compute_deadlines.kind, compute_deadlines.as_of);
   if v_version is null then
     raise exception 'no approved rule set version applies' using errcode = 'P0002', hint = 'DEADLINE_RULES_NOT_FOUND';
@@ -3233,7 +3293,13 @@ begin
   return "better_supabase"."deadline_store"(compute_deadlines.tenant, compute_deadlines.subject_type, compute_deadlines.subject_id,
     compute_deadlines.jurisdiction, compute_deadlines.kind, (v_version ->> 'id')::uuid, compute_deadlines.facts, compute_deadlines.as_of,
     v_results, case when compute_deadlines.group_key is null
-      then array(select g.value ->> 'key' from jsonb_array_elements(v_version -> 'groups') g(value))
+      then array(
+        select g.value ->> 'key' from jsonb_array_elements(v_version -> 'groups') g(value)
+        union
+        select x."group_key" from "better_supabase"."deadlines" x
+        where x."tenant_id" = compute_deadlines.tenant and x."subject_type" = compute_deadlines.subject_type
+          and x."subject_id" = compute_deadlines.subject_id and x."jurisdiction" = compute_deadlines.jurisdiction
+          and x."kind" = compute_deadlines.kind)
       else array[compute_deadlines.group_key] end) -> 'rows';
 end;
 $$;
@@ -3291,7 +3357,7 @@ $$;
 revoke execute on function "better_supabase"."deadline_recompute"(text, text, text, jsonb) from public, anon, authenticated;
 
 -- Re-evaluates a subject's pending deadlines with extra facts. Needs
--- deadlines.write.
+-- deadlines.write and read access to the subject.
 create or replace function "better_supabase"."recompute_deadlines"(tenant uuid, subject_type text, subject_id text, facts jsonb default '{}')
 returns integer
 language plpgsql
@@ -3302,6 +3368,9 @@ as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (recompute_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', recompute_deadlines.tenant, 'deadlines.write'), false))) then
     raise exception 'not allowed to compute deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(recompute_deadlines.subject_type, recompute_deadlines.subject_id, recompute_deadlines.tenant)) then
+    raise exception 'not allowed to compute deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
   end if;
   return "better_supabase"."deadline_recompute"(recompute_deadlines.tenant::text, recompute_deadlines.subject_type, recompute_deadlines.subject_id, recompute_deadlines.facts);
 end;
@@ -3334,7 +3403,7 @@ $$;
 revoke execute on function "better_supabase"."deadline_fact_trigger"() from public, anon, authenticated;
 
 -- Records the action that satisfied a deadline (one period of a periodic rule
--- on its own). Needs deadlines.write.
+-- on its own). Needs deadlines.write and read access to the subject.
 create or replace function "better_supabase"."satisfy_deadline"(deadline_id uuid, action text default null)
 returns jsonb
 language plpgsql
@@ -3349,7 +3418,8 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."deadlines" x where x."id" = satisfy_deadline.deadline_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deadlines.read'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deadlines.read'), false)))
+    or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(v_row."subject_type", v_row."subject_id", v_row."tenant_id")) then
     raise exception 'no such deadline' using errcode = 'P0002', hint = 'DEADLINE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deadlines.write'), false))) then
@@ -3378,13 +3448,15 @@ $$;
 revoke execute on function "better_supabase"."satisfy_deadline"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."satisfy_deadline"(uuid, text) to authenticated, service_role;
 
--- An organization's deadlines, soonest first. filters is { subjectType,
+-- An organization's deadlines on the subjects the caller may read, soonest
+-- first. Security invoker, so the read policy and the subject tables' own
+-- policies decide which rows it returns. filters is { subjectType,
 -- subjectId, groupKey, period, state, result, provisional, dueBefore, limit }.
 create or replace function "better_supabase"."list_deadlines"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_variable
@@ -3423,7 +3495,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."deadlines" as restri
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."deadlines" as restrictive
   for insert to public
@@ -3495,7 +3567,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:5c776c45a40e9169e5960122f87fd749db37d7df02058b92af2ccd235d5ae0f2
+-- @bsb-hash sha256:86842e3f4957a0121389ffb2af788d960e33d270c74874326aade9e14764cd5d
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3615,9 +3687,28 @@ alter table "app_private"."deadlines" enable row level security;
 revoke all on "app_private"."deadlines" from public, anon, authenticated;
 grant select on "app_private"."deadlines" to authenticated;
 grant all on "app_private"."deadlines" to service_role;
+
+-- Whether the caller may read the subject a deadline belongs to: its row is
+-- visible to them (the subject table's own policies apply) and they hold its
+-- read permission, as blocks.deadlines.on or config.subjects declares it.
+-- Without subjects every subject passes; with them an unlisted type fails.
+-- plpgsql, so a subject table a later module creates binds late.
+create or replace function "app_private"."deadline_subject_readable"(subject_type text, subject_id text, tenant uuid)
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return true;
+end;
+$$;
+revoke execute on function "app_private"."deadline_subject_readable"(text, text, uuid) from public, anon;
+grant execute on function "app_private"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
 create policy bsb_deadlines_read on "app_private"."deadlines"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "app_private"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"));
 
 -- An ISO date (YYYY-MM-DD) held in a jsonb string, or null.
 create or replace function "app_private"."deadline_date"(value jsonb)
@@ -4945,8 +5036,10 @@ revoke execute on function "app_private"."deadline_store"(uuid, text, text, text
 -- Computes a subject's deadlines from its facts with the rule set version that
 -- applies on as_of (today by default): every group of the version, or only
 -- group_key, and stores one row per group (one per month for a periodic
--- rule). Returns the rows. A satisfied row is returned unchanged. Needs
--- deadlines.write.
+-- rule). Returns the rows. A satisfied row is returned unchanged and kept as
+-- history. Without group_key, a pending row of this jurisdiction and kind
+-- that the evaluation no longer yields (its group was dropped or yields no
+-- row) is deleted. Needs deadlines.write and read access to the subject.
 create or replace function "app_private"."compute_deadlines"(tenant uuid, subject_type text, subject_id text, jurisdiction text, kind text, facts jsonb default '{}', as_of date default current_date, group_key text default null)
 returns jsonb
 language plpgsql
@@ -4967,6 +5060,9 @@ begin
     or compute_deadlines.as_of is null then
     raise exception 'a deadline needs a subject type, a subject id, facts as an object and a date' using errcode = '22023', hint = 'DEADLINE_INVALID';
   end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "app_private"."deadline_subject_readable"(compute_deadlines.subject_type, compute_deadlines.subject_id, compute_deadlines.tenant)) then
+    raise exception 'not allowed to compute deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
   v_version := "app_private"."rule_version_at"(compute_deadlines.jurisdiction, compute_deadlines.kind, compute_deadlines.as_of);
   if v_version is null then
     raise exception 'no approved rule set version applies' using errcode = 'P0002', hint = 'DEADLINE_RULES_NOT_FOUND';
@@ -4982,7 +5078,13 @@ begin
   return "app_private"."deadline_store"(compute_deadlines.tenant, compute_deadlines.subject_type, compute_deadlines.subject_id,
     compute_deadlines.jurisdiction, compute_deadlines.kind, (v_version ->> 'id')::uuid, compute_deadlines.facts, compute_deadlines.as_of,
     v_results, case when compute_deadlines.group_key is null
-      then array(select g.value ->> 'key' from jsonb_array_elements(v_version -> 'groups') g(value))
+      then array(
+        select g.value ->> 'key' from jsonb_array_elements(v_version -> 'groups') g(value)
+        union
+        select x."group_key" from "app_private"."deadlines" x
+        where x."tenant_id" = compute_deadlines.tenant and x."subject_type" = compute_deadlines.subject_type
+          and x."subject_id" = compute_deadlines.subject_id and x."jurisdiction" = compute_deadlines.jurisdiction
+          and x."kind" = compute_deadlines.kind)
       else array[compute_deadlines.group_key] end) -> 'rows';
 end;
 $$;
@@ -5040,7 +5142,7 @@ $$;
 revoke execute on function "app_private"."deadline_recompute"(text, text, text, jsonb) from public, anon, authenticated;
 
 -- Re-evaluates a subject's pending deadlines with extra facts. Needs
--- deadlines.write.
+-- deadlines.write and read access to the subject.
 create or replace function "app_private"."recompute_deadlines"(tenant uuid, subject_type text, subject_id text, facts jsonb default '{}')
 returns integer
 language plpgsql
@@ -5051,6 +5153,9 @@ as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (recompute_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', recompute_deadlines.tenant, 'deadlines.write'), false))) then
     raise exception 'not allowed to compute deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "app_private"."deadline_subject_readable"(recompute_deadlines.subject_type, recompute_deadlines.subject_id, recompute_deadlines.tenant)) then
+    raise exception 'not allowed to compute deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
   end if;
   return "app_private"."deadline_recompute"(recompute_deadlines.tenant::text, recompute_deadlines.subject_type, recompute_deadlines.subject_id, recompute_deadlines.facts);
 end;
@@ -5083,7 +5188,7 @@ $$;
 revoke execute on function "app_private"."deadline_fact_trigger"() from public, anon, authenticated;
 
 -- Records the action that satisfied a deadline (one period of a periodic rule
--- on its own). Needs deadlines.write.
+-- on its own). Needs deadlines.write and read access to the subject.
 create or replace function "app_private"."satisfy_deadline"(deadline_id uuid, action text default null)
 returns jsonb
 language plpgsql
@@ -5098,7 +5203,8 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "app_private"."deadlines" x where x."id" = satisfy_deadline.deadline_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deadlines.read'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deadlines.read'), false)))
+    or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "app_private"."deadline_subject_readable"(v_row."subject_type", v_row."subject_id", v_row."tenant_id")) then
     raise exception 'no such deadline' using errcode = 'P0002', hint = 'DEADLINE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deadlines.write'), false))) then
@@ -5117,13 +5223,15 @@ $$;
 revoke execute on function "app_private"."satisfy_deadline"(uuid, text) from public, anon;
 grant execute on function "app_private"."satisfy_deadline"(uuid, text) to authenticated, service_role;
 
--- An organization's deadlines, soonest first. filters is { subjectType,
+-- An organization's deadlines on the subjects the caller may read, soonest
+-- first. Security invoker, so the read policy and the subject tables' own
+-- policies decide which rows it returns. filters is { subjectType,
 -- subjectId, groupKey, period, state, result, provisional, dueBefore, limit }.
 create or replace function "app_private"."list_deadlines"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_variable
@@ -5162,7 +5270,7 @@ create policy bsb_tenant_scope_select on "app_private"."deadlines" as restrictiv
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "app_private"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))
   );
 create policy bsb_tenant_scope_insert on "app_private"."deadlines" as restrictive
   for insert to public
@@ -5231,7 +5339,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:2f80e9b00b10334357b245e2c0d8bb0df6040f2055cabd35761728b42ccfb361
+-- @bsb-hash sha256:864f0260794aedd91a7c8bf5adcf471ff352238c438d430a5bbb36f1a48dcaea
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5346,9 +5454,28 @@ alter table "better_supabase"."deadlines" enable row level security;
 revoke all on "better_supabase"."deadlines" from public, anon, authenticated;
 grant select on "better_supabase"."deadlines" to authenticated;
 grant all on "better_supabase"."deadlines" to service_role;
+
+-- Whether the caller may read the subject a deadline belongs to: its row is
+-- visible to them (the subject table's own policies apply) and they hold its
+-- read permission, as blocks.deadlines.on or config.subjects declares it.
+-- Without subjects every subject passes; with them an unlisted type fails.
+-- plpgsql, so a subject table a later module creates binds late.
+create or replace function "better_supabase"."deadline_subject_readable"(subject_type text, subject_id text, tenant uuid)
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
 create policy bsb_deadlines_read on "better_supabase"."deadlines"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"));
 
 -- An ISO date (YYYY-MM-DD) held in a jsonb string, or null.
 create or replace function "better_supabase"."deadline_date"(value jsonb)
@@ -6676,8 +6803,10 @@ revoke execute on function "better_supabase"."deadline_store"(uuid, text, text, 
 -- Computes a subject's deadlines from its facts with the rule set version that
 -- applies on as_of (today by default): every group of the version, or only
 -- group_key, and stores one row per group (one per month for a periodic
--- rule). Returns the rows. A satisfied row is returned unchanged. Needs
--- deadlines.write.
+-- rule). Returns the rows. A satisfied row is returned unchanged and kept as
+-- history. Without group_key, a pending row of this jurisdiction and kind
+-- that the evaluation no longer yields (its group was dropped or yields no
+-- row) is deleted. Needs deadlines.write and read access to the subject.
 create or replace function "better_supabase"."compute_deadlines"(tenant uuid, subject_type text, subject_id text, jurisdiction text, kind text, facts jsonb default '{}', as_of date default current_date, group_key text default null)
 returns jsonb
 language plpgsql
@@ -6698,6 +6827,9 @@ begin
     or compute_deadlines.as_of is null then
     raise exception 'a deadline needs a subject type, a subject id, facts as an object and a date' using errcode = '22023', hint = 'DEADLINE_INVALID';
   end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(compute_deadlines.subject_type, compute_deadlines.subject_id, compute_deadlines.tenant)) then
+    raise exception 'not allowed to compute deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
   v_version := "better_supabase"."rule_version_at"(compute_deadlines.jurisdiction, compute_deadlines.kind, compute_deadlines.as_of);
   if v_version is null then
     raise exception 'no approved rule set version applies' using errcode = 'P0002', hint = 'DEADLINE_RULES_NOT_FOUND';
@@ -6713,7 +6845,13 @@ begin
   return "better_supabase"."deadline_store"(compute_deadlines.tenant, compute_deadlines.subject_type, compute_deadlines.subject_id,
     compute_deadlines.jurisdiction, compute_deadlines.kind, (v_version ->> 'id')::uuid, compute_deadlines.facts, compute_deadlines.as_of,
     v_results, case when compute_deadlines.group_key is null
-      then array(select g.value ->> 'key' from jsonb_array_elements(v_version -> 'groups') g(value))
+      then array(
+        select g.value ->> 'key' from jsonb_array_elements(v_version -> 'groups') g(value)
+        union
+        select x."group_key" from "better_supabase"."deadlines" x
+        where x."tenant_id" = compute_deadlines.tenant and x."subject_type" = compute_deadlines.subject_type
+          and x."subject_id" = compute_deadlines.subject_id and x."jurisdiction" = compute_deadlines.jurisdiction
+          and x."kind" = compute_deadlines.kind)
       else array[compute_deadlines.group_key] end) -> 'rows';
 end;
 $$;
@@ -6771,7 +6909,7 @@ $$;
 revoke execute on function "better_supabase"."deadline_recompute"(text, text, text, jsonb) from public, anon, authenticated;
 
 -- Re-evaluates a subject's pending deadlines with extra facts. Needs
--- deadlines.write.
+-- deadlines.write and read access to the subject.
 create or replace function "better_supabase"."recompute_deadlines"(tenant uuid, subject_type text, subject_id text, facts jsonb default '{}')
 returns integer
 language plpgsql
@@ -6782,6 +6920,9 @@ as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (recompute_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', recompute_deadlines.tenant, 'deadlines.write'), false))) then
     raise exception 'not allowed to compute deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(recompute_deadlines.subject_type, recompute_deadlines.subject_id, recompute_deadlines.tenant)) then
+    raise exception 'not allowed to compute deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
   end if;
   return "better_supabase"."deadline_recompute"(recompute_deadlines.tenant::text, recompute_deadlines.subject_type, recompute_deadlines.subject_id, recompute_deadlines.facts);
 end;
@@ -6814,7 +6955,7 @@ $$;
 revoke execute on function "better_supabase"."deadline_fact_trigger"() from public, anon, authenticated;
 
 -- Records the action that satisfied a deadline (one period of a periodic rule
--- on its own). Needs deadlines.write.
+-- on its own). Needs deadlines.write and read access to the subject.
 create or replace function "better_supabase"."satisfy_deadline"(deadline_id uuid, action text default null)
 returns jsonb
 language plpgsql
@@ -6829,7 +6970,8 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."deadlines" x where x."id" = satisfy_deadline.deadline_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deadlines.read'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deadlines.read'), false)))
+    or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(v_row."subject_type", v_row."subject_id", v_row."tenant_id")) then
     raise exception 'no such deadline' using errcode = 'P0002', hint = 'DEADLINE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deadlines.write'), false))) then
@@ -6848,13 +6990,15 @@ $$;
 revoke execute on function "better_supabase"."satisfy_deadline"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."satisfy_deadline"(uuid, text) to authenticated, service_role;
 
--- An organization's deadlines, soonest first. filters is { subjectType,
+-- An organization's deadlines on the subjects the caller may read, soonest
+-- first. Security invoker, so the read policy and the subject tables' own
+-- policies decide which rows it returns. filters is { subjectType,
 -- subjectId, groupKey, period, state, result, provisional, dueBefore, limit }.
 create or replace function "better_supabase"."list_deadlines"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_variable
@@ -6893,7 +7037,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."deadlines" as restri
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."deadlines" as restrictive
   for insert to public
@@ -6948,6 +7092,9 @@ grant execute on function "better_supabase"."compute_deadline"(uuid, text, text,
 -- blocks.deadlines.api: entry points for the Data API.
 create schema if not exists "api";
 grant usage on schema "api" to anon, authenticated, service_role;
+
+-- Helpers for the module's policies and triggers have no entry point.
+
 
 create or replace function "api"."evaluate_deadlines"(content jsonb, facts jsonb, as_of date default current_date, group_key text default null)
 returns jsonb
@@ -7051,7 +7198,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:6515f2cddf25766c32fad9ccfb5536bb45379affb27b765373afd1fc642e0f8e
+-- @bsb-hash sha256:703cccf40359d4cfe9e37c282e599ddee0cd04488c68590903f6dbf656bd2223
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7155,9 +7302,28 @@ create index if not exists "deadlines_due_idx" on "better_supabase"."deadlines" 
 alter table "better_supabase"."deadlines" enable row level security;
 grant select on "better_supabase"."deadlines" to authenticated;
 grant all on "better_supabase"."deadlines" to service_role;
+
+-- Whether the caller may read the subject a deadline belongs to: its row is
+-- visible to them (the subject table's own policies apply) and they hold its
+-- read permission, as blocks.deadlines.on or config.subjects declares it.
+-- Without subjects every subject passes; with them an unlisted type fails.
+-- plpgsql, so a subject table a later module creates binds late.
+create or replace function "better_supabase"."deadline_subject_readable"(subject_type text, subject_id text, tenant uuid)
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
 create policy bsb_deadlines_select on "better_supabase"."deadlines"
   for select to authenticated
-  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"));
 
 -- An ISO date (YYYY-MM-DD) held in a jsonb string, or null.
 create or replace function "better_supabase"."deadline_date"(value jsonb)
@@ -8485,8 +8651,10 @@ revoke execute on function "better_supabase"."deadline_store"(uuid, text, text, 
 -- Computes a subject's deadlines from its facts with the rule set version that
 -- applies on as_of (today by default): every group of the version, or only
 -- group_key, and stores one row per group (one per month for a periodic
--- rule). Returns the rows. A satisfied row is returned unchanged. Needs
--- deadlines.write.
+-- rule). Returns the rows. A satisfied row is returned unchanged and kept as
+-- history. Without group_key, a pending row of this jurisdiction and kind
+-- that the evaluation no longer yields (its group was dropped or yields no
+-- row) is deleted. Needs deadlines.write and read access to the subject.
 create or replace function "better_supabase"."compute_deadlines"(tenant uuid, subject_type text, subject_id text, jurisdiction text, kind text, facts jsonb default '{}', as_of date default current_date, group_key text default null)
 returns jsonb
 language plpgsql
@@ -8507,6 +8675,9 @@ begin
     or compute_deadlines.as_of is null then
     raise exception 'a deadline needs a subject type, a subject id, facts as an object and a date' using errcode = '22023', hint = 'DEADLINE_INVALID';
   end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(compute_deadlines.subject_type, compute_deadlines.subject_id, compute_deadlines.tenant)) then
+    raise exception 'not allowed to compute deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
   v_version := "better_supabase"."rule_version_at"(compute_deadlines.jurisdiction, compute_deadlines.kind, compute_deadlines.as_of);
   if v_version is null then
     raise exception 'no approved rule set version applies' using errcode = 'P0002', hint = 'DEADLINE_RULES_NOT_FOUND';
@@ -8522,7 +8693,13 @@ begin
   return "better_supabase"."deadline_store"(compute_deadlines.tenant, compute_deadlines.subject_type, compute_deadlines.subject_id,
     compute_deadlines.jurisdiction, compute_deadlines.kind, (v_version ->> 'id')::uuid, compute_deadlines.facts, compute_deadlines.as_of,
     v_results, case when compute_deadlines.group_key is null
-      then array(select g.value ->> 'key' from jsonb_array_elements(v_version -> 'groups') g(value))
+      then array(
+        select g.value ->> 'key' from jsonb_array_elements(v_version -> 'groups') g(value)
+        union
+        select x."group_key" from "better_supabase"."deadlines" x
+        where x."tenant_id" = compute_deadlines.tenant and x."subject_type" = compute_deadlines.subject_type
+          and x."subject_id" = compute_deadlines.subject_id and x."jurisdiction" = compute_deadlines.jurisdiction
+          and x."kind" = compute_deadlines.kind)
       else array[compute_deadlines.group_key] end) -> 'rows';
 end;
 $$;
@@ -8580,7 +8757,7 @@ $$;
 revoke execute on function "better_supabase"."deadline_recompute"(text, text, text, jsonb) from public, anon, authenticated;
 
 -- Re-evaluates a subject's pending deadlines with extra facts. Needs
--- deadlines.write.
+-- deadlines.write and read access to the subject.
 create or replace function "better_supabase"."recompute_deadlines"(tenant uuid, subject_type text, subject_id text, facts jsonb default '{}')
 returns integer
 language plpgsql
@@ -8591,6 +8768,9 @@ as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (recompute_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', recompute_deadlines.tenant, 'deadlines.write'), false))) then
     raise exception 'not allowed to compute deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(recompute_deadlines.subject_type, recompute_deadlines.subject_id, recompute_deadlines.tenant)) then
+    raise exception 'not allowed to compute deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
   end if;
   return "better_supabase"."deadline_recompute"(recompute_deadlines.tenant::text, recompute_deadlines.subject_type, recompute_deadlines.subject_id, recompute_deadlines.facts);
 end;
@@ -8623,7 +8803,7 @@ $$;
 revoke execute on function "better_supabase"."deadline_fact_trigger"() from public, anon, authenticated;
 
 -- Records the action that satisfied a deadline (one period of a periodic rule
--- on its own). Needs deadlines.write.
+-- on its own). Needs deadlines.write and read access to the subject.
 create or replace function "better_supabase"."satisfy_deadline"(deadline_id uuid, action text default null)
 returns jsonb
 language plpgsql
@@ -8638,7 +8818,8 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."deadlines" x where x."id" = satisfy_deadline.deadline_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deadlines.read'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deadlines.read'), false)))
+    or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(v_row."subject_type", v_row."subject_id", v_row."tenant_id")) then
     raise exception 'no such deadline' using errcode = 'P0002', hint = 'DEADLINE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."tenant_id" is not null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'deadlines.write'), false))) then
@@ -8657,13 +8838,15 @@ $$;
 revoke execute on function "better_supabase"."satisfy_deadline"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."satisfy_deadline"(uuid, text) to authenticated, service_role;
 
--- An organization's deadlines, soonest first. filters is { subjectType,
+-- An organization's deadlines on the subjects the caller may read, soonest
+-- first. Security invoker, so the read policy and the subject tables' own
+-- policies decide which rows it returns. filters is { subjectType,
 -- subjectId, groupKey, period, state, result, provisional, dueBefore, limit }.
 create or replace function "better_supabase"."list_deadlines"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_variable
@@ -8702,7 +8885,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."deadlines" as restri
   for select to public
   using (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "tenant_id"))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."deadlines" as restrictive
   for insert to public
@@ -8771,7 +8954,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_171_deadlines.sql
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:d4e894542c7eb10dacd620bda3cac2b19e3311cafd4ffd0c35ad10b38b516ab7
+-- @bsb-hash sha256:44c2f59e077085f2fcda3f68a9bea725309747f719ca5bd6e81aaf65a6029d27
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8886,9 +9069,28 @@ alter table "better_supabase"."deadlines" enable row level security;
 revoke all on "better_supabase"."deadlines" from public, anon, authenticated;
 grant select on "better_supabase"."deadlines" to authenticated;
 grant all on "better_supabase"."deadlines" to service_role;
+
+-- Whether the caller may read the subject a deadline belongs to: its row is
+-- visible to them (the subject table's own policies apply) and they hold its
+-- read permission, as blocks.deadlines.on or config.subjects declares it.
+-- Without subjects every subject passes; with them an unlisted type fails.
+-- plpgsql, so a subject table a later module creates binds late.
+create or replace function "better_supabase"."deadline_subject_readable"(subject_type text, subject_id text, tenant uuid)
+returns boolean
+language plpgsql
+stable
+security invoker
+set search_path = ''
+as $$
+begin
+  return true;
+end;
+$$;
+revoke execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) from public, anon;
+grant execute on function "better_supabase"."deadline_subject_readable"(text, text, uuid) to authenticated, service_role;
 create policy bsb_deadlines_read on "better_supabase"."deadlines"
   for select to authenticated
-  using ("org_id" in (select better_supabase.tenant_ids_with('deadlines.read')));
+  using ("org_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "org_id"));
 
 -- An ISO date (YYYY-MM-DD) held in a jsonb string, or null.
 create or replace function "better_supabase"."deadline_date"(value jsonb)
@@ -10216,8 +10418,10 @@ revoke execute on function "better_supabase"."deadline_store"(uuid, text, text, 
 -- Computes a subject's deadlines from its facts with the rule set version that
 -- applies on as_of (today by default): every group of the version, or only
 -- group_key, and stores one row per group (one per month for a periodic
--- rule). Returns the rows. A satisfied row is returned unchanged. Needs
--- deadlines.write.
+-- rule). Returns the rows. A satisfied row is returned unchanged and kept as
+-- history. Without group_key, a pending row of this jurisdiction and kind
+-- that the evaluation no longer yields (its group was dropped or yields no
+-- row) is deleted. Needs deadlines.write and read access to the subject.
 create or replace function "better_supabase"."compute_deadlines"(tenant uuid, subject_type text, subject_id text, jurisdiction text, kind text, facts jsonb default '{}', as_of date default current_date, group_key text default null)
 returns jsonb
 language plpgsql
@@ -10238,6 +10442,9 @@ begin
     or compute_deadlines.as_of is null then
     raise exception 'a deadline needs a subject type, a subject id, facts as an object and a date' using errcode = '22023', hint = 'DEADLINE_INVALID';
   end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(compute_deadlines.subject_type, compute_deadlines.subject_id, compute_deadlines.tenant)) then
+    raise exception 'not allowed to compute deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
   v_version := "better_supabase"."rule_version_at"(compute_deadlines.jurisdiction, compute_deadlines.kind, compute_deadlines.as_of);
   if v_version is null then
     raise exception 'no approved rule set version applies' using errcode = 'P0002', hint = 'DEADLINE_RULES_NOT_FOUND';
@@ -10253,7 +10460,13 @@ begin
   return "better_supabase"."deadline_store"(compute_deadlines.tenant, compute_deadlines.subject_type, compute_deadlines.subject_id,
     compute_deadlines.jurisdiction, compute_deadlines.kind, (v_version ->> 'id')::uuid, compute_deadlines.facts, compute_deadlines.as_of,
     v_results, case when compute_deadlines.group_key is null
-      then array(select g.value ->> 'key' from jsonb_array_elements(v_version -> 'groups') g(value))
+      then array(
+        select g.value ->> 'key' from jsonb_array_elements(v_version -> 'groups') g(value)
+        union
+        select x."group_key" from "better_supabase"."deadlines" x
+        where x."org_id" = compute_deadlines.tenant and x."subject_type" = compute_deadlines.subject_type
+          and x."subject_id" = compute_deadlines.subject_id and x."jurisdiction" = compute_deadlines.jurisdiction
+          and x."kind" = compute_deadlines.kind)
       else array[compute_deadlines.group_key] end) -> 'rows';
 end;
 $$;
@@ -10311,7 +10524,7 @@ $$;
 revoke execute on function "better_supabase"."deadline_recompute"(text, text, text, jsonb) from public, anon, authenticated;
 
 -- Re-evaluates a subject's pending deadlines with extra facts. Needs
--- deadlines.write.
+-- deadlines.write and read access to the subject.
 create or replace function "better_supabase"."recompute_deadlines"(tenant uuid, subject_type text, subject_id text, facts jsonb default '{}')
 returns integer
 language plpgsql
@@ -10322,6 +10535,9 @@ as $$
 begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (recompute_deadlines.tenant is not null and coalesce(better_supabase.can('tenant', recompute_deadlines.tenant, 'deadlines.write'), false))) then
     raise exception 'not allowed to compute deadlines' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
+  end if;
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(recompute_deadlines.subject_type, recompute_deadlines.subject_id, recompute_deadlines.tenant)) then
+    raise exception 'not allowed to compute deadlines for this subject' using errcode = '42501', hint = 'DEADLINE_FORBIDDEN';
   end if;
   return "better_supabase"."deadline_recompute"(recompute_deadlines.tenant::text, recompute_deadlines.subject_type, recompute_deadlines.subject_id, recompute_deadlines.facts);
 end;
@@ -10354,7 +10570,7 @@ $$;
 revoke execute on function "better_supabase"."deadline_fact_trigger"() from public, anon, authenticated;
 
 -- Records the action that satisfied a deadline (one period of a periodic rule
--- on its own). Needs deadlines.write.
+-- on its own). Needs deadlines.write and read access to the subject.
 create or replace function "better_supabase"."satisfy_deadline"(deadline_id uuid, action text default null)
 returns jsonb
 language plpgsql
@@ -10369,7 +10585,8 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."deadlines" x where x."id" = satisfy_deadline.deadline_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'deadlines.read'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'deadlines.read'), false)))
+    or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or "better_supabase"."deadline_subject_readable"(v_row."subject_type", v_row."subject_id", v_row."org_id")) then
     raise exception 'no such deadline' using errcode = 'P0002', hint = 'DEADLINE_NOT_FOUND';
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."org_id" is not null and coalesce(better_supabase.can('tenant', v_row."org_id", 'deadlines.write'), false))) then
@@ -10388,13 +10605,15 @@ $$;
 revoke execute on function "better_supabase"."satisfy_deadline"(uuid, text) from public, anon;
 grant execute on function "better_supabase"."satisfy_deadline"(uuid, text) to authenticated, service_role;
 
--- An organization's deadlines, soonest first. filters is { subjectType,
+-- An organization's deadlines on the subjects the caller may read, soonest
+-- first. Security invoker, so the read policy and the subject tables' own
+-- policies decide which rows it returns. filters is { subjectType,
 -- subjectId, groupKey, period, state, result, provisional, dueBefore, limit }.
 create or replace function "better_supabase"."list_deadlines"(tenant uuid, filters jsonb default '{}')
 returns jsonb
 language plpgsql
 stable
-security definer
+security invoker
 set search_path = ''
 as $$
 #variable_conflict use_variable
@@ -10433,7 +10652,7 @@ create policy bsb_tenant_scope_select on "better_supabase"."deadlines" as restri
   for select to public
   using (
     "org_id" in (select better_supabase.member_organization_ids())
-    or ("org_id" in (select better_supabase.tenant_ids_with('deadlines.read')))
+    or ("org_id" in (select better_supabase.tenant_ids_with('deadlines.read')) and "better_supabase"."deadline_subject_readable"("subject_type", "subject_id", "org_id"))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."deadlines" as restrictive
   for insert to public
