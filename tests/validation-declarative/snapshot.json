@@ -3477,28 +3477,8 @@
         ],
         "grants": [
           {
-            "role": "anon",
-            "privileges": [
-              "DELETE",
-              "INSERT",
-              "REFERENCES",
-              "SELECT",
-              "TRIGGER",
-              "TRUNCATE",
-              "UPDATE"
-            ]
-          },
-          {
             "role": "authenticated",
-            "privileges": [
-              "DELETE",
-              "INSERT",
-              "REFERENCES",
-              "SELECT",
-              "TRIGGER",
-              "TRUNCATE",
-              "UPDATE"
-            ]
+            "privileges": ["SELECT"]
           },
           {
             "role": "service_role",
@@ -3528,40 +3508,12 @@
         "triggers": [],
         "grants": [
           {
-            "role": "anon",
-            "privileges": [
-              "DELETE",
-              "INSERT",
-              "REFERENCES",
-              "SELECT",
-              "TRIGGER",
-              "TRUNCATE",
-              "UPDATE"
-            ]
-          },
-          {
             "role": "authenticated",
-            "privileges": [
-              "DELETE",
-              "INSERT",
-              "REFERENCES",
-              "SELECT",
-              "TRIGGER",
-              "TRUNCATE",
-              "UPDATE"
-            ]
+            "privileges": ["SELECT"]
           },
           {
             "role": "service_role",
-            "privileges": [
-              "DELETE",
-              "INSERT",
-              "REFERENCES",
-              "SELECT",
-              "TRIGGER",
-              "TRUNCATE",
-              "UPDATE"
-            ]
+            "privileges": ["REFERENCES", "TRIGGER", "TRUNCATE"]
           }
         ],
         "columnGrants": []
@@ -3646,28 +3598,8 @@
         ],
         "grants": [
           {
-            "role": "anon",
-            "privileges": [
-              "DELETE",
-              "INSERT",
-              "REFERENCES",
-              "SELECT",
-              "TRIGGER",
-              "TRUNCATE",
-              "UPDATE"
-            ]
-          },
-          {
             "role": "authenticated",
-            "privileges": [
-              "DELETE",
-              "INSERT",
-              "REFERENCES",
-              "SELECT",
-              "TRIGGER",
-              "TRUNCATE",
-              "UPDATE"
-            ]
+            "privileges": ["SELECT"]
           },
           {
             "role": "service_role",
@@ -3749,28 +3681,8 @@
         ],
         "grants": [
           {
-            "role": "anon",
-            "privileges": [
-              "DELETE",
-              "INSERT",
-              "REFERENCES",
-              "SELECT",
-              "TRIGGER",
-              "TRUNCATE",
-              "UPDATE"
-            ]
-          },
-          {
             "role": "authenticated",
-            "privileges": [
-              "DELETE",
-              "INSERT",
-              "REFERENCES",
-              "SELECT",
-              "TRIGGER",
-              "TRUNCATE",
-              "UPDATE"
-            ]
+            "privileges": ["SELECT"]
           },
           {
             "role": "service_role",
@@ -3823,6 +3735,24 @@
         ],
         "policies": [
           {
+            "name": "projects_member_delete",
+            "command": "delete",
+            "roles": ["authenticated"],
+            "permissive": true,
+            "using": "(organization_id IN ( SELECT better_supabase.member_organization_ids('{owner,admin}'::text[]) AS member_organization_ids))",
+            "check": null,
+            "functions": ["better_supabase.member_organization_ids"]
+          },
+          {
+            "name": "projects_member_insert",
+            "command": "insert",
+            "roles": ["authenticated"],
+            "permissive": true,
+            "using": null,
+            "check": "(organization_id IN ( SELECT better_supabase.member_organization_ids('{owner,admin}'::text[]) AS member_organization_ids))",
+            "functions": ["better_supabase.member_organization_ids"]
+          },
+          {
             "name": "projects_member_select",
             "command": "select",
             "roles": ["authenticated"],
@@ -3832,8 +3762,8 @@
             "functions": ["better_supabase.member_organization_ids"]
           },
           {
-            "name": "projects_member_write",
-            "command": "all",
+            "name": "projects_member_update",
+            "command": "update",
             "roles": ["authenticated"],
             "permissive": true,
             "using": "(organization_id IN ( SELECT better_supabase.member_organization_ids('{owner,admin}'::text[]) AS member_organization_ids))",
@@ -3852,28 +3782,8 @@
         ],
         "grants": [
           {
-            "role": "anon",
-            "privileges": [
-              "DELETE",
-              "INSERT",
-              "REFERENCES",
-              "SELECT",
-              "TRIGGER",
-              "TRUNCATE",
-              "UPDATE"
-            ]
-          },
-          {
             "role": "authenticated",
-            "privileges": [
-              "DELETE",
-              "INSERT",
-              "REFERENCES",
-              "SELECT",
-              "TRIGGER",
-              "TRUNCATE",
-              "UPDATE"
-            ]
+            "privileges": ["DELETE", "INSERT", "SELECT", "UPDATE"]
           },
           {
             "role": "service_role",
@@ -3894,16 +3804,18 @@
     "buckets": [],
     "realtime": [],
     "roleSettings": {
-      "anon": {
-        "statement_timeout": "3s"
-      },
-      "authenticated": {
-        "statement_timeout": "8s"
-      },
       "authenticator": {
         "session_preload_libraries": "supautils, safeupdate",
         "statement_timeout": "8s",
         "lock_timeout": "8s"
+      },
+      "anon": {
+        "statement_timeout": "3s",
+        "idle_in_transaction_session_timeout": "60s"
+      },
+      "authenticated": {
+        "statement_timeout": "8s",
+        "idle_in_transaction_session_timeout": "60s"
       }
     },
     "functions": [

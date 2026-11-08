@@ -16,6 +16,10 @@ The base layer promises three things that no existing fixture checks. After `upg
 - `sync.test.ts` runs the sync after the first and the second `upgrade`. The CLI plans against a shadow database, so no running stack is needed; the test skips when the Supabase CLI is missing.
 - `doctor.test.ts` seeds one bad pattern per case and expects exit 1 with the one rule code: BS372 (do block), BS369 and BS371 (a prelude function declared again in an app file and in a module file), BS375 (duplicate policy), BS373 (`if not exists`), BS374 (insert in a module), BS376 and BS377 (coverage in both directions).
 
+### Grants and role settings (BS111, BS207, BS224)
+
+The CLI's local image creates every table in `public` with default privileges that grant all of them to `anon`, `authenticated` and `service_role`, and it ignores `[api] auto_expose_new_tables = false`. The schema files the generator writes grant only what the module needs (`select` for `authenticated`), so the extra grants in the first baseline migration came from those defaults, not from a generator statement. BS111 is therefore not a generator gap. The fixture's `030_grants.sql` declares the end state: it revokes what no policy uses from `anon` and `truncate`, `references` and `trigger` from `authenticated`. BS207 was the fixture's own `for all` policy next to a `select` policy, now split by command. BS224 is a role setting a schema diff skips, so a plain hand migration sets it, without a `do` block because the coverage rules read none through one. The doctor test asserts the committed app has no finding above `info`.
+
 The `validation-lienlink` fixture of the plan stays open: it needs projection views, which the generator does not emit yet (the `projections` item).
 
 ## Consequences

@@ -96,7 +96,7 @@ describe("upgrade on an app that owns its tables", () => {
 
       for (const object of [
         "create policy projects_member_select",
-        "create policy projects_member_write",
+        "create policy projects_member_update",
         "create trigger projects_reject_archived_rename",
         "alter table public.memberships add column invited_by",
         "create unique index organizations_slug_key",

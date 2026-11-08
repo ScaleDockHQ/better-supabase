@@ -24,10 +24,18 @@ create policy projects_member_select on public.projects
   for select to authenticated
   using (organization_id in (select better_supabase.member_organization_ids()));
 
-create policy projects_member_write on public.projects
-  for all to authenticated
+create policy projects_member_insert on public.projects
+  for insert to authenticated
+  with check (organization_id in (select better_supabase.member_organization_ids('{owner,admin}')));
+
+create policy projects_member_update on public.projects
+  for update to authenticated
   using (organization_id in (select better_supabase.member_organization_ids('{owner,admin}')))
   with check (organization_id in (select better_supabase.member_organization_ids('{owner,admin}')));
+
+create policy projects_member_delete on public.projects
+  for delete to authenticated
+  using (organization_id in (select better_supabase.member_organization_ids('{owner,admin}')));
 
 create function public.projects_reject_archived_rename() returns trigger
 language plpgsql

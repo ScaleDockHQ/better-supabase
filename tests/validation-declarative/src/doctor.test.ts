@@ -3,7 +3,7 @@ import { appendFile, rm, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 
-import { copyFixture } from "./fixture.ts";
+import { copyFixture, ROOT } from "./fixture.ts";
 
 // The ownership and coverage rules of doctor, which read the schema files and
 // migrations. The snapshot stands in for a database, so the test needs no stack.
@@ -76,6 +76,36 @@ describe("doctor on the declarative fixture", () => {
       dirs.push(dir);
 
       expect(await doctor(dir)).toStrictEqual({ code: 0, codes: [] });
+    },
+  );
+
+  it(
+    "reports nothing at all on the committed app",
+    { timeout: TIMEOUT },
+    async () => {
+      const result = await run([
+        "doctor",
+        "--json",
+        // BS303 compares generated client code, which this app has none of; the
+        // other two report the host's shared memory.
+        "--ignore",
+        "BS303,BS700,BS701",
+        "--fail-on",
+        "warning",
+        "--snapshot",
+        join(ROOT, "snapshot.json"),
+        "--cwd",
+        ROOT,
+      ]);
+
+      const { data } = JSON.parse(result.stdout) as Report;
+
+      expect(
+        data.findings.filter(
+          (finding) => (finding as { severity?: string }).severity !== "info",
+        ),
+      ).toStrictEqual([]);
+      expect(result.code).toBe(0);
     },
   );
 

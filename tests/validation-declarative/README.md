@@ -17,6 +17,6 @@ pnpm sql:check
 The sync test needs the Supabase CLI and Docker for the shadow database, not a
 running stack. `supabase/migrations` holds the baseline and `snapshot.json`
 stands in for a database in doctor. To refresh both after a module changes,
-empty `supabase/migrations`, run `better-supabase upgrade`, then
+remove `supabase/migrations/*_declarative_base.sql` (keep the role-timeouts migration), run `better-supabase upgrade`, then
 `supabase db schema declarative sync --no-apply --strict-coverage -f declarative_base`,
 reset a local stack from it and write the snapshot with `introspect`.

@@ -31,6 +31,8 @@ CREATE TABLE "public"."memberships" (
 ALTER TABLE "public"."memberships"
   ENABLE ROW LEVEL SECURITY;
 
+REVOKE ALL ON TABLE "public"."memberships" FROM "anon";
+
 CREATE TABLE "public"."organizations" (
   "id"          uuid                     NOT NULL DEFAULT gen_random_uuid(),
   "name"        text                     NOT NULL,
@@ -46,6 +48,8 @@ CREATE TABLE "public"."organizations" (
 
 ALTER TABLE "public"."organizations"
   ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE "public"."organizations" FROM "anon";
 
 CREATE TABLE "public"."profiles" (
   "user_id"                uuid                     NOT NULL,
@@ -68,6 +72,8 @@ CREATE TABLE "public"."profiles" (
 ALTER TABLE "public"."profiles"
   ENABLE ROW LEVEL SECURITY;
 
+REVOKE ALL ON TABLE "public"."profiles" FROM "anon";
+
 CREATE TABLE "public"."projects" (
   "id"              uuid                     NOT NULL DEFAULT gen_random_uuid(),
   "organization_id" uuid                     NOT NULL,
@@ -79,6 +85,8 @@ CREATE TABLE "public"."projects" (
 
 ALTER TABLE "public"."projects"
   ENABLE ROW LEVEL SECURITY;
+
+REVOKE ALL ON TABLE "public"."projects" FROM "anon";
 
 CREATE OR REPLACE FUNCTION better_supabase.acting_member()
   RETURNS uuid
@@ -1582,6 +1590,8 @@ begin
 end;
 $function$;
 
+REVOKE ALL ON FUNCTION "public"."projects_reject_archived_rename"() FROM "anon", "authenticated", "service_role";
+
 ALTER TABLE "public"."memberships"
   ADD CONSTRAINT "memberships_invited_by_fkey" FOREIGN KEY (invited_by) REFERENCES auth.users(id) ON DELETE SET NULL;
 
@@ -1605,6 +1615,8 @@ CREATE VIEW "public"."my_organizations" WITH (security_invoker=true) AS  SELECT 
     slug
    FROM public.organizations o
   WHERE (id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids));
+
+REVOKE ALL ON TABLE "public"."my_organizations" FROM "anon";
 
 CREATE INDEX memberships_user_id_idx ON public.memberships USING btree (user_id);
 
@@ -1707,13 +1719,23 @@ CREATE POLICY "bsb_profiles_update" ON "public"."profiles"
   USING (((user_id = ( SELECT auth.uid() AS uid)) AND ( SELECT better_supabase.actor_may_write() AS actor_may_write)))
   WITH CHECK (((user_id = ( SELECT auth.uid() AS uid)) AND ( SELECT better_supabase.actor_may_write() AS actor_may_write)));
 
+CREATE POLICY "projects_member_delete" ON "public"."projects"
+  FOR DELETE
+  TO "authenticated"
+  USING ((organization_id IN ( SELECT better_supabase.member_organization_ids('{owner,admin}'::text[]) AS member_organization_ids)));
+
+CREATE POLICY "projects_member_insert" ON "public"."projects"
+  FOR INSERT
+  TO "authenticated"
+  WITH CHECK ((organization_id IN ( SELECT better_supabase.member_organization_ids('{owner,admin}'::text[]) AS member_organization_ids)));
+
 CREATE POLICY "projects_member_select" ON "public"."projects"
   FOR SELECT
   TO "authenticated"
   USING ((organization_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids)));
 
-CREATE POLICY "projects_member_write" ON "public"."projects"
-  FOR ALL
+CREATE POLICY "projects_member_update" ON "public"."projects"
+  FOR UPDATE
   TO "authenticated"
   USING ((organization_id IN ( SELECT better_supabase.member_organization_ids('{owner,admin}'::text[]) AS member_organization_ids)))
   WITH CHECK ((organization_id IN ( SELECT better_supabase.member_organization_ids('{owner,admin}'::text[]) AS member_organization_ids)));
@@ -1954,19 +1976,19 @@ REVOKE ALL ON FUNCTION "better_supabase"."value_unsupported"(text) FROM PUBLIC;
 
 GRANT EXECUTE ON FUNCTION "better_supabase"."value_unsupported"(text) TO "anon", "authenticated", "service_role";
 
-GRANT EXECUTE ON FUNCTION "public"."projects_reject_archived_rename"() TO PUBLIC, "anon", "authenticated";
+GRANT EXECUTE ON FUNCTION "public"."projects_reject_archived_rename"() TO PUBLIC;
 
 REVOKE ALL ON FUNCTION "public"."projects_reject_archived_rename"() FROM "postgres";
 
 GRANT EXECUTE ON FUNCTION "public"."projects_reject_archived_rename"() TO "postgres";
 
-GRANT EXECUTE ON FUNCTION "public"."projects_reject_archived_rename"() TO "service_role";
-
 GRANT USAGE ON SCHEMA "better_supabase" TO "anon", "authenticated", "service_role", "supabase_auth_admin";
 
 GRANT SELECT ON TABLE "better_supabase"."blocks" TO "service_role";
 
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."memberships" TO "anon", "authenticated";
+REVOKE ALL ON TABLE "public"."memberships" FROM "authenticated";
+
+GRANT MAINTAIN, SELECT ON TABLE "public"."memberships" TO "authenticated";
 
 REVOKE ALL ON TABLE "public"."memberships" FROM "postgres";
 
@@ -1974,7 +1996,9 @@ GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."memberships" TO "service_role";
 
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."organizations" TO "anon", "authenticated";
+REVOKE ALL ON TABLE "public"."organizations" FROM "authenticated";
+
+GRANT MAINTAIN, SELECT ON TABLE "public"."organizations" TO "authenticated";
 
 REVOKE ALL ON TABLE "public"."organizations" FROM "postgres";
 
@@ -1982,7 +2006,9 @@ GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."organizations" TO "service_role";
 
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."profiles" TO "anon", "authenticated";
+REVOKE ALL ON TABLE "public"."profiles" FROM "authenticated";
+
+GRANT MAINTAIN, SELECT ON TABLE "public"."profiles" TO "authenticated";
 
 REVOKE ALL ON TABLE "public"."profiles" FROM "postgres";
 
@@ -1990,7 +2016,9 @@ GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."profiles" TO "service_role";
 
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."projects" TO "anon", "authenticated";
+REVOKE ALL ON TABLE "public"."projects" FROM "authenticated";
+
+GRANT DELETE, INSERT, MAINTAIN, SELECT, UPDATE ON TABLE "public"."projects" TO "authenticated";
 
 REVOKE ALL ON TABLE "public"."projects" FROM "postgres";
 
@@ -1998,10 +2026,14 @@ GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."projects" TO "service_role";
 
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."my_organizations" TO "anon", "authenticated";
+REVOKE ALL ON TABLE "public"."my_organizations" FROM "authenticated";
+
+GRANT MAINTAIN, SELECT ON TABLE "public"."my_organizations" TO "authenticated";
 
 REVOKE ALL ON TABLE "public"."my_organizations" FROM "postgres";
 
 GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."my_organizations" TO "postgres";
 
-GRANT DELETE, INSERT, MAINTAIN, REFERENCES, SELECT, TRIGGER, TRUNCATE, UPDATE ON TABLE "public"."my_organizations" TO "service_role";
+REVOKE ALL ON TABLE "public"."my_organizations" FROM "service_role";
+
+GRANT MAINTAIN, REFERENCES, TRIGGER, TRUNCATE ON TABLE "public"."my_organizations" TO "service_role";
