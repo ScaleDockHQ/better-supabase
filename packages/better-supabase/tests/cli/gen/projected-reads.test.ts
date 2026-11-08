@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import type { SchemaMeta, TableMeta } from "../../../src/schema/types.ts";
+import type { SchemaMeta, TableMeta } from "../../../src/index.ts";
 
 import {
   NO_PROJECTED_READS,

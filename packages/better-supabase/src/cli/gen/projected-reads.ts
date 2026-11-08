@@ -1,5 +1,5 @@
 import type { ResolvedConfig } from "../../config/index.ts";
-import type { SchemaMeta } from "../../schema/types.ts";
+import type { SchemaMeta } from "../../index.ts";
 
 import { blockTables } from "../../sql/index.ts";
 import { projectionsOf } from "../powersync/projection.ts";
