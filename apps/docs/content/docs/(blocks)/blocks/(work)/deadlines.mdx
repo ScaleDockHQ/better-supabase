@@ -37,6 +37,29 @@ is approved through an approval request.
 Members read the approved versions of every rule set. Saving and approving a
 version needs the service role.
 
+### Subject access
+
+A deadline is as readable as its subject. The block reads the record types
+from `blocks.deadlines.on`, or from [`config.subjects`](/docs/blocks/subjects)
+when `on` is unset, the same way `attachments` and `documents` do. With
+subjects, the read policy, `list`, `compute`, `recompute` and `satisfy` also
+need the subject row to exist in the tenant and the subject's read permission:
+its key, the provider's row grants (`rows`), an `owner` column or a `check`
+function. `list` and plain selects run as the caller, so the subject table's
+own policies apply too. A deadline whose subject type isn't listed is hidden
+and can't be computed. Without subjects, `deadlines.read` and
+`deadlines.write` alone decide.
+
+```ts title="better-supabase.config.ts"
+subjects: {
+  job: {
+    table: "public.jobs",
+    idType: "uuid",
+    permissions: { read: { key: "jobs.read", rows: "job" } },
+  },
+},
+```
+
 ## Rules
 
 A version is one whole: ordered `groups`, ordered `rules`, an optional
@@ -212,8 +235,11 @@ const rows = await deadlines
 
 `compute` evaluates every group of the version that applies on `asOf` (today by
 default), or only `group` and the groups it requires, and stores one row per
-group, one per month for a monthly count. A satisfied row stays as it is, and
-a pending row whose group or month has no result any more is deleted.
+group, one per month for a monthly count. A satisfied row stays as it is: it
+is the record of what was done, so a new version never removes it. A pending
+row whose group or month has no result any more is deleted, and so is, when
+you compute every group, a pending row of the same jurisdiction and kind whose
+group the applying version no longer has.
 
 Facts are three-valued:
 

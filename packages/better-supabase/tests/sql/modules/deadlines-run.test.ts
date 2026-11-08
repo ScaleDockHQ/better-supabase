@@ -333,6 +333,54 @@ $$;`,
     ).resolves.toBeUndefined();
   });
 
+  it("drops the pending rows of groups a newer version no longer has and keeps satisfied ones", async () => {
+    const v1 = fixture("v1");
+
+    const narrowed = {
+      ...v1,
+      rules: v1.rules.filter((rule) => rule.group === "file_notice"),
+      groups: v1.groups.filter((group) => group.key === "file_notice"),
+    };
+
+    const facts = literal({ first_day: "2026-01-02", state: "ca" });
+
+    await expect(
+      run(
+        ["memberships", "permissions", "deadlines"],
+        [
+          `do $$
+declare
+  v_version jsonb;
+  v_rows jsonb;
+begin
+  ${SERVICE}
+  v_version := better_supabase.save_rule_version('ca', 'lien', ${literal(v1)}, '2020-01-01');
+  perform better_supabase.approve_rule_version((v_version ->> 'id')::uuid);
+  v_rows := better_supabase.compute_deadlines('${TENANT}', 'job', 'j1', 'ca', 'lien', ${facts}, '2026-02-01');
+  if jsonb_array_length(v_rows) <> 3 then raise exception 'first compute %', v_rows; end if;
+  perform better_supabase.compute_deadlines('${TENANT}', 'job', 'j2', 'ca', 'lien', ${facts}, '2026-02-01');
+  perform better_supabase.satisfy_deadline((select id from better_supabase.deadlines where subject_id = 'j1' and group_key = 'business'), 'filed');
+
+  v_version := better_supabase.save_rule_version('ca', 'lien', ${literal(narrowed)}, '2026-01-15');
+  perform better_supabase.approve_rule_version((v_version ->> 'id')::uuid);
+  v_rows := better_supabase.compute_deadlines('${TENANT}', 'job', 'j1', 'ca', 'lien', ${facts}, '2026-02-01');
+  if (select array_agg(r ->> 'groupKey' order by r ->> 'groupKey') from jsonb_array_elements(v_rows) r) <> array['file_notice'] then
+    raise exception 'second compute %', v_rows;
+  end if;
+  if (select array_agg(group_key || ':' || state order by group_key) from better_supabase.deadlines where subject_id = 'j1')
+    <> array['business:satisfied', 'file_notice:pending'] then
+    raise exception 'stored %', (select array_agg(group_key || ':' || state order by group_key) from better_supabase.deadlines where subject_id = 'j1');
+  end if;
+  if (select count(*) from better_supabase.deadlines where subject_id = 'j2') <> 3 then
+    raise exception 'another subject changed';
+  end if;
+end;
+$$;`,
+        ],
+      ),
+    ).resolves.toBeUndefined();
+  });
+
   it("upgrades a version 1 database: converts approved versions, keeps their hash, freezes them again", async () => {
     const v1 = readFileSync(
       new URL("../../fixtures/deadlines-v1.sql", import.meta.url),
