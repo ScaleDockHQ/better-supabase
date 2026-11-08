@@ -1,6 +1,6 @@
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:3ebde30f08580c86f2353c3e6872c4362a775de1a32b5fb7332b05aaa40ce77c
+-- @bsb-hash sha256:27fe81c0b93fc06e5b1487a75a0f2babc27c922e91d35c9f2e625796283f4cb0
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -52,7 +52,7 @@ create policy bsb_organization_settings_read on "better_supabase"."organization_
   using ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')));
 create policy bsb_organization_settings_insert on "better_supabase"."organization_settings"
   for insert to authenticated
-  with check ((coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false)) and (select centrakit.authz_actor_may_write()));
+  with check (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select centrakit.authz_actor_may_write()));
 create policy bsb_organization_settings_update on "better_supabase"."organization_settings"
   for update to authenticated
   using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select centrakit.authz_actor_may_write()))
@@ -359,7 +359,7 @@ create policy bsb_tenant_scope_insert on "better_supabase"."organization_setting
   for insert to public
   with check (
     "tenant_id" in (select better_supabase.member_organization_ids())
-    or (coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false))
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."organization_settings" as restrictive
   for update to public

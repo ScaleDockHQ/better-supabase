@@ -453,6 +453,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0423: Import batches do not lock the run, and their size adapts.
 - 0424: Inline the subject check in the attachments policies.
 - 0425: Count defaults to the estimated mode.
+- 0426: Check tenants as a set in block policies.
 
 ## Pre-release pins
 
