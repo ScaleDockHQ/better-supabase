@@ -257,6 +257,11 @@ export interface ApprovalItemInput {
   readonly permission?: string;
   /** Keys of items listed before this one; it can't be approved before them. */
   readonly dependsOn?: readonly string[];
+  /**
+   * Values for the columns your schema files add to `approval_items`, by column
+   * name. A key left out keeps the column's default.
+   */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 export type ApprovalItemStatus = "pending" | "approved" | "rejected";
@@ -276,6 +281,8 @@ export interface ApprovalItem {
   readonly decidedBy?: string;
   readonly decidedAt?: Temporal.Instant;
   readonly createdAt: Temporal.Instant;
+  /** The columns your schema files add to `approval_items`, by column name. */
+  readonly fields?: Readonly<Record<string, unknown>>;
 }
 
 /** One decision of `decideItems`. */
@@ -679,11 +686,13 @@ function itemOf(value: unknown, fn: string): ApprovalItem {
   const createdId = optionalText(row["createdId"]);
   const decidedBy = optionalText(row["decidedBy"]);
   const payload = row["payload"];
+  const fields = row["fields"];
 
   return {
     id: textOf(row["id"]),
     key: textOf(row["key"]),
     payload: isRecord(payload) ? payload : {},
+    ...(isRecord(fields) ? { fields } : {}),
     dependsOn: Array.isArray(row["dependsOn"])
       ? row["dependsOn"].map((key) => textOf(key))
       : [],
@@ -950,6 +959,9 @@ export function createApprovals<
                     payload: item.payload ?? {},
                     permission: item.permission ?? null,
                     dependsOn: item.dependsOn ?? [],
+                    ...(item.fields === undefined
+                      ? {}
+                      : { fields: item.fields }),
                   })),
                   reason: reason ?? null,
                   payload: payload ?? {},
