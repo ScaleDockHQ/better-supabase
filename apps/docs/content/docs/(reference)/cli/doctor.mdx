@@ -1887,6 +1887,27 @@ or remove the entry.
 next run writes a second file instead of replacing it, and `supabase db reset`
 loads both. Set `database.seed.sample.output` to the file, or delete it.
 
+### BS357
+
+**Error: a data file insert has no key.** A block data file runs again in every
+data migration that changes it, so each `insert` in
+`supabase/better-supabase-data` ends with `on conflict (...)` or guards itself
+with `not exists`. Without a key a second run adds the rows again.
+
+### BS358
+
+**Warning: an app seed writes a table a block seeds.** A file under
+`supabase/seeds` inserts into a table that a block data file also inserts into,
+so both own its rows. Let the block seed the table, or keep the rows in your
+seed and remove the block's. Files from `db seed --sample` are left out.
+
+### BS359
+
+**Warning: a seed function takes no locale.** A function named
+`seed_<name>_defaults` has no `p_locale` parameter. Defaults that depend on a
+country need it, and `seed_tenant_defaults` passes it to every seed function.
+Reads every schema file.
+
 ### BS401
 
 **Warning: refresh token reuse interval is 0.** With refresh token rotation,

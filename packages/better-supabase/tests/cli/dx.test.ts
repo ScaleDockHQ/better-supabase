@@ -772,6 +772,7 @@ export const chrome = defineReadSet(betterSupabase, 'chrome', { params: { organi
       "create or replace function public.rs_chrome(p jsonb)",
     );
     expect(sql).toContain("((p->>'organizationId')::uuid)");
+    expect((await run(["add", "--adopt", "--cwd", dir])).code).toBe(0);
     expect((await run(["upgrade", "--check", "--cwd", dir])).code).toBe(0);
 
     await writeFile(path, sql.replace("'active'", "'lead'"));

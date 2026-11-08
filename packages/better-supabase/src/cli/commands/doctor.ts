@@ -32,6 +32,7 @@ import { hookGrantBlock, hookGrantProblems } from "../doctor/hooks.ts";
 import {
   ENV_FILES,
   readText,
+  dataFiles,
   seedFiles,
   sqlFiles,
   sourceFiles,
@@ -473,6 +474,7 @@ export async function runDoctor(
     snapshot,
     sqlFiles: sql,
     seedFiles: await seedFiles(config.root, configToml),
+    dataFiles: await dataFiles(config.root, configToml),
     configToml,
     envFiles,
     gitignore: gitignore?.text ?? "",
