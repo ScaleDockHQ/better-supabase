@@ -4,7 +4,9 @@ import type { ReactNode } from "react";
 
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import { BetterSupabaseProvider } from "better-supabase/react";
-import { useState } from "react";
+import { Suspense, useState } from "react";
+
+import { TemporalGate } from "@/components/temporal-gate";
 
 import { bsb } from "../lib/supabase/client";
 
@@ -19,7 +21,9 @@ export function DataProviders({ children }: { children: ReactNode }) {
   return (
     <QueryClientProvider client={queryClient}>
       <BetterSupabaseProvider client={bsb} queryClient={queryClient}>
-        {children}
+        <Suspense fallback={null}>
+          <TemporalGate>{children}</TemporalGate>
+        </Suspense>
       </BetterSupabaseProvider>
     </QueryClientProvider>
   );

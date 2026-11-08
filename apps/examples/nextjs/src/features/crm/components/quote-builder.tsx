@@ -1,7 +1,6 @@
 import { formatMoney } from "better-supabase/commerce";
 import { getExtracted, getLocale } from "next-intl/server";
 import { forbidden, notFound } from "next/navigation";
-import { Temporal } from "temporal-polyfill";
 
 import {
   Card,

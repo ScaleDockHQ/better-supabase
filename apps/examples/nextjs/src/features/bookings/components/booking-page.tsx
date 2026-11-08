@@ -1,7 +1,6 @@
 import { CalendarXIcon, ChevronRightIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 import { notFound } from "next/navigation";
-import { Temporal } from "temporal-polyfill";
 import * as v from "valibot";
 
 import { buttonVariants } from "@/components/ui/button";

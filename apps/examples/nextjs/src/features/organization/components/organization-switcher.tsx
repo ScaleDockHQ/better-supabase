@@ -8,7 +8,7 @@ import {
 import { getSession } from "@/features/user/user-queries";
 
 import { getMyOrganizations } from "../organization-queries";
-import { OrganizationSwitcherMenu } from "./organization-switcher-menu";
+import { OrganizationSwitcherLazy } from "./organization-switcher-lazy";
 
 /** Render inside `<Suspense>`; the fallback is `OrganizationSwitcherSkeleton`. */
 export async function OrganizationSwitcher() {
@@ -21,7 +21,7 @@ export async function OrganizationSwitcher() {
     <SidebarMenu>
       <SidebarMenuItem>
         {/* New rows from the server, after creating or joining one, start the menu over. */}
-        <OrganizationSwitcherMenu
+        <OrganizationSwitcherLazy
           key={`${tenantOf(session) ?? ""}:${organizations.map((organization) => organization.id).join(",")}`}
           initial={organizations}
           activeId={tenantOf(session) ?? null}

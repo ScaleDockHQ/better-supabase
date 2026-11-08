@@ -1,5 +1,3 @@
-import type { Temporal } from "temporal-polyfill";
-
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 

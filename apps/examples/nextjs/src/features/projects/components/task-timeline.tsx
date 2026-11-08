@@ -1,5 +1,4 @@
 import type { CSSProperties } from "react";
-import type { Temporal } from "temporal-polyfill";
 
 import { getExtracted } from "next-intl/server";
 

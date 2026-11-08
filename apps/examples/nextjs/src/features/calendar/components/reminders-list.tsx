@@ -1,7 +1,6 @@
 import { BellIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
 import { io } from "next/cache";
-import { Temporal } from "temporal-polyfill";
 
 import {
   Card,

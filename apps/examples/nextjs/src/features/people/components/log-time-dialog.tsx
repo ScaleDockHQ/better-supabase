@@ -5,7 +5,6 @@ import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
 import { toast } from "sonner";
-import { Temporal } from "temporal-polyfill";
 
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";

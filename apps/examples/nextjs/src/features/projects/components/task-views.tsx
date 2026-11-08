@@ -2,7 +2,6 @@ import { tenantOf } from "better-supabase/next";
 import { ListTodoIcon } from "lucide-react";
 import { getExtracted } from "next-intl/server";
 import { io } from "next/cache";
-import { Temporal } from "temporal-polyfill";
 
 import type { AppHref } from "@/i18n/navigation";
 
