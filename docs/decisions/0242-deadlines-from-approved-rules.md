@@ -36,3 +36,24 @@ facts table to recompute, and wire reminders through `blocks.reminders.on`.
 
 Rule sets are readable by every member, but only approved versions. Changing a
 rule means a new version; existing deadlines keep the version they used.
+
+## Amendment (2026-11)
+
+A rule set version is a whole: ordered groups, ordered rules with three-valued
+conditions, exceptions and a deadline grammar (single count, `first_of`,
+`earlier_of`, `later_of`, `before`, monthly periods), a counting block with
+authored holidays, and opaque `meta` per rule, group and version, frozen under
+one hash. The evaluator returns one result per group (per month for a periodic
+rule) in eight kinds: due, unknown, pending, undated, not_covered,
+not_applicable, not_required, barred. Facts are three-valued: absent is
+unknown, null is "does not exist or has not happened", a value is an answer.
+Parts marked draft or review_required are carried for display and never
+decide. The block never reads `meta`; the adopter keeps document data there so
+date and duty come from one approved artifact. The v1 shape (anchor, offset) is
+converted by the module's upgrade step; approved versions keep their old hash
+in `meta.previous_content_hash`.
+
+Rejected: an expression language (the grammar above is the closed set the
+fifty-state bundle uses); per-group compute (the barred cascade crosses
+groups); a shared holiday table (statutory holiday lists differ per
+jurisdiction and must freeze with the version).

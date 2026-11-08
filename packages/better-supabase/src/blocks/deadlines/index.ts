@@ -1,7 +1,7 @@
 export {
   createDeadlines,
-  evaluateRule,
-  validateRules,
+  evaluateVersion,
+  validateRuleVersion,
   type Deadline,
   type DeadlineListOptions,
   type Deadlines,
@@ -11,9 +11,25 @@ export {
 } from "./deadlines.ts";
 
 export type {
+  Applies,
+  Condition,
+  ConditionValue,
+  DateRegime,
+  DeadlineBasis,
   DeadlineCitation,
-  DeadlineEvaluation,
+  DeadlineCount,
+  DeadlineCounting,
+  DeadlineException,
+  DeadlineExceptionResult,
+  DeadlineFacts,
+  DeadlineGroup,
+  DeadlineGroupResult,
+  DeadlineHoliday,
+  DeadlineResult,
+  DeadlineReview,
   DeadlineRule,
+  DeadlineSpec,
+  RuleVersionContent,
 } from "../../sql/modules/deadlines-values.ts";
 
 export {

@@ -1,0 +1,1843 @@
+{
+  "content": {
+    "groups": [
+      {
+        "key": "ak_claim_of_lien",
+        "title": "Claim of Lien",
+        "citation": {
+          "reference": "AS 34.35.068, 34.35.070"
+        },
+        "meta": {
+          "function": "perfect_lien",
+          "forum": "county_recorder",
+          "signing": {
+            "notarial_act": "jurat",
+            "signers": ["claimant", "agent"]
+          }
+        }
+      },
+      {
+        "key": "ca_notice_and_claim_of_lien",
+        "title": "Claim of Mechanics Lien",
+        "citation": {
+          "reference": "Cal. Civ. Code 8416"
+        },
+        "meta": {
+          "function": "perfect_lien",
+          "forum": "county_recorder",
+          "signing": {
+            "knowledge_required": true,
+            "notarial_act": "none",
+            "preparer": "claimant",
+            "signers": ["claimant"]
+          },
+          "requires": [
+            {
+              "instrument": "preliminary_notice",
+              "cite": "Cal. Civ. Code 8410"
+            }
+          ],
+          "expires": {
+            "cite": "Cal. Civ. Code 8460(a)",
+            "from": "lien_recorded",
+            "n": 90,
+            "unit": "days"
+          }
+        }
+      },
+      {
+        "key": "wy_lien_statement",
+        "title": "Lien Statement",
+        "citation": {
+          "reference": "W.S. 29-1-312"
+        },
+        "meta": {
+          "function": "perfect_lien",
+          "forum": "county_recorder",
+          "signing": {
+            "knowledge_required": true,
+            "notarial_act": "jurat",
+            "preparer": "claimant",
+            "signers": ["claimant", "agent"]
+          },
+          "requires": [
+            {
+              "instrument": "preliminary_notice",
+              "cite": "W.S. 29-2-112(a)(iii)"
+            },
+            {
+              "instrument": "notice_of_intent_to_file_lien",
+              "cite": "W.S. 29-2-107(a)"
+            }
+          ],
+          "expires": {
+            "cite": "W.S. 29-2-109",
+            "from": "lien_recorded",
+            "n": 180,
+            "unit": "days"
+          }
+        }
+      },
+      {
+        "key": "wy_lien_statement_expires",
+        "title": "Lien Statement expires",
+        "citation": {
+          "reference": "W.S. 29-2-109"
+        },
+        "requires": ["wy_lien_statement"]
+      },
+      {
+        "key": "co_notice_of_intent",
+        "title": "Notice of Intent to File a Lien Statement",
+        "citation": {
+          "reference": "C.R.S. 38-22-109(3)"
+        },
+        "meta": {
+          "function": "warn_before_lien",
+          "forum": "service",
+          "signing": {
+            "notarial_act": "none",
+            "preparer": "agent",
+            "signers": ["claimant", "agent"]
+          }
+        }
+      },
+      {
+        "key": "co_release_of_lien",
+        "title": "Satisfaction and Release of Lien",
+        "citation": {
+          "reference": "C.R.S. 38-22-118"
+        },
+        "meta": {
+          "function": "release_lien",
+          "forum": "county_recorder",
+          "signing": {
+            "notarial_act": "acknowledgment",
+            "preparer": "agent",
+            "signers": ["claimant", "agent"]
+          },
+          "requires": [
+            {
+              "instrument": "lien_statement",
+              "cite": "C.R.S. 38-22-118"
+            }
+          ]
+        }
+      },
+      {
+        "key": "al_notice_of_intent",
+        "title": "Notice of Lien Claimed",
+        "citation": {
+          "reference": "Ala. Code 35-11-218"
+        },
+        "meta": {
+          "function": "warn_before_lien",
+          "forum": "service",
+          "signing": {
+            "notarial_act": "none",
+            "signers": ["claimant", "agent"]
+          }
+        }
+      },
+      {
+        "key": "later",
+        "title": "Later of two counts",
+        "citation": {
+          "reference": "Hand case"
+        }
+      }
+    ],
+    "rules": [
+      {
+        "key": "ak_claim_of_lien__all_claimants",
+        "group": "ak_claim_of_lien",
+        "applies": {
+          "claimant_contract_tier": [
+            "direct_with_owner",
+            "first_tier_sub",
+            "lower_tier"
+          ],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "earlier_of": [
+            {
+              "n": 120,
+              "unit": "days",
+              "from": "last_furnishing_date"
+            },
+            {
+              "n": 15,
+              "unit": "days",
+              "from": "notice_of_completion_recording_date"
+            }
+          ]
+        },
+        "status": "review_required",
+        "citation": {
+          "reference": "AS 34.35.068, 34.35.070"
+        },
+        "meta": {
+          "if_missed": {
+            "cite": "AS 34.35.068(c)",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "34.35.068(a) (corpus): 'If a notice of completion is not recorded by the owner as provided in AS 34.35.071, a claim of lien shall be recorded not later than 120 days after the claimant (1) completes the construction contract; or (2) ceases to furnish labor, material, services, or equipment'. (b)(1): after a notice of completion, a claimant 'who has not given a notice of right to lien' (or who received advance notification of the recording) 'shall record a claim of lien or a notice of right to lien not later than 15 days after the notice of completion is recorded'. (c): 'A claim of lien is enforceable only if recorded by a claimant within the time specified'.",
+            "34.35.070(c): 'The lien shall be verified by the oath of the claimant or another person having knowledge of the facts' and states the property, owner, claimant, contracting party, the work and contract price, the amount due 'and (7) the date the last labor, materials, services, or equipment were furnished.'"
+          ],
+          "review": {
+            "kind": "schema_gap",
+            "question": "Should the port ask whether the claimant gave a notice of right to lien, which keeps the 120 days after a notice of completion?",
+            "reason": "The fifteen days after a notice of completion bind only a claimant without a notice of right to lien (or with advance notification); the registry does not know which, so the cell takes the earlier date.",
+            "since": "2026-11-03"
+          }
+        }
+      },
+      {
+        "key": "ca_notice_and_claim_of_lien__private_direct_contractor",
+        "group": "ca_notice_and_claim_of_lien",
+        "applies": {
+          "claimant_contract_tier": ["direct_with_owner"],
+          "claimant_capacity": ["contractor"],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "earlier_of": [
+            {
+              "n": 60,
+              "unit": "days",
+              "from": "notice_of_completion_recording_date"
+            },
+            {
+              "n": 90,
+              "unit": "days",
+              "from": "completion_date"
+            }
+          ]
+        },
+        "status": "review_required",
+        "citation": {
+          "reference": "Cal. Civ. Code 8416"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "serve_copy": {
+            "cite": "Cal. Civ. Code 8416(c)",
+            "methods": [
+              "first_class_mail",
+              "certified_mail",
+              "registered_mail"
+            ],
+            "to": ["owner"],
+            "within": {
+              "before": "lien_recorded"
+            }
+          },
+          "if_missed": {
+            "cite": "Cal. Civ. Code 8412",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "Cal. Civ. Code 8412 (corpus 2026-08-18): 'A direct contractor may not enforce a lien unless the contractor records a claim of lien after the contractor completes the direct contract, and before the earlier of the following times: (a) Ninety days after completion of the work of improvement. (b) Sixty days after the owner records a notice of completion or cessation.'; the VA guide, General Contractor page, 'Record with the County Recorder within 90 days of completion - or 60 days after the owner records & serves a Notice of Completion/Cessation'.",
+            "Counsel's prime row (counsel_regs.json, read 2026-10-22): 'Must file within 90 days from the completion of the project as a whole.' with no shorter period after a notice of completion; the production table (legal_category.ex CA) also carries only 90 days from completion.",
+            "The statute says 'earlier of', so the deadline is earlier_of: a recorded notice of completion shortens the clock only when 60 days after it falls before 90 days after completion, and an absent notice skips that count (SCHEMA.md §7). Cal. Civ. Code 8190(c): if the owner fails to give the claimant a copy within 10 days the notice 'is ineffective to shorten the time', and no registry fact records that mailing; 8190(d)(1) excuses an owner-occupant of a dwelling of four or fewer units from giving it.",
+            "Cal. Civ. Code 8182(a) and (d) (corpus 2026-08-18): 'An owner may record a notice of completion on or within 15 days after the date of completion of a work of improvement' and 'A notice of completion that does not comply with the provisions of this section is not effective'; 8182(c)(4): an erroneous date of completion does not affect effectiveness 'if the true date of completion is 15 days or less before the date of recordation of the notice'. Reading adopted: a notice of completion recorded more than 15 days after completion is not effective and cannot shorten the period, but the registry has no fact for the notice's compliance or for the true completion date relative to the recording date, so the 60-day count from notice_of_completion_recorded is written as the statute's shortening branch and the cell stays review_required. Other reading: any recorded notice of completion starts the clock; the cell cannot tell the two apart, so a customer who enters the date of an ineffective notice would see an earlier date than the statute allows.",
+            "Cal. Civ. Code 8412: the claim of lien is recorded 'after the contractor completes the direct contract'; a premature recording is a defect (prior record 120), but no count carries a lower bound.",
+            "Cal. Civ. Code 8180(a): completion occurs on 'Actual completion of the work of improvement', 'Occupation or use by the owner accompanied by cessation of labor', 'Cessation of labor for a continuous period of 60 days', or 'Recordation of a notice of cessation after cessation of labor for a continuous period of 30 days'; counsel's row, 'Completion of Work Date: when the owner accepts the work, owner uses it with labor stopped, or a Notice of Cessation is filed after 30 days of labor stoppage', omits actual completion and the 60-day cessation and adds owner acceptance.",
+            "Cal. Civ. Code 8186(a)-(b) (corpus 2026-08-18): where a work of improvement is made under two or more direct contracts, on recordation of a notice of completion of one, 'for the purpose of 8412 and 8414, a direct contractor is deemed to have completed the contract for which the notice of completion is recorded and a claimant other than a direct contractor is deemed to have ceased providing work'; without that notice 'the period for recording a claim of lien is that provided in 8412 and 8414'. Reading adopted: the deemed completion moves the lower bound of the recording window (8412: 'after the contractor completes the direct contract'; 8414(a): 'after the claimant ceases to provide work') and the notice-of-completion branch for that portion; it does not redefine 'completion of the work of improvement' for the 90-day branch, which stays the completion of the whole work of improvement. Other reading (the earlier draft): 8186 makes completion_date per direct contract for the 90 days as well, which the section does not say.",
+            "Cal. Civ. Code 8416(a): the claim is 'a written statement, signed and verified by the claimant' stating the demand 'after deducting all just credits and offsets', the owner's name, 'A general statement of the kind of work furnished', the person who employed the claimant, 'A description of the site sufficient for identification', the claimant's address, 'A proof of service affidavit' and the boldface 'NOTICE OF MECHANICS LIEN ATTENTION!' statement (8416(a)(8)); counsel's row lists the same content and adds 'Template on website' and recording format (12pt, 8.5x11, margins, warning statement) that belong to the form.",
+            "Cal. Civ. Code 8416(c)-(e): a copy of the claim with the notice 'shall be served on the owner or reputed owner' by 'registered mail, certified mail, or first-class mail, evidenced by a certificate of mailing'; if the owner 'cannot be served by this method' the copy may go to 'the construction lender or to the original contractor'; failure to serve 'shall cause the claim of mechanics lien to be unenforceable as a matter of law'.",
+            "Cal. Civ. Code 8416(c)(1) and (d) (corpus 2026-08-18): service is by 'registered mail, certified mail, or first-class mail, evidenced by a certificate of mailing, postage prepaid', and 8416(e) makes the claim 'unenforceable as a matter of law' if the copy is not served 'as prescribed'. Reading adopted (ruling 2026-10-23): first-class mail is a lawful method and stays in serve_copy.methods, but 8416(c)(1) permits it only when evidenced by a certificate of mailing; SCHEMA.md section 10 writes such a variant as the base method plus proof {kind: certificate_of_mailing}, and serve_copy carries no proof field yet (section 6 lists to, within, methods, cite), so the certificate requirement is carried here until the schema can carry the proof. The dry round withheld first_class_mail for that reason; the ruling kept it. Other reading: the certificate of mailing qualifies all three methods, which the schema also cannot yet express on serve_copy.",
+            "Cal. Civ. Code 8416(a)(7): the claim contains the proof of service affidavit 'completed and signed by the person serving a copy', so service precedes recording; serve_copy.within {before: lien_recorded} is that reading, not a statutory count. The VA affidavit is CA 2.1 Proof of Service Affidavit ('Civil Code §8416(a)(7)'); it has no studio artifact key, so no attachment is listed.",
+            "Cal. Civ. Code 8410: the claimant 'may enforce a lien only if the claimant has given preliminary notice to the extent required by Chapter 2 ... and made proof of notice'; a direct contractor owes the notice to the construction lender only (8200(e)(2)), and none when there is no lender.",
+            "Cal. Civ. Code 8460(a): the claimant must 'commence an action to enforce a lien within 90 days after recordation of the claim of lien' or 'the claim of lien expires and is unenforceable'; counsel's row, 'Lien Enforcement Expiration: 90 days from the recording date'; 8460(b) extends it where an extension of credit is recorded. Foreclosure is not an instrument (DEC-0033), so expires shows the date only.",
+            "Cal. Bus. & Prof. Code 7031 (licensing) and counsel's 'Certification Required: CSLB (Contractors State License Board)' are eligibility gates with no registry fact; prior record 123 (draft) cites case law, not statute text.",
+            "Cal. Civ. Code 8416(b) and counsel's 'Lien Notarized: No' agree that no acknowledgment is needed to record; the CA 2.5 form nonetheless carries a notary certificate block ('A notary public or other officer completing the certificate verifies only the identity of the individual')."
+          ],
+          "review": {
+            "kind": "schema_gap",
+            "question": "Should the port add a notice-of-cessation-recorded fact so 8412(b) can be clocked, which completion date does the customer enter (8180(a) events or counsel's three), and may the lien copy be hand delivered given 8416(c) and the CA 2.1 form's personal-delivery box? Should the port ask whether the notice of completion was recorded on or within 15 days after completion (8182(a), (d)) before clocking the shortening branch? Should serve_copy carry a proof {kind: certificate_of_mailing} so first-class mail can be offered with the certificate 8416(c)(1) requires?",
+            "reason": "Cal. Civ. Code 8412(b) shortens the period after an owner records a notice of completion or cessation, but the fact registry has no notice_of_cessation_recorded trigger (SCHEMA.md §14) so the cessation branch cannot be written and a date computed from completion alone can be later than the statute allows; counsel's row and the production table state only 90 days from completion; counsel's completion definition differs from 8180(a); and counsel's row and the CA 2.1 form allow hand delivery of the lien copy where 8416(c)(1) lists only registered, certified or first-class mail with a certificate of mailing. An ineffective notice of completion (8182(a), (d): not recorded on or within 15 days after completion) must not clock the shortening branch, and the registry cannot tell it from an effective one. 8416(c)(1) permits first-class mail only evidenced by a certificate of mailing and serve_copy has no proof field; first_class_mail is kept in serve_copy.methods (ruling 2026-10-23) and the certificate requirement is carried in a note until the schema can carry the proof.",
+            "since": "2026-10-22"
+          }
+        }
+      },
+      {
+        "key": "ca_notice_and_claim_of_lien__private_direct_non_contractor_claimants",
+        "group": "ca_notice_and_claim_of_lien",
+        "applies": {
+          "claimant_contract_tier": ["direct_with_owner"],
+          "claimant_capacity": [
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "earlier_of": [
+            {
+              "n": 30,
+              "unit": "days",
+              "from": "notice_of_completion_recording_date"
+            },
+            {
+              "n": 90,
+              "unit": "days",
+              "from": "completion_date"
+            }
+          ]
+        },
+        "status": "review_required",
+        "citation": {
+          "reference": "Cal. Civ. Code 8416"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "serve_copy": {
+            "cite": "Cal. Civ. Code 8416(c)",
+            "methods": [
+              "first_class_mail",
+              "certified_mail",
+              "registered_mail"
+            ],
+            "to": ["owner"],
+            "within": {
+              "before": "lien_recorded"
+            }
+          },
+          "if_missed": {
+            "cite": "Cal. Civ. Code 8414",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "Cal. Civ. Code 8414 (corpus 2026-08-18): 'A claimant other than a direct contractor may not enforce a lien unless the claimant records a claim of lien within the following times: (a) After the claimant ceases to provide work. (b) Before the earlier of the following times: (1) Ninety days after completion of the work of improvement. (2) Thirty days after the owner records a notice of completion or cessation.'; a supplier, equipment lessor or design professional in contract with the owner is not a 'direct contractor' (8018: 'a contractor that has a direct contractual relationship with an owner'), so 8414 governs.",
+            "The VA guide, Material Supplier page: 'Record with the County Recorder within 90 days of completion - or 30 days after the owner records & serves a Notice of Completion/Cessation'; counsel's supplier row (counsel_regs.json, read 2026-10-22): 'Must file within 90 days from the completion of the project as a whole.', with no 30-day branch.",
+            "As in the direct-contractor cell: the deadline is earlier_of, the claim cannot be recorded before the claimant 'ceases to provide work' (8414(a)), and the cessation branch has no registry trigger. Cal. Civ. Code 8190(a), (c) (corpus 2026-08-18): the owner must copy a notice of completion or cessation to '(1) A direct contractor' and '(2) A claimant that has given the owner preliminary notice', and 8190(c) makes the notice 'ineffective to shorten the time' only for a person the owner failed to copy. Reading adopted: this cell's claimants are not direct contractors and under 8200(e)(2) give preliminary notice only to the construction lender, so the owner owes them no copy and 8190(c) gives them no protection; an effective notice of completion shortens their period to 30 days without a copy. Other reading (the earlier draft): the 10-day copy protects every claimant; 8190(a) does not say so for a claimant who gave the owner no preliminary notice. The deadline value is unaffected because earlier_of always applies.",
+            "Cal. Civ. Code 8180(a) completion events and counsel's differing definition, and Cal. Civ. Code 8186 (deemed completion or cessation for the portion under one direct contract, which moves the lower bound and the notice-of-completion branch, not the 90 days from completion), as in the direct-contractor cell.",
+            "Cal. Civ. Code 8182(a) and (d) (corpus 2026-08-18): 'An owner may record a notice of completion on or within 15 days after the date of completion of a work of improvement' and 'A notice of completion that does not comply with the provisions of this section is not effective'; 8182(c)(4): an erroneous date of completion does not affect effectiveness 'if the true date of completion is 15 days or less before the date of recordation of the notice'. Reading adopted: a notice of completion recorded more than 15 days after completion is not effective and cannot shorten the period, but the registry has no fact for the notice's compliance or for the true completion date relative to the recording date, so the 30-day count from notice_of_completion_recorded is written as the statute's shortening branch and the cell stays review_required. Other reading: any recorded notice of completion starts the clock; the cell cannot tell the two apart, so a customer who enters the date of an ineffective notice would see an earlier date than the statute allows.",
+            "Cal. Civ. Code 8416(c)(1) and (d) (corpus 2026-08-18): service is by 'registered mail, certified mail, or first-class mail, evidenced by a certificate of mailing, postage prepaid', and 8416(e) makes the claim 'unenforceable as a matter of law' if the copy is not served 'as prescribed'. Reading adopted (ruling 2026-10-23): first-class mail is a lawful method and stays in serve_copy.methods, but 8416(c)(1) permits it only when evidenced by a certificate of mailing; SCHEMA.md section 10 writes such a variant as the base method plus proof {kind: certificate_of_mailing}, and serve_copy carries no proof field yet (section 6 lists to, within, methods, cite), so the certificate requirement is carried here until the schema can carry the proof. The dry round withheld first_class_mail for that reason; the ruling kept it. Other reading: the certificate of mailing qualifies all three methods, which the schema also cannot yet express on serve_copy.",
+            "Cal. Civ. Code 8416(a), (c)-(e) content and service of the claim, 8410 proof of preliminary notice, 8460(a) 90-day enforcement expiry and 8416(b) recording without acknowledgment, as in the direct-contractor cell; here the preliminary notice owed is the lender-only notice of 8200(e)(2).",
+            "Cal. Civ. Code 8318, 8302(c), 8304(a) and 8310 (corpus 2026-08-18): 8318 bars a design professional's lien 'under this chapter' for a single-family, owner-occupied residence with an expected construction cost under $100,000; 8302(c) says a design professional 'may not record a claim of lien, and a lien may not be created, under this chapter unless a building permit or other governmental approval in furtherance of the work of improvement has been obtained'; 8304(a) puts the Chapter 3 lien before the work 'has commenced'; and 8310 says 'This chapter does not affect the ability of a design professional to obtain a lien for a work of improvement under 8400.' Reading adopted: 8318 and 8302(c) are Chapter 3 (8300-8319) conditions and do not reach the 8400 claim of lien this cell clocks under 8414, so the design_professional_owner_occupied_residence exception is removed from this cell and the permit condition is not a gate on it. Other reading (the earlier draft): 8318 also bars a design professional's 8414 claim on a single-family owner-occupied residence under $100,000 and 8302(c) also gates it; the sections say 'under this chapter' and 8310 separates the two liens, so counsel is asked.",
+            "Prior record 131 (draft) excludes a supplier whose only customer is another supplier; the statutes read here do not state it and the hiring party's capacity is not a registry fact (SCHEMA.md §14)."
+          ],
+          "review": {
+            "kind": "schema_gap",
+            "question": "Should the port add a notice-of-cessation-recorded fact so 8414(b)(2) can be clocked, which completion date does the customer enter, and may the lien copy be hand delivered given 8416(c)? Should the port ask whether the notice of completion was recorded on or within 15 days after completion (8182(a), (d)) before clocking the shortening branch? Does counsel agree that 8318 and 8302(c) do not limit a design professional's 8414 claim of lien (8310)? Should serve_copy carry a proof {kind: certificate_of_mailing} so first-class mail can be offered with the certificate 8416(c)(1) requires?",
+            "reason": "Cal. Civ. Code 8414(b)(2) shortens the period after an owner records a notice of completion or cessation, but the fact registry has no notice_of_cessation_recorded trigger (SCHEMA.md §14), so a date computed from completion alone can be later than the statute allows; counsel's row and the production table state only 90 days from completion; counsel's completion definition differs from 8180(a); counsel's row allows hand delivery of the lien copy where 8416(c)(1) lists only mail. An ineffective notice of completion (8182(a), (d): not recorded on or within 15 days after completion) must not clock the shortening branch, and the registry cannot tell it from an effective one. The 8318 owner-occupied residence bar and the 8302(c) permit gate are Chapter 3 conditions that 8310 keeps out of the 8400 lien, so they are not modeled on this cell. 8416(c)(1) permits first-class mail only evidenced by a certificate of mailing and serve_copy has no proof field; first_class_mail is kept in serve_copy.methods (ruling 2026-10-23) and the certificate requirement is carried in a note until the schema can carry the proof.",
+            "since": "2026-10-22"
+          }
+        }
+      },
+      {
+        "key": "ca_notice_and_claim_of_lien__private_subcontractor_claimants",
+        "group": "ca_notice_and_claim_of_lien",
+        "applies": {
+          "claimant_contract_tier": ["first_tier_sub", "lower_tier"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "earlier_of": [
+            {
+              "n": 30,
+              "unit": "days",
+              "from": "notice_of_completion_recording_date"
+            },
+            {
+              "n": 90,
+              "unit": "days",
+              "from": "completion_date"
+            }
+          ]
+        },
+        "status": "review_required",
+        "citation": {
+          "reference": "Cal. Civ. Code 8416"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "serve_copy": {
+            "cite": "Cal. Civ. Code 8416(c)",
+            "methods": [
+              "first_class_mail",
+              "certified_mail",
+              "registered_mail"
+            ],
+            "to": ["owner"],
+            "within": {
+              "before": "lien_recorded"
+            }
+          },
+          "if_missed": {
+            "cite": "Cal. Civ. Code 8414",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "Cal. Civ. Code 8414 (corpus 2026-08-18): 'A claimant other than a direct contractor may not enforce a lien unless the claimant records a claim of lien within the following times: (a) After the claimant ceases to provide work. (b) Before the earlier of the following times: (1) Ninety days after completion of the work of improvement. (2) Thirty days after the owner records a notice of completion or cessation.'",
+            "The VA guide, Subcontractor page: 'Record with the County Recorder within 90 days of completion - or 30 days after the owner records & serves a Notice of Completion/Cessation. Signed and VERIFIED; serve a copy on the owner and record the proof-of-service affidavit, or the lien is invalid. Civ. Code 8414 / 8416.'; counsel's sub row: 'Must file within 90 days from the completion of the project as a whole.', with no 30-day branch.",
+            "As in the direct-contractor cell: the deadline is earlier_of, a notice of completion not copied to the claimant within 10 days does not shorten it (Cal. Civ. Code 8190(c)), the claim cannot be recorded before the claimant 'ceases to provide work' (8414(a)), and the cessation branch has no registry trigger.",
+            "Cal. Civ. Code 8180(a) completion events and counsel's differing definition, and Cal. Civ. Code 8186 (deemed completion or cessation for the portion under one direct contract, which moves the lower bound and the notice-of-completion branch, not the 90 days from completion), as in the direct-contractor cell.",
+            "Cal. Civ. Code 8182(a) and (d) (corpus 2026-08-18): 'An owner may record a notice of completion on or within 15 days after the date of completion of a work of improvement' and 'A notice of completion that does not comply with the provisions of this section is not effective'; 8182(c)(4): an erroneous date of completion does not affect effectiveness 'if the true date of completion is 15 days or less before the date of recordation of the notice'. Reading adopted: a notice of completion recorded more than 15 days after completion is not effective and cannot shorten the period, but the registry has no fact for the notice's compliance or for the true completion date relative to the recording date, so the 30-day count from notice_of_completion_recorded is written as the statute's shortening branch and the cell stays review_required. Other reading: any recorded notice of completion starts the clock; the cell cannot tell the two apart, so a customer who enters the date of an ineffective notice would see an earlier date than the statute allows.",
+            "Cal. Civ. Code 8416(c)(1) and (d) (corpus 2026-08-18): service is by 'registered mail, certified mail, or first-class mail, evidenced by a certificate of mailing, postage prepaid', and 8416(e) makes the claim 'unenforceable as a matter of law' if the copy is not served 'as prescribed'. Reading adopted (ruling 2026-10-23): first-class mail is a lawful method and stays in serve_copy.methods, but 8416(c)(1) permits it only when evidenced by a certificate of mailing; SCHEMA.md section 10 writes such a variant as the base method plus proof {kind: certificate_of_mailing}, and serve_copy carries no proof field yet (section 6 lists to, within, methods, cite), so the certificate requirement is carried here until the schema can carry the proof. The dry round withheld first_class_mail for that reason; the ruling kept it. Other reading: the certificate of mailing qualifies all three methods, which the schema also cannot yet express on serve_copy.",
+            "Cal. Civ. Code 8416(a), (c)-(e) content and service of the claim (copy to the owner, else 'the construction lender or ... the original contractor'), 8410 proof of preliminary notice (owner, direct contractor and construction lender), 8460(a) 90-day enforcement expiry and 8416(b) recording without acknowledgment, as in the direct-contractor cell.",
+            "Cal. Civ. Code 8434: a direct contractor or subcontractor 'may enforce a lien only for the amount due pursuant to that contractor's contract after deducting all lien claims of other claimants for work provided and embraced within that contract'; the demand amount is form content.",
+            "Cal. Civ. Code 8186(a) (corpus 2026-08-18): where the owner records a notice of completion of one of several direct contracts, 'a claimant other than a direct contractor is deemed to have ceased providing work' and the period of 8414 runs from that recording; this starts this claimant's 30-day window under 8414(b)(2) (subject to the 8190 copy rule above, which applies to a subcontractor tier because it gave the owner preliminary notice under 8200(a)). The 8186 note above summarises the deemed completion or cessation; this is the non-direct-contractor effect.",
+            "Cal. Civ. Code 8416(c)(2) (corpus 2026-08-18): if the owner or reputed owner 'cannot be served by this method', the copy 'may be given by registered mail, certified mail, or first-class mail, evidenced by a certificate of mailing, postage prepaid, addressed to the construction lender or to the original contractor'. serve_copy.to carries only the owner; the fallback is a notes-only alternative, acceptable but limited because the schema has no fallback-recipient key.",
+            "Cal. Civ. Code 8318, 8302(c), 8304(a) and 8310 (corpus 2026-08-18): 8318 bars a design professional's lien 'under this chapter' for a single-family, owner-occupied residence with an expected construction cost under $100,000; 8302(c) says a design professional 'may not record a claim of lien, and a lien may not be created, under this chapter unless a building permit or other governmental approval in furtherance of the work of improvement has been obtained'; 8304(a) puts the Chapter 3 lien before the work 'has commenced'; and 8310 says 'This chapter does not affect the ability of a design professional to obtain a lien for a work of improvement under 8400.' Reading adopted: 8318 and 8302(c) are Chapter 3 (8300-8319) conditions and do not reach the 8400 claim of lien this cell clocks under 8414, so the design_professional_owner_occupied_residence exception is removed from this cell and the permit condition is not a gate on it. Other reading (the earlier draft): 8318 also bars a design professional's 8414 claim on a single-family owner-occupied residence under $100,000 and 8302(c) also gates it; the sections say 'under this chapter' and 8310 separates the two liens, so counsel is asked.",
+            "Prior record 131 (supplier whose only customer is another supplier), as in the direct-non-contractor cell."
+          ],
+          "review": {
+            "kind": "schema_gap",
+            "question": "Should the port add a notice-of-cessation-recorded fact so 8414(b)(2) can be clocked, which completion date does the customer enter, and may the lien copy be hand delivered given 8416(c)? Should the port ask whether the notice of completion was recorded on or within 15 days after completion (8182(a), (d)) before clocking the shortening branch? Does counsel agree that 8318 and 8302(c) do not limit a design professional's 8414 claim of lien (8310)? Should serve_copy carry a proof {kind: certificate_of_mailing} so first-class mail can be offered with the certificate 8416(c)(1) requires?",
+            "reason": "Cal. Civ. Code 8414(b)(2) shortens the period after an owner records a notice of completion or cessation, but the fact registry has no notice_of_cessation_recorded trigger (SCHEMA.md §14), so a date computed from completion alone can be later than the statute allows; counsel's row and the production table state only 90 days from completion; counsel's completion definition differs from 8180(a); counsel's row allows hand delivery of the lien copy where 8416(c)(1) lists only mail. An ineffective notice of completion (8182(a), (d): not recorded on or within 15 days after completion) must not clock the shortening branch, and the registry cannot tell it from an effective one. The 8318 owner-occupied residence bar and the 8302(c) permit gate are Chapter 3 conditions that 8310 keeps out of the 8400 lien, so they are not modeled on this cell. 8416(c)(1) permits first-class mail only evidenced by a certificate of mailing and serve_copy has no proof field; first_class_mail is kept in serve_copy.methods (ruling 2026-10-23) and the certificate requirement is carried in a note until the schema can carry the proof.",
+            "since": "2026-10-22"
+          }
+        }
+      },
+      {
+        "key": "wy_lien_statement__prime_contractor",
+        "group": "wy_lien_statement",
+        "applies": {
+          "claimant_contract_tier": ["direct_with_owner"],
+          "claimant_capacity": ["contractor"],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "earlier_of": [
+            {
+              "n": 150,
+              "unit": "days",
+              "from": "last_furnishing_date"
+            },
+            {
+              "n": 150,
+              "unit": "days",
+              "from": "completion_date"
+            },
+            {
+              "n": 150,
+              "unit": "days",
+              "from": "notice_of_completion_recording_date"
+            }
+          ]
+        },
+        "status": "draft",
+        "citation": {
+          "reference": "W.S. 29-1-312"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "serve_copy": {
+            "cite": "W.S. 29-1-312(c)",
+            "methods": ["certified_mail"],
+            "to": ["owner"],
+            "within": {
+              "from": "lien_recorded",
+              "n": 30,
+              "unit": "days"
+            }
+          },
+          "notes": [
+            "W.S. 29-2-106(a) (corpus 2026-07-29): \"any contractor asserting a lien under this chapter shall file his lien statement within one hundred fifty (150) days and every other person asserting a lien under this chapter shall file within one hundred twenty (120) days: (i) Of the earlier of: (A) After the last day when work was performed or materials furnished under contract; (B) From the date of substantial completion of the project\".",
+            "Counsel's prime row, \"Lien Date\": \"150 days\"; the VA guide (GC page): \"Record a VERIFIED statement with the County Clerk within 150 days of last work/materials or substantial completion (whichever is earlier). Claim must exceed $750. W.S. 29-2-106.\"",
+            "W.S. 29-1-312(a) (corpus 2026-07-29): \"In order to have a perfected lien pursuant to this act, a lien claimant shall file with the county clerk a lien statement verifying the accuracy of the lien and the allegations set forth in the lien statement, sworn to and acknowledged by the lien claimant or his authorized representative before a notarial officer.\"",
+            "W.S. 29-1-312(b) requires \"as appropriate\": (i) name and address of the claimant; (ii) the amount claimed; (iii) name and address of the record owner; (iv) \"An itemized list setting forth and describing materials delivered or work performed\"; (v) the person \"contractually responsible to pay the debt\"; (vi) the date labor was last performed or substantial completion; (vii) the legal description; (viii) \"A copy of the contract, if available, or a summary of the lien claimant's contract together with a statement of the location where a copy of the contract, if written, can be obtained\"; the form is W.S. 29-10-104 (29-1-312(f)).",
+            "Counsel's row, \"Lien Form Requirements\": \"Detailed list of work performed or materials supplied. Name of the property owner or party responsible for payment. Description of the property being improved. Amount owed (must exceed $750). Dates services began and ended.\"; \"Lien Recorded\": \"Yes\"; \"Lien Notarized\": \"Yes\"; \"Where Lien Recorded\": \"County Clerk where property is located\"; \"Lien Property Legal Description\": \"Yes\". Counsel's \"Dates services began and ended\" asks for more than W.S. 29-1-312(b)(vi), which requires only the last date.",
+            "Counsel's \"Completion of Work Date\": \"Last date material or equipment was furnished or last date labor was performed under the contract.\" omits the statute's earlier-of substantial completion; the VA guide (all pages) says \"within [150/120] days of last work/materials or substantial completion (whichever is earlier)\", which matches W.S. 29-2-106(a)(i), so the count takes the earliest known of last furnishing, substantial completion and a recorded notice of substantial completion.",
+            "W.S. 29-2-106(c): if the record owner records a notice of substantial completion, \"the date the notice is recorded shall be presumed to be the date of substantial completion of the project\"; the owner must send a copy \"within five (5) days\" to those who gave preliminary notice, but the notice \"shall not extend the date by which a lien statement shall be filed\" and the owner's failure to send it does not affect the filing time. The VA guide: \"An owner's recorded Notice of Substantial Completion can start the filing clock.\"",
+            "W.S. 29-2-106(e): the parties to the contract may sign an acknowledged, recorded agreement extending the filing time to no more than twice the statutory period; it binds only signers, and no registry fact carries it, so the cell shows the statutory count.",
+            "Counsel's row and the VA guide say \"Amount owed (must exceed $750)\" / \"Claim must exceed $750\"; no section in the corpus (W.S. 29-1-312, 29-2-101, 29-2-106, 29-10-104) states a $750 minimum, so the threshold is counsel's position only and the registry has no claim-amount fact to test it.",
+            "W.S. 29-2-101(a)-(b): the lien exists for work or materials \"furnished under a contract\"; counsel's row says \"Contract Required: Yes\"; the lien form accepts an oral contract described in the statement, so contract_is_written is not the test and the registry has no fact for the existence of a contract.",
+            "W.S. 29-1-312(c): \"Notice shall be sent by the lien claimant to the last record owner or his agent ... within thirty (30) days after the lien statement is filed ... in substantially the same format ... as the form of notice specified in W.S. 29-10-103. ... Failure to send the notice required under this subsection shall not affect the validity of the lien.\" Counsel's prime row: \"Notice of Lien Filing to property owner w/in 30 days by Certified Mail, Overnight, Sheriff\"; the form is headed \"CERTIFIED MAIL, RETURN RECEIPT REQUESTED\", so certified_mail is written and overnight and sheriff service are not service-method codes.",
+            "Counsel's recording format (\"12pt font 8.5x11\\\" 3\\\" top margin (1st pg) 1\\\" bottom & side margin Legal Description Title of document\") belongs to the form, not this rule; W.S. 29-1-312(d) adds that the county clerk files a lien statement received \"regardless of any irregularity\" but \"An irregularity in the lien statement may provide a valid defense\".",
+            "W.S. 29-10-104: the lien statement is filed \"with the county clerk's office in the county where the property against which the lien is filed is located\"; counsel agrees, \"County Clerk where property is located\".",
+            "The VA guide (Wyoming Workflow Guide.pdf, forms zip 6.5.26, GC, Subcontractor and Material Supplier pages): \"Residential = Commercial in Wyoming ... no owner-occupied bar, payment defense, or required contractor disclosure\", so every cell covers both property uses.",
+            "The production table (legal_category.ex WY, unverified) gives every prime and sub 120 days from last furnishing, and cites \"Wyo. Stat. Ann. 29-1-301 et seq.\" (repealed by Laws 2010, ch. 92 per the corpus); counsel and W.S. 29-2-106(a) give a contractor 150 days.",
+            "Public works are an exception to this file: W.S. 16-6-112 (public work bond, corpus) gives the claimant a bond claim instead, so no cell covers a public project_sector."
+          ]
+        }
+      },
+      {
+        "key": "wy_lien_statement__material_supplier_direct",
+        "group": "wy_lien_statement",
+        "applies": {
+          "claimant_contract_tier": ["direct_with_owner"],
+          "claimant_capacity": ["material_supplier"],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "earlier_of": [
+            {
+              "n": 120,
+              "unit": "days",
+              "from": "last_furnishing_date"
+            },
+            {
+              "n": 120,
+              "unit": "days",
+              "from": "completion_date"
+            },
+            {
+              "n": 120,
+              "unit": "days",
+              "from": "notice_of_completion_recording_date"
+            }
+          ]
+        },
+        "status": "review_required",
+        "citation": {
+          "reference": "W.S. 29-1-312"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "serve_copy": {
+            "cite": "W.S. 29-1-312(c)",
+            "methods": ["certified_mail"],
+            "to": ["owner"],
+            "within": {
+              "from": "lien_recorded",
+              "n": 30,
+              "unit": "days"
+            }
+          },
+          "notes": [
+            "W.S. 29-2-106(a) (corpus 2026-07-29): \"any contractor asserting a lien under this chapter shall file his lien statement within one hundred fifty (150) days and every other person asserting a lien under this chapter shall file within one hundred twenty (120) days: (i) Of the earlier of: (A) After the last day when work was performed or materials furnished under contract; (B) From the date of substantial completion of the project\".",
+            "Counsel's supplier row, \"Lien Date\": \"120 days\"; the VA guide (Material Supplier page): \"Record a VERIFIED statement with the County Clerk within 120 days of last work/materials or substantial completion (whichever is earlier).\" W.S. 29-2-106(a) gives 150 days only to a \"contractor\", so a supplier that deals directly with the owner takes the 120-day period.",
+            "Counsel's supplier row restricts the lien to \"materials must be permenant part of improvement; no supplier to supplier\". The earlier note said the corpus text of W.S. 29-2-101 states neither limit; that looked in the wrong section. W.S. 29-1-201(a)(ix) (corpus, sha 5e019365): \"'Materialman' means a person other than a contractor who furnishes material to, but does not perform work for, an owner, a contractor or subcontractor under contract\", so a supplier to a supplier is not a materialman, which agrees with counsel's \"no supplier to supplier\" (statute and counsel agree). W.S. 29-1-201(a)(viii): \"'Material' means: (A) Component parts incorporated into the project; (B) Equipment and machinery, whether or not incorporated into the project; and (C) Fuel and lubricants consumed in a project\", which contradicts counsel's \"must be permanent part of improvement\" (statute wins; counsel's reading kept for review). The registry has no fact for the hiring party's capacity (SCHEMA.md section 14), so the cell cannot exclude a supplier to a supplier.",
+            "W.S. 29-1-312(a) (corpus 2026-07-29): \"In order to have a perfected lien pursuant to this act, a lien claimant shall file with the county clerk a lien statement verifying the accuracy of the lien and the allegations set forth in the lien statement, sworn to and acknowledged by the lien claimant or his authorized representative before a notarial officer.\"",
+            "W.S. 29-1-312(b) requires \"as appropriate\": (i) name and address of the claimant; (ii) the amount claimed; (iii) name and address of the record owner; (iv) \"An itemized list setting forth and describing materials delivered or work performed\"; (v) the person \"contractually responsible to pay the debt\"; (vi) the date labor was last performed or substantial completion; (vii) the legal description; (viii) \"A copy of the contract, if available, or a summary of the lien claimant's contract together with a statement of the location where a copy of the contract, if written, can be obtained\"; the form is W.S. 29-10-104 (29-1-312(f)).",
+            "Counsel's row, \"Lien Form Requirements\": \"Detailed list of work performed or materials supplied. Name of the property owner or party responsible for payment. Description of the property being improved. Amount owed (must exceed $750). Dates services began and ended.\"; \"Lien Recorded\": \"Yes\"; \"Lien Notarized\": \"Yes\"; \"Where Lien Recorded\": \"County Clerk where property is located\"; \"Lien Property Legal Description\": \"Yes\". Counsel's \"Dates services began and ended\" asks for more than W.S. 29-1-312(b)(vi), which requires only the last date.",
+            "Counsel's \"Completion of Work Date\": \"Last date material or equipment was furnished or last date labor was performed under the contract.\" omits the statute's earlier-of substantial completion; the VA guide (all pages) says \"within [150/120] days of last work/materials or substantial completion (whichever is earlier)\", which matches W.S. 29-2-106(a)(i), so the count takes the earliest known of last furnishing, substantial completion and a recorded notice of substantial completion.",
+            "W.S. 29-2-106(c): if the record owner records a notice of substantial completion, \"the date the notice is recorded shall be presumed to be the date of substantial completion of the project\"; the owner must send a copy \"within five (5) days\" to those who gave preliminary notice, but the notice \"shall not extend the date by which a lien statement shall be filed\" and the owner's failure to send it does not affect the filing time. The VA guide: \"An owner's recorded Notice of Substantial Completion can start the filing clock.\"",
+            "W.S. 29-2-106(e): the parties to the contract may sign an acknowledged, recorded agreement extending the filing time to no more than twice the statutory period; it binds only signers, and no registry fact carries it, so the cell shows the statutory count.",
+            "Counsel's row and the VA guide say \"Amount owed (must exceed $750)\" / \"Claim must exceed $750\"; no section in the corpus (W.S. 29-1-312, 29-2-101, 29-2-106, 29-10-104) states a $750 minimum, so the threshold is counsel's position only and the registry has no claim-amount fact to test it.",
+            "W.S. 29-2-101(a)-(b): the lien exists for work or materials \"furnished under a contract\"; counsel's row says \"Contract Required: Yes\"; the lien form accepts an oral contract described in the statement, so contract_is_written is not the test and the registry has no fact for the existence of a contract.",
+            "W.S. 29-1-312(c): \"Notice shall be sent by the lien claimant to the last record owner or his agent ... within thirty (30) days after the lien statement is filed ... in substantially the same format ... as the form of notice specified in W.S. 29-10-103. ... Failure to send the notice required under this subsection shall not affect the validity of the lien.\" Counsel's prime row: \"Notice of Lien Filing to property owner w/in 30 days by Certified Mail, Overnight, Sheriff\"; the form is headed \"CERTIFIED MAIL, RETURN RECEIPT REQUESTED\", so certified_mail is written and overnight and sheriff service are not service-method codes.",
+            "Counsel's recording format (\"12pt font 8.5x11\\\" 3\\\" top margin (1st pg) 1\\\" bottom & side margin Legal Description Title of document\") belongs to the form, not this rule; W.S. 29-1-312(d) adds that the county clerk files a lien statement received \"regardless of any irregularity\" but \"An irregularity in the lien statement may provide a valid defense\".",
+            "W.S. 29-10-104: the lien statement is filed \"with the county clerk's office in the county where the property against which the lien is filed is located\"; counsel agrees, \"County Clerk where property is located\".",
+            "The VA guide (Wyoming Workflow Guide.pdf, forms zip 6.5.26, GC, Subcontractor and Material Supplier pages): \"Residential = Commercial in Wyoming ... no owner-occupied bar, payment defense, or required contractor disclosure\", so every cell covers both property uses.",
+            "The production table (legal_category.ex WY, unverified) gives every prime and sub 120 days from last furnishing, and cites \"Wyo. Stat. Ann. 29-1-301 et seq.\" (repealed by Laws 2010, ch. 92 per the corpus); counsel and W.S. 29-2-106(a) give a contractor 150 days.",
+            "Public works are an exception to this file: W.S. 16-6-112 (public work bond, corpus) gives the claimant a bond claim instead, so no cell covers a public project_sector."
+          ],
+          "review": {
+            "kind": "contradicted",
+            "question": "Does counsel withdraw the permanent-improvement limit in light of W.S. 29-1-201(a)(viii)?",
+            "reason": "Counsel's supplier limit 'materials must be permanent part of improvement' is contradicted by W.S. 29-1-201(a)(viii) (equipment and machinery 'whether or not incorporated', and consumed fuel count as material); statute wins and the limit is not applied. Counsel's 'no supplier to supplier' is stated by W.S. 29-1-201(a)(ix) ('a person other than a contractor who furnishes material to ... an owner, a contractor or subcontractor'), which the earlier note missed by looking only at W.S. 29-2-101. The 120-day count is sourced: a supplier selling directly to the owner is a materialman (29-1-201(a)(ix)), not a 'contractor' (29-1-201(a)(i)), so the 150-day period does not apply.",
+            "since": "2026-10-22"
+          }
+        }
+      },
+      {
+        "key": "wy_lien_statement__first_tier",
+        "group": "wy_lien_statement",
+        "applies": {
+          "claimant_contract_tier": ["first_tier_sub"],
+          "claimant_capacity": ["contractor", "material_supplier"],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "earlier_of": [
+            {
+              "n": 120,
+              "unit": "days",
+              "from": "last_furnishing_date"
+            },
+            {
+              "n": 120,
+              "unit": "days",
+              "from": "completion_date"
+            },
+            {
+              "n": 120,
+              "unit": "days",
+              "from": "notice_of_completion_recording_date"
+            }
+          ]
+        },
+        "status": "review_required",
+        "citation": {
+          "reference": "W.S. 29-1-312"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "serve_copy": {
+            "cite": "W.S. 29-1-312(c)",
+            "methods": ["certified_mail"],
+            "to": ["owner"],
+            "within": {
+              "from": "lien_recorded",
+              "n": 30,
+              "unit": "days"
+            }
+          },
+          "notes": [
+            "W.S. 29-2-106(a) (corpus 2026-07-29): \"any contractor asserting a lien under this chapter shall file his lien statement within one hundred fifty (150) days and every other person asserting a lien under this chapter shall file within one hundred twenty (120) days: (i) Of the earlier of: (A) After the last day when work was performed or materials furnished under contract; (B) From the date of substantial completion of the project\".",
+            "Counsel's sub and supplier rows, \"Lien Date\": \"120 days\"; the VA guide (Subcontractor and Material Supplier pages): \"Record a VERIFIED statement with the County Clerk within 120 days of last work/materials or substantial completion (whichever is earlier). Claim must exceed $750. W.S. 29-2-106.\"",
+            "Counsel's supplier row restricts the lien to \"materials must be permenant part of improvement; no supplier to supplier\". The earlier note said the corpus text of W.S. 29-2-101 states neither limit; that looked in the wrong section. W.S. 29-1-201(a)(ix) (corpus, sha 5e019365): \"'Materialman' means a person other than a contractor who furnishes material to, but does not perform work for, an owner, a contractor or subcontractor under contract\", so a supplier to a supplier is not a materialman, which agrees with counsel's \"no supplier to supplier\" (statute and counsel agree). W.S. 29-1-201(a)(viii): \"'Material' means: (A) Component parts incorporated into the project; (B) Equipment and machinery, whether or not incorporated into the project; and (C) Fuel and lubricants consumed in a project\", which contradicts counsel's \"must be permanent part of improvement\" (statute wins; counsel's reading kept for review). The registry has no fact for the hiring party's capacity (SCHEMA.md section 14), so the cell cannot exclude a supplier to a supplier.",
+            "W.S. 29-1-312(a) (corpus 2026-07-29): \"In order to have a perfected lien pursuant to this act, a lien claimant shall file with the county clerk a lien statement verifying the accuracy of the lien and the allegations set forth in the lien statement, sworn to and acknowledged by the lien claimant or his authorized representative before a notarial officer.\"",
+            "W.S. 29-1-312(b) requires \"as appropriate\": (i) name and address of the claimant; (ii) the amount claimed; (iii) name and address of the record owner; (iv) \"An itemized list setting forth and describing materials delivered or work performed\"; (v) the person \"contractually responsible to pay the debt\"; (vi) the date labor was last performed or substantial completion; (vii) the legal description; (viii) \"A copy of the contract, if available, or a summary of the lien claimant's contract together with a statement of the location where a copy of the contract, if written, can be obtained\"; the form is W.S. 29-10-104 (29-1-312(f)).",
+            "Counsel's row, \"Lien Form Requirements\": \"Detailed list of work performed or materials supplied. Name of the property owner or party responsible for payment. Description of the property being improved. Amount owed (must exceed $750). Dates services began and ended.\"; \"Lien Recorded\": \"Yes\"; \"Lien Notarized\": \"Yes\"; \"Where Lien Recorded\": \"County Clerk where property is located\"; \"Lien Property Legal Description\": \"Yes\". Counsel's \"Dates services began and ended\" asks for more than W.S. 29-1-312(b)(vi), which requires only the last date.",
+            "Counsel's \"Completion of Work Date\": \"Last date material or equipment was furnished or last date labor was performed under the contract.\" omits the statute's earlier-of substantial completion; the VA guide (all pages) says \"within [150/120] days of last work/materials or substantial completion (whichever is earlier)\", which matches W.S. 29-2-106(a)(i), so the count takes the earliest known of last furnishing, substantial completion and a recorded notice of substantial completion.",
+            "W.S. 29-2-106(c): if the record owner records a notice of substantial completion, \"the date the notice is recorded shall be presumed to be the date of substantial completion of the project\"; the owner must send a copy \"within five (5) days\" to those who gave preliminary notice, but the notice \"shall not extend the date by which a lien statement shall be filed\" and the owner's failure to send it does not affect the filing time. The VA guide: \"An owner's recorded Notice of Substantial Completion can start the filing clock.\"",
+            "W.S. 29-2-106(e): the parties to the contract may sign an acknowledged, recorded agreement extending the filing time to no more than twice the statutory period; it binds only signers, and no registry fact carries it, so the cell shows the statutory count.",
+            "Counsel's row and the VA guide say \"Amount owed (must exceed $750)\" / \"Claim must exceed $750\"; no section in the corpus (W.S. 29-1-312, 29-2-101, 29-2-106, 29-10-104) states a $750 minimum, so the threshold is counsel's position only and the registry has no claim-amount fact to test it.",
+            "W.S. 29-2-101(a)-(b): the lien exists for work or materials \"furnished under a contract\"; counsel's row says \"Contract Required: Yes\"; the lien form accepts an oral contract described in the statement, so contract_is_written is not the test and the registry has no fact for the existence of a contract.",
+            "W.S. 29-1-312(c): \"Notice shall be sent by the lien claimant to the last record owner or his agent ... within thirty (30) days after the lien statement is filed ... in substantially the same format ... as the form of notice specified in W.S. 29-10-103. ... Failure to send the notice required under this subsection shall not affect the validity of the lien.\" Counsel's prime row: \"Notice of Lien Filing to property owner w/in 30 days by Certified Mail, Overnight, Sheriff\"; the form is headed \"CERTIFIED MAIL, RETURN RECEIPT REQUESTED\", so certified_mail is written and overnight and sheriff service are not service-method codes.",
+            "Counsel's recording format (\"12pt font 8.5x11\\\" 3\\\" top margin (1st pg) 1\\\" bottom & side margin Legal Description Title of document\") belongs to the form, not this rule; W.S. 29-1-312(d) adds that the county clerk files a lien statement received \"regardless of any irregularity\" but \"An irregularity in the lien statement may provide a valid defense\".",
+            "W.S. 29-10-104: the lien statement is filed \"with the county clerk's office in the county where the property against which the lien is filed is located\"; counsel agrees, \"County Clerk where property is located\".",
+            "The VA guide (Wyoming Workflow Guide.pdf, forms zip 6.5.26, GC, Subcontractor and Material Supplier pages): \"Residential = Commercial in Wyoming ... no owner-occupied bar, payment defense, or required contractor disclosure\", so every cell covers both property uses.",
+            "The production table (legal_category.ex WY, unverified) gives every prime and sub 120 days from last furnishing, and cites \"Wyo. Stat. Ann. 29-1-301 et seq.\" (repealed by Laws 2010, ch. 92 per the corpus); counsel and W.S. 29-2-106(a) give a contractor 150 days.",
+            "Public works are an exception to this file: W.S. 16-6-112 (public work bond, corpus) gives the claimant a bond claim instead, so no cell covers a public project_sector.",
+            "W.S. 29-2-106(a)(ii) (corpus, sha d76e8b1f) continues after \"(B) From the date of substantial completion of the project on which work was performed or materials were furnished under contract; or\": \"(ii) With respect to a subcontractor, after the last day he performed work at the direction of the contractor or other person authorized to provide direction.\" The earlier notes quote 29-2-106(a) only through (B). For a subcontractor (a 'subcontractor' under W.S. 29-1-201(a)(vi), capacity contractor at this tier) the statute gives a clause (ii) clock of 120 days after the last day of directed work, which this cell's earlier_of leaves out. Whether (ii) can carry the deadline past the (i) earlier-of, for example for directed punch-list work after substantial completion, is for counsel; the cell keeps the earlier_of (counsel's and the VA guide's reading) and flags it."
+          ],
+          "review": {
+            "kind": "contradicted",
+            "question": "Does the subcontractor's clause (ii) clock (120 days after the last directed work) replace, extend or merely sit beside the clause (i) earlier-of for a first-tier subcontractor, and does counsel withdraw the permanent-improvement limit in light of W.S. 29-1-201(a)(viii)?",
+            "reason": "W.S. 29-2-106(a)(ii) gives a subcontractor an alternative clock, 120 days 'after the last day he performed work at the direction of the contractor or other person authorized to provide direction'. Every earlier note quoted 29-2-106(a) only through clause (i)(B), and this cell's earlier_of states the (i) rule as the whole rule. Whether (ii) can carry the deadline later than the (i) earlier-of is unresolved; the cell keeps the earlier_of. The earlier supplier-limit note also looked only at W.S. 29-2-101 and missed W.S. 29-1-201(a)(viii)-(ix). The 120-day count itself is sourced.",
+            "since": "2026-10-22"
+          }
+        }
+      },
+      {
+        "key": "wy_lien_statement__lower_tier",
+        "group": "wy_lien_statement",
+        "applies": {
+          "claimant_contract_tier": ["lower_tier"],
+          "claimant_capacity": ["contractor", "material_supplier"],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "earlier_of": [
+            {
+              "n": 120,
+              "unit": "days",
+              "from": "last_furnishing_date"
+            },
+            {
+              "n": 120,
+              "unit": "days",
+              "from": "completion_date"
+            },
+            {
+              "n": 120,
+              "unit": "days",
+              "from": "notice_of_completion_recording_date"
+            }
+          ]
+        },
+        "status": "review_required",
+        "citation": {
+          "reference": "W.S. 29-1-312"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "serve_copy": {
+            "cite": "W.S. 29-1-312(c)",
+            "methods": ["certified_mail"],
+            "to": ["owner"],
+            "within": {
+              "from": "lien_recorded",
+              "n": 30,
+              "unit": "days"
+            }
+          },
+          "notes": [
+            "W.S. 29-2-106(a) (corpus 2026-07-29): \"any contractor asserting a lien under this chapter shall file his lien statement within one hundred fifty (150) days and every other person asserting a lien under this chapter shall file within one hundred twenty (120) days: (i) Of the earlier of: (A) After the last day when work was performed or materials furnished under contract; (B) From the date of substantial completion of the project\".",
+            "Counsel's sub and supplier rows, \"Lien Date\": \"120 days\"; \"Restrictions\": \"Yes- within 3 tiers of owner (GC-Sub-SubSub)\".",
+            "Counsel's supplier row restricts the lien to \"materials must be permenant part of improvement; no supplier to supplier\". The earlier note said the corpus text of W.S. 29-2-101 states neither limit; that looked in the wrong section. W.S. 29-1-201(a)(ix) (corpus, sha 5e019365): \"'Materialman' means a person other than a contractor who furnishes material to, but does not perform work for, an owner, a contractor or subcontractor under contract\", so a supplier to a supplier is not a materialman, which agrees with counsel's \"no supplier to supplier\" (statute and counsel agree). W.S. 29-1-201(a)(viii): \"'Material' means: (A) Component parts incorporated into the project; (B) Equipment and machinery, whether or not incorporated into the project; and (C) Fuel and lubricants consumed in a project\", which contradicts counsel's \"must be permanent part of improvement\" (statute wins; counsel's reading kept for review). The registry has no fact for the hiring party's capacity (SCHEMA.md section 14), so the cell cannot exclude a supplier to a supplier.",
+            "W.S. 29-1-312(a) (corpus 2026-07-29): \"In order to have a perfected lien pursuant to this act, a lien claimant shall file with the county clerk a lien statement verifying the accuracy of the lien and the allegations set forth in the lien statement, sworn to and acknowledged by the lien claimant or his authorized representative before a notarial officer.\"",
+            "W.S. 29-1-312(b) requires \"as appropriate\": (i) name and address of the claimant; (ii) the amount claimed; (iii) name and address of the record owner; (iv) \"An itemized list setting forth and describing materials delivered or work performed\"; (v) the person \"contractually responsible to pay the debt\"; (vi) the date labor was last performed or substantial completion; (vii) the legal description; (viii) \"A copy of the contract, if available, or a summary of the lien claimant's contract together with a statement of the location where a copy of the contract, if written, can be obtained\"; the form is W.S. 29-10-104 (29-1-312(f)).",
+            "Counsel's row, \"Lien Form Requirements\": \"Detailed list of work performed or materials supplied. Name of the property owner or party responsible for payment. Description of the property being improved. Amount owed (must exceed $750). Dates services began and ended.\"; \"Lien Recorded\": \"Yes\"; \"Lien Notarized\": \"Yes\"; \"Where Lien Recorded\": \"County Clerk where property is located\"; \"Lien Property Legal Description\": \"Yes\". Counsel's \"Dates services began and ended\" asks for more than W.S. 29-1-312(b)(vi), which requires only the last date.",
+            "Counsel's \"Completion of Work Date\": \"Last date material or equipment was furnished or last date labor was performed under the contract.\" omits the statute's earlier-of substantial completion; the VA guide (all pages) says \"within [150/120] days of last work/materials or substantial completion (whichever is earlier)\", which matches W.S. 29-2-106(a)(i), so the count takes the earliest known of last furnishing, substantial completion and a recorded notice of substantial completion.",
+            "W.S. 29-2-106(c): if the record owner records a notice of substantial completion, \"the date the notice is recorded shall be presumed to be the date of substantial completion of the project\"; the owner must send a copy \"within five (5) days\" to those who gave preliminary notice, but the notice \"shall not extend the date by which a lien statement shall be filed\" and the owner's failure to send it does not affect the filing time. The VA guide: \"An owner's recorded Notice of Substantial Completion can start the filing clock.\"",
+            "W.S. 29-2-106(e): the parties to the contract may sign an acknowledged, recorded agreement extending the filing time to no more than twice the statutory period; it binds only signers, and no registry fact carries it, so the cell shows the statutory count.",
+            "Counsel's row and the VA guide say \"Amount owed (must exceed $750)\" / \"Claim must exceed $750\"; no section in the corpus (W.S. 29-1-312, 29-2-101, 29-2-106, 29-10-104) states a $750 minimum, so the threshold is counsel's position only and the registry has no claim-amount fact to test it.",
+            "W.S. 29-2-101(a)-(b): the lien exists for work or materials \"furnished under a contract\"; counsel's row says \"Contract Required: Yes\"; the lien form accepts an oral contract described in the statement, so contract_is_written is not the test and the registry has no fact for the existence of a contract.",
+            "W.S. 29-1-312(c): \"Notice shall be sent by the lien claimant to the last record owner or his agent ... within thirty (30) days after the lien statement is filed ... in substantially the same format ... as the form of notice specified in W.S. 29-10-103. ... Failure to send the notice required under this subsection shall not affect the validity of the lien.\" Counsel's prime row: \"Notice of Lien Filing to property owner w/in 30 days by Certified Mail, Overnight, Sheriff\"; the form is headed \"CERTIFIED MAIL, RETURN RECEIPT REQUESTED\", so certified_mail is written and overnight and sheriff service are not service-method codes.",
+            "Counsel's recording format (\"12pt font 8.5x11\\\" 3\\\" top margin (1st pg) 1\\\" bottom & side margin Legal Description Title of document\") belongs to the form, not this rule; W.S. 29-1-312(d) adds that the county clerk files a lien statement received \"regardless of any irregularity\" but \"An irregularity in the lien statement may provide a valid defense\".",
+            "W.S. 29-10-104: the lien statement is filed \"with the county clerk's office in the county where the property against which the lien is filed is located\"; counsel agrees, \"County Clerk where property is located\".",
+            "The VA guide (Wyoming Workflow Guide.pdf, forms zip 6.5.26, GC, Subcontractor and Material Supplier pages): \"Residential = Commercial in Wyoming ... no owner-occupied bar, payment defense, or required contractor disclosure\", so every cell covers both property uses.",
+            "The production table (legal_category.ex WY, unverified) gives every prime and sub 120 days from last furnishing, and cites \"Wyo. Stat. Ann. 29-1-301 et seq.\" (repealed by Laws 2010, ch. 92 per the corpus); counsel and W.S. 29-2-106(a) give a contractor 150 days.",
+            "Public works are an exception to this file: W.S. 16-6-112 (public work bond, corpus) gives the claimant a bond claim instead, so no cell covers a public project_sector.",
+            "W.S. 29-2-106(a)(ii) (corpus, sha d76e8b1f) continues after \"(B) From the date of substantial completion of the project on which work was performed or materials were furnished under contract; or\": \"(ii) With respect to a subcontractor, after the last day he performed work at the direction of the contractor or other person authorized to provide direction.\" The earlier notes quote 29-2-106(a) only through (B). For a subcontractor (a 'subcontractor' under W.S. 29-1-201(a)(vi), capacity contractor at this tier) the statute gives a clause (ii) clock of 120 days after the last day of directed work, which this cell's earlier_of leaves out. Whether (ii) can carry the deadline past the (i) earlier-of, for example for directed punch-list work after substantial completion, is for counsel; the cell keeps the earlier_of (counsel's and the VA guide's reading) and flags it."
+          ],
+          "review": {
+            "kind": "contradicted",
+            "question": "Does Lienlink refuse the lien instrument beyond the sub-subcontractor tier, and on what authority (statute or case law), since the statute grants a lien to every 'contractor, subcontractor or materialman' under a contract? The review rests on the definitions section, W.S. 29-1-201(a)(vi) and (ix). Does the clause (ii) subcontractor clock extend the earlier-of?",
+            "reason": "Counsel limits lien rights to 'within 3 tiers of owner (GC-Sub-SubSub)' and, for suppliers, 'no supplier to supplier'. The corpus text of W.S. 29-2-101 and 29-2-106 states neither, but the definitions section does speak to both: W.S. 29-1-201(a)(vi) defines a subcontractor as performing work 'for a contractor or subcontractor' with no depth limit, which weakens counsel's three-tier limit further, and W.S. 29-1-201(a)(ix) states 'no supplier to supplier'. The registry carries no tier-depth fact and no fact for the hiring party's capacity, so the cell cannot tell a sub-subcontractor's lien from a fourth-tier claim or a supplier to a supplier from a supplier to a contractor. Also missing: the W.S. 29-2-106(a)(ii) subcontractor clock (120 days after the last directed work), as in first_tier.",
+            "since": "2026-10-22"
+          }
+        }
+      },
+      {
+        "key": "wy_lien_statement_expires",
+        "group": "wy_lien_statement_expires",
+        "deadline": {
+          "n": 180,
+          "unit": "days",
+          "from": "lien_recording_date"
+        },
+        "citation": {
+          "reference": "W.S. 29-2-109"
+        }
+      },
+      {
+        "key": "co_notice_of_intent__private_direct_with_owner",
+        "group": "co_notice_of_intent",
+        "applies": {
+          "claimant_contract_tier": ["direct_with_owner"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "n": 10,
+          "unit": "days",
+          "before": "lien_recording_date"
+        },
+        "exceptions": [
+          {
+            "name": "payment_bond_recorded",
+            "when": {
+              "payment_bond_recorded": true
+            },
+            "result": "review_required",
+            "remedy": "claim_against_bond",
+            "citation": {
+              "reference": "C.R.S. 38-22-129(1)"
+            },
+            "note": "C.R.S. 38-22-129(1) (corpus 2026-08-19): the 38-22-101(1) lien does not apply where, 'at the commencement of any work', a performance bond and a labor and materials payment bond 'each in an amount equal to one hundred fifty percent of the contract price' are executed, and (3) makes the bond effective only on a notice of bond filed with the clerk and recorder before work; (4) deems a filed lien released on a recorded acknowledgment by the principal and all sureties and restores the lien if they do not record it within thirty days of written demand. Counsel's row does not mention bonds.",
+            "status": "review_required"
+          },
+          {
+            "name": "owner_full_payment_defense",
+            "when": {
+              "dwelling_units": ["1"],
+              "owner_occupancy": "owner_occupied",
+              "property_use": "residential"
+            },
+            "unless": {
+              "claimant_contract_tier": "direct_with_owner"
+            },
+            "result": "review_required",
+            "citation": {
+              "reference": "C.R.S. 38-22-102(3.5)"
+            },
+            "note": "The VA guide (Colorado Workflow Guide.pdf, subcontractor and supplier pages): 'On a single-family owner-occupied or owner-built primary residence, an owner who has paid the prime contractor in full can DEFEAT enforcement (C.R.S. 38-22-102(3.5)). You can still serve the NOI and record the lien - but enforcement may fail.' The defense is an affirmative defense to enforcement, not a bar on the notice or the lien.",
+            "status": "review_required"
+          }
+        ],
+        "status": "review_required",
+        "citation": {
+          "reference": "C.R.S. 38-22-109(3)"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "service": {
+            "methods": [
+              "personal_delivery",
+              "certified_mail",
+              "registered_mail"
+            ],
+            "proof": [
+              {
+                "cite": "C.R.S. 38-22-109(3)",
+                "kind": "certified_mail_receipt"
+              }
+            ]
+          },
+          "if_missed": {
+            "cite": "C.R.S. 38-22-109(3)",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "C.R.S. 38-22-109(3) (corpus 2026-08-19): 'In order to preserve any lien for work performed or laborers or materials furnished, there must be a notice of intent to file a lien statement served upon the owner or reputed owner of the property or the owner's agent and the principal or prime contractor or his or her agent at least ten days before the time of filing the lien statement with the county clerk and recorder.'",
+            "Counsel's prime row (counsel_regs.json, read 2026-10-22): 'Prelien Date: NOI must be served 10 days prior to filing the Lien Statement' and 'Who Receives Notice: Property Owner'; a prime contractor is the principal contractor, so the owner is the only other recipient.",
+            "The deadline runs backward from the lien statement: the count is ten days before lien_recorded, a trigger the system observes when it records, so no date appears until the lien statement has a recording date and the rule is shown in words; the latest useful service date is ten days before the lien deadline on the lien statement instrument.",
+            "C.R.S. 38-22-109(3): service is 'by personal service or by registered or certified mail, return receipt requested, addressed to the last-known address of such persons, and an affidavit of such service or mailing at least ten days before filing of the lien statement ... shall be filed for record with said statement and shall constitute proof of such service'; counsel's row: 'NOI by Personal delivery, Certified or Registered Mail, with an affidavit for POS' and 'Type of Proof of Service: Certification of mailing, Receipt of registration'; proof.kind names the receipt (certified_mail_receipt) and the affidavit is the proof form.",
+            "Counsel's row: 'Prelien Notarized: No', 'Prelien Recorded: No - best practice to record', 'Prelien Legal Description: Yes - on NOI'; the VA form carries the legal description and the unpaid amount.",
+            "Counsel's NOI content list: 'Name and address, name and address of the property owner, description of the property location sufficient for identification, description of the labor and materials you provided to the project, unpaid amount to be claimed with a mechanics lien, statement saying that you will be recording a mechanics lien in 10 days if the outstanding debt remains unpaid'; the same cell then says 'Must attach notarized copy of lien', which neither 38-22-109(3) nor the VA form (CO 1) requires.",
+            "The VA guide sends the notice on residential and commercial jobs alike ('Serve on the property owner at least 10 days before recording the Lien Statement') and shows no residential disclosure the claimant must give; C.R.S. 38-22-105.5 puts the owner notice on the building-permit authority and 38-22-105.5(6) says its omission is no defense to a lien.",
+            "Public works fall under C.R.S. Title 38, Article 26 (payment bond, 38-26-105 and following), not this article; no cell covers a public project_sector."
+          ],
+          "review": {
+            "kind": "contradicted",
+            "question": "Is a notarized copy of the lien statement attached to the notice of intent, or does the lien statement carry the affidavit of service as 38-22-109(3) provides, so CO 1 needs no attachment?",
+            "reason": "Counsel's row says the NOI 'Must attach notarized copy of lien' while C.R.S. 38-22-109(3) requires only the notice and, filed with the lien statement, the affidavit of service, and the VA form CO 1 attaches nothing; the row also lists the same requirement for the subcontractor and supplier rows.",
+            "since": "2026-10-22"
+          }
+        }
+      },
+      {
+        "key": "co_notice_of_intent__private_subcontractor_supplier",
+        "group": "co_notice_of_intent",
+        "applies": {
+          "claimant_contract_tier": ["first_tier_sub", "lower_tier"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "n": 10,
+          "unit": "days",
+          "before": "lien_recording_date"
+        },
+        "exceptions": [
+          {
+            "name": "payment_bond_recorded",
+            "when": {
+              "payment_bond_recorded": true
+            },
+            "result": "review_required",
+            "remedy": "claim_against_bond",
+            "citation": {
+              "reference": "C.R.S. 38-22-129(1)"
+            },
+            "note": "C.R.S. 38-22-129(1)-(2) (corpus 2026-08-19): where the bond requirements are met the 38-22-101(1) lien does not apply and the claimant 'shall have a right of action directly against the principal contractor and his surety', brought 'within six months after completion of the last work'; (4)-(5) restore the lien in the circumstances they name. Counsel's row does not mention bonds.",
+            "status": "review_required"
+          },
+          {
+            "name": "owner_full_payment_defense",
+            "when": {
+              "dwelling_units": ["1"],
+              "property_use": "residential"
+            },
+            "result": "review_required",
+            "citation": {
+              "reference": "C.R.S. 38-22-102(3.5)"
+            },
+            "note": "The VA guide (Colorado Workflow Guide.pdf, subcontractor and supplier pages): 'Caution: owner full-payment defense (not a filing bar). On a single-family owner-occupied or owner-built primary residence, an owner who has paid the prime contractor in full can DEFEAT enforcement (C.R.S. 38-22-102(3.5)). You can still serve the NOI and record the lien - but enforcement may fail. Does not apply to commercial or multi-unit.' Statute wins over the guide: C.R.S. 38-22-102(3.5) (corpus 2026-08-19, sha 55487edaf36a) makes the defense available when '(a) The property is an existing single-family dwelling unit; (b) The property is a residence constructed by the owner or under a contract entered into by the owner prior to its occupancy as the owner's primary residence; or (c) The property is a single-family, owner-occupied dwelling unit, including a residence constructed and sold for occupancy as a primary residence', and '(c) shall not apply to a developer or builder of multiple residences except for the residence that is occupied as the primary residence of the developer or builder'. Only limb (c) requires owner occupancy: limb (a) has no occupancy condition and limb (b) is by definition not yet occupied. Narrow reading (the guide, and this exception as first transcribed): the warning needs owner_occupancy: owner_occupied. Statute reading (now encoded): the warning fires on any single-dwelling residential job, so a sub or supplier on a single-family rental or an owner-built home before occupancy is warned. The when over-includes limb (c)'s developer exclusion and cannot express 'existing' or 'owner-built' (no registry fact), which is why the exception stays review_required.",
+            "status": "review_required"
+          }
+        ],
+        "status": "review_required",
+        "citation": {
+          "reference": "C.R.S. 38-22-109(3)"
+        },
+        "meta": {
+          "recipients": ["owner", "general_contractor"],
+          "service": {
+            "methods": [
+              "personal_delivery",
+              "certified_mail",
+              "registered_mail"
+            ],
+            "proof": [
+              {
+                "cite": "C.R.S. 38-22-109(3)",
+                "kind": "certified_mail_receipt"
+              }
+            ]
+          },
+          "if_missed": {
+            "cite": "C.R.S. 38-22-109(3)",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "C.R.S. 38-22-109(3) (corpus 2026-08-19): the notice of intent is served 'upon the owner or reputed owner of the property or the owner's agent and the principal or prime contractor or his or her agent at least ten days before the time of filing the lien statement'; counsel's subcontractor and supplier rows (counsel_regs.json, read 2026-10-22): 'Who Receives Notice: Property Owner and Principal Contractor' and 'NOI must be served 10 days prior to filing the Lien Statement'; the principal contractor is the general_contractor role.",
+            "Counsel's subcontractor and supplier rows: 'Prelien Notice is optional, but may be beneficial; Notice of Intent to Lien (NOI) required prior to filing lien' and 'best practice is a preliminary notice within 10 days of staring work, but is not required'. The optional notice is C.R.S. 38-22-102(4), which a person other than a principal contractor 'at any time may give' to the owner or the construction-funds disburser; it carries no deadline and no consequence for omission, so it is not an instrument here.",
+            "The deadline runs backward from the lien statement: the count is ten days before lien_recorded, a trigger the system observes when it records, so no date appears until the lien statement has a recording date and the rule is shown in words; the latest useful service date is ten days before the lien deadline on the lien statement instrument.",
+            "C.R.S. 38-22-109(3): service is 'by personal service or by registered or certified mail, return receipt requested, addressed to the last-known address of such persons, and an affidavit of such service or mailing ... shall be filed for record with said statement and shall constitute proof of such service'; counsel's row: 'NOI by Personal delivery, Certified or Registered Mail, with an affidavit for POS' and 'Type of Proof of Service: Certification of mailing, Receipt of registration'; proof.kind names the receipt (certified_mail_receipt) and the affidavit is the proof form.",
+            "Counsel's row: 'Prelien Notarized: No', 'Prelien Recorded: No - best practice to record'; the NOI content list ends 'Must attach notarized copy of lien', which neither 38-22-109(3) nor the VA form (CO 1) requires (see private_direct_with_owner).",
+            "Counsel's rows cover prime contractor, subcontractor and material supplier only; equipment lessors and design professionals (C.R.S. 38-22-101(1) lists 'architects, engineers, draftsmen') are included because the statute gives them the lien and the 109(3) notice precondition applies to 'any lien'.",
+            "Public works fall under C.R.S. Title 38, Article 26, not this article; no cell covers a public project_sector.",
+            "Round 2 (dry run, 2026-10-22): the owner_full_payment_defense threshold was contradicted by C.R.S. 38-22-102(3.5)(a)-(c) (sha 55487edaf36a) and now follows the statute; both readings are in that exception's note. The optional 38-22-102(4) notice stays out: it has no deadline and no consequence."
+          ],
+          "review": {
+            "kind": "contradicted",
+            "question": "Is a notarized copy of the lien statement attached to the notice of intent, or does the lien statement carry the affidavit of service as 38-22-109(3) provides, so CO 1 needs no attachment?",
+            "reason": "Counsel's row says the NOI 'Must attach notarized copy of lien' while C.R.S. 38-22-109(3) requires only the notice and, filed with the lien statement, the affidavit of service, and the VA form CO 1 attaches nothing.",
+            "since": "2026-10-22"
+          }
+        }
+      },
+      {
+        "key": "co_notice_of_intent__laborer_for_wages",
+        "group": "co_notice_of_intent",
+        "applies": {
+          "claimant_contract_tier": [
+            "direct_with_owner",
+            "first_tier_sub",
+            "lower_tier"
+          ],
+          "claimant_capacity": ["laborer"],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "n": 10,
+          "unit": "days",
+          "before": "lien_recording_date"
+        },
+        "status": "draft",
+        "citation": {
+          "reference": "C.R.S. 38-22-109(3)"
+        },
+        "meta": {
+          "recipients": ["owner", "general_contractor"],
+          "service": {
+            "methods": [
+              "personal_delivery",
+              "certified_mail",
+              "registered_mail"
+            ],
+            "proof": [
+              {
+                "cite": "C.R.S. 38-22-109(3)",
+                "kind": "certified_mail_receipt"
+              }
+            ]
+          },
+          "if_missed": {
+            "cite": "C.R.S. 38-22-109(3)",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "Counsel's material supplier row, Notes: 'Individual laborers must file NOI 10 days before filing lien'; C.R.S. 38-22-109(3) applies to 'any lien'. The port shows a laborer job as not yet supported (VOC-claimant-capacity), so this cell is documentary."
+          ]
+        }
+      },
+      {
+        "key": "co_release_of_lien__recorded_lien",
+        "group": "co_release_of_lien",
+        "applies": {
+          "claimant_contract_tier": [
+            "direct_with_owner",
+            "first_tier_sub",
+            "lower_tier"
+          ],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional",
+            "laborer"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "n": 10,
+          "unit": "days",
+          "from": "demand_date"
+        },
+        "status": "review_required",
+        "citation": {
+          "reference": "C.R.S. 38-22-118"
+        },
+        "meta": {
+          "if_missed": {
+            "cite": "C.R.S. 38-22-118",
+            "result": "penalty"
+          },
+          "notes": [
+            "C.R.S. 38-22-118 (corpus 2026-08-19): on 'the payment of the amount thereof, together with the costs of filing and recording such lien', the claimant, 'at the request of any person interested in the property charged therewith, shall enter or cause to be entered an acknowledgment of satisfaction of the same of record, and if he neglects or refuses to do so within ten days after the written request of any person so interested, he shall forfeit and pay to such person the sum of ten dollars per day for every day of such neglect or refusal'; 'A valid tender of payment, refused by any such claimant, shall be equivalent to a payment'; 'Any such statement may be satisfied of record in the same manner as mortgages.'",
+            "Counsel's row (counsel_regs.json, read 2026-10-22): 'Lien Release Required: yes, after satisfaction', 'Release Date: if not done, within 10 days of written request', 'Release Penalties: Yes, $10/day'; the VA guide: 'Within 10 days of a written request after payment. Notarized.'",
+            "The ten days run from the written request, not from payment: the prior record 139 note says the same. The demand trigger has no registry fact yet (SCHEMA.md §11), so the count cannot run and the cell waits for the port's question.",
+            "Counsel's row: 'Release Form Requirements: The name of the property owner. The name of the lien claimant. A description of the property. A statement indicating that the lien has been paid in full and is released. Notarized', 'Release Recorded: Yes', 'Release Type of Mailing: Good practice to send to property owner'; no recipients are set because the statute names none, and the VA form CO 3 carries an acknowledgment block.",
+            "Counsel's recording requirements for the release ('minimum 10pt font 8.5x11 to 8.5x14\" 1.5\" top & bottom margin 1\" side margin Legal Description Notarized') belong to the form, not this rule.",
+            "Public works fall under C.R.S. Title 38, Article 26, not this article; no cell covers a public project_sector."
+          ],
+          "review": {
+            "kind": "schema_gap",
+            "question": "Is the written request that starts the 38-22-118 ten days entered by the customer as release_demand_date, and does a request made before the claimant is paid start the clock?",
+            "reason": "The ten-day clock starts at the written request of a person interested in the property, a trigger (demand) with no registry fact yet; SCHEMA.md §11 makes a cell using it review_required with kind schema_gap.",
+            "since": "2026-10-22"
+          }
+        }
+      },
+      {
+        "key": "al_notice_of_intent__claimants_other_than_original_contractor",
+        "group": "al_notice_of_intent",
+        "applies": {
+          "claimant_contract_tier": ["first_tier_sub", "lower_tier"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "before": "lien_recording_date"
+        },
+        "status": "review_required",
+        "citation": {
+          "reference": "Ala. Code 35-11-218"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "notes": [
+            "35-11-218 (Legislature, 2026-11-04): 'Every person, except the original contractor, who may wish to avail himself of the provisions of this division, shall before filing his statement in the office of the judge of probate, give notice in writing to the owner or proprietor, or his agent, that he claims a lien on such building or improvement, setting forth the amount thereof, for what, and from whom it is owing; and after such notice, any unpaid balance in the hands of the owner or proprietor shall be held subject to such lien. But the provisions of this section shall not apply to the case of any material furnished for such building or improvement, of which the owner was notified in advance as provided in Section 35-11-210.'"
+          ],
+          "review": {
+            "kind": "counsel_question",
+            "question": "May Lienlink serve 218's notice by mail with proof, and how long before filing should it go? Should a supplier whose 210 notice is on file be excused from it in the product?",
+            "reason": "Due before the statement is filed, with no count of days, so the notice shows undated, as Colorado's. 218 names no method of service ('give notice in writing') and no consequence beyond the statement, so no service methods or if_missed are written. Its exception for material the owner was notified of in advance under 210 is not carried: the registry has no fact for it.",
+            "since": "2026-11-04"
+          }
+        }
+      },
+      {
+        "key": "later_of_two",
+        "group": "later",
+        "deadline": {
+          "later_of": [
+            {
+              "from": "completion_date",
+              "n": 30,
+              "unit": "days"
+            },
+            {
+              "from": "last_furnishing_date",
+              "n": 10,
+              "unit": "days"
+            }
+          ]
+        },
+        "citation": {
+          "reference": "Hand case"
+        }
+      }
+    ],
+    "counting": {
+      "roll_to": "next_business_day",
+      "roll_when": ["saturday", "sunday"],
+      "citation": {
+        "reference": "Hand case"
+      },
+      "status": "approved"
+    },
+    "meta": {
+      "note": "AK, CA, WY, CO and AL instruments with a hand later_of group"
+    }
+  },
+  "cases": [
+    {
+      "name": "earlier_of with one candidate unanswered and one skipped is provisional",
+      "facts": {
+        "claimant_contract_tier": "direct_with_owner",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": false,
+        "last_furnishing_date": "2026-09-01",
+        "notice_of_completion_recording_date": null,
+        "lien_recording_date": null
+      },
+      "group": "wy_lien_statement",
+      "expect": [
+        {
+          "group": "wy_lien_statement",
+          "ruleKey": "wy_lien_statement__prime_contractor",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-01-29",
+          "provisional": true,
+          "missing": ["completion_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "draft"
+            }
+          ],
+          "basis": {
+            "anchor": null,
+            "without": ["notice_of_completion_recording_date"]
+          },
+          "deadline": {
+            "earlier_of": [
+              {
+                "n": 150,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              },
+              {
+                "n": 150,
+                "unit": "days",
+                "from": "completion_date"
+              },
+              {
+                "n": 150,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "W.S. 29-1-312"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "earlier_of takes the earlier of two dates",
+      "facts": {
+        "claimant_contract_tier": "direct_with_owner",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": false,
+        "last_furnishing_date": "2026-09-01",
+        "notice_of_completion_recording_date": "2026-09-10",
+        "lien_recording_date": null
+      },
+      "group": "ak_claim_of_lien",
+      "expect": [
+        {
+          "group": "ak_claim_of_lien",
+          "ruleKey": "ak_claim_of_lien__all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-09-25",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": null,
+            "without": []
+          },
+          "deadline": {
+            "earlier_of": [
+              {
+                "n": 120,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              },
+              {
+                "n": 15,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "AS 34.35.068, 34.35.070"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "earlier_of counted without an event that has not happened",
+      "facts": {
+        "claimant_contract_tier": "direct_with_owner",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": false,
+        "last_furnishing_date": "2026-09-01",
+        "notice_of_completion_recording_date": null,
+        "lien_recording_date": null
+      },
+      "group": "ak_claim_of_lien",
+      "expect": [
+        {
+          "group": "ak_claim_of_lien",
+          "ruleKey": "ak_claim_of_lien__all_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-30",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": null,
+            "without": ["notice_of_completion_recording_date"]
+          },
+          "deadline": {
+            "earlier_of": [
+              {
+                "n": 120,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              },
+              {
+                "n": 15,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "AS 34.35.068, 34.35.070"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a California direct contractor's lien: the earlier of 60 days from the recorded notice and 90 from completion",
+      "facts": {
+        "claimant_contract_tier": "direct_with_owner",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": false,
+        "completion_date": "2026-09-15",
+        "notice_of_completion_recording_date": "2026-10-01"
+      },
+      "group": "ca_notice_and_claim_of_lien",
+      "expect": [
+        {
+          "group": "ca_notice_and_claim_of_lien",
+          "ruleKey": "ca_notice_and_claim_of_lien__private_direct_contractor",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-30",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": null,
+            "without": []
+          },
+          "deadline": {
+            "earlier_of": [
+              {
+                "n": 60,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              },
+              {
+                "n": 90,
+                "unit": "days",
+                "from": "completion_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "Cal. Civ. Code 8416"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a California subcontractor's lien while the notice of completion is unknown is provisional",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": false,
+        "completion_date": "2026-09-15"
+      },
+      "group": "ca_notice_and_claim_of_lien",
+      "expect": [
+        {
+          "group": "ca_notice_and_claim_of_lien",
+          "ruleKey": "ca_notice_and_claim_of_lien__private_subcontractor_claimants",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-12-14",
+          "provisional": true,
+          "missing": ["notice_of_completion_recording_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": null,
+            "without": []
+          },
+          "deadline": {
+            "earlier_of": [
+              {
+                "n": 30,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              },
+              {
+                "n": 90,
+                "unit": "days",
+                "from": "completion_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "Cal. Civ. Code 8416"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "earlier_of with nothing dated asks",
+      "facts": {
+        "claimant_contract_tier": "direct_with_owner",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": false,
+        "notice_of_completion_recording_date": null
+      },
+      "group": "ak_claim_of_lien",
+      "expect": [
+        {
+          "group": "ak_claim_of_lien",
+          "ruleKey": "ak_claim_of_lien__all_claimants",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["last_furnishing_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": {
+            "earlier_of": [
+              {
+                "n": 120,
+                "unit": "days",
+                "from": "last_furnishing_date"
+              },
+              {
+                "n": 15,
+                "unit": "days",
+                "from": "notice_of_completion_recording_date"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "AS 34.35.068, 34.35.070"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "ten days before the lien is recorded never rolls",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": false,
+        "lien_recording_date": "2026-11-24"
+      },
+      "group": "co_notice_of_intent",
+      "expect": [
+        {
+          "group": "co_notice_of_intent",
+          "ruleKey": "co_notice_of_intent__private_subcontractor_supplier",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-14",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "lien_recording_date",
+              "date": "2026-11-24"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 10,
+            "unit": "days",
+            "before": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "C.R.S. 38-22-109(3)"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "before a lien not yet recorded is pending",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": false,
+        "lien_recording_date": null
+      },
+      "group": "co_notice_of_intent",
+      "expect": [
+        {
+          "group": "co_notice_of_intent",
+          "ruleKey": "co_notice_of_intent__private_subcontractor_supplier",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": {
+            "n": 10,
+            "unit": "days",
+            "before": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "C.R.S. 38-22-109(3)"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "before a lien whose recording is unknown asks it",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": false
+      },
+      "group": "co_notice_of_intent",
+      "expect": [
+        {
+          "group": "co_notice_of_intent",
+          "ruleKey": "co_notice_of_intent__private_subcontractor_supplier",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["lien_recording_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": {
+            "n": 10,
+            "unit": "days",
+            "before": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "C.R.S. 38-22-109(3)"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "an unsettled exception the job meets is carried for review",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": true,
+        "lien_recording_date": "2026-11-23"
+      },
+      "group": "co_notice_of_intent",
+      "expect": [
+        {
+          "group": "co_notice_of_intent",
+          "ruleKey": "co_notice_of_intent__private_subcontractor_supplier",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-13",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "exception",
+              "name": "payment_bond_recorded",
+              "citation": {
+                "reference": "C.R.S. 38-22-129(1)"
+              },
+              "note": "C.R.S. 38-22-129(1)-(2) (corpus 2026-08-19): where the bond requirements are met the 38-22-101(1) lien does not apply and the claimant 'shall have a right of action directly against the principal contractor and his surety', brought 'within six months after completion of the last work'; (4)-(5) restore the lien in the circumstances they name. Counsel's row does not mention bonds."
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "lien_recording_date",
+              "date": "2026-11-23"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 10,
+            "unit": "days",
+            "before": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "C.R.S. 38-22-109(3)"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "on or before the recording date",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": false,
+        "lien_recording_date": "2026-11-21"
+      },
+      "group": "al_notice_of_intent",
+      "expect": [
+        {
+          "group": "al_notice_of_intent",
+          "ruleKey": "al_notice_of_intent__claimants_other_than_original_contractor",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-21",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "lien_recording_date",
+              "date": "2026-11-21"
+            },
+            "without": []
+          },
+          "deadline": {
+            "before": "lien_recording_date"
+          },
+          "citation": {
+            "reference": "Ala. Code 35-11-218"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a demand date not answered is unknown",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "residential",
+        "project_sector": "private",
+        "payment_bond_recorded": false
+      },
+      "group": "co_release_of_lien",
+      "expect": [
+        {
+          "group": "co_release_of_lien",
+          "ruleKey": "co_release_of_lien__recorded_lien",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["demand_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": {
+            "n": 10,
+            "unit": "days",
+            "from": "demand_date"
+          },
+          "citation": {
+            "reference": "C.R.S. 38-22-118"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a demand date rolls off a weekend",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "payment_bond_recorded": false,
+        "demand_date": "2026-11-11"
+      },
+      "group": "co_release_of_lien",
+      "expect": [
+        {
+          "group": "co_release_of_lien",
+          "ruleKey": "co_release_of_lien__recorded_lien",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-23",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "demand_date",
+              "date": "2026-11-11"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 10,
+            "unit": "days",
+            "from": "demand_date"
+          },
+          "citation": {
+            "reference": "C.R.S. 38-22-118"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "later_of takes the later date",
+      "facts": {
+        "completion_date": "2026-10-01",
+        "last_furnishing_date": "2026-10-25"
+      },
+      "group": "later",
+      "expect": [
+        {
+          "group": "later",
+          "ruleKey": "later_of_two",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-04",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": null,
+            "without": []
+          },
+          "deadline": {
+            "later_of": [
+              {
+                "from": "completion_date",
+                "n": 30,
+                "unit": "days"
+              },
+              {
+                "from": "last_furnishing_date",
+                "n": 10,
+                "unit": "days"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "later_of waits for every candidate",
+      "facts": {
+        "completion_date": "2026-10-01"
+      },
+      "group": "later",
+      "expect": [
+        {
+          "group": "later",
+          "ruleKey": "later_of_two",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["last_furnishing_date"],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "later_of": [
+              {
+                "from": "completion_date",
+                "n": 30,
+                "unit": "days"
+              },
+              {
+                "from": "last_furnishing_date",
+                "n": 10,
+                "unit": "days"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "later_of counts the dated ones when the rest have not happened",
+      "facts": {
+        "completion_date": "2026-10-01",
+        "last_furnishing_date": null
+      },
+      "group": "later",
+      "expect": [
+        {
+          "group": "later",
+          "ruleKey": "later_of_two",
+          "period": null,
+          "result": "due",
+          "dueOn": "2026-11-02",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": {
+            "anchor": null,
+            "without": []
+          },
+          "deadline": {
+            "later_of": [
+              {
+                "from": "completion_date",
+                "n": 30,
+                "unit": "days"
+              },
+              {
+                "from": "last_furnishing_date",
+                "n": 10,
+                "unit": "days"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "later_of with nothing that happened is pending",
+      "facts": {
+        "completion_date": null,
+        "last_furnishing_date": null
+      },
+      "group": "later",
+      "expect": [
+        {
+          "group": "later",
+          "ruleKey": "later_of_two",
+          "period": null,
+          "result": "pending",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": {
+            "later_of": [
+              {
+                "from": "completion_date",
+                "n": 30,
+                "unit": "days"
+              },
+              {
+                "from": "last_furnishing_date",
+                "n": 10,
+                "unit": "days"
+              }
+            ]
+          },
+          "citation": {
+            "reference": "Hand case"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    }
+  ]
+}

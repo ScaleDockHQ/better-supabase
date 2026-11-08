@@ -325,8 +325,8 @@ may be your own enum or domain.
   - `better_supabase.data_subject_requests`: `id`, `tenant_id`, `kind`, `requester`, `subject_type`, `subject_id`, `details`, `status`, `received_at`, `received_by`, `due_at`, `extended_at`, `extension_reason`, `verified_at`, `verified_by`, `verification_method`, `export_id`, `resolution`, `closed_at`, `closed_by`
 - `deadlines`
   - `better_supabase.deadline_rule_sets`: `id`, `jurisdiction`, `kind`, `title`, `created_at`
-  - `better_supabase.deadline_rule_versions`: `id`, `rule_set_id`, `version`, `status`, `rules`, `content_hash`, `effective_from`, `approved_by`, `approved_at`, `approval_id`, `created_at`
-  - `better_supabase.deadlines`: `id`, `tenant_id`, `subject_type`, `subject_id`, `jurisdiction`, `kind`, `rule_key`, `rule_version_id`, `facts`, `result`, `due_on`, `missing`, `citation`, `state`, `satisfied_at`, `satisfied_by`, `satisfied_action`, `computed_at`, `created_at`
+  - `better_supabase.deadline_rule_versions`: `id`, `rule_set_id`, `version`, `status`, `rules`, `groups`, `counting`, `meta`, `content_hash`, `effective_from`, `approved_by`, `approved_at`, `approval_id`, `created_at`
+  - `better_supabase.deadlines`: `id`, `tenant_id`, `subject_type`, `subject_id`, `jurisdiction`, `kind`, `group_key`, `rule_key`, `period`, `rule_version_id`, `facts`, `result`, `due_on`, `provisional`, `missing`, `exception`, `review`, `basis`, `deadline`, `citation`, `as_of`, `state`, `satisfied_at`, `satisfied_by`, `satisfied_action`, `computed_at`, `created_at`
 - `deals`
   - `better_supabase.deals`: `id`, `tenant_id`, `number`, `identifier`, `name`, `company_type`, `company_id`, `owner_id`, `amount`, `currency`, `value_period`, `amount_source`, `pipeline_id`, `stage_id`, `stage_entered_at`, `outcome`, `probability`, `forecast_category`, `opened_on`, `expected_close_on`, `closed_at`, `note`, `locked`, `rank`, `archived_at`, `created_at`, `updated_at`, `list_total`, `discount_total`, `subtotal`, `tax_total`, `total`; typed: `value_period`, `amount_source`, `outcome`, `forecast_category`
   - `better_supabase.deal_contacts`: `tenant_id`, `deal_id`, `contact_type`, `contact_id`, `is_primary`

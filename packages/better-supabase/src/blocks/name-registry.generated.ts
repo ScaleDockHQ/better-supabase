@@ -800,14 +800,14 @@ export interface BlockNameRegistry {
   readonly "deadlines": {
     readonly tables: {
       readonly "ruleSets": "id" | "jurisdiction" | "kind" | "title" | "createdAt";
-      readonly "ruleVersions": "id" | "ruleSet" | "version" | "status" | "rules" | "contentHash" | "effectiveFrom" | "approvedBy" | "approvedAt" | "approvalId" | "createdAt";
-      readonly "deadlines": "id" | "tenant" | "subjectType" | "subjectId" | "jurisdiction" | "kind" | "ruleKey" | "ruleVersion" | "facts" | "result" | "dueOn" | "missing" | "citation" | "state" | "satisfiedAt" | "satisfiedBy" | "satisfiedAction" | "computedAt" | "createdAt";
+      readonly "ruleVersions": "id" | "ruleSet" | "version" | "status" | "rules" | "groups" | "counting" | "meta" | "contentHash" | "effectiveFrom" | "approvedBy" | "approvedAt" | "approvalId" | "createdAt";
+      readonly "deadlines": "id" | "tenant" | "subjectType" | "subjectId" | "jurisdiction" | "kind" | "groupKey" | "ruleKey" | "period" | "ruleVersion" | "facts" | "result" | "dueOn" | "provisional" | "missing" | "exception" | "review" | "basis" | "deadline" | "citation" | "asOf" | "state" | "satisfiedAt" | "satisfiedBy" | "satisfiedAction" | "computedAt" | "createdAt";
     };
-    readonly functions: "approve_rule_version" | "compute_deadline" | "deadline_fact_trigger" | "deadline_recompute" | "deadline_version_frozen" | "evaluate_deadline_rule" | "list_deadlines" | "recompute_deadlines" | "rule_version_at" | "satisfy_deadline" | "save_rule_version" | "validate_deadline_rules";
+    readonly functions: "approve_rule_version" | "compute_deadlines" | "deadline_add" | "deadline_business_day" | "deadline_candidate" | "deadline_cascade" | "deadline_citation_bad" | "deadline_codes" | "deadline_condition_bad" | "deadline_count_issues" | "deadline_date" | "deadline_fact_trigger" | "deadline_group" | "deadline_holidays_of" | "deadline_is_holiday" | "deadline_judge" | "deadline_meta_bad" | "deadline_outcome" | "deadline_periods" | "deadline_recompute" | "deadline_roll" | "deadline_rule_from_v1" | "deadline_select_rule" | "deadline_sorted" | "deadline_store" | "deadline_version_frozen" | "deadline_whole" | "evaluate_deadlines" | "list_deadlines" | "recompute_deadlines" | "rule_version_at" | "satisfy_deadline" | "save_rule_version" | "validate_deadline_rules" | "version_content_hash";
     readonly actions: "read" | "write" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "deadline": "id" | "tenant_id" | "subject_type" | "subject_id" | "jurisdiction" | "kind" | "rule_key" | "rule_version_id" | "facts" | "result" | "due_on" | "missing" | "citation" | "state" | "satisfied_at" | "satisfied_by" | "satisfied_action" | "computed_at" | "created_at";
+      readonly "deadline": "id" | "tenant_id" | "subject_type" | "subject_id" | "jurisdiction" | "kind" | "group_key" | "rule_key" | "period" | "rule_version_id" | "facts" | "result" | "due_on" | "provisional" | "missing" | "exception" | "review" | "basis" | "deadline" | "citation" | "as_of" | "state" | "satisfied_at" | "satisfied_by" | "satisfied_action" | "computed_at" | "created_at";
     };
     readonly primary: "deadline";
   };

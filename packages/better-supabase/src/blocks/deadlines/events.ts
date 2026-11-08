@@ -8,11 +8,21 @@ export interface DeadlineEventData {
   readonly id: string;
   readonly subjectType: string;
   readonly subjectId: string;
-  readonly ruleKey: string;
-  /** `due` or `unknown`. */
+  /** The group of the rule set version the deadline belongs to. */
+  readonly groupKey: string;
+  /** The rule that applied; null when none did. */
+  readonly ruleKey?: string | null;
+  /** `YYYY-MM` for one month of a periodic rule. */
+  readonly period?: string | null;
+  /**
+   * `due`, `unknown`, `pending`, `undated`, `not_covered`, `not_applicable`,
+   * `not_required` or `barred`.
+   */
   readonly result: string;
-  /** The due date as an ISO date; absent while the result is `unknown`. */
+  /** The due date as an ISO date; set only while the result is `due`. */
   readonly dueOn?: string | null;
+  /** A date or result a missing answer could still change. */
+  readonly provisional: boolean;
 }
 
 /** The events of the `deadlines` block: type to data. */

@@ -64,6 +64,13 @@ row is already on the server from an earlier upload of the same change. A
 `PATCH` on that route fails with `unsupported` and is discarded; a `DELETE`
 still deletes.
 
+Every replayed write passes `{ override: true }`, so the `created_at`,
+`updated_at`, actor and trash columns the device stamped offline reach the
+server instead of being refused. Those plugins catch mistakes in app code; a
+column the server must own needs its trigger, such as `bsb_updated_at`. A
+function route that writes through a repository passes `override: true`
+itself.
+
 Attachments have their own route, `attachmentQueueRoute`, and need
 `blocks.attachments.options.offline: true`: it lets the client insert the
 record's id, marks the upload done from a storage trigger and deletes the

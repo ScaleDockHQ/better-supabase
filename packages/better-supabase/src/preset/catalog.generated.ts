@@ -11491,13 +11491,21 @@ export const PRESET_CATALOG: PresetCatalog = {
               "subjectId": "subject_id",
               "jurisdiction": "jurisdiction",
               "kind": "kind",
+              "groupKey": "group_key",
               "ruleKey": "rule_key",
+              "period": "period",
               "ruleVersion": "rule_version_id",
               "facts": "facts",
               "result": "result",
               "dueOn": "due_on",
+              "provisional": "provisional",
               "missing": "missing",
+              "exception": "exception",
+              "review": "review",
+              "basis": "basis",
+              "deadline": "deadline",
               "citation": "citation",
+              "asOf": "as_of",
               "state": "state",
               "satisfiedAt": "satisfied_at",
               "satisfiedBy": "satisfied_by",
@@ -24793,16 +24801,46 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "Deadline"
         },
         {
+          "name": "DeadlineBasis"
+        },
+        {
           "name": "DeadlineCitation"
         },
         {
-          "name": "DeadlineEvaluation"
+          "name": "DeadlineCount"
+        },
+        {
+          "name": "DeadlineCounting"
         },
         {
           "name": "DeadlineEventData"
         },
         {
+          "name": "DeadlineException"
+        },
+        {
+          "name": "DeadlineExceptionResult"
+        },
+        {
+          "name": "DeadlineFacts"
+        },
+        {
+          "name": "DeadlineGroup"
+        },
+        {
+          "name": "DeadlineGroupResult"
+        },
+        {
+          "name": "DeadlineHoliday"
+        },
+        {
           "name": "DeadlineListOptions"
+        },
+        {
+          "name": "DeadlineResult"
+        },
+        {
+          "name": "DeadlineReview"
         },
         {
           "name": "DeadlineRule"
@@ -24815,6 +24853,9 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "DeadlinesOptions"
+        },
+        {
+          "name": "DeadlineSpec"
         },
         {
           "name": "DeadlineSubject"

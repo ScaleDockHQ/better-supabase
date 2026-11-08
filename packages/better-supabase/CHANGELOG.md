@@ -1,5 +1,31 @@
 # better-supabase
 
+## 0.56.0
+
+### Minor Changes
+
+- [#733](https://github.com/ScaleDockHQ/better-supabase/pull/733) [`d7cb7d6`](https://github.com/ScaleDockHQ/better-supabase/commit/d7cb7d61bff605a4a3256c17841b4326ff939091) Thanks [@mick340](https://github.com/mick340)! - `deadlines` rule format v2: a rule set version is ordered groups of rules, a counting block and opaque `meta`, and each group yields one deadline per subject. See ADR 0242.
+  
+  - `saveRules` takes `content` (`{ rules, groups, counting?, meta? }`) instead of `rules`, and `save_rule_version` takes the content as its third argument. Rules select subjects with `applies` (codes, `present`/`absent`, one date regime), carry `exceptions` and a deadline grammar: a count `from` or `before` a fact in days, business days or months, `day_of_month`, monthly `each: "furnishing_month"`, `first_of`, `earlier_of` and `later_of`. The counting block rolls a last day past weekends and the authored holidays.
+  - `compute` evaluates every group (or `group`) and returns the stored rows. A result is `due`, `unknown`, `pending`, `undated`, `not_covered`, `not_applicable`, `not_required` or `barred`, with `provisional`, `missing`, `exception`, `review`, `basis` and the rule's `deadline`. A group that requires a barred group falls with it.
+  - Facts are three-valued: a missing key is unknown, `null` does not exist or has not happened.
+  - `evaluateVersion` and `validateRuleVersion` replace `evaluateRule` and `validateRules`; `evaluate_deadlines` and `compute_deadlines` are the SQL functions. `evaluate_deadline_rule` and `compute_deadline` stay as deprecated wrappers until 0.58.
+  - `deadlines` rows gain `group_key`, `period`, `provisional`, `exception`, `review`, `basis`, `deadline` and `as_of`; `list` filters by `groupKey`, `period` and `provisional`. Events carry `groupKey`, `period` and `provisional`.
+  
+  Run `better-supabase upgrade` and generate a migration. The upgrade converts stored version 1 rules (`anchor`, `offset`) to one group per rule and keeps an approved version's old hash in `meta.previous_content_hash`.
+
+## 0.55.0
+
+### Minor Changes
+
+- [#727](https://github.com/ScaleDockHQ/better-supabase/pull/727) [`5d9812b`](https://github.com/ScaleDockHQ/better-supabase/commit/5d9812b58cde797be6cd44d27f8e68053f35a162) Thanks [@martijn00](https://github.com/martijn00)! - Record templates live in the same tables as the records they create. A template is still a row in `templates`. Its content is a versioned body, or rows whose `template_id` is set. Tasks, quotes, invoices, orders and purchase orders opt in with `options.templates`. An app table opts in with the `@bsb template` tag.
+  
+  While `template_id` is set, numbering, search, pipelines, the state machine and domain events skip the row. Audit still records the edit. `clone_task`, `clone_quote` and `clone_invoice` copy a row and its children. `instantiate_template` creates a record from a published template and writes `template_applications`. `pack_template` and `unpack_template` move a rows template through its version body.
+
+### Patch Changes
+
+- [#731](https://github.com/ScaleDockHQ/better-supabase/pull/731) [`101f4ea`](https://github.com/ScaleDockHQ/better-supabase/commit/101f4ea0721afe538db4ef9a92654eb3a90e73a1) Thanks [@mick340](https://github.com/mick340)! - The PowerSync upload routes replay with `{ override: true }`, so a row written offline keeps the `created_at`, `updated_at`, actor and trash values its device stamped. Before, the timestamps plugin refused them and every offline insert on a table with timestamps was discarded.
+
 ## 0.54.0
 
 ### Minor Changes

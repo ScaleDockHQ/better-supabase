@@ -1,0 +1,2006 @@
+{
+  "content": {
+    "rules": [
+      {
+        "key": "notice_of_claim__original_contractor",
+        "group": "notice_of_claim",
+        "applies": {
+          "claimant_contract_tier": ["direct_with_owner"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"],
+          "contract_date": {
+            "from": "2022-01-01"
+          }
+        },
+        "required": false,
+        "status": "draft",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.056"
+        },
+        "meta": {
+          "notes": [
+            "Tex. Prop. Code 53.056(a) (corpus 2026-08-21) applies to 'a claimant other than an original contractor'; counsel's prime row (counsel_regs.json, read 2026-10-23), 'Prelien or Other: Not required if contracted directly with Owner, UNLESS it is a residential project on a homestead, then must file the actual contract'; the VA guide, 'Original contractors send no pre-lien notice.'",
+            "The homestead contract filing counsel names is 53.254(e), a precondition of the lien and not a notice; it is carried on the lien affidavit cells."
+          ]
+        }
+      },
+      {
+        "key": "notice_of_claim__derivative_owner_occupied_residence",
+        "group": "notice_of_claim",
+        "applies": {
+          "claimant_contract_tier": ["first_tier_sub", "lower_tier"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential"],
+          "project_sector": ["private"],
+          "owner_occupancy": ["owner_occupied"],
+          "dwelling_units": ["1", "2", "3", "4"],
+          "original_contract_date": {
+            "from": "2022-01-01"
+          }
+        },
+        "deadline": {
+          "n": 2,
+          "unit": "months",
+          "day_of_month": 15,
+          "each": "furnishing_month",
+          "from": "last_furnishing_date"
+        },
+        "exceptions": [
+          {
+            "name": "homestead_statement",
+            "when": {
+              "owner_occupancy": "owner_occupied",
+              "property_use": "residential"
+            },
+            "result": "review_required",
+            "citation": {
+              "reference": "Tex. Prop. Code 53.254(g)"
+            },
+            "note": "53.254(g): 'For the lien on a homestead to be valid, the notice required to be given to the owner under Subchapter C must include or have attached' the statutory statement beginning 'If a subcontractor or supplier who furnishes materials or performs labor for construction of improvements on your property is not paid'.",
+            "status": "review_required"
+          }
+        ],
+        "status": "draft",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.056"
+        },
+        "meta": {
+          "recipients": ["owner", "general_contractor", "hiring_party"],
+          "service": {
+            "methods": ["certified_mail", "personal_delivery"],
+            "proof": [
+              {
+                "cite": "Tex. Prop. Code 53.003(c)",
+                "kind": "certified_mail_receipt"
+              }
+            ]
+          },
+          "if_missed": {
+            "cite": "Tex. Prop. Code 53.056(a)",
+            "result": "partial_rights_lost"
+          },
+          "notes": [
+            "Tex. Prop. Code 53.056(a-1)(2) (corpus 2026-08-21): for 'residential construction projects' the notice must be sent 'not later than the 15th day of the second month after the month during which' the labor or materials were provided; counsel's subcontractor row, 'monthly by the 15th of the second month (residential) ... following the work month'.",
+            "Tex. Prop. Code 53.001(8), (10): a residential construction project is the construction or repair of a 'residence', a single-family house, duplex, triplex or quadruplex 'owned by one or more adult persons' and 'used or intended to be used as a dwelling by one of the owners'; counsel's row, 'Projects are residential ONLY if owner personally occupies the dwelling'. VOC-property-use calls any dwelling residential, so this cell selects owner_occupancy: owner_occupied with dwelling_units: [1, 2, 3, 4] and is written before derivative_residential, which takes every other residential job (SCHEMA.md §3.2; ruling 2026-10-23 replacing the per-count when).",
+            "53.056(a-1): 'For all unpaid labor or materials provided, the claimant must send a notice ... to the owner or reputed owner and the original contractor'; the unit is each month of furnishing, so one deadline per furnishing month (each: furnishing_month); counsel's row, 'monthly'.",
+            "53.056(a): the notice is required 'for the lien to be valid'; the VA guide, 'Late = lose the lien for that month's work', so if_missed is partial_rights_lost; 53.160(b)(1) lists an untimely notice as a ground for removing the lien.",
+            "Recipients, service, form, the 53.056(a-2) contents, counsel's extra recipient and the 53.252 cite question are as on derivative_residential."
+          ]
+        }
+      },
+      {
+        "key": "notice_of_claim__derivative_residential",
+        "group": "notice_of_claim",
+        "applies": {
+          "claimant_contract_tier": ["first_tier_sub", "lower_tier"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential"],
+          "project_sector": ["private"],
+          "original_contract_date": {
+            "from": "2022-01-01"
+          }
+        },
+        "deadline": {
+          "n": 3,
+          "unit": "months",
+          "day_of_month": 15,
+          "each": "furnishing_month",
+          "from": "last_furnishing_date"
+        },
+        "exceptions": [
+          {
+            "name": "condominium_or_larger_residence",
+            "when": {
+              "dwelling_units": ["5_or_more"],
+              "owner_occupancy": "owner_occupied",
+              "property_use": "residential"
+            },
+            "result": "review_required",
+            "citation": {
+              "reference": "Tex. Prop. Code 53.001(8)"
+            },
+            "note": "53.001(8): 'Residence' means a single-family house, duplex, triplex or quadruplex 'or a unit in a multiunit structure used for residential purposes in which title to the individual units is transferred to the owners under a condominium or cooperative system'; dwelling_units: [1, 2, 3, 4] misses an owner-occupied condominium unit in a larger building.",
+            "status": "review_required"
+          }
+        ],
+        "status": "draft",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.056"
+        },
+        "meta": {
+          "recipients": ["owner", "general_contractor", "hiring_party"],
+          "service": {
+            "methods": ["certified_mail", "personal_delivery"],
+            "proof": [
+              {
+                "cite": "Tex. Prop. Code 53.003(c)",
+                "kind": "certified_mail_receipt"
+              }
+            ]
+          },
+          "if_missed": {
+            "cite": "Tex. Prop. Code 53.056(a)",
+            "result": "partial_rights_lost"
+          },
+          "notes": [
+            "Tex. Prop. Code 53.056(a-1)(1) (corpus 2026-08-21): for projects other than residential construction projects the notice must be sent 'not later than the 15th day of the third month after the month during which' the labor or materials were provided; counsel's rows, 'monthly by the 15th of ... third month (commercial) following the work month'; the VA guide, 'Send to the owner AND original contractor by the 15th day of the 3rd month after each month of unpaid labor/materials ... Late = lose the lien for that month.'",
+            "This cell takes the residential jobs derivative_owner_occupied_residence does not select: not owner-occupied, or five or more units. The condominium exception below catches the owner-occupied unit in a larger building that 53.001(8) still calls a residence.",
+            "53.056(a-1): 'For all unpaid labor or materials provided, the claimant must send a notice ... to the owner or reputed owner and the original contractor'; the unit is each month of furnishing, so one deadline per furnishing month (each: furnishing_month); counsel's row, 'monthly'.",
+            "53.056(a): the notice is required 'for the lien to be valid'; the VA guide, 'Late = lose the lien for that month's work', so if_missed is partial_rights_lost; 53.160(b)(1) lists an untimely notice as a ground for removing the lien.",
+            "Counsel's second-tier row adds 'Second-tier Sub contractors must send to owner, original contractor and any other direct sub contractor above them' while the statute and the VA guide name only the owner and the original contractor; hiring_party (CON-hiring-party) carries counsel's extra recipient and is de-duplicated against general_contractor.",
+            "53.003(b) (corpus 2026-08-21): a notice must be delivered 'in person', 'by certified mail' or 'by any other form of traceable, private delivery or mailing service that can confirm proof of receipt'; 53.003(c): mailing by certified mail 'constitutes compliance'. Counsel's row: 'hand delivery or any form of traceable, private delivery or mailing service that can confirm Proof of receipt (Like FedEx)', 'Type of Proof of Service: Proof of Receipt', 'Affidavit of Proof of Service: no'. Traceable private delivery is a materia proposal, not a VOC-service-method code, so it is not listed; personal delivery has no mail proof kind.",
+            "53.056(a-2) prescribes the form ('NOTICE OF CLAIM FOR UNPAID LABOR OR MATERIALS', 'WARNING: This notice is provided to preserve lien rights.', date, project, claimant, type of labor or materials, original contractor, party with whom claimant contracted, claim amount, contact person, address); 53.056(a-3): the notice may include an invoice. No Texas form is in the VA zip (Texas Workflow Guide.pdf only), so form is absent and the bundle will not offer this instrument.",
+            "The VA guide and the Texas workflow cite 53.252 for the residential notice; HB 2237 moved the residential deadline into 53.056(a-1)(2), 53.252 is not in the corpus, and a fetch of statutes.capitol.texas.gov on 2026-10-23 returned no section text, so the 53.252 status is unresolved and the cite here is 53.056.",
+            "Public projects fall under Tex. Gov't Code ch. 2253, not this chapter; see cell public_project."
+          ]
+        }
+      },
+      {
+        "key": "notice_of_claim__derivative_commercial",
+        "group": "notice_of_claim",
+        "applies": {
+          "claimant_contract_tier": ["first_tier_sub", "lower_tier"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["commercial"],
+          "project_sector": ["private"],
+          "original_contract_date": {
+            "from": "2022-01-01"
+          }
+        },
+        "deadline": {
+          "n": 3,
+          "unit": "months",
+          "day_of_month": 15,
+          "each": "furnishing_month",
+          "from": "last_furnishing_date"
+        },
+        "status": "draft",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.056"
+        },
+        "meta": {
+          "recipients": ["owner", "general_contractor", "hiring_party"],
+          "service": {
+            "methods": ["certified_mail", "personal_delivery"],
+            "proof": [
+              {
+                "cite": "Tex. Prop. Code 53.003(c)",
+                "kind": "certified_mail_receipt"
+              }
+            ]
+          },
+          "if_missed": {
+            "cite": "Tex. Prop. Code 53.056(a)",
+            "result": "partial_rights_lost"
+          },
+          "notes": [
+            "Tex. Prop. Code 53.056(a-1)(1) (corpus 2026-08-21): for projects other than residential construction projects the notice must be sent 'not later than the 15th day of the third month after the month during which' the labor or materials were provided; counsel's rows, 'monthly by the 15th of ... third month (commercial) following the work month'; the VA guide, 'Send to the owner AND original contractor by the 15th day of the 3rd month after each month of unpaid labor/materials ... Late = lose the lien for that month.'",
+            "Recipients, service, form and the 53.056(a-2) contents are as on derivative_residential; no homestead statement applies to a non-residential project."
+          ]
+        }
+      },
+      {
+        "key": "notice_of_claim__public_project",
+        "group": "notice_of_claim",
+        "applies": {
+          "claimant_contract_tier": [
+            "direct_with_owner",
+            "first_tier_sub",
+            "lower_tier"
+          ],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["public"]
+        },
+        "required": false,
+        "exceptions": [
+          {
+            "name": "public_project_payment_bond",
+            "when": {
+              "project_sector": ["public"]
+            },
+            "result": "not_applicable",
+            "remedy": "claim_against_bond",
+            "citation": {
+              "reference": "Tex. Gov't Code 2253.021"
+            },
+            "note": "A public work contract over the statutory amount requires a payment bond under Tex. Gov't Code 2253.021(a); the claim runs against the bond, not a mechanic's lien. The bond claim notice is outside this file's launch promise."
+          }
+        ],
+        "status": "draft",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.056"
+        },
+        "meta": {
+          "notes": [
+            "Public projects are an exception: Tex. Prop. Code ch. 53 liens do not attach to public property, and the claimant's remedy is the payment bond under Tex. Gov't Code ch. 2253 (corpus holds 2253.021 only; the bond claim notice deadlines are not transcribed)."
+          ]
+        }
+      },
+      {
+        "key": "lien_affidavit__original_owner_occupied_residence",
+        "group": "lien_affidavit",
+        "applies": {
+          "claimant_contract_tier": ["direct_with_owner"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential"],
+          "project_sector": ["private"],
+          "owner_occupancy": ["owner_occupied"],
+          "dwelling_units": ["1", "2", "3", "4"],
+          "contract_date": {
+            "from": "2022-01-01"
+          }
+        },
+        "deadline": {
+          "n": 3,
+          "unit": "months",
+          "day_of_month": 15,
+          "from": "completion_date"
+        },
+        "exceptions": [
+          {
+            "name": "homestead_contract_and_notice",
+            "when": {
+              "owner_occupancy": "owner_occupied",
+              "property_use": "residential"
+            },
+            "result": "review_required",
+            "citation": {
+              "reference": "Tex. Prop. Code 53.254"
+            },
+            "note": "53.254(a)-(c), (e): to fix a lien on a homestead 'the person who is to furnish material or perform labor and the owner must execute a written contract', 'before the material is furnished or the labor is performed', signed by both spouses if married, and 'filed with the county clerk'; (f): the affidavit must carry at the top, in at least 10-point boldface, 'NOTICE: THIS IS NOT A LIEN. THIS IS ONLY AN AFFIDAVIT CLAIMING A LIEN.'; 53.160(b)(6) makes each a removal ground. Counsel's prime row: 'UNLESS it is a residential project on a homestead, then must file the actual contract'.",
+            "status": "review_required"
+          }
+        ],
+        "status": "review_required",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.052"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "serve_copy": {
+            "cite": "Tex. Prop. Code 53.055(a)",
+            "methods": ["certified_mail", "personal_delivery"],
+            "to": ["owner"],
+            "within": {
+              "from": "lien_recorded",
+              "n": 5,
+              "unit": "days"
+            }
+          },
+          "if_missed": {
+            "cite": "Tex. Prop. Code 53.052(a)",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "Tex. Prop. Code 53.052(a)(2) (corpus 2026-08-21): an original contractor on a residential construction project must file 'not later than the 15th day of the third month after the month in which the original contractor's work was completed, terminated, or abandoned'; counsel's prime row, 'no later that 15th day of the 4th month (3rd month for residential) after work completed, terminated or abandoned'; the VA guide agrees.",
+            "Tex. Prop. Code 53.001(8), (10): a residential construction project is the construction or repair of a 'residence', a single-family house, duplex, triplex or quadruplex 'owned by one or more adult persons' and 'used or intended to be used as a dwelling by one of the owners'; counsel's row, 'Projects are residential ONLY if owner personally occupies the dwelling'. VOC-property-use calls any dwelling residential, so this cell selects owner_occupancy: owner_occupied with dwelling_units: [1, 2, 3, 4] and is written before original_residential, which takes every other residential job (SCHEMA.md §3.2; ruling 2026-10-23 replacing the per-count when).",
+            "'Completed, terminated, or abandoned' is one trigger; completion_date is the date the customer enters for whichever happened first. Counsel's row defines 'Completion of Work Date: Occupancy and owner acceptance' while 53.001(15) defines completion as 'actual completion of the work ... other than warranty work', and abandonment has no registry fact (SCHEMA.md §14).",
+            "Contents, filing, copy, foreclosure and the affidavit-of-completion notes are as on original_residential; the contradictions recorded there hold this cell at review_required."
+          ],
+          "review": {
+            "kind": "contradicted",
+            "question": "Confirm that the owner's affidavit of completion no longer shortens the clock for contracts on or after 2022-01-01, that enforcement runs one year from the last filing day for residential and commercial, and that a terminated or abandoned original contract is entered as completion_date.",
+            "reason": "Counsel's row contradicts the statute and the VA guide on two points: it says an owner's Affidavit of Completion starts the lien clock (HB 2237 removed it; 53.052(a) counts from the month the work was 'completed, terminated, or abandoned'), and it gives 'Lien Rights Expiration: 1 Year from Date Lien Affidavit is filed - residential; 2 years - commercial' where 53.158(a) runs one year from the last day to file for both uses. Also lien_recorded and abandonment have no registry fact.",
+            "since": "2026-10-23"
+          }
+        }
+      },
+      {
+        "key": "lien_affidavit__original_residential",
+        "group": "lien_affidavit",
+        "applies": {
+          "claimant_contract_tier": ["direct_with_owner"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential"],
+          "project_sector": ["private"],
+          "contract_date": {
+            "from": "2022-01-01"
+          }
+        },
+        "deadline": {
+          "n": 4,
+          "unit": "months",
+          "day_of_month": 15,
+          "from": "completion_date"
+        },
+        "exceptions": [
+          {
+            "name": "condominium_or_larger_residence",
+            "when": {
+              "dwelling_units": ["5_or_more"],
+              "owner_occupancy": "owner_occupied",
+              "property_use": "residential"
+            },
+            "result": "review_required",
+            "citation": {
+              "reference": "Tex. Prop. Code 53.001(8)"
+            },
+            "note": "53.001(8) counts a condominium or cooperative unit in a multiunit structure as a residence; dwelling_units: [1, 2, 3, 4] misses it.",
+            "status": "review_required"
+          }
+        ],
+        "status": "review_required",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.052"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "serve_copy": {
+            "cite": "Tex. Prop. Code 53.055(a)",
+            "methods": ["certified_mail", "personal_delivery"],
+            "to": ["owner"],
+            "within": {
+              "from": "lien_recorded",
+              "n": 5,
+              "unit": "days"
+            }
+          },
+          "if_missed": {
+            "cite": "Tex. Prop. Code 53.052(a)",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "Tex. Prop. Code 53.052(a)(1) (corpus 2026-08-21): 'for projects other than residential construction projects, not later than the 15th day of the fourth month after the month in which the original contractor's work was completed, terminated, or abandoned'; counsel's prime row and the VA guide agree (4th month, non-residential).",
+            "This cell takes the residential jobs original_owner_occupied_residence does not select: not owner-occupied, or five or more units. The condominium exception below catches the owner-occupied unit in a larger building that 53.001(8) still calls a residence.",
+            "'Completed, terminated, or abandoned' is one trigger; completion_date is the date the customer enters for whichever happened first. Counsel's row defines 'Completion of Work Date: Occupancy and owner acceptance' while 53.001(15) defines completion as 'actual completion of the work ... other than warranty work', and abandonment has no registry fact (SCHEMA.md §14).",
+            "53.054(a): the affidavit 'must contain substantially' a sworn statement of the amount; the owner's name and last known address; a general statement of the kind of work and materials; the name and last known address of the person who employed the claimant; the original contractor's name and address; a legally sufficient property description; and the claimant's name, mailing address and physical address; counsel's row lists the same plus 'general contractor's name and address'. 53.054(b): the claimant 'may attach' the contract and notices, which is optional, so nothing is required to travel with the affidavit.",
+            "53.055(a): the filer 'must send a copy of the affidavit to the owner or reputed owner ... not later than the fifth day after the date the affidavit is filed with the county clerk'; counsel's row, 'Mail to owner w/in 5 days of filing - via trackable delivery method'; 53.003(b) governs the method. lien_recorded has no registry fact yet (SCHEMA.md §11).",
+            "53.052(e): the affidavit is filed 'in the county where the improvements are located'; counsel's row, 'File Affidavit with County Clerk', 'Notarized: Yes', recording format '12pt font 8.5x11 2\" top & bottom margin (1st pg) 1\" side margin Legal Description', which belongs to the form.",
+            "53.158(a): suit to foreclose is due 'not later than the first anniversary of the last day a claimant may file the lien affidavit'; foreclosure is not an instrument (DEC-0033) and expires is omitted because its trigger would be that last filing day, which the schema cannot name; counsel's row ('Lien Enforcement Expiration: One Year') agrees with the statute for the original contractor.",
+            "The VA guide: 'HB 2237 eliminated the owner's affidavit-of-completion shortcut'; counsel's row still says 'owner can file Affidavit of Completion which starts lien deadline clock'. 53.052(a) as now written has no such trigger, so no count uses it."
+          ],
+          "review": {
+            "kind": "contradicted",
+            "question": "Confirm that the owner's affidavit of completion no longer shortens the clock for contracts on or after 2022-01-01, that enforcement runs one year from the last filing day for residential and commercial, and that a terminated or abandoned original contract is entered as completion_date.",
+            "reason": "Counsel's row contradicts the statute and the VA guide on two points: it says an owner's Affidavit of Completion starts the lien clock (HB 2237 removed it; 53.052(a) counts from the month the work was 'completed, terminated, or abandoned'), and it gives 'Lien Rights Expiration: 1 Year from Date Lien Affidavit is filed - residential; 2 years - commercial' where 53.158(a) runs one year from the last day to file for both uses. Also lien_recorded and abandonment have no registry fact.",
+            "since": "2026-10-23"
+          }
+        }
+      },
+      {
+        "key": "lien_affidavit__original_commercial",
+        "group": "lien_affidavit",
+        "applies": {
+          "claimant_contract_tier": ["direct_with_owner"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["commercial"],
+          "project_sector": ["private"],
+          "contract_date": {
+            "from": "2022-01-01"
+          }
+        },
+        "deadline": {
+          "n": 4,
+          "unit": "months",
+          "day_of_month": 15,
+          "from": "completion_date"
+        },
+        "status": "review_required",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.052"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "serve_copy": {
+            "cite": "Tex. Prop. Code 53.055(a)",
+            "methods": ["certified_mail", "personal_delivery"],
+            "to": ["owner"],
+            "within": {
+              "from": "lien_recorded",
+              "n": 5,
+              "unit": "days"
+            }
+          },
+          "if_missed": {
+            "cite": "Tex. Prop. Code 53.052(a)",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "Tex. Prop. Code 53.052(a)(1) (corpus 2026-08-21): 'for projects other than residential construction projects, not later than the 15th day of the fourth month after the month in which the original contractor's work was completed, terminated, or abandoned'; counsel's prime row and the VA guide agree (4th month, non-residential).",
+            "Completion, filing, copy and content notes are as on original_residential; the contradictions with counsel's row recorded there apply here and hold this cell at review_required."
+          ],
+          "review": {
+            "kind": "contradicted",
+            "question": "As on original_residential.",
+            "reason": "Same contradictions as original_residential: counsel's row says an owner's Affidavit of Completion starts the clock and gives 'Lien Rights Expiration ... 2 years - commercial' against 53.158(a)'s one year from the last filing day; lien_recorded and abandonment have no registry fact.",
+            "since": "2026-10-23"
+          }
+        }
+      },
+      {
+        "key": "lien_affidavit__derivative_owner_occupied_residence",
+        "group": "lien_affidavit",
+        "applies": {
+          "claimant_contract_tier": ["first_tier_sub", "lower_tier"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential"],
+          "project_sector": ["private"],
+          "owner_occupancy": ["owner_occupied"],
+          "dwelling_units": ["1", "2", "3", "4"],
+          "original_contract_date": {
+            "from": "2022-01-01"
+          }
+        },
+        "deadline": {
+          "n": 3,
+          "unit": "months",
+          "day_of_month": 15,
+          "from": "last_furnishing_date"
+        },
+        "exceptions": [
+          {
+            "name": "homestead_contract_and_notice",
+            "when": {
+              "owner_occupancy": "owner_occupied",
+              "property_use": "residential"
+            },
+            "result": "review_required",
+            "citation": {
+              "reference": "Tex. Prop. Code 53.254"
+            },
+            "note": "53.254(d): a homestead contract made by an original contractor 'inures to the benefit of all persons who labor or furnish material for the original contractor'; the contract must still be executed and filed before work, the affidavit must carry the 53.254(f) notice, and the notice of claim must carry the 53.254(g) statement (53.160(b)(6)). The VA guide: 'On a homestead, no lien attaches for anyone unless the owner-and-spouse-signed written contract was recorded before work began.'",
+            "status": "review_required"
+          }
+        ],
+        "status": "review_required",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.052"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "serve_copy": {
+            "cite": "Tex. Prop. Code 53.055",
+            "methods": ["certified_mail", "personal_delivery"],
+            "to": ["owner", "general_contractor"],
+            "within": {
+              "from": "lien_recorded",
+              "n": 5,
+              "unit": "days"
+            }
+          },
+          "if_missed": {
+            "cite": "Tex. Prop. Code 53.052(c)",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "Tex. Prop. Code 53.052(c) (corpus 2026-08-21): a claimant other than an original contractor on a residential construction project must file 'not later than the 15th day of the third month after the later of: (1) the month the claimant last provided labor or materials; or (2) the month the claimant would normally have been required to deliver the last of specially fabricated materials'; counsel's rows, 'no later than 15th day of the 4th month (3rd month for residential) after last provided materials or labor. (NOT invoice date)'.",
+            "Tex. Prop. Code 53.001(8), (10): a residential construction project is the construction or repair of a 'residence', a single-family house, duplex, triplex or quadruplex 'owned by one or more adult persons' and 'used or intended to be used as a dwelling by one of the owners'; counsel's row, 'Projects are residential ONLY if owner personally occupies the dwelling'. VOC-property-use calls any dwelling residential, so this cell selects owner_occupancy: owner_occupied with dwelling_units: [1, 2, 3, 4] and is written before derivative_residential, which takes every other residential job (SCHEMA.md §3.2; ruling 2026-10-23 replacing the per-count when).",
+            "Contents, copy, tier differences and retainage are as on derivative_residential; the contradictions recorded there hold this cell at review_required."
+          ],
+          "review": {
+            "kind": "contradicted",
+            "question": "Confirm one year from the last filing day for subcontractors and suppliers on residential and commercial jobs, that the owner's affidavit of completion does not apply, and whether retainage claimants need their own cell.",
+            "reason": "Counsel's rows contradict the statute and the VA guide: 'Lien Rights Expiration' of 2 years (subcontractor) and 3 years (supplier) for residential and the owner's Affidavit of Completion clock, against 53.158(a)'s single one-year period from the last filing day and HB 2237's removal of the shortcut. lien_recorded has no registry fact, and the retainage counts are unwritten.",
+            "since": "2026-10-23"
+          }
+        }
+      },
+      {
+        "key": "lien_affidavit__derivative_residential",
+        "group": "lien_affidavit",
+        "applies": {
+          "claimant_contract_tier": ["first_tier_sub", "lower_tier"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential"],
+          "project_sector": ["private"],
+          "original_contract_date": {
+            "from": "2022-01-01"
+          }
+        },
+        "deadline": {
+          "n": 4,
+          "unit": "months",
+          "day_of_month": 15,
+          "from": "last_furnishing_date"
+        },
+        "exceptions": [
+          {
+            "name": "condominium_or_larger_residence",
+            "when": {
+              "dwelling_units": ["5_or_more"],
+              "owner_occupancy": "owner_occupied",
+              "property_use": "residential"
+            },
+            "result": "review_required",
+            "citation": {
+              "reference": "Tex. Prop. Code 53.001(8)"
+            },
+            "note": "53.001(8) counts a condominium or cooperative unit in a multiunit structure as a residence; dwelling_units: [1, 2, 3, 4] misses it.",
+            "status": "review_required"
+          }
+        ],
+        "status": "review_required",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.052"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "serve_copy": {
+            "cite": "Tex. Prop. Code 53.055",
+            "methods": ["certified_mail", "personal_delivery"],
+            "to": ["owner", "general_contractor"],
+            "within": {
+              "from": "lien_recorded",
+              "n": 5,
+              "unit": "days"
+            }
+          },
+          "if_missed": {
+            "cite": "Tex. Prop. Code 53.052(c)",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "Tex. Prop. Code 53.052(b) (corpus 2026-08-21): a claimant other than an original contractor 'must file an affidavit with the county clerk not later than the 15th day of the fourth month after the later of: (1) the month the claimant last provided labor or materials; or (2) the month the claimant would normally have been required to deliver the last of specially fabricated materials'; the VA guide, 'File with the County Clerk by the 15th day of the 4th month after last labor/materials (non-residential). Sworn; list each month + each notice date/method; copy to owner AND original contractor within 5 days.'",
+            "This cell takes the residential jobs derivative_owner_occupied_residence does not select: not owner-occupied, or five or more units. The condominium exception below catches the owner-occupied unit in a larger building that 53.001(8) still calls a residence.",
+            "53.054(a)(3), (8): a claimant other than an original contractor adds 'a statement of each month in which the work was done and materials furnished for which payment is requested' and 'a statement identifying the date each notice of the claim was sent to the owner and the method by which the notice was sent'; counsel's row lists both. This is why requires names the notice of claim.",
+            "53.055(a)-(b): the copy goes to the owner 'not later than the fifth day after the date the affidavit is filed' and, 'If the person is not an original contractor', also to the original contractor; counsel's row, 'Mail to owner and General contractor w/in 5 days of filing - via trackable delivery method'. recipients lists the owner as the filing's addressee only; the copies are serve_copy.",
+            "Counsel's 'Lien Rights Expiration' differs by tier: subcontractor '2 Year ... residential; 2 years - commercial', supplier '3 Year ... residential; 2 years - commercial', prime '1 Year ... residential'; 53.158(a) and the VA guide give one year from the last day to file for every claimant and use. Counsel's supplier row also says 'licensed through TDLR', which is a trade-license note with no registry fact.",
+            "Retainage: 53.052(d) gives a claimant for retainage the 15th day of the third month after the month the original contract was completed, terminated or abandoned; 53.103 and 53.057(f) add a 30-day filing rule for reserved funds. No contract_provides_retainage fact exists, so those counts are not written."
+          ],
+          "review": {
+            "kind": "contradicted",
+            "question": "Confirm one year from the last filing day for subcontractors and suppliers on residential and commercial jobs, that the owner's affidavit of completion does not apply, and whether retainage claimants need their own cell.",
+            "reason": "Counsel's rows contradict the statute and the VA guide: 'Lien Rights Expiration' of 2 years (subcontractor) and 3 years (supplier) for residential and the owner's Affidavit of Completion clock, against 53.158(a)'s single one-year period from the last filing day and HB 2237's removal of the shortcut. lien_recorded has no registry fact, and the retainage counts are unwritten.",
+            "since": "2026-10-23"
+          }
+        }
+      },
+      {
+        "key": "lien_affidavit__derivative_commercial",
+        "group": "lien_affidavit",
+        "applies": {
+          "claimant_contract_tier": ["first_tier_sub", "lower_tier"],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["commercial"],
+          "project_sector": ["private"],
+          "original_contract_date": {
+            "from": "2022-01-01"
+          }
+        },
+        "deadline": {
+          "n": 4,
+          "unit": "months",
+          "day_of_month": 15,
+          "from": "last_furnishing_date"
+        },
+        "status": "review_required",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.052"
+        },
+        "meta": {
+          "recipients": ["owner"],
+          "serve_copy": {
+            "cite": "Tex. Prop. Code 53.055",
+            "methods": ["certified_mail", "personal_delivery"],
+            "to": ["owner", "general_contractor"],
+            "within": {
+              "from": "lien_recorded",
+              "n": 5,
+              "unit": "days"
+            }
+          },
+          "if_missed": {
+            "cite": "Tex. Prop. Code 53.052(b)",
+            "result": "rights_lost"
+          },
+          "notes": [
+            "Tex. Prop. Code 53.052(b) (corpus 2026-08-21): a claimant other than an original contractor 'must file an affidavit with the county clerk not later than the 15th day of the fourth month after the later of: (1) the month the claimant last provided labor or materials; or (2) the month the claimant would normally have been required to deliver the last of specially fabricated materials'; the VA guide, 'File with the County Clerk by the 15th day of the 4th month after last labor/materials (non-residential). Sworn; list each month + each notice date/method; copy to owner AND original contractor within 5 days.'",
+            "Contents, copy, tier differences and retainage are as on derivative_residential; the contradictions recorded there apply here."
+          ],
+          "review": {
+            "kind": "contradicted",
+            "question": "As on derivative_residential.",
+            "reason": "Counsel's rows give 'Lien Rights Expiration ... 2 years - commercial' and an owner's Affidavit of Completion clock, against 53.158(a)'s one year from the last filing day and HB 2237; lien_recorded has no registry fact; retainage counts are unwritten.",
+            "since": "2026-10-23"
+          }
+        }
+      },
+      {
+        "key": "lien_affidavit__public_project",
+        "group": "lien_affidavit",
+        "applies": {
+          "claimant_contract_tier": [
+            "direct_with_owner",
+            "first_tier_sub",
+            "lower_tier"
+          ],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["public"]
+        },
+        "required": false,
+        "exceptions": [
+          {
+            "name": "public_project_payment_bond",
+            "when": {
+              "project_sector": ["public"]
+            },
+            "result": "not_applicable",
+            "remedy": "claim_against_bond",
+            "citation": {
+              "reference": "Tex. Gov't Code 2253.021"
+            },
+            "note": "A public work contract over the statutory amount requires a payment bond under Tex. Gov't Code 2253.021(a); the claim runs against the bond, not a mechanic's lien."
+          }
+        ],
+        "status": "draft",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.052"
+        },
+        "meta": {
+          "notes": [
+            "Public projects are an exception: no lien affidavit under Tex. Prop. Code 53.052 is filed; see notice_of_claim public_project."
+          ]
+        }
+      },
+      {
+        "key": "release_of_lien__recorded_lien",
+        "group": "release_of_lien",
+        "applies": {
+          "claimant_contract_tier": [
+            "direct_with_owner",
+            "first_tier_sub",
+            "lower_tier"
+          ],
+          "claimant_capacity": [
+            "contractor",
+            "material_supplier",
+            "equipment_lessor",
+            "design_professional"
+          ],
+          "property_use": ["residential", "commercial"],
+          "project_sector": ["private"]
+        },
+        "deadline": {
+          "n": 10,
+          "unit": "days",
+          "from": "demand_date"
+        },
+        "status": "review_required",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.152"
+        },
+        "meta": {
+          "notes": [
+            "Tex. Prop. Code 53.152(a) (corpus 2026-08-21): 'When a debt for labor or materials is satisfied or paid by collected funds, the person who furnished the labor or materials shall, not later than the 10th day after the date of receipt of a written request, furnish to the requesting person a release of the indebtedness and any lien claimed, to the extent of the indebtedness paid. An owner, the original contractor, or any person making the payment may request the release.'",
+            "Counsel's row, 'Release Date: w/in 10 days of final payment and written request from owner'; the VA guide, 'Within 10 days of final payment and the owner's written request.' The statute starts the clock at receipt of the request and allows the original contractor or the payer to ask, not only the owner; the release is due 'to the extent of the indebtedness paid', so a partial payment gives a partial release.",
+            "53.152(b): 'A release of lien must be in a form that would permit it to be filed of record'; counsel's row, 'Release Recorded: Yes - with same county clerk who recorded original lien', 'Lien Release Required: Yes - signed and notarized', recording format as for the lien, template 'on Texas Construction Website'. Counsel names no notarial act; acknowledgment is the recordable form and is a reviewer's call.",
+            "Counsel's row: 'Release Type of Mailing: certified or other traceable method'; no recipient role exists for the requesting party, so serve_copy is not written.",
+            "Counsel's row, 'Release Penalties: yes - no statutory penalties but Texas Fraudulent Lien Act could be used'; the statute states no consequence, so if_missed is absent and reads not_established.",
+            "53.152 was last amended in 1989 and HB 2237 did not touch it, so the cell carries no contract-date selector."
+          ],
+          "review": {
+            "kind": "schema_gap",
+            "question": "Is a release due 10 days after a written request from the owner, original contractor or payer once the debt is paid, and should the signature be an acknowledgment?",
+            "reason": "The clock starts at the owner's, original contractor's or payer's written request (53.152(a)), and neither the demand trigger (release_demand_date) nor a requesting_party recipient is in the registry or the closed lists (SCHEMA.md §11, §14); the payment condition is not a second trigger the schema can combine with the request. Counsel's notarization wording does not name the act.",
+            "since": "2026-10-23"
+          }
+        }
+      }
+    ],
+    "groups": [
+      {
+        "key": "notice_of_claim",
+        "title": "Notice of Claim for Unpaid Labor or Materials",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.056"
+        },
+        "meta": {
+          "function": "preserve_lien_rights",
+          "forum": "service"
+        }
+      },
+      {
+        "key": "lien_affidavit",
+        "title": "Lien Affidavit",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.052"
+        },
+        "requires": ["notice_of_claim"],
+        "meta": {
+          "function": "perfect_lien",
+          "forum": "county_recorder",
+          "signing": {
+            "notarial_act": "jurat",
+            "signers": ["claimant", "agent"]
+          },
+          "requires": [
+            {
+              "instrument": "notice_of_claim",
+              "cite": "Tex. Prop. Code 53.056(a)"
+            }
+          ]
+        }
+      },
+      {
+        "key": "release_of_lien",
+        "title": "Release of Lien",
+        "citation": {
+          "reference": "Tex. Prop. Code 53.152"
+        },
+        "requires": ["lien_affidavit"],
+        "meta": {
+          "function": "release_lien",
+          "forum": "county_recorder",
+          "signing": {
+            "notarial_act": "acknowledgment",
+            "signers": ["claimant"]
+          },
+          "requires": [
+            {
+              "instrument": "lien_affidavit",
+              "cite": "Tex. Prop. Code 53.152(a)"
+            }
+          ]
+        }
+      }
+    ],
+    "counting": {
+      "roll_to": "next_business_day",
+      "roll_when": ["saturday", "sunday", "holiday"],
+      "holidays": [],
+      "citation": {
+        "reference": "Tex. Prop. Code 53.003(e)"
+      },
+      "status": "draft"
+    },
+    "meta": {
+      "bundle_sha256": "549b601abda4aa2a26d75adfd3de2c2db4ea7e489568c1f49d3e26688cc3edf8",
+      "built_at": "2026-11-04T20:43:42Z",
+      "include_draft": true,
+      "statute_edition": "2026-08-21",
+      "offered": [
+        {
+          "at": "2026-11-03",
+          "by": "rehearsal",
+          "instrument": "notice_of_claim",
+          "signed_by": "claimant",
+          "state": "TX"
+        },
+        {
+          "at": "2026-11-03",
+          "by": "rehearsal",
+          "instrument": "lien_affidavit",
+          "signed_by": "agent",
+          "state": "TX"
+        },
+        {
+          "at": "2026-11-03",
+          "by": "rehearsal",
+          "instrument": "release_of_lien",
+          "signed_by": "claimant",
+          "state": "TX"
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "name": "a notice due the 15th of the third month after each month of furnishing",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "contract_is_written": true,
+        "original_contract_date": "2026-08-01",
+        "first_furnishing_date": "2026-10-01",
+        "last_furnishing_date": "2026-12-15",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "asOf": "2027-01-04",
+      "expect": [
+        {
+          "group": "notice_of_claim",
+          "ruleKey": "notice_of_claim__derivative_commercial",
+          "period": "2026-10",
+          "result": "due",
+          "dueOn": "2027-01-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "draft"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 3,
+            "unit": "months",
+            "day_of_month": 15,
+            "each": "furnishing_month",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.056"
+          }
+        },
+        {
+          "group": "notice_of_claim",
+          "ruleKey": "notice_of_claim__derivative_commercial",
+          "period": "2026-11",
+          "result": "due",
+          "dueOn": "2027-02-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "draft"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-11-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 3,
+            "unit": "months",
+            "day_of_month": 15,
+            "each": "furnishing_month",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.056"
+          }
+        },
+        {
+          "group": "notice_of_claim",
+          "ruleKey": "notice_of_claim__derivative_commercial",
+          "period": "2026-12",
+          "result": "due",
+          "dueOn": "2027-03-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "draft"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-12-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 3,
+            "unit": "months",
+            "day_of_month": 15,
+            "each": "furnishing_month",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.056"
+          }
+        },
+        {
+          "group": "lien_affidavit",
+          "ruleKey": "lien_affidavit__derivative_commercial",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-04-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-12-15"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 4,
+            "unit": "months",
+            "day_of_month": 15,
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.052"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["demand_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": {
+            "n": 10,
+            "unit": "days",
+            "from": "demand_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.152"
+          }
+        }
+      ]
+    },
+    {
+      "name": "months run through this month and one ahead while furnishing goes on",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "contract_is_written": true,
+        "original_contract_date": "2026-08-01",
+        "first_furnishing_date": "2026-10-01",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "asOf": "2026-11-03",
+      "expect": [
+        {
+          "group": "notice_of_claim",
+          "ruleKey": "notice_of_claim__derivative_commercial",
+          "period": "2026-10",
+          "result": "due",
+          "dueOn": "2027-01-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "draft"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 3,
+            "unit": "months",
+            "day_of_month": 15,
+            "each": "furnishing_month",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.056"
+          }
+        },
+        {
+          "group": "notice_of_claim",
+          "ruleKey": "notice_of_claim__derivative_commercial",
+          "period": "2026-11",
+          "result": "due",
+          "dueOn": "2027-02-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "draft"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-11-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 3,
+            "unit": "months",
+            "day_of_month": 15,
+            "each": "furnishing_month",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.056"
+          }
+        },
+        {
+          "group": "notice_of_claim",
+          "ruleKey": "notice_of_claim__derivative_commercial",
+          "period": "2026-12",
+          "result": "due",
+          "dueOn": "2027-03-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "draft"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-12-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 3,
+            "unit": "months",
+            "day_of_month": 15,
+            "each": "furnishing_month",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.056"
+          }
+        },
+        {
+          "group": "lien_affidavit",
+          "ruleKey": "lien_affidavit__derivative_commercial",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["last_furnishing_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": {
+            "n": 4,
+            "unit": "months",
+            "day_of_month": 15,
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.052"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["demand_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": {
+            "n": 10,
+            "unit": "days",
+            "from": "demand_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.152"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a monthly notice asks the first furnishing date before it has a month",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "contract_is_written": true,
+        "original_contract_date": "2026-08-01",
+        "last_furnishing_date": "2026-12-15",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "asOf": "2026-11-03",
+      "expect": [
+        {
+          "group": "notice_of_claim",
+          "ruleKey": "notice_of_claim__derivative_commercial",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["first_furnishing_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "draft"
+            }
+          ],
+          "basis": null,
+          "deadline": {
+            "n": 3,
+            "unit": "months",
+            "day_of_month": 15,
+            "each": "furnishing_month",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.056"
+          }
+        },
+        {
+          "group": "lien_affidavit",
+          "ruleKey": "lien_affidavit__derivative_commercial",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-04-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-12-15"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 4,
+            "unit": "months",
+            "day_of_month": 15,
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.052"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["demand_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": {
+            "n": 10,
+            "unit": "days",
+            "from": "demand_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.152"
+          }
+        }
+      ]
+    },
+    {
+      "name": "selects a subcontractor's cell by the original contract's date",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "last_furnishing_date": "2026-10-05",
+        "completion_date": "2026-11-20",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null,
+        "original_contract_date": "2023-03-01"
+      },
+      "group": "lien_affidavit",
+      "expect": [
+        {
+          "group": "lien_affidavit",
+          "ruleKey": "lien_affidavit__derivative_commercial",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-05"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 4,
+            "unit": "months",
+            "day_of_month": 15,
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.052"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "covers no original contract before the regime",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "last_furnishing_date": "2026-10-05",
+        "completion_date": "2026-11-20",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null,
+        "original_contract_date": "2021-06-01"
+      },
+      "group": "lien_affidavit",
+      "expect": [
+        {
+          "group": "lien_affidavit",
+          "ruleKey": null,
+          "period": null,
+          "result": "not_covered",
+          "dueOn": null,
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "Tex. Prop. Code 53.052"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "keeps the cell while the original contract's date is unknown: dated, marked, asked",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "last_furnishing_date": "2026-10-05",
+        "completion_date": "2026-11-20",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "group": "lien_affidavit",
+      "expect": [
+        {
+          "group": "lien_affidavit",
+          "ruleKey": "lien_affidavit__derivative_commercial",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-15",
+          "provisional": true,
+          "missing": ["original_contract_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "regime",
+              "fact": "original_contract_date",
+              "from": "2022-01-01"
+            },
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-05"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 4,
+            "unit": "months",
+            "day_of_month": 15,
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.052"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "never asks a direct claimant the original contract's date",
+      "facts": {
+        "claimant_contract_tier": "direct_with_owner",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "last_furnishing_date": "2026-10-05",
+        "completion_date": "2026-11-20",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null,
+        "contract_date": "2022-05-01"
+      },
+      "group": "lien_affidavit",
+      "expect": [
+        {
+          "group": "lien_affidavit",
+          "ruleKey": "lien_affidavit__original_commercial",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "completion_date",
+              "date": "2026-11-20"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 4,
+            "unit": "months",
+            "day_of_month": 15,
+            "from": "completion_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.052"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "a direct claimant's own contract date unknown",
+      "facts": {
+        "claimant_contract_tier": "direct_with_owner",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "last_furnishing_date": "2026-10-05",
+        "completion_date": "2026-11-20",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "group": "lien_affidavit",
+      "expect": [
+        {
+          "group": "lien_affidavit",
+          "ruleKey": "lien_affidavit__original_commercial",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-03-15",
+          "provisional": true,
+          "missing": ["contract_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "regime",
+              "fact": "contract_date",
+              "from": "2022-01-01"
+            },
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "completion_date",
+              "date": "2026-11-20"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 4,
+            "unit": "months",
+            "day_of_month": 15,
+            "from": "completion_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.052"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "asks the tier before any contract date",
+      "facts": {
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "last_furnishing_date": "2026-10-05",
+        "completion_date": "2026-11-20",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "group": "lien_affidavit",
+      "expect": [
+        {
+          "group": "lien_affidavit",
+          "ruleKey": null,
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["claimant_contract_tier"],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "Tex. Prop. Code 53.052"
+          }
+        }
+      ],
+      "asOf": "2026-11-07"
+    },
+    {
+      "name": "selects the narrower cell written first",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "residential",
+        "project_sector": "private",
+        "original_contract_date": "2023-03-01",
+        "first_furnishing_date": "2026-10-01",
+        "last_furnishing_date": "2026-10-05",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null,
+        "owner_occupancy": "owner_occupied",
+        "dwelling_units": "1"
+      },
+      "asOf": "2026-11-03",
+      "expect": [
+        {
+          "group": "notice_of_claim",
+          "ruleKey": "notice_of_claim__derivative_owner_occupied_residence",
+          "period": "2026-10",
+          "result": "due",
+          "dueOn": "2026-12-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "exception",
+              "name": "homestead_statement",
+              "citation": {
+                "reference": "Tex. Prop. Code 53.254(g)"
+              },
+              "note": "53.254(g): 'For the lien on a homestead to be valid, the notice required to be given to the owner under Subchapter C must include or have attached' the statutory statement beginning 'If a subcontractor or supplier who furnishes materials or performs labor for construction of improvements on your property is not paid'."
+            },
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "draft"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 2,
+            "unit": "months",
+            "day_of_month": 15,
+            "each": "furnishing_month",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.056"
+          }
+        },
+        {
+          "group": "lien_affidavit",
+          "ruleKey": "lien_affidavit__derivative_owner_occupied_residence",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-01-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "exception",
+              "name": "homestead_contract_and_notice",
+              "citation": {
+                "reference": "Tex. Prop. Code 53.254"
+              },
+              "note": "53.254(d): a homestead contract made by an original contractor 'inures to the benefit of all persons who labor or furnish material for the original contractor'; the contract must still be executed and filed before work, the affidavit must carry the 53.254(f) notice, and the notice of claim must carry the 53.254(g) statement (53.160(b)(6)). The VA guide: 'On a homestead, no lien attaches for anyone unless the owner-and-spouse-signed written contract was recorded before work began.'"
+            },
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-05"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 3,
+            "unit": "months",
+            "day_of_month": 15,
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.052"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["demand_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": {
+            "n": 10,
+            "unit": "days",
+            "from": "demand_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.152"
+          }
+        }
+      ]
+    },
+    {
+      "name": "falls through to the general cell for a rented house",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "residential",
+        "project_sector": "private",
+        "original_contract_date": "2023-03-01",
+        "first_furnishing_date": "2026-10-01",
+        "last_furnishing_date": "2026-10-05",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null,
+        "owner_occupancy": "non_owner_occupied",
+        "dwelling_units": "1"
+      },
+      "asOf": "2026-11-03",
+      "expect": [
+        {
+          "group": "notice_of_claim",
+          "ruleKey": "notice_of_claim__derivative_residential",
+          "period": "2026-10",
+          "result": "due",
+          "dueOn": "2027-01-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "draft"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-01"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 3,
+            "unit": "months",
+            "day_of_month": 15,
+            "each": "furnishing_month",
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.056"
+          }
+        },
+        {
+          "group": "lien_affidavit",
+          "ruleKey": "lien_affidavit__derivative_residential",
+          "period": null,
+          "result": "due",
+          "dueOn": "2027-02-15",
+          "provisional": false,
+          "missing": [],
+          "exception": null,
+          "review": [
+            {
+              "kind": "counting",
+              "status": "draft"
+            },
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": {
+            "anchor": {
+              "fact": "last_furnishing_date",
+              "date": "2026-10-05"
+            },
+            "without": []
+          },
+          "deadline": {
+            "n": 4,
+            "unit": "months",
+            "day_of_month": 15,
+            "from": "last_furnishing_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.052"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["demand_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": {
+            "n": 10,
+            "unit": "days",
+            "from": "demand_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.152"
+          }
+        }
+      ]
+    },
+    {
+      "name": "asks before passing a cell whose applies fact is unanswered",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "residential",
+        "project_sector": "private",
+        "original_contract_date": "2023-03-01",
+        "first_furnishing_date": "2026-10-01",
+        "last_furnishing_date": "2026-10-05",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "asOf": "2026-11-03",
+      "expect": [
+        {
+          "group": "notice_of_claim",
+          "ruleKey": null,
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["dwelling_units", "owner_occupancy"],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "Tex. Prop. Code 53.056"
+          }
+        },
+        {
+          "group": "lien_affidavit",
+          "ruleKey": null,
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["dwelling_units", "owner_occupancy"],
+          "exception": null,
+          "review": [],
+          "basis": null,
+          "deadline": null,
+          "citation": {
+            "reference": "Tex. Prop. Code 53.052"
+          }
+        },
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["demand_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": {
+            "n": 10,
+            "unit": "days",
+            "from": "demand_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.152"
+          }
+        }
+      ]
+    },
+    {
+      "name": "a demand date never answered is unknown",
+      "facts": {
+        "claimant_contract_tier": "first_tier_sub",
+        "claimant_capacity": "contractor",
+        "property_use": "commercial",
+        "project_sector": "private",
+        "contract_is_written": true,
+        "original_contract_date": "2026-08-01",
+        "first_furnishing_date": "2026-10-01",
+        "last_furnishing_date": "2026-12-15",
+        "notice_of_completion_recording_date": null,
+        "full_payment_date": null,
+        "lien_recording_date": null
+      },
+      "group": "release_of_lien",
+      "asOf": "2027-01-04",
+      "expect": [
+        {
+          "group": "release_of_lien",
+          "ruleKey": "release_of_lien__recorded_lien",
+          "period": null,
+          "result": "unknown",
+          "dueOn": null,
+          "provisional": false,
+          "missing": ["demand_date"],
+          "exception": null,
+          "review": [
+            {
+              "kind": "rule",
+              "status": "review_required"
+            }
+          ],
+          "basis": null,
+          "deadline": {
+            "n": 10,
+            "unit": "days",
+            "from": "demand_date"
+          },
+          "citation": {
+            "reference": "Tex. Prop. Code 53.152"
+          }
+        }
+      ]
+    }
+  ]
+}
