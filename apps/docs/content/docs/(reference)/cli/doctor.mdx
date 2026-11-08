@@ -1777,6 +1777,12 @@ direction of BS376: a table, view, type or function in `supabase/schemas` that n
 migration creates is a change the sync has not turned into a migration yet. Run
 `supabase db schema declarative sync` and review the migration.
 
+### BS378
+
+**Warning: a trigger aimed at a view.** A `before` or `after` trigger on a view
+never fires for the rows of the table under it. Put the trigger on that table, or
+use an `instead of` trigger that writes it. Reads every schema file.
+
 ### BS379
 
 **Error: a columns entry the render refuses.** `blocks.<name>.columns.<table>.<column>`
@@ -1792,6 +1798,14 @@ declare, `transaction=false`, a top-level `insert` and duplicate policies) and
 fails with a line for each.
 
 ## Auth config
+
+### BS380
+
+**Warning: a check constraint mixes `between` with `and` or `or`.** Postgres
+rewrites `x between a and b` into two comparisons, so a check that joins a
+`between` to other conditions reads back in another shape than the file declares,
+and the next diff proposes the same constraint again. Write the comparisons out.
+Reads the app's schema files.
 
 ### BS353
 

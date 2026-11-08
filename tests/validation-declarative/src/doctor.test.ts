@@ -7,7 +7,8 @@ import { copyFixture } from "./fixture.ts";
 
 // The ownership and coverage rules of doctor, which read the schema files and
 // migrations. The snapshot stands in for a database, so the test needs no stack.
-const OWNERSHIP = "BS369,BS370,BS371,BS372,BS373,BS374,BS375,BS376,BS377";
+const OWNERSHIP =
+  "BS369,BS370,BS371,BS372,BS373,BS374,BS375,BS376,BS377,BS378,BS380,BS622";
 
 const dirs: string[] = [];
 
@@ -139,6 +140,64 @@ describe("doctor on the declarative fixture", () => {
       );
 
       expect(found).toStrictEqual({ code: 1, codes: ["BS374"] });
+    },
+  );
+
+  it("fails on a trigger aimed at a view", { timeout: TIMEOUT }, async () => {
+    const found = await seeded((_dir, app) =>
+      app(
+        "020_app_extensions.sql",
+        "create trigger my_organizations_touch before update on public.my_organizations for each row execute function public.projects_reject_archived_rename();",
+      ),
+    );
+
+    expect(found).toStrictEqual({ code: 1, codes: ["BS378"] });
+  });
+
+  it(
+    "fails on a view the app and a module both define",
+    { timeout: TIMEOUT },
+    async () => {
+      const found = await seeded(async (_dir, app) => {
+        await app(
+          "900_better_supabase_001_updated_at.sql",
+          "create view public.module_view as select 1 as one;",
+        );
+        await app(
+          "020_app_extensions.sql",
+          "create view public.module_view as select 2 as one;",
+        );
+      });
+
+      expect(found.code).toBe(1);
+      expect(found.codes).toContain("BS369");
+    },
+  );
+
+  it(
+    "fails on a between nested in a compound check",
+    { timeout: TIMEOUT },
+    async () => {
+      const found = await seeded((_dir, app) =>
+        app(
+          "020_app_extensions.sql",
+          "alter table public.projects add constraint projects_name_length check (length(name) between 1 and 80 and archived_at is null);",
+        ),
+      );
+
+      expect(found).toStrictEqual({ code: 1, codes: ["BS380"] });
+    },
+  );
+
+  it(
+    "fails on a block-added column the app does not declare",
+    { timeout: TIMEOUT },
+    async () => {
+      const found = await seeded(async (dir) => {
+        await rm(join(dir, "supabase/schemas/profiles.block-columns.sql"));
+      });
+
+      expect(found).toStrictEqual({ code: 1, codes: ["BS622"] });
     },
   );
 
