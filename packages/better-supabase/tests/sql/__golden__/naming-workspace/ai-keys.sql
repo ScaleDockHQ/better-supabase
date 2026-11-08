@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys
 -- @bsb-block ai-keys@2 managed
--- @bsb-hash sha256:e376da63785fd901ddbd2c34b1f36c2ad154407c0deaef9bc6e6120198150105
+-- @bsb-hash sha256:63bc9e948938e1faae9e9801dff3397e348b10aef23b57abae495f10ea72f744
 -- A tenant's own provider keys as credential_ref rows, and a registry of provider batch jobs with their results and a poll claim. Sandboxes live in ai-chat.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,7 +12,7 @@
 -- must not hold secrets.
 create table "better_supabase"."ai_provider_keys" (
   "id" uuid primary key default gen_random_uuid(),
-  "workspace_id" uuid not null,
+  "tenant_id" uuid not null,
   "provider" text not null constraint bsb_ai_provider_keys_provider_check check ("provider" ~ '^[a-z0-9][a-z0-9._-]{0,63}$'),
   "name" text not null default 'default' constraint bsb_ai_provider_keys_name_check check (length("name") >= 1 and length("name") <= 100),
   "credential_ref" jsonb not null constraint bsb_ai_provider_keys_credential_ref_check check (jsonb_typeof("credential_ref") = 'object' and "credential_ref" ? 'provider'),
@@ -21,7 +21,7 @@ create table "better_supabase"."ai_provider_keys" (
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  unique ("workspace_id", "provider", "name")
+  unique ("tenant_id", "provider", "name")
 );
 create index ai_provider_keys_created_by_idx on "better_supabase"."ai_provider_keys" ("created_by");
 alter table "better_supabase"."ai_provider_keys" enable row level security;
@@ -30,13 +30,13 @@ grant select on "better_supabase"."ai_provider_keys" to authenticated;
 grant all on "better_supabase"."ai_provider_keys" to service_role;
 create policy bsb_ai_provider_keys_read on "better_supabase"."ai_provider_keys"
   for select to authenticated
-  using ("workspace_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
 -- Batch jobs started with a provider's batch API, polled until they finish.
 -- reference is the SDK's batch reference ({ version, id, provider }).
 create table "better_supabase"."ai_batches" (
   "id" uuid primary key default gen_random_uuid(),
-  "workspace_id" uuid not null,
+  "tenant_id" uuid not null,
   "user_id" uuid references auth.users (id) on delete cascade,
   "provider" text not null constraint bsb_ai_batches_provider_check check (length("provider") >= 1 and length("provider") <= 100),
   "reference" jsonb not null constraint bsb_ai_batches_reference_check check (jsonb_typeof("reference") = 'object'),
@@ -55,7 +55,7 @@ create table "better_supabase"."ai_batches" (
   "updated_at" timestamptz not null default now()
 );
 create index ai_batches_due_idx on "better_supabase"."ai_batches" ("next_poll_at") where "status" = 'pending' or not "results_saved";
-create index ai_batches_tenant_idx on "better_supabase"."ai_batches" ("workspace_id", "created_at" desc);
+create index ai_batches_tenant_idx on "better_supabase"."ai_batches" ("tenant_id", "created_at" desc);
 create index ai_batches_user_idx on "better_supabase"."ai_batches" ("user_id");
 alter table "better_supabase"."ai_batches" enable row level security;
 revoke all on "better_supabase"."ai_batches" from public, anon, authenticated;
@@ -63,12 +63,12 @@ grant select on "better_supabase"."ai_batches" to authenticated;
 grant all on "better_supabase"."ai_batches" to service_role;
 create policy bsb_ai_batches_read on "better_supabase"."ai_batches"
   for select to authenticated
-  using ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
+  using ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')));
 
 create table "better_supabase"."ai_batch_items" (
   "batch_id" uuid not null references "better_supabase"."ai_batches" ("id") on delete cascade,
   "request_id" text not null constraint bsb_ai_batch_items_request_id_check check (length("request_id") >= 1 and length("request_id") <= 200),
-  "workspace_id" uuid not null,
+  "tenant_id" uuid not null,
   "status" text not null constraint bsb_ai_batch_items_status_check check ("status" in ('succeeded', 'failed', 'cancelled', 'expired')),
   "output" jsonb,
   "usage" jsonb,
@@ -76,7 +76,7 @@ create table "better_supabase"."ai_batch_items" (
   "created_at" timestamptz not null default now(),
   primary key ("batch_id", "request_id")
 );
-create index ai_batch_items_tenant_idx on "better_supabase"."ai_batch_items" ("workspace_id");
+create index ai_batch_items_tenant_idx on "better_supabase"."ai_batch_items" ("tenant_id");
 alter table "better_supabase"."ai_batch_items" enable row level security;
 revoke all on "better_supabase"."ai_batch_items" from public, anon, authenticated;
 grant select on "better_supabase"."ai_batch_items" to authenticated;
@@ -92,8 +92,8 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."workspace_id", 'provider', x."provider", 'name', x."name", 'credential_ref', x."credential_ref", 'settings', x."settings", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."provider", x."name"), '[]')
-  from "better_supabase"."ai_provider_keys" x where x."workspace_id" = list_ai_provider_keys.tenant
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'provider', x."provider", 'name', x."name", 'credential_ref', x."credential_ref", 'settings', x."settings", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."provider", x."name"), '[]')
+  from "better_supabase"."ai_provider_keys" x where x."tenant_id" = list_ai_provider_keys.tenant
 $$;
 revoke execute on function "better_supabase"."list_ai_provider_keys"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_ai_provider_keys"(uuid) to authenticated, service_role;
@@ -125,12 +125,12 @@ begin
       using errcode = '42501', hint = 'CREDENTIAL_REF_FOREIGN';
   end if;
   select x."credential_ref" into v_old from "better_supabase"."ai_provider_keys" x
-  where x."workspace_id" = save_ai_provider_key.tenant and x."provider" = save_ai_provider_key.provider and x."name" = coalesce(save_ai_provider_key.name, 'default')
+  where x."tenant_id" = save_ai_provider_key.tenant and x."provider" = save_ai_provider_key.provider and x."name" = coalesce(save_ai_provider_key.name, 'default')
   for update;
   v_inserted := not found;
-  insert into "better_supabase"."ai_provider_keys" ("workspace_id", "provider", "name", "credential_ref", "settings", "enabled", "created_by")
+  insert into "better_supabase"."ai_provider_keys" ("tenant_id", "provider", "name", "credential_ref", "settings", "enabled", "created_by")
   values (save_ai_provider_key.tenant, save_ai_provider_key.provider, coalesce(save_ai_provider_key.name, 'default'), save_ai_provider_key.credential_ref, coalesce(save_ai_provider_key.settings, '{}'), coalesce(save_ai_provider_key.enabled, true), auth.uid())
-  on conflict ("workspace_id", "provider", "name") do update set
+  on conflict ("tenant_id", "provider", "name") do update set
     "credential_ref" = excluded."credential_ref",
     "settings" = excluded."settings",
     "enabled" = excluded."enabled",
@@ -141,7 +141,7 @@ begin
   else
     null;
   end if;
-  return jsonb_build_object('key', jsonb_build_object('id', v_row."id", 'organization_id', v_row."workspace_id", 'provider', v_row."provider", 'name', v_row."name", 'credential_ref', v_row."credential_ref", 'settings', v_row."settings", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at"), 'replaced', v_old);
+  return jsonb_build_object('key', jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'provider', v_row."provider", 'name', v_row."name", 'credential_ref', v_row."credential_ref", 'settings', v_row."settings", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at"), 'replaced', v_old);
 end;
 $$;
 revoke execute on function "better_supabase"."save_ai_provider_key"(uuid, text, jsonb, text, jsonb, boolean) from public, anon;
@@ -162,12 +162,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_provider_keys" x where x."id" = delete_ai_provider_key.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'ai_keys.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_keys.manage'), false)) then
     return null;
   end if;
   delete from "better_supabase"."ai_provider_keys" x where x."id" = v_row."id";
   null;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."workspace_id", 'provider', v_row."provider", 'name', v_row."name", 'credential_ref', v_row."credential_ref", 'settings', v_row."settings", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'provider', v_row."provider", 'name', v_row."name", 'credential_ref', v_row."credential_ref", 'settings', v_row."settings", 'enabled', v_row."enabled", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."delete_ai_provider_key"(uuid) from public, anon;
@@ -182,9 +182,9 @@ security definer
 set search_path = ''
 as $$
   with gone as (
-    delete from "better_supabase"."ai_provider_keys" x where x."workspace_id" = delete_ai_provider_keys.tenant returning x.*
+    delete from "better_supabase"."ai_provider_keys" x where x."tenant_id" = delete_ai_provider_keys.tenant returning x.*
   )
-  select coalesce(jsonb_agg(jsonb_build_object('id', gone."id", 'organization_id', gone."workspace_id", 'provider', gone."provider", 'name', gone."name", 'credential_ref', gone."credential_ref", 'settings', gone."settings", 'enabled', gone."enabled", 'created_by', gone."created_by", 'created_at', gone."created_at", 'updated_at', gone."updated_at")), '[]') from gone
+  select coalesce(jsonb_agg(jsonb_build_object('id', gone."id", 'tenant_id', gone."tenant_id", 'provider', gone."provider", 'name', gone."name", 'credential_ref', gone."credential_ref", 'settings', gone."settings", 'enabled', gone."enabled", 'created_by', gone."created_by", 'created_at', gone."created_at", 'updated_at', gone."updated_at")), '[]') from gone
 $$;
 revoke execute on function "better_supabase"."delete_ai_provider_keys"(uuid) from public, anon, authenticated;
 grant execute on function "better_supabase"."delete_ai_provider_keys"(uuid) to service_role;
@@ -197,9 +197,9 @@ stable
 security definer
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."workspace_id", 'provider', x."provider", 'name', x."name", 'credential_ref', x."credential_ref", 'settings', x."settings", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."provider", x."name"), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'provider', x."provider", 'name', x."name", 'credential_ref', x."credential_ref", 'settings', x."settings", 'enabled', x."enabled", 'created_by', x."created_by", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."provider", x."name"), '[]')
   from "better_supabase"."ai_provider_keys" x
-  where x."workspace_id" = ai_provider_keys_for.tenant and x."enabled"
+  where x."tenant_id" = ai_provider_keys_for.tenant and x."enabled"
     and (ai_provider_keys_for.providers is null or x."provider" = any (ai_provider_keys_for.providers))
 $$;
 revoke execute on function "better_supabase"."ai_provider_keys_for"(uuid, text[]) from public, anon, authenticated;
@@ -225,7 +225,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (auth.uid() is not null and coalesce(better_supabase.can('tenant', record_ai_batch.tenant, 'ai_keys.use'), false))) then
     raise exception 'you may not start batches here' using errcode = '42501', hint = 'AI_BATCH_FORBIDDEN';
   end if;
-  insert into "better_supabase"."ai_batches" ("workspace_id", "user_id", "provider", "reference", "status", "raw_status", "item_count", "counts", "metadata", "expires_at", "next_poll_at")
+  insert into "better_supabase"."ai_batches" ("tenant_id", "user_id", "provider", "reference", "status", "raw_status", "item_count", "counts", "metadata", "expires_at", "next_poll_at")
   values (
     record_ai_batch.tenant,
     case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then (v_fields ->> 'user_id')::uuid else auth.uid() end,
@@ -240,7 +240,7 @@ begin
     now() + interval '60 seconds'
   )
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."workspace_id", 'user_id', v_row."user_id", 'provider', v_row."provider", 'reference', v_row."reference", 'status', v_row."status", 'raw_status', v_row."raw_status", 'item_count', v_row."item_count", 'counts', v_row."counts", 'error', v_row."error", 'metadata', v_row."metadata", 'results_saved', v_row."results_saved", 'polls', v_row."polls", 'next_poll_at', v_row."next_poll_at", 'expires_at', v_row."expires_at", 'completed_at', v_row."completed_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'user_id', v_row."user_id", 'provider', v_row."provider", 'reference', v_row."reference", 'status', v_row."status", 'raw_status', v_row."raw_status", 'item_count', v_row."item_count", 'counts', v_row."counts", 'error', v_row."error", 'metadata', v_row."metadata", 'results_saved', v_row."results_saved", 'polls', v_row."polls", 'next_poll_at', v_row."next_poll_at", 'expires_at', v_row."expires_at", 'completed_at', v_row."completed_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."record_ai_batch"(uuid, text, jsonb, jsonb) from public, anon;
@@ -273,7 +273,7 @@ begin
   if not found then
     raise exception 'batch % not found', update_ai_batch.id using errcode = 'P0002', hint = 'AI_BATCH_NOT_FOUND';
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."workspace_id", 'user_id', v_row."user_id", 'provider', v_row."provider", 'reference', v_row."reference", 'status', v_row."status", 'raw_status', v_row."raw_status", 'item_count', v_row."item_count", 'counts', v_row."counts", 'error', v_row."error", 'metadata', v_row."metadata", 'results_saved', v_row."results_saved", 'polls', v_row."polls", 'next_poll_at', v_row."next_poll_at", 'expires_at', v_row."expires_at", 'completed_at', v_row."completed_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'user_id', v_row."user_id", 'provider', v_row."provider", 'reference', v_row."reference", 'status', v_row."status", 'raw_status', v_row."raw_status", 'item_count', v_row."item_count", 'counts', v_row."counts", 'error', v_row."error", 'metadata', v_row."metadata", 'results_saved', v_row."results_saved", 'polls', v_row."polls", 'next_poll_at', v_row."next_poll_at", 'expires_at', v_row."expires_at", 'completed_at', v_row."completed_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."update_ai_batch"(uuid, jsonb) from public, anon, authenticated;
@@ -305,7 +305,7 @@ begin
     from due where x."id" = due."id"
     returning x.*
   )
-  select coalesce(jsonb_agg(jsonb_build_object('id', claimed."id", 'organization_id', claimed."workspace_id", 'user_id', claimed."user_id", 'provider', claimed."provider", 'reference', claimed."reference", 'status', claimed."status", 'raw_status', claimed."raw_status", 'item_count', claimed."item_count", 'counts', claimed."counts", 'error', claimed."error", 'metadata', claimed."metadata", 'results_saved', claimed."results_saved", 'polls', claimed."polls", 'next_poll_at', claimed."next_poll_at", 'expires_at', claimed."expires_at", 'completed_at', claimed."completed_at", 'created_at', claimed."created_at", 'updated_at', claimed."updated_at")), '[]') into v_rows from claimed;
+  select coalesce(jsonb_agg(jsonb_build_object('id', claimed."id", 'tenant_id', claimed."tenant_id", 'user_id', claimed."user_id", 'provider', claimed."provider", 'reference', claimed."reference", 'status', claimed."status", 'raw_status', claimed."raw_status", 'item_count', claimed."item_count", 'counts', claimed."counts", 'error', claimed."error", 'metadata', claimed."metadata", 'results_saved', claimed."results_saved", 'polls', claimed."polls", 'next_poll_at', claimed."next_poll_at", 'expires_at', claimed."expires_at", 'completed_at', claimed."completed_at", 'created_at', claimed."created_at", 'updated_at', claimed."updated_at")), '[]') into v_rows from claimed;
   return v_rows;
 end;
 $$;
@@ -325,11 +325,11 @@ declare
   v_items jsonb := case when jsonb_typeof(save_ai_batch_items.items) = 'object' then save_ai_batch_items.items -> 'items' else save_ai_batch_items.items end;
   v_count integer;
 begin
-  select x."workspace_id" into v_tenant from "better_supabase"."ai_batches" x where x."id" = save_ai_batch_items.id;
+  select x."tenant_id" into v_tenant from "better_supabase"."ai_batches" x where x."id" = save_ai_batch_items.id;
   if not found then
     raise exception 'batch % not found', save_ai_batch_items.id using errcode = 'P0002', hint = 'AI_BATCH_NOT_FOUND';
   end if;
-  insert into "better_supabase"."ai_batch_items" ("batch_id", "request_id", "workspace_id", "status", "output", "usage", "error")
+  insert into "better_supabase"."ai_batch_items" ("batch_id", "request_id", "tenant_id", "status", "output", "usage", "error")
   select save_ai_batch_items.id, item ->> 'request_id', v_tenant, item ->> 'status', item -> 'output', item -> 'usage', left(item ->> 'error', 4000)
   from jsonb_array_elements(case when jsonb_typeof(v_items) = 'array' then v_items else '[]' end) item
   on conflict ("batch_id", "request_id") do update set
@@ -351,7 +351,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."workspace_id", 'user_id', x."user_id", 'provider', x."provider", 'reference', x."reference", 'status', x."status", 'raw_status', x."raw_status", 'item_count', x."item_count", 'counts', x."counts", 'error', x."error", 'metadata', x."metadata", 'results_saved', x."results_saved", 'polls', x."polls", 'next_poll_at', x."next_poll_at", 'expires_at', x."expires_at", 'completed_at', x."completed_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."ai_batches" x where x."id" = get_ai_batch.id
+  select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'user_id', x."user_id", 'provider', x."provider", 'reference', x."reference", 'status', x."status", 'raw_status', x."raw_status", 'item_count', x."item_count", 'counts', x."counts", 'error', x."error", 'metadata', x."metadata", 'results_saved', x."results_saved", 'polls', x."polls", 'next_poll_at', x."next_poll_at", 'expires_at', x."expires_at", 'completed_at', x."completed_at", 'created_at', x."created_at", 'updated_at', x."updated_at") from "better_supabase"."ai_batches" x where x."id" = get_ai_batch.id
 $$;
 revoke execute on function "better_supabase"."get_ai_batch"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_ai_batch"(uuid) to authenticated, service_role;
@@ -363,10 +363,10 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."workspace_id", 'user_id', x."user_id", 'provider', x."provider", 'reference', x."reference", 'status', x."status", 'raw_status', x."raw_status", 'item_count', x."item_count", 'counts', x."counts", 'error', x."error", 'metadata', x."metadata", 'results_saved', x."results_saved", 'polls', x."polls", 'next_poll_at', x."next_poll_at", 'expires_at', x."expires_at", 'completed_at', x."completed_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'user_id', x."user_id", 'provider', x."provider", 'reference', x."reference", 'status', x."status", 'raw_status', x."raw_status", 'item_count', x."item_count", 'counts', x."counts", 'error', x."error", 'metadata', x."metadata", 'results_saved', x."results_saved", 'polls', x."polls", 'next_poll_at', x."next_poll_at", 'expires_at', x."expires_at", 'completed_at', x."completed_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."created_at" desc), '[]')
   from (
     select * from "better_supabase"."ai_batches" y
-    where y."workspace_id" = list_ai_batches.tenant and (list_ai_batches.status is null or y."status" = list_ai_batches.status)
+    where y."tenant_id" = list_ai_batches.tenant and (list_ai_batches.status is null or y."status" = list_ai_batches.status)
     order by y."created_at" desc
     limit least(greatest(list_ai_batches.max_rows, 1), 200)
   ) x
@@ -382,7 +382,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('batch_id', x."batch_id", 'request_id', x."request_id", 'organization_id', x."workspace_id", 'status', x."status", 'output', x."output", 'usage', x."usage", 'error', x."error", 'created_at', x."created_at") order by x."request_id"), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('batch_id', x."batch_id", 'request_id', x."request_id", 'tenant_id', x."tenant_id", 'status', x."status", 'output', x."output", 'usage', x."usage", 'error', x."error", 'created_at', x."created_at") order by x."request_id"), '[]')
   from (
     select * from "better_supabase"."ai_batch_items" y
     where y."batch_id" = list_ai_batch_items.id and (list_ai_batch_items.after is null or y."request_id" > list_ai_batch_items.after)
@@ -399,51 +399,51 @@ grant execute on function "better_supabase"."list_ai_batch_items"(uuid, text, in
 create policy bsb_tenant_scope_select on "better_supabase"."ai_provider_keys" as restrictive
   for select to public
   using (
-    "workspace_id" in (select better_supabase.member_workspace_ids())
-    or ("workspace_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_provider_keys" as restrictive
   for insert to public
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_provider_keys" as restrictive
   for update to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_provider_keys" as restrictive
   for delete to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."ai_batches" as restrictive
   for select to public
   using (
-    "workspace_id" in (select better_supabase.member_workspace_ids())
-    or ("user_id" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("user_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_keys.manage')))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_batches" as restrictive
   for insert to public
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_batches" as restrictive
   for update to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_batches" as restrictive
   for delete to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."ai_batch_items" as restrictive
   for select to public
   using (
-    "workspace_id" in (select better_supabase.member_workspace_ids())
+    "tenant_id" in (select better_supabase.member_workspace_ids())
     or (exists (select 1 from "better_supabase"."ai_batches" y where y."id" = "batch_id"))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_batch_items" as restrictive
   for insert to public
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_batch_items" as restrictive
   for update to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_batch_items" as restrictive
   for delete to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_056_ai_keys.sql
 -- better-supabase module: ai-keys

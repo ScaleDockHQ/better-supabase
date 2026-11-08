@@ -26,7 +26,7 @@ import { moduleOperations } from "./permissions-model.ts";
 
 const MEMORIES = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   owner: "owner_id",
   scope: "scope",
   agent: "agent_id",
@@ -69,7 +69,7 @@ const MESSAGE_EMBEDDINGS = {
   chat: "chat_id",
   message: "message_id",
   user: "user_id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   embedding: "embedding",
   model: "embedding_model",
   createdAt: "created_at",

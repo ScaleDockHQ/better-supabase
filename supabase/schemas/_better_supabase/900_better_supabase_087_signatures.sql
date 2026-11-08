@@ -1,6 +1,6 @@
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:cec653b95f1bafc65cb7f8dc0345318dfbcae1b3ff046b019b7733cc74b15dec
+-- @bsb-hash sha256:fd4b8e08aaa68e4c03f3ef9a3a451e3adca345a1f02ddc8d5644392b40c057db
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -317,7 +317,7 @@ begin
   if sign_signature.image_attachment_id is not null and not exists (
     select 1 from "better_supabase"."attachments" a
     where a."id" = sign_signature.image_attachment_id
-      and a."organization_id" = v_req."tenant_id"
+      and a."tenant_id" = v_req."tenant_id"
   ) then
     raise exception 'the signature image isn''t an attachment in this organization' using errcode = '22023', hint = 'SIGNATURE_IMAGE_NOT_FOUND';
   end if;

@@ -112,7 +112,7 @@ describe("sso module", () => {
     expect(sql).toContain("array['manager', 'staff']::text[]");
     expect(sql).toContain("hint = 'SSO_ROLE_FORBIDDEN'");
     expect(sql).toContain(
-      'better_supabase.can_assign(v_row."organization_id", update_organization_domain.auto_join_role)',
+      'better_supabase.can_assign(v_row."tenant_id", update_organization_domain.auto_join_role)',
     );
   });
 });

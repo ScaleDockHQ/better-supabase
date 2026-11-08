@@ -8,7 +8,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  changed_organization uuid := coalesce(new.organization_id, old.organization_id);
+  changed_organization uuid := coalesce(new.tenant_id, old.tenant_id);
   changed_role uuid := coalesce(new.role_id, old.role_id);
 begin
   perform better_supabase.bump_authz_versions(array(

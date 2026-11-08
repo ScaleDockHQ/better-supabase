@@ -53,7 +53,7 @@ describe.skipIf(!live)("audit hash chain", () => {
       const chain = createChain({
         transport: sqlTransport(s.sql),
         table: LOG,
-        tenantColumn: "organization_id",
+        tenantColumn: "tenant_id",
         signer,
         issuer: "https://app.example",
       });
@@ -78,7 +78,7 @@ describe.skipIf(!live)("audit hash chain", () => {
       expect(await chain.checkpoints({ tenant }).orThrow()).toHaveLength(1);
       expect(
         await s.hint(
-          "select better_supabase.record_chain_checkpoint($1::regclass, 'organization_id', $2, 3, '00', 'k1', 'x')",
+          "select better_supabase.record_chain_checkpoint($1::regclass, 'tenant_id', $2, 3, '00', 'k1', 'x')",
           [LOG, tenant],
         ),
       ).toBe("CHECKPOINT_MISMATCH");
@@ -125,7 +125,7 @@ describe.skipIf(!live)("audit hash chain", () => {
       const chain = createChain({
         transport: sqlTransport(s.sql),
         table: LOG,
-        tenantColumn: "organization_id",
+        tenantColumn: "tenant_id",
         signer,
         issuer: "https://app.example",
       });
@@ -272,7 +272,7 @@ describe.skipIf(!live)("audit hash chain", () => {
         await createChain({
           transport: sqlTransport(s.sql),
           table: LOG,
-          tenantColumn: "organization_id",
+          tenantColumn: "tenant_id",
         })
           .verify()
           .orThrow(),

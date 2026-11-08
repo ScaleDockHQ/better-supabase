@@ -1042,7 +1042,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_148_consents.sql
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:afb3e5ea401c47195bec5f571366efc48a30de5bddf2c86bd3a44ffb43fec6d7
+-- @bsb-hash sha256:9a595d5bb42717b284ddf1ba56bf8674f12d6a3b65a1c7d4a3d7ba668dc050fc
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1488,7 +1488,7 @@ begin
   v_attachment := (v_evidence ->> 'attachmentId')::uuid;
   if v_attachment is not null and not exists (
     select 1 from "better_supabase"."attachments" x
-    where x."id" = v_attachment and x."organization_id"::text = v_tenant::text
+    where x."id" = v_attachment and x."tenant_id"::text = v_tenant::text
   ) then
     raise exception 'evidence.attachmentId is not an attachment of this organization' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;

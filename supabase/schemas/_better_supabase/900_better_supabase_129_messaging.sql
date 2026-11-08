@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:189d495f7a2ab5276908544f670f13efa847e02f2ebce3698fc298dd747a92ca
+-- @bsb-hash sha256:b37008650e5b6dcc54964037e8165155dbff7775b75c330dc99210859c7db7dd
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -411,10 +411,10 @@ begin
   end if;
   if v_msg."thread_id" is not null then
     -- The replier and the root's author follow the thread.
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (v_msg."tenant_id", v_msg."author_id", 'message', v_msg."thread_id"::text, 'participating')
     on conflict do nothing;
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (v_msg."tenant_id", (select r."author_id" from "better_supabase"."messages" r where r."id" = v_msg."thread_id"), 'message', v_msg."thread_id"::text, 'participating')
     on conflict do nothing;
   end if;
@@ -422,7 +422,7 @@ begin
   -- above; nothing is sent when no one follows it.
   if v_msg."thread_id" is not null and (exists (
       select 1 from "better_supabase"."notification_subscriptions" s
-      where s."subject_type" = 'message' and s."subject_id" = v_msg."thread_id"::text and s."organization_id" = v_msg."tenant_id"
+      where s."subject_type" = 'message' and s."subject_id" = v_msg."thread_id"::text and s."tenant_id" = v_msg."tenant_id"
         and s."level" in ('all', 'participating')
         and not s."user_id" = any (array[v_msg."author_id"] || v_mentioned)
     ) or to_regprocedure('"public"."notification_audience"(jsonb)') is not null) then
@@ -1016,9 +1016,9 @@ begin
   if v_tenant is null then
     raise exception 'no such conversation or thread you can read' using errcode = 'P0002', hint = 'MESSAGING_NOT_FOUND';
   end if;
-  insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+  insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
   values (v_tenant, auth.uid(), v_type, follow.target_id::text, case when follow.following then 'all' else 'ignore' end)
-  on conflict ("organization_id", "user_id", "subject_type", "subject_id") do update set "level" = excluded."level";
+  on conflict ("tenant_id", "user_id", "subject_type", "subject_id") do update set "level" = excluded."level";
   return follow.following;
 end;
 $$;
@@ -1211,7 +1211,7 @@ begin
     if not exists (
       select 1 from "better_supabase"."attachments" a
       where a."id" = (send_message.attrs -> 'anchor' ->> 'attachmentId')::uuid
-        and a."organization_id" = v_conv."tenant_id"
+        and a."tenant_id" = v_conv."tenant_id"
         and a."status" <> 'infected'
         and ((a."subject_type" = v_conv."subject_type" and a."subject_id" = v_conv."subject_id")
           or (a."subject_type" = 'message' and exists (
@@ -1257,7 +1257,7 @@ begin
     update "better_supabase"."attachments" a
     set "subject_type" = 'message', "subject_id" = v_id::text
     where a."id" = any (send_message.attachments)
-      and a."organization_id" = v_conv."tenant_id"
+      and a."tenant_id" = v_conv."tenant_id"
       and a."subject_type" = 'conversation' and a."subject_id" = v_conv."id"::text
       and a."uploaded_by" = auth.uid()
       and a."status" <> 'infected';

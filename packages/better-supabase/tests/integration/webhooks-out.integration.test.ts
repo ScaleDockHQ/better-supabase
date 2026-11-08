@@ -173,7 +173,7 @@ describe.skipIf(!live)("webhooks-out", () => {
 
       const endpoint = async (url: string, types: string[]) => {
         const { rows } = await client.query<{ id: string }>(
-          `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)
+          `insert into better_supabase.webhook_endpoints (tenant_id, name, url, event_types)
            values ($1, 'Hook', $2, $3) returning id`,
           [organization, url, types],
         );
@@ -405,7 +405,7 @@ describe.skipIf(!live)("webhooks-out", () => {
         })
         .orThrow();
       await client.query(
-        "insert into better_supabase.webhook_deliveries (organization_id, endpoint_id, event_type) values ($1, $2, 'late')",
+        "insert into better_supabase.webhook_deliveries (tenant_id, endpoint_id, event_type) values ($1, $2, 'late')",
         [organization, all],
       );
       expect(await webhooks.deliver()).toMatchObject({ succeeded: 0 });
@@ -442,7 +442,7 @@ describe.skipIf(!live)("webhooks-out", () => {
 
       // A worker that died on the last attempt still used it up.
       await client.query(
-        "insert into better_supabase.webhook_deliveries (organization_id, endpoint_id, event_type, status, attempt, lease_expires_at) values ($1, $2, 'crashed', 'delivering', 8, now() - interval '1 minute')",
+        "insert into better_supabase.webhook_deliveries (tenant_id, endpoint_id, event_type, status, attempt, lease_expires_at) values ($1, $2, 'crashed', 'delivering', 8, now() - interval '1 minute')",
         [organization, organizations],
       );
       expect(await webhooks.deliver()).toMatchObject({ succeeded: 0 });
@@ -540,14 +540,14 @@ describe.skipIf(!live)("webhooks-out", () => {
       const ref = { provider: "vault", secret: "hec", tenant: organization };
       expect(
         await s.hint(
-          `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types, credential_ref)
+          `insert into better_supabase.webhook_endpoints (tenant_id, name, url, event_types, credential_ref)
            values ($1, 'Bad', 'https://bad.example.com', '{*}', '{"secret":"x"}')`,
           [organization],
         ),
       ).toBe("23514");
 
       const { rows } = await client.query<{ id: string }>(
-        `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types, format, credential_ref)
+        `insert into better_supabase.webhook_endpoints (tenant_id, name, url, event_types, format, credential_ref)
          values ($1, 'Splunk', 'https://splunk.example.com/services/collector/event', '{*}', 'splunk-hec', $2)
          returning id`,
         [organization, ref],
@@ -759,7 +759,7 @@ describe.skipIf(!live)("webhooks-out", () => {
         "alter table better_supabase.webhook_endpoints drop column format",
       );
       await client.query(
-        `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)
+        `insert into better_supabase.webhook_endpoints (tenant_id, name, url, event_types)
          values ($1, 'Old', 'https://old.example.com', '{*}')`,
         [organization],
       );
@@ -777,14 +777,14 @@ describe.skipIf(!live)("webhooks-out", () => {
 
       await install();
       await client.query(
-        `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)
+        `insert into better_supabase.webhook_endpoints (tenant_id, name, url, event_types)
          values ($1, 'New', 'https://new.example.com', '{*}')`,
         [organization],
       );
 
       const { rows } = await client.query<{ name: string; format: string }>(
         `select name, format from better_supabase.webhook_endpoints
-         where organization_id = $1 order by name`,
+         where tenant_id = $1 order by name`,
         [organization],
       );
 

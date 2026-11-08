@@ -84,7 +84,7 @@ select is(
   'a membership role change bumps the member'
 );
 
-insert into better_supabase.permission_overrides (organization_id, role_id, permission_id, granted)
+insert into better_supabase.permission_overrides (tenant_id, role_id, permission_id, granted)
 select '00000000-0000-4000-8000-000000000001', r.id, p.id, false
 from better_supabase.roles r, better_supabase.permissions p
 where r.key = 'admin'

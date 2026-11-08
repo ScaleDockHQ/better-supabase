@@ -1046,7 +1046,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_126_compliance.sql
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:171b2cb475c79af4c83caea50e8defe485de6f26f42bac93bf91c52d6ae1d7a4
+-- @bsb-hash sha256:7f8e8db6d134e4c507ec4fd0d1fd9055ed849a71dc63f6d97ccd4b3a39779456
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1428,7 +1428,7 @@ begin
   if add_control_evidence.attachment_id is not null and not exists (
     select 1 from "better_supabase"."attachments" a
     where a."id" = add_control_evidence.attachment_id
-      and a."organization_id" = v_control."tenant_id"
+      and a."tenant_id" = v_control."tenant_id"
   ) then
     raise exception 'the attachment isn''t a file in this organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;

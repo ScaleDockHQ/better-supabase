@@ -159,7 +159,7 @@ describe.skipIf(!live)("billable-time", () => {
       ).toEqual([{ status: "draft", quantity: "1.5000", unit: "12000" }]);
       expect(
         await s.rows<{ type: string }>(
-          "select type from better_supabase.outbox_events where organization_id = $1 and type = 'time_entry.invoiced'",
+          "select type from better_supabase.outbox_events where tenant_id = $1 and type = 'time_entry.invoiced'",
           [tenant],
         ),
       ).toHaveLength(1);
@@ -205,7 +205,7 @@ describe.skipIf(!live)("billable-time", () => {
 
       await s.client.query("reset role");
       await s.rows(
-        "insert into better_supabase.organization_deletions (organization_id, purge_at) values ($1, now() - interval '1 minute')",
+        "insert into better_supabase.organization_deletions (tenant_id, purge_at) values ($1, now() - interval '1 minute')",
         [tenant],
       );
       await s.service();

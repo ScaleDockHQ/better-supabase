@@ -44,6 +44,7 @@ const basket = defineMetric({
 const apiCalls = defineMetric({
   key: "api_calls",
   table: "better_supabase.usage_events",
+  tenant: "tenant_id",
   measure: { sum: "quantity" },
   timeColumn: "recorded_at",
   where: { meter: "api_calls" },
@@ -98,7 +99,7 @@ describe.skipIf(!live)("metrics", () => {
         [tenant, other],
       );
       await s.client.query(
-        `insert into better_supabase.usage_events (organization_id, meter, idempotency_key, quantity, recorded_at) values
+        `insert into better_supabase.usage_events (tenant_id, meter, idempotency_key, quantity, recorded_at) values
           ($1, 'api_calls', 'k1', 3, '2026-03-02 10:00+00'),
           ($1, 'seats', 'k2', 7, '2026-03-02 10:00+00')`,
         [tenant],

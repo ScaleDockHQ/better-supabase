@@ -6,7 +6,7 @@ import { createAttachments } from "../../../src/blocks/attachments/index.ts";
 
 const row = (overrides: Record<string, unknown> = {}) => ({
   id: "a1",
-  organization_id: "org-1",
+  tenant_id: "org-1",
   subject_type: "customer",
   subject_id: "c1",
   bucket: "attachments",
@@ -30,7 +30,7 @@ const row = (overrides: Record<string, unknown> = {}) => ({
 
 const typeRow = {
   id: "t1",
-  organization_id: "org-1",
+  tenant_id: "org-1",
   key: "invoice",
   name: "Invoice",
   fields: { amount: { type: "amount", required: true } },

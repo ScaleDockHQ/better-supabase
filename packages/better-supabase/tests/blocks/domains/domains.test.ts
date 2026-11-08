@@ -37,7 +37,7 @@ const RECORD = {
 
 const hostnameRow = (overrides: Record<string, unknown> = {}) => ({
   id: "h1",
-  organization_id: "org-1",
+  tenant_id: "org-1",
   hostname: "app.acme.test",
   kind: "custom",
   verified_at: null,

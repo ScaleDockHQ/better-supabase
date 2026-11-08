@@ -20,7 +20,7 @@ const RUN_STATES = "'queued', 'running', 'completed', 'failed'";
 
 const TASKS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   user: "user_id",
   chat: "chat_id",
   agent: "agent_id",
@@ -38,7 +38,7 @@ const TASKS = {
 const RUNS = {
   id: "id",
   task: "task_id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   user: "user_id",
   status: "status",
   scheduledFor: "scheduled_at",

@@ -506,7 +506,7 @@ function documentOf(value: unknown): KnowledgeDocument {
 
   return {
     id: textOf(row["id"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     ownerId: optionalText(row["owner_id"]),
     scope: scopeOf(row["scope"]),
     scopeId: optionalText(row["scope_id"]),

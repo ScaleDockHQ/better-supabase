@@ -267,7 +267,7 @@ describe.skipIf(!live)("waitlist", () => {
       ).toEqual({ name: "Ada" });
       expect(
         await s.rows(
-          "select type from better_supabase.outbox_events where organization_id = $1 and type = 'organization.member_added'",
+          "select type from better_supabase.outbox_events where tenant_id = $1 and type = 'organization.member_added'",
           [tenant],
         ),
       ).toHaveLength(1);

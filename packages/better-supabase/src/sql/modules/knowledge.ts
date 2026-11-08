@@ -27,7 +27,7 @@ import { moduleOperations } from "./permissions-model.ts";
 
 const DOCUMENTS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   owner: "owner_id",
   scope: "scope",
   scopeId: "scope_id",

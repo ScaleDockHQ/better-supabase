@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:cde08af9820970026ac42e8b04d1c6bf25c96c6f6517eba1d65c199f71d2c489
+-- @bsb-hash sha256:8f3166842d6df77ec9142b99dbc45f71158c68d093c787677da253fc76173d54
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,14 +12,14 @@ create table "better_supabase"."outbox_events" (
   "type" text not null,
   "source" text,
   "subject" text,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "key" text,
   "payload" jsonb not null default '{}',
   "actor_id" uuid,
   "created_at" timestamptz not null default now(),
   "xid" xid8 not null default pg_current_xact_id()
 );
-create unique index outbox_events_key_idx on "better_supabase"."outbox_events" ("key", "organization_id") nulls not distinct where "key" is not null;
+create unique index outbox_events_key_idx on "better_supabase"."outbox_events" ("key", "tenant_id") nulls not distinct where "key" is not null;
 create index outbox_events_subject_idx on "better_supabase"."outbox_events" ("subject", "position");
 create index outbox_events_type_idx on "better_supabase"."outbox_events" ("type", "position");
 create index outbox_events_created_idx on "better_supabase"."outbox_events" ("created_at");
@@ -110,19 +110,19 @@ begin
   end if;
   if key is not null then
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
-    where e."key" = key and e."organization_id" is not distinct from tenant::uuid;
+    where e."key" = key and e."tenant_id" is not distinct from tenant::uuid;
     if found_id is not null then
       return found_id;
     end if;
   end if;
-  insert into "better_supabase"."outbox_events" ("type", "payload", "source", "subject", "organization_id", "key", "actor_id")
+  insert into "better_supabase"."outbox_events" ("type", "payload", "source", "subject", "tenant_id", "key", "actor_id")
   values (event_type, coalesce(payload, '{}'), source, coalesce(subject, payload ->> 'subject'), tenant::uuid, key, auth.uid())
   on conflict do nothing
   returning "id"::text into found_id;
   if found_id is null then
     -- Another transaction emitted the same key first.
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
-    where e."key" = key and e."organization_id" is not distinct from tenant::uuid;
+    where e."key" = key and e."tenant_id" is not distinct from tenant::uuid;
   end if;
   return found_id;
 end;
@@ -207,7 +207,7 @@ begin
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ) as event, row_number() over (order by e."xid", e."position") as n
@@ -307,7 +307,7 @@ begin
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ), c."attempts", c."last_error"
@@ -377,7 +377,7 @@ as $$
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ) as event, e."position" as position
@@ -515,7 +515,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:7cc64d887f6dd850cb46a1612e47fbb5cc4dd0c4ecfd345d23bf9a8361da06d3
+-- @bsb-hash sha256:0053567a16590d6f9c57a80d6401ac00050817cac61fe8aeb8b35f1cd86dbfe4
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -526,14 +526,14 @@ create table "better_supabase"."outbox_events" (
   "type" text not null,
   "source" text,
   "subject" text,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "key" text,
   "payload" jsonb not null default '{}',
   "actor_id" uuid,
   "created_at" timestamptz not null default now(),
   "xid" xid8 not null default pg_current_xact_id()
 );
-create unique index outbox_events_key_idx on "better_supabase"."outbox_events" ("key", "organization_id") nulls not distinct where "key" is not null;
+create unique index outbox_events_key_idx on "better_supabase"."outbox_events" ("key", "tenant_id") nulls not distinct where "key" is not null;
 create index outbox_events_subject_idx on "better_supabase"."outbox_events" ("subject", "position");
 create index outbox_events_type_idx on "better_supabase"."outbox_events" ("type", "position");
 create index outbox_events_created_idx on "better_supabase"."outbox_events" ("created_at");
@@ -624,19 +624,19 @@ begin
   end if;
   if key is not null then
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
-    where e."key" = key and e."organization_id" is not distinct from tenant::uuid;
+    where e."key" = key and e."tenant_id" is not distinct from tenant::uuid;
     if found_id is not null then
       return found_id;
     end if;
   end if;
-  insert into "better_supabase"."outbox_events" ("type", "payload", "source", "subject", "organization_id", "key", "actor_id")
+  insert into "better_supabase"."outbox_events" ("type", "payload", "source", "subject", "tenant_id", "key", "actor_id")
   values (event_type, coalesce(payload, '{}'), source, coalesce(subject, payload ->> 'subject'), tenant::uuid, key, auth.uid())
   on conflict do nothing
   returning "id"::text into found_id;
   if found_id is null then
     -- Another transaction emitted the same key first.
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
-    where e."key" = key and e."organization_id" is not distinct from tenant::uuid;
+    where e."key" = key and e."tenant_id" is not distinct from tenant::uuid;
   end if;
   return found_id;
 end;
@@ -721,7 +721,7 @@ begin
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ) as event, row_number() over (order by e."xid", e."position") as n
@@ -821,7 +821,7 @@ begin
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ), c."attempts", c."last_error"
@@ -891,7 +891,7 @@ as $$
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ) as event, e."position" as position
@@ -933,8 +933,8 @@ begin
     where e."id" in (
       select d."id" from "better_supabase"."outbox_events" d
       where (d."created_at" < now() - least(coalesce(older_than, '30 days'::interval), "better_supabase"."retention_floor"('outbox'))
-      and d."created_at" < now() - coalesce("better_supabase"."retention_for"('outbox', (d."organization_id")::text), coalesce(older_than, '30 days'::interval))
-      and not "better_supabase"."is_held"('outbox', (d."organization_id")::text))
+      and d."created_at" < now() - coalesce("better_supabase"."retention_for"('outbox', (d."tenant_id")::text), coalesce(older_than, '30 days'::interval))
+      and not "better_supabase"."is_held"('outbox', (d."tenant_id")::text))
         and (
           not exists (select 1 from active)
           or (d."xid", d."position") <= (
@@ -1033,7 +1033,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:c036ea42e58e71c6f6c19edec54ac238aa73aae991acd4afc1d2ee75ab19ad02
+-- @bsb-hash sha256:ee152214fbd07385182fdc04f2e81ababbaf73d7fd8398361a86d3bb7af9a7a3
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1049,14 +1049,14 @@ create table "app_private"."outbox_events" (
   "type" text not null,
   "source" text,
   "subject" text,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "key" text,
   "payload" jsonb not null default '{}',
   "actor_id" uuid,
   "created_at" timestamptz not null default now(),
   "xid" xid8 not null default pg_current_xact_id()
 );
-create unique index outbox_events_key_idx on "app_private"."outbox_events" ("key", "organization_id") nulls not distinct where "key" is not null;
+create unique index outbox_events_key_idx on "app_private"."outbox_events" ("key", "tenant_id") nulls not distinct where "key" is not null;
 create index outbox_events_subject_idx on "app_private"."outbox_events" ("subject", "position");
 create index outbox_events_type_idx on "app_private"."outbox_events" ("type", "position");
 create index outbox_events_created_idx on "app_private"."outbox_events" ("created_at");
@@ -1147,19 +1147,19 @@ begin
   end if;
   if key is not null then
     select e."id"::text into found_id from "app_private"."outbox_events" e
-    where e."key" = key and e."organization_id" is not distinct from tenant::uuid;
+    where e."key" = key and e."tenant_id" is not distinct from tenant::uuid;
     if found_id is not null then
       return found_id;
     end if;
   end if;
-  insert into "app_private"."outbox_events" ("type", "payload", "source", "subject", "organization_id", "key", "actor_id")
+  insert into "app_private"."outbox_events" ("type", "payload", "source", "subject", "tenant_id", "key", "actor_id")
   values (event_type, coalesce(payload, '{}'), source, coalesce(subject, payload ->> 'subject'), tenant::uuid, key, auth.uid())
   on conflict do nothing
   returning "id"::text into found_id;
   if found_id is null then
     -- Another transaction emitted the same key first.
     select e."id"::text into found_id from "app_private"."outbox_events" e
-    where e."key" = key and e."organization_id" is not distinct from tenant::uuid;
+    where e."key" = key and e."tenant_id" is not distinct from tenant::uuid;
   end if;
   return found_id;
 end;
@@ -1244,7 +1244,7 @@ begin
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ) as event, row_number() over (order by e."xid", e."position") as n
@@ -1344,7 +1344,7 @@ begin
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ), c."attempts", c."last_error"
@@ -1414,7 +1414,7 @@ as $$
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ) as event, e."position" as position
@@ -1552,7 +1552,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:7bd44287605f0d87733e912bdbbcc215d86dd118a033e7e472441ebdc3a9f5aa
+-- @bsb-hash sha256:571499a6d7bea8f48a741a2dcf6a8dc3fcc43f12f0f1ff3198d18c80bc322372
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1563,14 +1563,14 @@ create table "better_supabase"."outbox_events" (
   "type" text not null,
   "source" text,
   "subject" text,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "key" text,
   "payload" jsonb not null default '{}',
   "actor_id" uuid,
   "created_at" timestamptz not null default now(),
   "xid" xid8 not null default pg_current_xact_id()
 );
-create unique index outbox_events_key_idx on "better_supabase"."outbox_events" ("key", "organization_id") nulls not distinct where "key" is not null;
+create unique index outbox_events_key_idx on "better_supabase"."outbox_events" ("key", "tenant_id") nulls not distinct where "key" is not null;
 create index outbox_events_subject_idx on "better_supabase"."outbox_events" ("subject", "position");
 create index outbox_events_type_idx on "better_supabase"."outbox_events" ("type", "position");
 create index outbox_events_created_idx on "better_supabase"."outbox_events" ("created_at");
@@ -1661,19 +1661,19 @@ begin
   end if;
   if key is not null then
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
-    where e."key" = key and e."organization_id" is not distinct from tenant::uuid;
+    where e."key" = key and e."tenant_id" is not distinct from tenant::uuid;
     if found_id is not null then
       return found_id;
     end if;
   end if;
-  insert into "better_supabase"."outbox_events" ("type", "payload", "source", "subject", "organization_id", "key", "actor_id")
+  insert into "better_supabase"."outbox_events" ("type", "payload", "source", "subject", "tenant_id", "key", "actor_id")
   values (event_type, coalesce(payload, '{}'), source, coalesce(subject, payload ->> 'subject'), tenant::uuid, key, auth.uid())
   on conflict do nothing
   returning "id"::text into found_id;
   if found_id is null then
     -- Another transaction emitted the same key first.
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
-    where e."key" = key and e."organization_id" is not distinct from tenant::uuid;
+    where e."key" = key and e."tenant_id" is not distinct from tenant::uuid;
   end if;
   return found_id;
 end;
@@ -1758,7 +1758,7 @@ begin
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ) as event, row_number() over (order by e."xid", e."position") as n
@@ -1858,7 +1858,7 @@ begin
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ), c."attempts", c."last_error"
@@ -1928,7 +1928,7 @@ as $$
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ) as event, e."position" as position
@@ -2153,7 +2153,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_023_outbox.sql
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:b59f030f1e6216b098f9bc14225a51b5bfc87a7f3ee0a7ad56c124aa3c3dc61a
+-- @bsb-hash sha256:c1c081ada8ac94d5e04cbca25861c297f0d866da13344087737dadbd28ad743e
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2236,19 +2236,19 @@ begin
   end if;
   if key is not null then
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
-    where e."key" = key and e."organization_id" is not distinct from tenant::uuid;
+    where e."key" = key and e."tenant_id" is not distinct from tenant::uuid;
     if found_id is not null then
       return found_id;
     end if;
   end if;
-  insert into "better_supabase"."outbox_events" ("type", "payload", "source", "subject", "organization_id", "key", "actor_id")
+  insert into "better_supabase"."outbox_events" ("type", "payload", "source", "subject", "tenant_id", "key", "actor_id")
   values (event_type, coalesce(payload, '{}'), source, coalesce(subject, payload ->> 'subject'), tenant::uuid, key, auth.uid())
   on conflict do nothing
   returning "id"::text into found_id;
   if found_id is null then
     -- Another transaction emitted the same key first.
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
-    where e."key" = key and e."organization_id" is not distinct from tenant::uuid;
+    where e."key" = key and e."tenant_id" is not distinct from tenant::uuid;
   end if;
   return found_id;
 end;
@@ -2333,7 +2333,7 @@ begin
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ) as event, row_number() over (order by e."xid", e."position") as n
@@ -2433,7 +2433,7 @@ begin
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ), c."attempts", c."last_error"
@@ -2503,7 +2503,7 @@ as $$
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ) as event, e."position" as position

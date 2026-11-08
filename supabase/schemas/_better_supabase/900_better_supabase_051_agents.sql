@@ -1,6 +1,6 @@
 -- better-supabase module: agents
 -- @bsb-block agents@2 managed
--- @bsb-hash sha256:96449380d675b537f6048257e7700ee3270fc7457eb1953e9bb57ebbd6c00565
+-- @bsb-hash sha256:762418e55ad10ab479d387d3d75151565d0eae9ee4ce4b294a3ee53238ebe576
 -- Custom assistants with instructions, a model, tools, connectors, knowledge scopes and starters; private until published to the organization or the public store, with installs, ratings and provider skills.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,7 +10,7 @@
 -- member with 'agents.publish' publishes it to the organization or the public store.
 create table "better_supabase"."agents" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "owner_id" uuid references auth.users (id) on delete set null,
   "slug" text not null constraint bsb_agents_slug_check check ("slug" ~ '^[a-z0-9]+(-[a-z0-9]+)*$' and length("slug") <= 64),
   "name" text not null constraint bsb_agents_name_check check (length("name") >= 1 and length("name") <= 200),
@@ -28,7 +28,7 @@ create table "better_supabase"."agents" (
   "rating_sum" integer not null default 0,
   "created_at" timestamptz not null default now(),
   "updated_at" timestamptz not null default now(),
-  unique ("organization_id", "slug")
+  unique ("tenant_id", "slug")
 );
 create index agents_owner_idx on "better_supabase"."agents" ("owner_id");
 create index agents_published_idx on "better_supabase"."agents" ("visibility", "published_at") where "published_at" is not null;
@@ -38,16 +38,16 @@ grant select on "better_supabase"."agents" to authenticated;
 grant all on "better_supabase"."agents" to service_role;
 create policy bsb_agents_read on "better_supabase"."agents"
   for select to authenticated
-  using (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))));
+  using (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."tenant_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "better_supabase"."agents"."tenant_id" in (select better_supabase.tenant_ids_with('agents.moderate'))));
 
 create table "better_supabase"."agent_installs" (
   "agent_id" uuid not null references "better_supabase"."agents" ("id") on delete cascade,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "installed_at" timestamptz not null default now(),
-  primary key ("agent_id", "user_id", "organization_id")
+  primary key ("agent_id", "user_id", "tenant_id")
 );
-create index agent_installs_user_idx on "better_supabase"."agent_installs" ("user_id", "organization_id");
+create index agent_installs_user_idx on "better_supabase"."agent_installs" ("user_id", "tenant_id");
 alter table "better_supabase"."agent_installs" enable row level security;
 revoke all on "better_supabase"."agent_installs" from public, anon, authenticated;
 grant select on "better_supabase"."agent_installs" to authenticated;
@@ -122,12 +122,12 @@ begin
     if save_agent.fields ->> 'slug' is null or save_agent.fields ->> 'name' is null then
       raise exception 'a new agent needs a slug and a name' using errcode = '22023', hint = 'AGENT_INVALID';
     end if;
-    insert into "better_supabase"."agents" ("organization_id", "owner_id", "slug", "name")
+    insert into "better_supabase"."agents" ("tenant_id", "owner_id", "slug", "name")
     values (save_agent.tenant, auth.uid(), save_agent.fields ->> 'slug', save_agent.fields ->> 'name')
     returning * into v_row;
   else
-    select * into v_row from "better_supabase"."agents" x where x."id" = save_agent.id and x."organization_id" = save_agent.tenant for update;
-    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
+    select * into v_row from "better_supabase"."agents" x where x."id" = save_agent.id and x."tenant_id" = save_agent.tenant for update;
+    if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
       raise exception 'agent % not found', save_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
     end if;
   end if;
@@ -147,29 +147,29 @@ begin
   where x."id" = v_row."id"
   returning * into v_row;
   if save_agent.id is null then
-    perform "better_supabase".emit_event('agent.created', jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."organization_id"::text || '/agents/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/agents');
+    perform "better_supabase".emit_event('agent.created', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."tenant_id"::text || '/agents/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/agents');
   perform better_supabase.audit_event(
     event_type => 'agent.created',
     category => 'ai',
     target_type => 'agent',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug")
   );
   else
-    perform "better_supabase".emit_event('agent.updated', jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."organization_id"::text || '/agents/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/agents');
+    perform "better_supabase".emit_event('agent.updated', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."tenant_id"::text || '/agents/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/agents');
   perform better_supabase.audit_event(
     event_type => 'agent.updated',
     category => 'ai',
     target_type => 'agent',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug")
   );
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 exception
   when unique_violation then
     raise exception 'an agent with slug % exists', save_agent.fields ->> 'slug' using errcode = '23505', hint = 'AGENT_SLUG_TAKEN';
@@ -196,11 +196,11 @@ begin
     raise exception 'visibility is private, organization or public' using errcode = '22023', hint = 'AGENT_INVALID';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = publish_agent.id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', publish_agent.id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)
-    or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.publish'), false))) then
+  if publish_agent.visibility <> 'private' and not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)
+    or (coalesce(v_row."owner_id" = auth.uid(), false) and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.publish'), false))) then
     raise exception 'you may not publish agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   update "better_supabase"."agents" x set
@@ -209,17 +209,17 @@ begin
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  perform "better_supabase".emit_event('agent.published', jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug", 'visibility', publish_agent.visibility), 'organizations/' || v_row."organization_id"::text || '/agents/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/agents');
+  perform "better_supabase".emit_event('agent.published', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug", 'visibility', publish_agent.visibility), 'organizations/' || v_row."tenant_id"::text || '/agents/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/agents');
   perform better_supabase.audit_event(
     event_type => 'agent.published',
     category => 'ai',
     target_type => 'agent',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug", 'visibility', publish_agent.visibility)
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug", 'visibility', publish_agent.visibility)
   );
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."publish_agent"(uuid, text) from public, anon;
@@ -238,19 +238,19 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = delete_agent.id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     return false;
   end if;
   delete from "better_supabase"."agents" x where x."id" = v_row."id";
-  perform "better_supabase".emit_event('agent.deleted', jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."organization_id"::text || '/agents/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/agents');
+  perform "better_supabase".emit_event('agent.deleted', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug"), 'organizations/' || v_row."tenant_id"::text || '/agents/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/agents');
   perform better_supabase.audit_event(
     event_type => 'agent.deleted',
     category => 'ai',
     target_type => 'agent',
     record_id => v_row."id"::text,
     target_label => v_row."name",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'agentId', v_row."id", 'slug', v_row."slug")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'agentId', v_row."id", 'slug', v_row."slug")
   );
   return true;
 end;
@@ -271,11 +271,11 @@ declare
 begin
   select * into v_row from "better_supabase"."agents" x
   where (get_agent.id is not null and x."id" = get_agent.id)
-    or (get_agent.id is null and x."organization_id" = get_agent.tenant and x."slug" = get_agent.slug);
+    or (get_agent.id is null and x."tenant_id" = get_agent.tenant and x."slug" = get_agent.slug);
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object(
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object(
     'skills', coalesce((select jsonb_agg(jsonb_build_object('id', k."id", 'provider', k."provider", 'reference', k."reference", 'name', k."name", 'files', k."files", 'content_hash', k."content_hash", 'latest_version', k."latest_version", 'provider_refs', k."provider_refs") order by k."created_at") from "better_supabase"."agent_skills" k where k."agent_id" = v_row."id"), '[]'),
     'installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = v_row."id" and n."user_id" = auth.uid()),
     'my_rating', (select g."rating" from "better_supabase"."agent_ratings" g where g."agent_id" = v_row."id" and g."user_id" = auth.uid())
@@ -296,13 +296,13 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(y.row order by y.at desc), '[]')
   from (
-    select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."organization_id" = list_agents.tenant)) as row,
+    select jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'slug', x."slug", 'name', x."name", 'description', x."description", 'instructions', x."instructions", 'model', x."model", 'tools', x."tools", 'connector_ids', x."connector_ids", 'knowledge_scope', x."knowledge_scope", 'starters', x."starters", 'visibility', x."visibility", 'published_at', x."published_at", 'install_count', x."install_count", 'rating_count', x."rating_count", 'rating_sum', x."rating_sum", 'created_at', x."created_at", 'updated_at', x."updated_at") || jsonb_build_object('installed', exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)) as row,
       coalesce(x."published_at", x."updated_at") as at
     from "better_supabase"."agents" x
     where case list_agents.filter
-        when 'mine' then x."owner_id" = auth.uid() and x."organization_id" = list_agents.tenant
-        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."organization_id" = list_agents.tenant)
-        else x."published_at" is not null and (x."visibility" = 'public' or x."organization_id" = list_agents.tenant)
+        when 'mine' then x."owner_id" = auth.uid() and x."tenant_id" = list_agents.tenant
+        when 'installed' then exists (select 1 from "better_supabase"."agent_installs" n where n."agent_id" = x."id" and n."user_id" = auth.uid() and n."tenant_id" = list_agents.tenant)
+        else x."published_at" is not null and (x."visibility" = 'public' or x."tenant_id" = list_agents.tenant)
       end
       and (list_agents.search is null or x."name" ilike '%' || replace(replace(list_agents.search, '%', '\%'), '_', '\_') || '%'
         or x."description" ilike '%' || replace(replace(list_agents.search, '%', '\%'), '_', '\_') || '%')
@@ -330,7 +330,7 @@ begin
     raise exception 'you may not use agents here' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
   if not install_agent.installed then
-    delete from "better_supabase"."agent_installs" n where n."agent_id" = install_agent.agent_id and n."user_id" = auth.uid() and n."organization_id" = install_agent.tenant;
+    delete from "better_supabase"."agent_installs" n where n."agent_id" = install_agent.agent_id and n."user_id" = auth.uid() and n."tenant_id" = install_agent.tenant;
     get diagnostics v_count = row_count;
     update "better_supabase"."agents" x set "install_count" = greatest(x."install_count" - v_count, 0) where x."id" = install_agent.agent_id;
     if v_count > 0 then
@@ -346,10 +346,10 @@ begin
     end if;
     return v_count > 0;
   end if;
-  if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate')))) then
+  if not exists (select 1 from "better_supabase"."agents" x where x."id" = install_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."tenant_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."tenant_id" in (select better_supabase.tenant_ids_with('agents.moderate')))) then
     raise exception 'agent % not found', install_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
-  insert into "better_supabase"."agent_installs" ("agent_id", "user_id", "organization_id") values (install_agent.agent_id, auth.uid(), install_agent.tenant)
+  insert into "better_supabase"."agent_installs" ("agent_id", "user_id", "tenant_id") values (install_agent.agent_id, auth.uid(), install_agent.tenant)
   on conflict do nothing;
   get diagnostics v_count = row_count;
   update "better_supabase"."agents" x set "install_count" = x."install_count" + v_count where x."id" = install_agent.agent_id;
@@ -387,7 +387,7 @@ begin
   if auth.uid() is null then
     raise exception 'sign in to rate agents' using errcode = '42501', hint = 'AGENT_FORBIDDEN';
   end if;
-  select * into v_row from "better_supabase"."agents" x where x."id" = rate_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))) for update;
+  select * into v_row from "better_supabase"."agents" x where x."id" = rate_agent.agent_id and (x."owner_id" = (select auth.uid()) or (x."published_at" is not null and (x."visibility" = 'public' or (x."visibility" = 'organization' and x."tenant_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or x."tenant_id" in (select better_supabase.tenant_ids_with('agents.moderate'))) for update;
   if not found then
     raise exception 'agent % not found', rate_agent.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
@@ -405,7 +405,7 @@ begin
     "rating_sum" = x."rating_sum" - coalesce(v_old, 0) + coalesce(rate_agent.rating, 0)
   where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'slug', v_row."slug", 'name', v_row."name", 'description', v_row."description", 'instructions', v_row."instructions", 'model', v_row."model", 'tools', v_row."tools", 'connector_ids', v_row."connector_ids", 'knowledge_scope', v_row."knowledge_scope", 'starters', v_row."starters", 'visibility', v_row."visibility", 'published_at', v_row."published_at", 'install_count', v_row."install_count", 'rating_count', v_row."rating_count", 'rating_sum', v_row."rating_sum", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."rate_agent"(uuid, integer, text) from public, anon;
@@ -427,7 +427,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."agents" x where x."id" = set_agent_skills.agent_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'agents.moderate'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'agents.moderate'), false)) then
     raise exception 'agent % not found', set_agent_skills.agent_id using errcode = 'P0002', hint = 'AGENT_NOT_FOUND';
   end if;
   if jsonb_typeof(v_items) is distinct from 'array' then
@@ -475,35 +475,35 @@ grant execute on function "better_supabase"."record_skill_sync"(uuid, text, json
 create policy bsb_tenant_scope_select on "better_supabase"."agents" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "better_supabase"."agents"."organization_id" in (select better_supabase.tenant_ids_with('agents.moderate'))))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("better_supabase"."agents"."owner_id" = (select auth.uid()) or ("better_supabase"."agents"."published_at" is not null and ("better_supabase"."agents"."visibility" = 'public' or ("better_supabase"."agents"."visibility" = 'organization' and "better_supabase"."agents"."tenant_id" in (select better_supabase.tenant_ids_with('agents.read'))))) or "better_supabase"."agents"."tenant_id" in (select better_supabase.tenant_ids_with('agents.moderate'))))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."agents" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."agents" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."agents" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."agent_installs" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."agent_installs" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."agent_installs" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."agent_installs" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.agents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"agent","event_prefix":"agent"}');

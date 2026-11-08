@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:ab73716475de793701389722a378cbd1045947147acd9d9b88ad5aabf163ad73
+-- @bsb-hash sha256:d423bdf7e9b8be2d0cb68637acd279601f50f98042fae73894c35d2e3c82205a
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,12 +13,12 @@
 -- them.
 create table "better_supabase"."eval_datasets" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "name" text not null constraint bsb_eval_datasets_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
   "description" text constraint bsb_eval_datasets_description_check check (length("description") <= 2000),
   "created_at" timestamptz not null default now()
 );
-create unique index "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
+create unique index "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("tenant_id"::text, '')), "name");
 alter table "better_supabase"."eval_datasets" enable row level security;
 revoke all on "better_supabase"."eval_datasets" from public, anon, authenticated;
 grant all on "better_supabase"."eval_datasets" to service_role;
@@ -42,7 +42,7 @@ grant all on "better_supabase"."eval_items" to service_role;
 create table "better_supabase"."eval_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "prompt_name" text not null,
   "prompt_version" integer not null constraint bsb_eval_runs_prompt_version_check check ("prompt_version" >= 1),
   "model" text not null,
@@ -84,12 +84,12 @@ as $$
 declare
   v_row "better_supabase"."eval_datasets"%rowtype;
 begin
-  insert into "better_supabase"."eval_datasets" ("organization_id", "name", "description")
+  insert into "better_supabase"."eval_datasets" ("tenant_id", "name", "description")
   values (create_eval_dataset.tenant, create_eval_dataset.name, create_eval_dataset.description)
-  on conflict ((coalesce("organization_id"::text, '')), "name") do update set
+  on conflict ((coalesce("tenant_id"::text, '')), "name") do update set
     "description" = coalesce(excluded."description", "better_supabase"."eval_datasets"."description")
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) from public, anon, authenticated;
@@ -189,10 +189,10 @@ begin
   if not found then
     raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
   end if;
-  insert into "better_supabase"."eval_runs" ("dataset_id", "organization_id", "prompt_name", "prompt_version", "model", "scorers")
-  values (create_eval_run.dataset, v_dataset."organization_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
+  insert into "better_supabase"."eval_runs" ("dataset_id", "tenant_id", "prompt_name", "prompt_version", "model", "scorers")
+  values (create_eval_run.dataset, v_dataset."tenant_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."organization_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_eval_run"(uuid, text, integer, text, jsonb) from public, anon, authenticated;
@@ -295,7 +295,7 @@ begin
       raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
     end if;
   end if;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."organization_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."finish_eval_run"(uuid, text) from public, anon, authenticated;
@@ -316,7 +316,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."organization_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_eval_run"(uuid) from public, anon, authenticated;
@@ -333,7 +333,7 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', p."id", 'dataset_id', p."dataset_id", 'organization_id', p."organization_id", 'prompt_name', p."prompt_name", 'prompt_version', p."prompt_version", 'model', p."model", 'scorers', p."scorers", 'status', p."status", 'summary', p."summary", 'created_at', p."created_at", 'finished_at', p."finished_at") order by p."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', p."id", 'dataset_id', p."dataset_id", 'tenant_id', p."tenant_id", 'prompt_name', p."prompt_name", 'prompt_version', p."prompt_version", 'model', p."model", 'scorers', p."scorers", 'status', p."status", 'summary', p."summary", 'created_at', p."created_at", 'finished_at', p."finished_at") order by p."created_at" desc), '[]'::jsonb)
     from (
       select x.* from "better_supabase"."eval_runs" x where x."dataset_id" = list_eval_runs.dataset
       order by x."created_at" desc limit least(greatest(coalesce(list_eval_runs.max_rows, 100), 1), 1000)
@@ -452,7 +452,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:48c51fdce4c912989ce9c90b33a4c7357254db075b50d9d1a1dafc17f7ea9e65
+-- @bsb-hash sha256:6e3c050736b680d3d91418e79fed77be9574ae9438bfbbfcbe8c5e380894ee51
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -464,12 +464,12 @@ on conflict (name) do update
 -- them.
 create table "better_supabase"."eval_datasets" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "name" text not null constraint bsb_eval_datasets_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
   "description" text constraint bsb_eval_datasets_description_check check (length("description") <= 2000),
   "created_at" timestamptz not null default now()
 );
-create unique index "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
+create unique index "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("tenant_id"::text, '')), "name");
 alter table "better_supabase"."eval_datasets" enable row level security;
 revoke all on "better_supabase"."eval_datasets" from public, anon, authenticated;
 grant all on "better_supabase"."eval_datasets" to service_role;
@@ -493,7 +493,7 @@ grant all on "better_supabase"."eval_items" to service_role;
 create table "better_supabase"."eval_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "prompt_name" text not null,
   "prompt_version" integer not null constraint bsb_eval_runs_prompt_version_check check ("prompt_version" >= 1),
   "model" text not null,
@@ -535,12 +535,12 @@ as $$
 declare
   v_row "better_supabase"."eval_datasets"%rowtype;
 begin
-  insert into "better_supabase"."eval_datasets" ("organization_id", "name", "description")
+  insert into "better_supabase"."eval_datasets" ("tenant_id", "name", "description")
   values (create_eval_dataset.tenant, create_eval_dataset.name, create_eval_dataset.description)
-  on conflict ((coalesce("organization_id"::text, '')), "name") do update set
+  on conflict ((coalesce("tenant_id"::text, '')), "name") do update set
     "description" = coalesce(excluded."description", "better_supabase"."eval_datasets"."description")
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) from public, anon, authenticated;
@@ -613,7 +613,7 @@ begin
     join "better_supabase"."ai_messages" q on q."chat_id" = a."chat_id" and q."id" = a."parent_id"
     join "better_supabase"."ai_chats" ch on ch."id" = fb."chat_id"
     where fb."rating" = add_eval_items_from_feedback.rating
-      and (v_dataset."organization_id" is null or ch."organization_id" = v_dataset."organization_id")
+      and (v_dataset."tenant_id" is null or ch."tenant_id" = v_dataset."tenant_id")
       and (add_eval_items_from_feedback.since is null or fb."updated_at" >= add_eval_items_from_feedback.since)
     order by fb."updated_at" desc
     limit least(greatest(coalesce(add_eval_items_from_feedback.max_rows, 100), 1), 1000)
@@ -681,10 +681,10 @@ begin
   if not found then
     raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
   end if;
-  insert into "better_supabase"."eval_runs" ("dataset_id", "organization_id", "prompt_name", "prompt_version", "model", "scorers")
-  values (create_eval_run.dataset, v_dataset."organization_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
+  insert into "better_supabase"."eval_runs" ("dataset_id", "tenant_id", "prompt_name", "prompt_version", "model", "scorers")
+  values (create_eval_run.dataset, v_dataset."tenant_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."organization_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_eval_run"(uuid, text, integer, text, jsonb) from public, anon, authenticated;
@@ -787,7 +787,7 @@ begin
       raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
     end if;
   end if;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."organization_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."finish_eval_run"(uuid, text) from public, anon, authenticated;
@@ -808,7 +808,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."organization_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_eval_run"(uuid) from public, anon, authenticated;
@@ -825,7 +825,7 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', p."id", 'dataset_id', p."dataset_id", 'organization_id', p."organization_id", 'prompt_name', p."prompt_name", 'prompt_version', p."prompt_version", 'model', p."model", 'scorers', p."scorers", 'status', p."status", 'summary', p."summary", 'created_at', p."created_at", 'finished_at', p."finished_at") order by p."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', p."id", 'dataset_id', p."dataset_id", 'tenant_id', p."tenant_id", 'prompt_name', p."prompt_name", 'prompt_version', p."prompt_version", 'model', p."model", 'scorers', p."scorers", 'status', p."status", 'summary', p."summary", 'created_at', p."created_at", 'finished_at', p."finished_at") order by p."created_at" desc), '[]'::jsonb)
     from (
       select x.* from "better_supabase"."eval_runs" x where x."dataset_id" = list_eval_runs.dataset
       order by x."created_at" desc limit least(greatest(coalesce(list_eval_runs.max_rows, 100), 1), 1000)
@@ -944,7 +944,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:a8a8c10d70bd106499cf280c9792b68b52b984f02e5b00620735fd4d68a97105
+-- @bsb-hash sha256:1a57bb99944de98e29443275c13fe74ba60125c09399a9cc0737396442c1ce34
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -961,12 +961,12 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- them.
 create table "app_private"."eval_datasets" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "name" text not null constraint bsb_eval_datasets_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
   "description" text constraint bsb_eval_datasets_description_check check (length("description") <= 2000),
   "created_at" timestamptz not null default now()
 );
-create unique index "bsb_eval_datasets_key" on "app_private"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
+create unique index "bsb_eval_datasets_key" on "app_private"."eval_datasets" ((coalesce("tenant_id"::text, '')), "name");
 alter table "app_private"."eval_datasets" enable row level security;
 revoke all on "app_private"."eval_datasets" from public, anon, authenticated;
 grant all on "app_private"."eval_datasets" to service_role;
@@ -990,7 +990,7 @@ grant all on "app_private"."eval_items" to service_role;
 create table "app_private"."eval_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "app_private"."eval_datasets" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "prompt_name" text not null,
   "prompt_version" integer not null constraint bsb_eval_runs_prompt_version_check check ("prompt_version" >= 1),
   "model" text not null,
@@ -1032,12 +1032,12 @@ as $$
 declare
   v_row "app_private"."eval_datasets"%rowtype;
 begin
-  insert into "app_private"."eval_datasets" ("organization_id", "name", "description")
+  insert into "app_private"."eval_datasets" ("tenant_id", "name", "description")
   values (create_eval_dataset.tenant, create_eval_dataset.name, create_eval_dataset.description)
-  on conflict ((coalesce("organization_id"::text, '')), "name") do update set
+  on conflict ((coalesce("tenant_id"::text, '')), "name") do update set
     "description" = coalesce(excluded."description", "app_private"."eval_datasets"."description")
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "app_private"."create_eval_dataset"(text, uuid, text) from public, anon, authenticated;
@@ -1137,10 +1137,10 @@ begin
   if not found then
     raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
   end if;
-  insert into "app_private"."eval_runs" ("dataset_id", "organization_id", "prompt_name", "prompt_version", "model", "scorers")
-  values (create_eval_run.dataset, v_dataset."organization_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
+  insert into "app_private"."eval_runs" ("dataset_id", "tenant_id", "prompt_name", "prompt_version", "model", "scorers")
+  values (create_eval_run.dataset, v_dataset."tenant_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."organization_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "app_private"."create_eval_run"(uuid, text, integer, text, jsonb) from public, anon, authenticated;
@@ -1243,7 +1243,7 @@ begin
       raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
     end if;
   end if;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."organization_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "app_private"."finish_eval_run"(uuid, text) from public, anon, authenticated;
@@ -1264,7 +1264,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."organization_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "app_private"."get_eval_run"(uuid) from public, anon, authenticated;
@@ -1281,7 +1281,7 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', p."id", 'dataset_id', p."dataset_id", 'organization_id', p."organization_id", 'prompt_name', p."prompt_name", 'prompt_version', p."prompt_version", 'model', p."model", 'scorers', p."scorers", 'status', p."status", 'summary', p."summary", 'created_at', p."created_at", 'finished_at', p."finished_at") order by p."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', p."id", 'dataset_id', p."dataset_id", 'tenant_id', p."tenant_id", 'prompt_name', p."prompt_name", 'prompt_version', p."prompt_version", 'model', p."model", 'scorers', p."scorers", 'status', p."status", 'summary', p."summary", 'created_at', p."created_at", 'finished_at', p."finished_at") order by p."created_at" desc), '[]'::jsonb)
     from (
       select x.* from "app_private"."eval_runs" x where x."dataset_id" = list_eval_runs.dataset
       order by x."created_at" desc limit least(greatest(coalesce(list_eval_runs.max_rows, 100), 1), 1000)
@@ -1400,7 +1400,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:87433cc957fb310c9c2df10fb60e07bbae646d59f8a0cd2f8f601e9380b50afb
+-- @bsb-hash sha256:e645a3c86c604b8169d333ab1f0ce5c7b31e2e801e07325a8650c721a751b661
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1412,12 +1412,12 @@ on conflict (name) do update
 -- them.
 create table "better_supabase"."eval_datasets" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "name" text not null constraint bsb_eval_datasets_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
   "description" text constraint bsb_eval_datasets_description_check check (length("description") <= 2000),
   "created_at" timestamptz not null default now()
 );
-create unique index "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
+create unique index "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("tenant_id"::text, '')), "name");
 alter table "better_supabase"."eval_datasets" enable row level security;
 revoke all on "better_supabase"."eval_datasets" from public, anon, authenticated;
 grant all on "better_supabase"."eval_datasets" to service_role;
@@ -1441,7 +1441,7 @@ grant all on "better_supabase"."eval_items" to service_role;
 create table "better_supabase"."eval_runs" (
   "id" uuid primary key default gen_random_uuid(),
   "dataset_id" uuid not null references "better_supabase"."eval_datasets" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "prompt_name" text not null,
   "prompt_version" integer not null constraint bsb_eval_runs_prompt_version_check check ("prompt_version" >= 1),
   "model" text not null,
@@ -1483,12 +1483,12 @@ as $$
 declare
   v_row "better_supabase"."eval_datasets"%rowtype;
 begin
-  insert into "better_supabase"."eval_datasets" ("organization_id", "name", "description")
+  insert into "better_supabase"."eval_datasets" ("tenant_id", "name", "description")
   values (create_eval_dataset.tenant, create_eval_dataset.name, create_eval_dataset.description)
-  on conflict ((coalesce("organization_id"::text, '')), "name") do update set
+  on conflict ((coalesce("tenant_id"::text, '')), "name") do update set
     "description" = coalesce(excluded."description", "better_supabase"."eval_datasets"."description")
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) from public, anon, authenticated;
@@ -1588,10 +1588,10 @@ begin
   if not found then
     raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
   end if;
-  insert into "better_supabase"."eval_runs" ("dataset_id", "organization_id", "prompt_name", "prompt_version", "model", "scorers")
-  values (create_eval_run.dataset, v_dataset."organization_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
+  insert into "better_supabase"."eval_runs" ("dataset_id", "tenant_id", "prompt_name", "prompt_version", "model", "scorers")
+  values (create_eval_run.dataset, v_dataset."tenant_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."organization_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_eval_run"(uuid, text, integer, text, jsonb) from public, anon, authenticated;
@@ -1694,7 +1694,7 @@ begin
       raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
     end if;
   end if;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."organization_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."finish_eval_run"(uuid, text) from public, anon, authenticated;
@@ -1715,7 +1715,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."organization_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_eval_run"(uuid) from public, anon, authenticated;
@@ -1732,7 +1732,7 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', p."id", 'dataset_id', p."dataset_id", 'organization_id', p."organization_id", 'prompt_name', p."prompt_name", 'prompt_version', p."prompt_version", 'model', p."model", 'scorers', p."scorers", 'status', p."status", 'summary', p."summary", 'created_at', p."created_at", 'finished_at', p."finished_at") order by p."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', p."id", 'dataset_id', p."dataset_id", 'tenant_id', p."tenant_id", 'prompt_name', p."prompt_name", 'prompt_version', p."prompt_version", 'model', p."model", 'scorers', p."scorers", 'status', p."status", 'summary', p."summary", 'created_at', p."created_at", 'finished_at', p."finished_at") order by p."created_at" desc), '[]'::jsonb)
     from (
       select x.* from "better_supabase"."eval_runs" x where x."dataset_id" = list_eval_runs.dataset
       order by x."created_at" desc limit least(greatest(coalesce(list_eval_runs.max_rows, 100), 1), 1000)
@@ -1969,7 +1969,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:d3fd05cc029e7f0dc5cbc113085962184be72d7fc364d46cc5092a49ceb5bf11
+-- @bsb-hash sha256:fe8926dc7a06036cf4d3d2ebd916bd4c7d6778c1b19edeb9b39ed6dc5869f09a
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1981,11 +1981,11 @@ on conflict (name) do update
 -- them.
 -- better_supabase.eval_datasets is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."eval_datasets" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."eval_datasets" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."eval_datasets" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."eval_datasets" add column if not exists "name" text constraint bsb_eval_datasets_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$');
 alter table "better_supabase"."eval_datasets" add column if not exists "description" text constraint bsb_eval_datasets_description_check check (length("description") <= 2000);
 alter table "better_supabase"."eval_datasets" add column if not exists "created_at" timestamptz not null default now();
-create unique index if not exists "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("organization_id"::text, '')), "name");
+create unique index if not exists "bsb_eval_datasets_key" on "better_supabase"."eval_datasets" ((coalesce("tenant_id"::text, '')), "name");
 alter table "better_supabase"."eval_datasets" enable row level security;
 grant all on "better_supabase"."eval_datasets" to service_role;
 
@@ -2006,7 +2006,7 @@ grant all on "better_supabase"."eval_items" to service_role;
 -- better_supabase.eval_runs is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."eval_runs" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."eval_runs" add column if not exists "dataset_id" uuid references "better_supabase"."eval_datasets" ("id") on delete cascade;
-alter table "better_supabase"."eval_runs" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."eval_runs" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."eval_runs" add column if not exists "prompt_name" text;
 alter table "better_supabase"."eval_runs" add column if not exists "prompt_version" integer constraint bsb_eval_runs_prompt_version_check check ("prompt_version" >= 1);
 alter table "better_supabase"."eval_runs" add column if not exists "model" text;
@@ -2043,12 +2043,12 @@ as $$
 declare
   v_row "better_supabase"."eval_datasets"%rowtype;
 begin
-  insert into "better_supabase"."eval_datasets" ("organization_id", "name", "description")
+  insert into "better_supabase"."eval_datasets" ("tenant_id", "name", "description")
   values (create_eval_dataset.tenant, create_eval_dataset.name, create_eval_dataset.description)
-  on conflict ((coalesce("organization_id"::text, '')), "name") do update set
+  on conflict ((coalesce("tenant_id"::text, '')), "name") do update set
     "description" = coalesce(excluded."description", "better_supabase"."eval_datasets"."description")
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) from public, anon, authenticated;
@@ -2148,10 +2148,10 @@ begin
   if not found then
     raise exception 'No eval dataset %', create_eval_run.dataset using errcode = 'P0002', hint = 'EVAL_DATASET_NOT_FOUND';
   end if;
-  insert into "better_supabase"."eval_runs" ("dataset_id", "organization_id", "prompt_name", "prompt_version", "model", "scorers")
-  values (create_eval_run.dataset, v_dataset."organization_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
+  insert into "better_supabase"."eval_runs" ("dataset_id", "tenant_id", "prompt_name", "prompt_version", "model", "scorers")
+  values (create_eval_run.dataset, v_dataset."tenant_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."organization_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_eval_run"(uuid, text, integer, text, jsonb) from public, anon, authenticated;
@@ -2254,7 +2254,7 @@ begin
       raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
     end if;
   end if;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."organization_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."finish_eval_run"(uuid, text) from public, anon, authenticated;
@@ -2275,7 +2275,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."organization_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."tenant_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_eval_run"(uuid) from public, anon, authenticated;
@@ -2292,7 +2292,7 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', p."id", 'dataset_id', p."dataset_id", 'organization_id', p."organization_id", 'prompt_name', p."prompt_name", 'prompt_version', p."prompt_version", 'model', p."model", 'scorers', p."scorers", 'status', p."status", 'summary', p."summary", 'created_at', p."created_at", 'finished_at', p."finished_at") order by p."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', p."id", 'dataset_id', p."dataset_id", 'tenant_id', p."tenant_id", 'prompt_name', p."prompt_name", 'prompt_version', p."prompt_version", 'model', p."model", 'scorers', p."scorers", 'status', p."status", 'summary', p."summary", 'created_at', p."created_at", 'finished_at', p."finished_at") order by p."created_at" desc), '[]'::jsonb)
     from (
       select x.* from "better_supabase"."eval_runs" x where x."dataset_id" = list_eval_runs.dataset
       order by x."created_at" desc limit least(greatest(coalesce(list_eval_runs.max_rows, 100), 1), 1000)
@@ -2411,7 +2411,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_181_ai_evals.sql
 -- better-supabase module: ai-evals
 -- @bsb-block ai-evals@1 managed
--- @bsb-hash sha256:ff721353d22e191a6e72cadcd669f3816b1d17ca1921fcceaa8bb677d08a27c6
+-- @bsb-hash sha256:4e84f4f971e1970f22d2f068282e06a140f45bb5f15ea1695065701c9deceb47
 -- Evaluation datasets of inputs and expected outputs (imported or taken from rated ai-chat replies), runs against a prompt version and model, a score per scorer and item, and a regression compare between two runs; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2499,7 +2499,7 @@ begin
   on conflict ((coalesce("org_id"::text, '')), "name") do update set
     "description" = coalesce(excluded."description", "better_supabase"."eval_datasets"."description")
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."org_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'name', v_row."name", 'description', v_row."description", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_eval_dataset"(text, uuid, text) from public, anon, authenticated;
@@ -2602,7 +2602,7 @@ begin
   insert into "better_supabase"."eval_runs" ("dataset_id", "org_id", "prompt_name", "prompt_version", "model", "scorers")
   values (create_eval_run.dataset, v_dataset."org_id", create_eval_run.prompt_name, create_eval_run.prompt_version, create_eval_run.model, coalesce(create_eval_run.scorers, '[]'::jsonb))
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."org_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."org_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_eval_run"(uuid, text, integer, text, jsonb) from public, anon, authenticated;
@@ -2705,7 +2705,7 @@ begin
       raise exception 'No eval run %', finish_eval_run.run using errcode = 'P0002', hint = 'EVAL_RUN_NOT_FOUND';
     end if;
   end if;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."org_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."org_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."finish_eval_run"(uuid, text) from public, anon, authenticated;
@@ -2726,7 +2726,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'organization_id', v_row."org_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
+  return jsonb_build_object('id', v_row."id", 'dataset_id', v_row."dataset_id", 'tenant_id', v_row."org_id", 'prompt_name', v_row."prompt_name", 'prompt_version', v_row."prompt_version", 'model', v_row."model", 'scorers', v_row."scorers", 'status', v_row."status", 'summary', v_row."summary", 'created_at', v_row."created_at", 'finished_at', v_row."finished_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_eval_run"(uuid) from public, anon, authenticated;
@@ -2743,7 +2743,7 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', p."id", 'dataset_id', p."dataset_id", 'organization_id', p."org_id", 'prompt_name', p."prompt_name", 'prompt_version', p."prompt_version", 'model', p."model", 'scorers', p."scorers", 'status', p."status", 'summary', p."summary", 'created_at', p."created_at", 'finished_at', p."finished_at") order by p."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', p."id", 'dataset_id', p."dataset_id", 'tenant_id', p."org_id", 'prompt_name', p."prompt_name", 'prompt_version', p."prompt_version", 'model', p."model", 'scorers', p."scorers", 'status', p."status", 'summary', p."summary", 'created_at', p."created_at", 'finished_at', p."finished_at") order by p."created_at" desc), '[]'::jsonb)
     from (
       select x.* from "better_supabase"."eval_runs" x where x."dataset_id" = list_eval_runs.dataset
       order by x."created_at" desc limit least(greatest(coalesce(list_eval_runs.max_rows, 100), 1), 1000)

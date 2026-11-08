@@ -443,7 +443,7 @@ describe.skipIf(!live)("promotions module in Postgres", () => {
     ]);
 
     const events = await session.rows<{ data: Record<string, unknown> }>(
-      "select payload as data from better_supabase.outbox_events where organization_id = $1 and type = 'promotion.redeemed'",
+      "select payload as data from better_supabase.outbox_events where tenant_id = $1 and type = 'promotion.redeemed'",
       [tenant],
     );
 

@@ -56,7 +56,7 @@ describe.skipIf(!live)("file anchors", () => {
       );
 
       const [file, elsewhere] = await s.rows<{ id: string }>(
-        `insert into better_supabase.attachments (organization_id, subject_type, subject_id, name, mime_type, size, status, uploaded_by)
+        `insert into better_supabase.attachments (tenant_id, subject_type, subject_id, name, mime_type, size, status, uploaded_by)
          values ($1, 'doc', $2, 'plan.pdf', 'application/pdf', 10, 'clean', $4),
                 ($1, 'doc', $3, 'other.pdf', 'application/pdf', 10, 'clean', $4)
          returning id`,

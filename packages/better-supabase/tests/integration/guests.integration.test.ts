@@ -139,7 +139,7 @@ describe.skipIf(!live)("guests", () => {
       await s.service();
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and type like 'guest%' order by position",
+        "select type from better_supabase.outbox_events where tenant_id = $1 and type like 'guest%' order by position",
         [tenant],
       );
 

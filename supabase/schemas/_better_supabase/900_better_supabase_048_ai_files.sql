@@ -1,6 +1,6 @@
 -- better-supabase module: ai-files
 -- @bsb-block ai-files@3 managed
--- @bsb-hash sha256:076ce46c51e239a4d8f84958a087e2617d458e3ab1b99055b58ac931e3c759e1
+-- @bsb-hash sha256:ea56259e5b5b8eb29cbe52a02e80a9f02a8eb1b5149257a29f0eab3b3f5c3322
 -- Files and documents for AI chats: a private bucket whose policies only accept an upload a reserved record expects, provider file references with expiry, versioned documents with suggested edits, and a purge that hands back the objects to remove.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,13 +11,13 @@
 -- reserved first, so the storage policies only accept the upload it expects.
 create table "better_supabase"."ai_files" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
   "project_id" uuid,
   "bucket" text not null,
   "filename" text not null constraint bsb_ai_files_filename_check check (length("filename") >= 1 and length("filename") <= 255 and "filename" !~ '[/\\]' and "filename" not in ('.', '..')),
-  "path" text generated always as ("organization_id"::text || '/' || "owner_id"::text || '/' || "id"::text || '/' || "filename") stored,
+  "path" text generated always as ("tenant_id"::text || '/' || "owner_id"::text || '/' || "id"::text || '/' || "filename") stored,
   "media_type" text not null constraint bsb_ai_files_media_type_check check ("media_type" ~ '^[a-z0-9.+-]+/[a-z0-9.+-]+$'),
   "byte_size" bigint not null constraint bsb_ai_files_byte_size_check check ("byte_size" >= 0 and "byte_size" <= 52428800),
   "sha256" text constraint bsb_ai_files_sha256_check check ("sha256" ~ '^[0-9a-f]{64}$'),
@@ -29,7 +29,7 @@ create table "better_supabase"."ai_files" (
 );
 create unique index ai_files_object_idx on "better_supabase"."ai_files" ("bucket", "path");
 create index ai_files_owner_idx on "better_supabase"."ai_files" ("owner_id");
-create index ai_files_tenant_idx on "better_supabase"."ai_files" ("organization_id");
+create index ai_files_tenant_idx on "better_supabase"."ai_files" ("tenant_id");
 create index ai_files_chat_idx on "better_supabase"."ai_files" ("chat_id") where "chat_id" is not null;
 create index ai_files_pending_idx on "better_supabase"."ai_files" ("created_at") where "status" = 'pending';
 alter table "better_supabase"."ai_files" enable row level security;
@@ -38,7 +38,7 @@ grant select on "better_supabase"."ai_files" to authenticated;
 grant all on "better_supabase"."ai_files" to service_role;
 create policy bsb_ai_files_read on "better_supabase"."ai_files"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))));
+  using (("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))));
 
 -- What a provider's file API returned for a file (an OpenAI file id, a
 -- Gemini file URI), so the next call reuses it until it expires.
@@ -60,7 +60,7 @@ grant all on "better_supabase"."ai_provider_files" to service_role;
 -- keeps the newest ones by its keep option.
 create table "better_supabase"."ai_documents" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "owner_id" uuid not null references auth.users (id) on delete cascade,
   "chat_id" uuid,
   "kind" text not null constraint bsb_ai_documents_kind_check check ("kind" in ('text', 'code', 'sheet', 'image', 'spec')),
@@ -70,7 +70,7 @@ create table "better_supabase"."ai_documents" (
   "updated_at" timestamptz not null default now()
 );
 create index ai_documents_owner_idx on "better_supabase"."ai_documents" ("owner_id");
-create index ai_documents_tenant_idx on "better_supabase"."ai_documents" ("organization_id");
+create index ai_documents_tenant_idx on "better_supabase"."ai_documents" ("tenant_id");
 create index ai_documents_chat_idx on "better_supabase"."ai_documents" ("chat_id") where "chat_id" is not null;
 alter table "better_supabase"."ai_documents" enable row level security;
 revoke all on "better_supabase"."ai_documents" from public, anon, authenticated;
@@ -78,7 +78,7 @@ grant select on "better_supabase"."ai_documents" to authenticated;
 grant all on "better_supabase"."ai_documents" to service_role;
 create policy bsb_ai_documents_read on "better_supabase"."ai_documents"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))));
+  using (("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))));
 
 -- A document's versions live in the versions block (subject type
 -- ai_document); they go with the document.
@@ -137,8 +137,8 @@ as $$
     where a."bucket" = ai_file_object_allowed.bucket and a."path" = ai_file_object_allowed.path
       and case ai_file_object_allowed.action
         when 'insert' then a."status" = 'pending' and a."owner_id" = auth.uid()
-        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_files.manage'), false) or (a."chat_id" is not null and "better_supabase"."ai_chat_can_read"(a."chat_id"))
-        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."organization_id", 'ai_files.manage'), false)
+        when 'select' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."tenant_id", 'ai_files.manage'), false) or (a."chat_id" is not null and "better_supabase"."ai_chat_can_read"(a."chat_id"))
+        when 'delete' then a."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', a."tenant_id", 'ai_files.manage'), false)
         else false
       end
   )
@@ -184,10 +184,10 @@ begin
   if byte_size < 0 or byte_size > 52428800 then
     raise exception 'files are limited to % bytes', 52428800 using errcode = '22023', hint = 'AI_FILE_TOO_LARGE';
   end if;
-  insert into "better_supabase"."ai_files" ("organization_id", "owner_id", "chat_id", "project_id", "bucket", "filename", "media_type", "byte_size")
+  insert into "better_supabase"."ai_files" ("tenant_id", "owner_id", "chat_id", "project_id", "bucket", "filename", "media_type", "byte_size")
   values (reserve_ai_file.tenant, auth.uid(), reserve_ai_file.chat_id, reserve_ai_file.project_id, 'ai-files', reserve_ai_file.filename, lower(reserve_ai_file.media_type), reserve_ai_file.byte_size)
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'bucket', v_row."bucket", 'path', v_row."path", 'media_type', v_row."media_type", 'filename', v_row."filename", 'byte_size', v_row."byte_size", 'sha256', v_row."sha256", 'status', v_row."status", 'source', v_row."source", 'created_at', v_row."created_at", 'uploaded_at', v_row."uploaded_at", 'expires_at', v_row."expires_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'bucket', v_row."bucket", 'path', v_row."path", 'media_type', v_row."media_type", 'filename', v_row."filename", 'byte_size', v_row."byte_size", 'sha256', v_row."sha256", 'status', v_row."status", 'source', v_row."source", 'created_at', v_row."created_at", 'uploaded_at', v_row."uploaded_at", 'expires_at', v_row."expires_at");
 end;
 $$;
 revoke execute on function "better_supabase"."reserve_ai_file"(uuid, text, text, bigint, uuid, uuid) from public, anon;
@@ -212,7 +212,7 @@ begin
     raise exception 'file % not found', file_id using errcode = 'P0002', hint = 'AI_FILE_NOT_FOUND';
   end if;
   if v_row."status" <> 'pending' then
-    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'bucket', v_row."bucket", 'path', v_row."path", 'media_type', v_row."media_type", 'filename', v_row."filename", 'byte_size', v_row."byte_size", 'sha256', v_row."sha256", 'status', v_row."status", 'source', v_row."source", 'created_at', v_row."created_at", 'uploaded_at', v_row."uploaded_at", 'expires_at', v_row."expires_at");
+    return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'bucket', v_row."bucket", 'path', v_row."path", 'media_type', v_row."media_type", 'filename', v_row."filename", 'byte_size', v_row."byte_size", 'sha256', v_row."sha256", 'status', v_row."status", 'source', v_row."source", 'created_at', v_row."created_at", 'uploaded_at', v_row."uploaded_at", 'expires_at', v_row."expires_at");
   end if;
   select (o.metadata ->> 'size')::bigint into v_size
   from storage.objects o where o.bucket_id = v_row."bucket" and o.name = v_row."path";
@@ -226,7 +226,7 @@ begin
     "sha256" = coalesce(lower(confirm_ai_file.sha256), x."sha256")
   where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'bucket', v_row."bucket", 'path', v_row."path", 'media_type', v_row."media_type", 'filename', v_row."filename", 'byte_size', v_row."byte_size", 'sha256', v_row."sha256", 'status', v_row."status", 'source', v_row."source", 'created_at', v_row."created_at", 'uploaded_at', v_row."uploaded_at", 'expires_at', v_row."expires_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'bucket', v_row."bucket", 'path', v_row."path", 'media_type', v_row."media_type", 'filename', v_row."filename", 'byte_size', v_row."byte_size", 'sha256', v_row."sha256", 'status', v_row."status", 'source', v_row."source", 'created_at', v_row."created_at", 'uploaded_at', v_row."uploaded_at", 'expires_at', v_row."expires_at");
 end;
 $$;
 revoke execute on function "better_supabase"."confirm_ai_file"(uuid, text) from public, anon;
@@ -240,7 +240,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") from "better_supabase"."ai_files" x where x."id" = get_ai_file.file_id
+  select jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") from "better_supabase"."ai_files" x where x."id" = get_ai_file.file_id
 $$;
 revoke execute on function "better_supabase"."get_ai_file"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_ai_file"(uuid) to authenticated, service_role;
@@ -252,7 +252,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") from "better_supabase"."ai_files" x
+  select jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") from "better_supabase"."ai_files" x
   where x."bucket" = get_ai_file_by_path.bucket and x."path" = get_ai_file_by_path.path
 $$;
 revoke execute on function "better_supabase"."get_ai_file_by_path"(text, text) from public, anon;
@@ -266,7 +266,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") order by x."created_at"), '[]'::jsonb)
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."tenant_id", 'owner_id', x."owner_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'bucket', x."bucket", 'path', x."path", 'media_type', x."media_type", 'filename', x."filename", 'byte_size', x."byte_size", 'sha256', x."sha256", 'status', x."status", 'source', x."source", 'created_at', x."created_at", 'uploaded_at', x."uploaded_at", 'expires_at', x."expires_at") order by x."created_at"), '[]'::jsonb)
   from "better_supabase"."ai_files" x where x."chat_id" = list_ai_files.chat_id
 $$;
 revoke execute on function "better_supabase"."list_ai_files"(uuid) from public, anon;
@@ -287,7 +287,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_files" x where x."id" = delete_ai_file.file_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_files.manage'), false)) then
     return null;
   end if;
   delete from "better_supabase"."ai_files" x where x."id" = v_row."id";
@@ -317,10 +317,10 @@ as $$
 declare
   v_row "better_supabase"."ai_files"%rowtype;
 begin
-  insert into "better_supabase"."ai_files" ("organization_id", "owner_id", "chat_id", "bucket", "filename", "media_type", "byte_size", "status", "source", "sha256", "uploaded_at")
+  insert into "better_supabase"."ai_files" ("tenant_id", "owner_id", "chat_id", "bucket", "filename", "media_type", "byte_size", "status", "source", "sha256", "uploaded_at")
   values (store_ai_file.tenant, store_ai_file.owner, store_ai_file.chat_id, 'ai-files', store_ai_file.filename, lower(store_ai_file.media_type), store_ai_file.byte_size, 'ready', coalesce(store_ai_file.source, 'generated'), lower(store_ai_file.sha256), now())
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'bucket', v_row."bucket", 'path', v_row."path", 'media_type', v_row."media_type", 'filename', v_row."filename", 'byte_size', v_row."byte_size", 'sha256', v_row."sha256", 'status', v_row."status", 'source', v_row."source", 'created_at', v_row."created_at", 'uploaded_at', v_row."uploaded_at", 'expires_at', v_row."expires_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'bucket', v_row."bucket", 'path', v_row."path", 'media_type', v_row."media_type", 'filename', v_row."filename", 'byte_size', v_row."byte_size", 'sha256', v_row."sha256", 'status', v_row."status", 'source', v_row."source", 'created_at', v_row."created_at", 'uploaded_at', v_row."uploaded_at", 'expires_at', v_row."expires_at");
 end;
 $$;
 revoke execute on function "better_supabase"."store_ai_file"(uuid, uuid, text, text, bigint, uuid, text, text) from public, anon, authenticated;
@@ -430,14 +430,14 @@ begin
   if v_owner is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', create_ai_document.tenant, 'ai_files.upload'), false)) then
     raise exception 'you may not create documents here' using errcode = '42501', hint = 'AI_DOCUMENT_FORBIDDEN';
   end if;
-  insert into "better_supabase"."ai_documents" ("organization_id", "owner_id", "chat_id", "kind", "title")
+  insert into "better_supabase"."ai_documents" ("tenant_id", "owner_id", "chat_id", "kind", "title")
   values (create_ai_document.tenant, v_owner, create_ai_document.chat_id, create_ai_document.kind, create_ai_document.title)
   returning * into v_row;
-  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', create_ai_document.content, 'messageId', create_ai_document.message_id), create_ai_document.storage_path, null, 'manual', false, v_owner);
+  v_version := "better_supabase"."version_insert"(v_row."tenant_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', create_ai_document.content, 'messageId', create_ai_document.message_id), create_ai_document.storage_path, null, 'manual', false, v_owner);
   update "better_supabase"."ai_documents" x set "current_version" = (v_version ->> 'number')::integer
   where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_ai_document"(uuid, text, text, text, uuid, text, uuid, text) from public, anon;
@@ -466,20 +466,20 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = update_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   if expected_version is not null and expected_version <> v_row."current_version" then
     raise exception 'document % is at version %', document_id, v_row."current_version" using errcode = '40001', hint = 'AI_DOCUMENT_CONFLICT';
   end if;
-  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', update_ai_document.content, 'messageId', update_ai_document.message_id), update_ai_document.storage_path, null, 'manual', false, auth.uid());
+  v_version := "better_supabase"."version_insert"(v_row."tenant_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', update_ai_document.content, 'messageId', update_ai_document.message_id), update_ai_document.storage_path, null, 'manual', false, auth.uid());
   update "better_supabase"."ai_documents" x set
     "current_version" = (v_version ->> 'number')::integer,
     "title" = coalesce(update_ai_document.title, x."title"),
     "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."update_ai_document"(uuid, text, text, text, integer, text) from public, anon;
@@ -502,7 +502,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = rollback_ai_document.document_id for update;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_files.manage'), false)) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   select x."content", x."storage_path" into v_content, v_storage_path
@@ -510,11 +510,11 @@ begin
   if not found then
     raise exception 'document % has no version %', document_id, rollback_ai_document.version using errcode = 'P0002', hint = 'AI_DOCUMENT_VERSION_NOT_FOUND';
   end if;
-  v_version := "better_supabase"."version_insert"(v_row."organization_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', v_content ->> 'text', 'messageId', null::text), v_storage_path, null, 'restore', false, auth.uid());
+  v_version := "better_supabase"."version_insert"(v_row."tenant_id", 'ai_document', v_row."id"::text, jsonb_build_object('text', v_content ->> 'text', 'messageId', null::text), v_storage_path, null, 'restore', false, auth.uid());
   update "better_supabase"."ai_documents" x set "current_version" = (v_version ->> 'number')::integer, "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."rollback_ai_document"(uuid, integer) from public, anon;
@@ -534,12 +534,12 @@ declare
   v_storage_path text;
 begin
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = get_ai_document.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false) or (v_row."chat_id" is not null and "better_supabase"."ai_chat_can_read"(v_row."chat_id")))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_files.manage'), false) or (v_row."chat_id" is not null and "better_supabase"."ai_chat_can_read"(v_row."chat_id")))) then
     return null;
   end if;
   select x."content", x."storage_path" into v_content, v_storage_path
   from "better_supabase"."versions" x where x."subject_type" = 'ai_document' and x."subject_id" = v_row."id"::text and x."number" = v_row."current_version";
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('content', v_content ->> 'text', 'storage_path', v_storage_path);
+  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'chat_id', v_row."chat_id", 'kind', v_row."kind", 'title', v_row."title", 'current_version', v_row."current_version", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at") || jsonb_build_object('content', v_content ->> 'text', 'storage_path', v_storage_path);
 end;
 $$;
 revoke execute on function "better_supabase"."get_ai_document"(uuid) from public, anon;
@@ -558,7 +558,7 @@ declare
   v_versions jsonb;
 begin
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = list_ai_document_versions.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false) or (v_row."chat_id" is not null and "better_supabase"."ai_chat_can_read"(v_row."chat_id")))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_row."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_files.manage'), false) or (v_row."chat_id" is not null and "better_supabase"."ai_chat_can_read"(v_row."chat_id")))) then
     return '[]'::jsonb;
   end if;
   select coalesce(jsonb_agg(jsonb_build_object('document_id', x."subject_id"::uuid, 'version', x."number", 'content', x."content" ->> 'text', 'storage_path', x."storage_path", 'created_by_message_id', x."content" ->> 'messageId', 'created_by', x."created_by", 'created_at', x."created_at") order by x."number" desc), '[]'::jsonb) into v_versions
@@ -585,7 +585,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_doc from "better_supabase"."ai_documents" x where x."id" = suggest_ai_document_edit.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_files.manage'), false) or (v_doc."chat_id" is not null and "better_supabase"."ai_chat_can_read"(v_doc."chat_id")))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or (v_doc."owner_id" = (select auth.uid()) or coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ai_files.manage'), false) or (v_doc."chat_id" is not null and "better_supabase"."ai_chat_can_read"(v_doc."chat_id")))) then
     raise exception 'document % not found', document_id using errcode = 'P0002', hint = 'AI_DOCUMENT_NOT_FOUND';
   end if;
   insert into "better_supabase"."ai_suggestions" ("document_id", "version", "original_text", "suggested_text", "description", "created_by")
@@ -631,7 +631,7 @@ begin
   if found then
     select * into v_doc from "better_supabase"."ai_documents" x where x."id" = v_row."document_id";
   end if;
-  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_doc."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_doc."organization_id", 'ai_files.manage'), false)) then
+  if v_doc."id" is null or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_doc."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_doc."tenant_id", 'ai_files.manage'), false)) then
     raise exception 'suggestion % not found', suggestion_id using errcode = 'P0002', hint = 'AI_SUGGESTION_NOT_FOUND';
   end if;
   update "better_supabase"."ai_suggestions" x set "resolved_at" = now(), "accepted" = resolve_ai_suggestion.accepted
@@ -658,7 +658,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."ai_documents" x where x."id" = delete_ai_document.document_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."organization_id", 'ai_files.manage'), false)) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'ai_files.manage'), false)) then
     return false;
   end if;
   delete from "better_supabase"."ai_documents" x where x."id" = v_row."id";
@@ -674,35 +674,35 @@ grant execute on function "better_supabase"."delete_ai_document"(uuid) to authen
 create policy bsb_tenant_scope_select on "better_supabase"."ai_files" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_files" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_files" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_files" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."ai_documents" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or (("owner_id" = (select auth.uid()) or "organization_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or (("owner_id" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('ai_files.manage')) or ("chat_id" is not null and "better_supabase"."ai_chat_can_read"("chat_id"))))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."ai_documents" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."ai_documents" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."ai_documents" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.ai_documents deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"ai_document","event_prefix":"ai_document"}');

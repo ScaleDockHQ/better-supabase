@@ -97,8 +97,8 @@ describe.skipIf(!live)("activity", () => {
         payload: Record<string, unknown>;
         tenant: string;
       }>(
-        `select type, payload, organization_id::text as tenant from better_supabase.outbox_events
-         where organization_id = $1 and type like 'message.%' order by position`,
+        `select type, payload, tenant_id::text as tenant from better_supabase.outbox_events
+         where tenant_id = $1 and type like 'message.%' order by position`,
         [organization],
       );
 
@@ -134,7 +134,7 @@ describe.skipIf(!live)("activity", () => {
         subject_id: string;
       }>(
         `select type, actor_id, subject_type, subject_id from better_supabase.timeline_entries
-         where organization_id = $1 order by event_id`,
+         where tenant_id = $1 order by event_id`,
         [organization],
       );
 
@@ -374,13 +374,13 @@ describe.skipIf(!live)("activity", () => {
       for (const deal of [open!.id, mine!.id]) {
         await s.rows(
           `with ev as (
-             insert into better_supabase.notification_events (organization_id, type, subject_type, subject_id, summary)
+             insert into better_supabase.notification_events (tenant_id, type, subject_type, subject_id, summary)
              values ($1, 'deal.won', 'deal', $2, 'Deal won') returning id
            ), rc as (
-             insert into better_supabase.notification_recipients (event_id, organization_id, user_id)
+             insert into better_supabase.notification_recipients (event_id, tenant_id, user_id)
              select ev.id, $1, $3 from ev returning id
            )
-           insert into better_supabase.notification_deliveries (recipient_id, organization_id, channel, status, created_at)
+           insert into better_supabase.notification_deliveries (recipient_id, tenant_id, channel, status, created_at)
            select rc.id, $1, 'email', 'sent', '2026-10-06T11:00:00Z' from rc`,
           [organization, deal, owner.id],
         );

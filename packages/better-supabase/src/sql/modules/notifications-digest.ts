@@ -15,7 +15,7 @@ export const DIGEST_TABLE = {
   columns: {
     id: "id",
     user: "user_id",
-    tenant: "organization_id",
+    tenant: "tenant_id",
     channel: "channel",
     cadence: "cadence",
     items: "items",

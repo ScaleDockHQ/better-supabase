@@ -1,6 +1,6 @@
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:75649f5200f785051c77b52c345fb7e6d9310fb453208c880f45ae7635cf0ffb
+-- @bsb-hash sha256:890d79717c0acecf614cded5e85e31c744b0df1921b6b3f3fd6727342856ed0c
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -137,7 +137,7 @@ create index if not exists notification_deliveries_provider_message_idx on "cent
 create table "better_supabase"."notification_delivery_events" (
   "id" uuid primary key default gen_random_uuid(),
   "delivery_id" uuid not null references "centrakit"."notification_deliveries" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "kind" text not null constraint bsb_notification_delivery_events_kind_check check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
   "provider" text,
   "provider_event_id" text unique,
@@ -164,7 +164,7 @@ create policy bsb_notification_delivery_events_read on "better_supabase"."notifi
 create table "better_supabase"."notification_digests" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "channel" text not null,
   "cadence" text not null constraint bsb_notification_digests_cadence_check check ("cadence" in ('daily', 'weekly')),
   "items" jsonb not null,
@@ -1043,7 +1043,7 @@ begin
     if cardinality(v_ids) = 0 then
       continue;
     end if;
-    insert into "better_supabase"."notification_digests" ("user_id", "organization_id", "channel", "cadence", "items", "item_count")
+    insert into "better_supabase"."notification_digests" ("user_id", "tenant_id", "channel", "cadence", "items", "item_count")
     select v_group.member, v_group.tenant, v_group.channel, v_group.cadence,
       coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."metadata", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_user_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
     from "centrakit"."notification_deliveries" d
@@ -1093,7 +1093,7 @@ begin
     'email', u.email,
     'channel', l."channel",
     'cadence', l."cadence",
-    'tenant', l."organization_id",
+    'tenant', l."tenant_id",
     'item_count', l."item_count",
     'items', l."items"
   )), '[]') into claimed
@@ -1258,7 +1258,7 @@ begin
   if v_delivery is null then
     return null;
   end if;
-  insert into "better_supabase"."notification_delivery_events" ("delivery_id", "organization_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
+  insert into "better_supabase"."notification_delivery_events" ("delivery_id", "tenant_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
   values (v_delivery, v_tenant, v_kind, record_delivery_event.provider, nullif(record_delivery_event.provider_event_id, ''), v_at, coalesce(record_delivery_event.detail, '{}'))
   on conflict ("provider_event_id") do nothing
   returning "id" into v_row;
@@ -1471,7 +1471,7 @@ create policy bsb_tenant_scope_delete on "centrakit"."notification_deliveries" a
 create policy bsb_tenant_scope_select on "better_supabase"."notification_delivery_events" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "centrakit"."notification_deliveries" d
     join "centrakit"."notification_recipients" r on r."id" = d."recipient_id"
@@ -1481,14 +1481,14 @@ create policy bsb_tenant_scope_select on "better_supabase"."notification_deliver
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_delivery_events" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_delivery_events" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_delivery_events" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "centrakit"."notification_subscriptions" as restrictive
   for select to public
   using (

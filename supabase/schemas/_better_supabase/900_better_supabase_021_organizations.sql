@@ -1,6 +1,6 @@
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:584549fc57a3bb18e472ffcdb9d1437593263b5b889b5cdfb4940e716ebb7138
+-- @bsb-hash sha256:fc49c189f50f665e1fb8ccf735d23212acbf7fea84727f6ba4e26d3f80e8ad77
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -594,7 +594,7 @@ begin
   return query
   select i."id", i."email", i."role"::text, i."expires_at"
   from "better_supabase"."invitations" i
-  where i."organization_id" = organization and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null and i."expires_at" >= now()
+  where i."tenant_id" = organization and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null and i."expires_at" >= now()
   order by i."expires_at" desc;
 end;
 $$;

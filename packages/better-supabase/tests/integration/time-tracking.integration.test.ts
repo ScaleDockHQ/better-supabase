@@ -313,7 +313,7 @@ describe.skipIf(!live)("time-tracking", () => {
       await time.remove(entry.id).orThrow();
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and (type like 'time_entry.%' or type like 'timesheet.%') order by position",
+        "select type from better_supabase.outbox_events where tenant_id = $1 and (type like 'time_entry.%' or type like 'timesheet.%') order by position",
         [tenant],
       );
 
@@ -381,7 +381,7 @@ describe.skipIf(!live)("time-tracking", () => {
           payload: unknown;
           created_at: Date;
         }>(
-          "select type, payload, created_at from better_supabase.outbox_events where organization_id = $1 and type like 'time_entry.%' order by position offset $2",
+          "select type, payload, created_at from better_supabase.outbox_events where tenant_id = $1 and type like 'time_entry.%' order by position offset $2",
           [tenant, relayed],
         );
 

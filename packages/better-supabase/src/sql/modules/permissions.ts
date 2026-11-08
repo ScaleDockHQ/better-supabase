@@ -1105,7 +1105,7 @@ export const ACCESS: BlockSqlDefinition = {
         app: {},
         lifecycle: { tenant: "tenant" },
         columns: {
-          tenant: "organization_id",
+          tenant: "tenant_id",
           role: "role_id",
           permission: "permission_id",
           granted: "granted",

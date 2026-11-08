@@ -36,7 +36,7 @@ describe("invitations module", () => {
       'alter table "better_supabase"."invitations" add column "declined_at" timestamptz;',
     );
     expect(sql).toContain(
-      'alter table "better_supabase"."invitations" alter column "organization_id" set not null;',
+      'alter table "better_supabase"."invitations" alter column "tenant_id" set not null;',
     );
     expect(sql).not.toContain('"prefill" jsonb');
     expect(sql).not.toContain("platform_invitations");
@@ -67,7 +67,7 @@ describe("invitations module", () => {
           },
           columns: {
             invitations: {
-              tenant: "organization_id",
+              tenant: "tenant_id",
               role: "role_id",
               tokenHash: "token",
               acceptedBy: null,
@@ -87,7 +87,7 @@ describe("invitations module", () => {
     expect(sql).toContain(
       `create policy bsb_invitations_read on "public"."organization_invitations"
   for select to authenticated
-  using ("organization_id" in (select "better_supabase"."invitation_tenant_ids"()) or (select "better_supabase"."platform_invitations_readable"()));`,
+  using ("tenant_id" in (select "better_supabase"."invitation_tenant_ids"()) or (select "better_supabase"."platform_invitations_readable"()));`,
     );
     expect(sql).toContain(
       "using errcode = '23505', hint = 'INVITATION_ALREADY_MEMBER'",
@@ -100,10 +100,10 @@ describe("invitations module", () => {
     );
     expect(sql).not.toContain("email_confirmed_at is not null");
     expect(sql).toContain(
-      `where i."token" = token and i."organization_id" is null\n  for update;`,
+      `where i."token" = token and i."tenant_id" is null\n  for update;`,
     );
     expect(sql).toContain(
-      `where i."token" = token and i."organization_id" is not null\n  for update;`,
+      `where i."token" = token and i."tenant_id" is not null\n  for update;`,
     );
     expect(sql).toMatch(
       /insert into "public"\."organization_invitations" \("email", "role_id", "token", "invited_by", "expires_at", "prefill"\)\n {4}values \(lower\(btrim\(invitee_email\)\), \(select r\.[^\n]*limit 1\), token, auth\.uid\(\), now\(\) \+ valid_for, coalesce\(prefill, '\{\}'\)\)/,
@@ -122,7 +122,7 @@ describe("invitations module", () => {
             invitations: "public.organization_invitations",
             platformInvitations: "public.organization_invitations",
           },
-          columns: { invitations: { tenant: "organization_id" } },
+          columns: { invitations: { tenant: "tenant_id" } },
         },
       },
       ["invitations"],
@@ -131,13 +131,13 @@ describe("invitations module", () => {
     expect(sql).not.toContain(
       `drop index if exists "public".platform_invitations_open_email_idx;
 create unique index invitations_platform_open_email_idx
-  on "public"."organization_invitations" (lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null and "organization_id" is null;`,
+  on "public"."organization_invitations" (lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null and "tenant_id" is null;`,
     );
     expect(sql).not.toContain(
       "create unique index platform_invitations_open_email_idx",
     );
     expect(sql).toContain(
-      'on "public"."organization_invitations" ("organization_id", lower("email"))',
+      'on "public"."organization_invitations" ("tenant_id", lower("email"))',
     );
 
     const separate = body({ permissions: { model: "catalog" } });
@@ -165,7 +165,7 @@ create unique index invitations_platform_open_email_idx
       'better_supabase.platform_can_assign(pinvite."invited_by", pinvite."role"::text)',
     );
     expect(sql).toContain(
-      'better_supabase.can_assign_as(invite."invited_by", invite."organization_id", invite."role"::text)',
+      'better_supabase.can_assign_as(invite."invited_by", invite."tenant_id", invite."role"::text)',
     );
     expect(sql).toContain('"prefill" jsonb not null');
     expect(sql).toContain("valid_for > '14 days'::interval");
@@ -210,7 +210,7 @@ create unique index invitations_platform_open_email_idx
     })!;
 
     expect(sql).toContain(
-      "'organization', jsonb_build_object('id', i.\"organization_id\")",
+      "'organization', jsonb_build_object('id', i.\"tenant_id\")",
     );
     const plan = upgradePlan([{ module: "invitations", version: 1 }], {});
     expect(plan.map((step) => step.module)).toContain("invitations");

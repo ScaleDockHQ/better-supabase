@@ -61,7 +61,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       optional: STAMPS,
       columns: {
-        tenant: "organization_id",
+        tenant: "tenant_id",
         key: "key",
         value: "value",
         updatedBy: "updated_by",

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:ac04fe12d998baea0b1a274af041925c3c3336a8aad84eac8e38ce224715de55
+-- @bsb-hash sha256:704c2e715481855ceab5c3007b7aef17cbef943b207ed49c827e5578de8ba6a4
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,28 +12,28 @@
 -- and secrets, so only the service role reads and writes them.
 create table "better_supabase"."prompt_versions" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "name" text not null constraint bsb_prompt_versions_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
   "version" integer not null constraint bsb_prompt_versions_version_check check ("version" >= 1),
   "template" text not null constraint bsb_prompt_versions_template_check check (length("template") >= 1 and length("template") <= 102400),
   "variables" jsonb not null default '[]'::jsonb constraint bsb_prompt_versions_variables_check check (jsonb_typeof("variables") = 'array'),
   "created_at" timestamptz not null default now()
 );
-create unique index "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("organization_id"::text, '')), "name", "version");
-create index "prompt_versions_tenant_idx" on "better_supabase"."prompt_versions" ("organization_id");
+create unique index "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("tenant_id"::text, '')), "name", "version");
+create index "prompt_versions_tenant_idx" on "better_supabase"."prompt_versions" ("tenant_id");
 alter table "better_supabase"."prompt_versions" enable row level security;
 revoke all on "better_supabase"."prompt_versions" from public, anon, authenticated;
 grant all on "better_supabase"."prompt_versions" to service_role;
 
 create table "better_supabase"."prompt_labels" (
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "name" text not null,
   "label" text not null constraint bsb_prompt_labels_label_check check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
   "version" integer not null constraint bsb_prompt_labels_version_check check ("version" >= 1),
   "updated_at" timestamptz not null default now()
 );
-create unique index "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("organization_id"::text, '')), "name", "label");
-create index "prompt_labels_tenant_idx" on "better_supabase"."prompt_labels" ("organization_id");
+create unique index "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("tenant_id"::text, '')), "name", "label");
+create index "prompt_labels_tenant_idx" on "better_supabase"."prompt_labels" ("tenant_id");
 alter table "better_supabase"."prompt_labels" enable row level security;
 revoke all on "better_supabase"."prompt_labels" from public, anon, authenticated;
 grant all on "better_supabase"."prompt_labels" to service_role;
@@ -53,18 +53,18 @@ declare
 begin
   perform pg_advisory_xact_lock(hashtextextended(coalesce(create_prompt_version.tenant::text, '') || ':' || create_prompt_version.name, 0));
   select coalesce(max(x."version"), 0) + 1 into v_next from "better_supabase"."prompt_versions" x
-  where coalesce(x."organization_id"::text, '') = coalesce(create_prompt_version.tenant::text, '') and x."name" = create_prompt_version.name;
-  insert into "better_supabase"."prompt_versions" ("organization_id", "name", "version", "template", "variables")
+  where coalesce(x."tenant_id"::text, '') = coalesce(create_prompt_version.tenant::text, '') and x."name" = create_prompt_version.name;
+  insert into "better_supabase"."prompt_versions" ("tenant_id", "name", "version", "template", "variables")
   values (create_prompt_version.tenant, create_prompt_version.name, v_next, create_prompt_version.template, coalesce(create_prompt_version.variables, '[]'::jsonb))
   returning * into v_row;
   if create_prompt_version.label is not null then
-    insert into "better_supabase"."prompt_labels" ("organization_id", "name", "label", "version")
+    insert into "better_supabase"."prompt_labels" ("tenant_id", "name", "label", "version")
     values (create_prompt_version.tenant, create_prompt_version.name, create_prompt_version.label, v_next)
-    on conflict ((coalesce("organization_id"::text, '')), "name", "label") do update set
+    on conflict ((coalesce("tenant_id"::text, '')), "name", "label") do update set
       "version" = excluded."version",
       "updated_at" = now();
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_prompt_version"(text, text, uuid, jsonb, text) from public, anon, authenticated;
@@ -86,23 +86,23 @@ declare
 begin
   select x.* into v_row from "better_supabase"."prompt_versions" x
   where x."name" = get_prompt.name
-    and (x."organization_id" is null or x."organization_id" = get_prompt.tenant)
+    and (x."tenant_id" is null or x."tenant_id" = get_prompt.tenant)
     and (
       (get_prompt.version is not null and x."version" = get_prompt.version)
       or (get_prompt.version is null and exists (
         select 1 from "better_supabase"."prompt_labels" y
-        where coalesce(y."organization_id"::text, '') = coalesce(x."organization_id"::text, '')
+        where coalesce(y."tenant_id"::text, '') = coalesce(x."tenant_id"::text, '')
           and y."name" = x."name"
           and y."label" = get_prompt.label
           and y."version" = x."version"
       ))
     )
-  order by (x."organization_id" is null), x."version" desc
+  order by (x."tenant_id" is null), x."version" desc
   limit 1;
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_prompt"(text, text, integer, uuid) from public, anon, authenticated;
@@ -122,16 +122,16 @@ begin
   select x.* into v_row from "better_supabase"."prompt_versions" x
   where x."name" = set_prompt_label.name
     and x."version" = set_prompt_label.version
-    and coalesce(x."organization_id"::text, '') = coalesce(set_prompt_label.tenant::text, '');
+    and coalesce(x."tenant_id"::text, '') = coalesce(set_prompt_label.tenant::text, '');
   if not found then
     raise exception 'No version % of prompt %', set_prompt_label.version, set_prompt_label.name using errcode = 'P0002', hint = 'PROMPT_NOT_FOUND';
   end if;
-  insert into "better_supabase"."prompt_labels" ("organization_id", "name", "label", "version")
+  insert into "better_supabase"."prompt_labels" ("tenant_id", "name", "label", "version")
   values (set_prompt_label.tenant, set_prompt_label.name, set_prompt_label.label, set_prompt_label.version)
-  on conflict ((coalesce("organization_id"::text, '')), "name", "label") do update set
+  on conflict ((coalesce("tenant_id"::text, '')), "name", "label") do update set
     "version" = excluded."version",
     "updated_at" = now();
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."set_prompt_label"(text, text, integer, uuid) from public, anon, authenticated;
@@ -149,14 +149,14 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'name', x."name", 'version', x."version", 'template', x."template", 'variables', x."variables", 'created_at', x."created_at") || jsonb_build_object('labels', coalesce((
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'version', x."version", 'template', x."template", 'variables', x."variables", 'created_at', x."created_at") || jsonb_build_object('labels', coalesce((
       select jsonb_agg(y."label" order by y."label") from "better_supabase"."prompt_labels" y
-      where coalesce(y."organization_id"::text, '') = coalesce(x."organization_id"::text, '')
+      where coalesce(y."tenant_id"::text, '') = coalesce(x."tenant_id"::text, '')
         and y."name" = x."name" and y."version" = x."version"
     ), '[]'::jsonb)) order by x."version" desc), '[]'::jsonb)
     from "better_supabase"."prompt_versions" x
     where x."name" = list_prompt_versions.name
-      and coalesce(x."organization_id"::text, '') = coalesce(list_prompt_versions.tenant::text, '')
+      and coalesce(x."tenant_id"::text, '') = coalesce(list_prompt_versions.tenant::text, '')
   );
 end;
 $$;
@@ -180,7 +180,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:ac04fe12d998baea0b1a274af041925c3c3336a8aad84eac8e38ce224715de55
+-- @bsb-hash sha256:704c2e715481855ceab5c3007b7aef17cbef943b207ed49c827e5578de8ba6a4
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -191,28 +191,28 @@ on conflict (name) do update
 -- and secrets, so only the service role reads and writes them.
 create table "better_supabase"."prompt_versions" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "name" text not null constraint bsb_prompt_versions_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
   "version" integer not null constraint bsb_prompt_versions_version_check check ("version" >= 1),
   "template" text not null constraint bsb_prompt_versions_template_check check (length("template") >= 1 and length("template") <= 102400),
   "variables" jsonb not null default '[]'::jsonb constraint bsb_prompt_versions_variables_check check (jsonb_typeof("variables") = 'array'),
   "created_at" timestamptz not null default now()
 );
-create unique index "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("organization_id"::text, '')), "name", "version");
-create index "prompt_versions_tenant_idx" on "better_supabase"."prompt_versions" ("organization_id");
+create unique index "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("tenant_id"::text, '')), "name", "version");
+create index "prompt_versions_tenant_idx" on "better_supabase"."prompt_versions" ("tenant_id");
 alter table "better_supabase"."prompt_versions" enable row level security;
 revoke all on "better_supabase"."prompt_versions" from public, anon, authenticated;
 grant all on "better_supabase"."prompt_versions" to service_role;
 
 create table "better_supabase"."prompt_labels" (
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "name" text not null,
   "label" text not null constraint bsb_prompt_labels_label_check check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
   "version" integer not null constraint bsb_prompt_labels_version_check check ("version" >= 1),
   "updated_at" timestamptz not null default now()
 );
-create unique index "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("organization_id"::text, '')), "name", "label");
-create index "prompt_labels_tenant_idx" on "better_supabase"."prompt_labels" ("organization_id");
+create unique index "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("tenant_id"::text, '')), "name", "label");
+create index "prompt_labels_tenant_idx" on "better_supabase"."prompt_labels" ("tenant_id");
 alter table "better_supabase"."prompt_labels" enable row level security;
 revoke all on "better_supabase"."prompt_labels" from public, anon, authenticated;
 grant all on "better_supabase"."prompt_labels" to service_role;
@@ -232,18 +232,18 @@ declare
 begin
   perform pg_advisory_xact_lock(hashtextextended(coalesce(create_prompt_version.tenant::text, '') || ':' || create_prompt_version.name, 0));
   select coalesce(max(x."version"), 0) + 1 into v_next from "better_supabase"."prompt_versions" x
-  where coalesce(x."organization_id"::text, '') = coalesce(create_prompt_version.tenant::text, '') and x."name" = create_prompt_version.name;
-  insert into "better_supabase"."prompt_versions" ("organization_id", "name", "version", "template", "variables")
+  where coalesce(x."tenant_id"::text, '') = coalesce(create_prompt_version.tenant::text, '') and x."name" = create_prompt_version.name;
+  insert into "better_supabase"."prompt_versions" ("tenant_id", "name", "version", "template", "variables")
   values (create_prompt_version.tenant, create_prompt_version.name, v_next, create_prompt_version.template, coalesce(create_prompt_version.variables, '[]'::jsonb))
   returning * into v_row;
   if create_prompt_version.label is not null then
-    insert into "better_supabase"."prompt_labels" ("organization_id", "name", "label", "version")
+    insert into "better_supabase"."prompt_labels" ("tenant_id", "name", "label", "version")
     values (create_prompt_version.tenant, create_prompt_version.name, create_prompt_version.label, v_next)
-    on conflict ((coalesce("organization_id"::text, '')), "name", "label") do update set
+    on conflict ((coalesce("tenant_id"::text, '')), "name", "label") do update set
       "version" = excluded."version",
       "updated_at" = now();
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_prompt_version"(text, text, uuid, jsonb, text) from public, anon, authenticated;
@@ -265,23 +265,23 @@ declare
 begin
   select x.* into v_row from "better_supabase"."prompt_versions" x
   where x."name" = get_prompt.name
-    and (x."organization_id" is null or x."organization_id" = get_prompt.tenant)
+    and (x."tenant_id" is null or x."tenant_id" = get_prompt.tenant)
     and (
       (get_prompt.version is not null and x."version" = get_prompt.version)
       or (get_prompt.version is null and exists (
         select 1 from "better_supabase"."prompt_labels" y
-        where coalesce(y."organization_id"::text, '') = coalesce(x."organization_id"::text, '')
+        where coalesce(y."tenant_id"::text, '') = coalesce(x."tenant_id"::text, '')
           and y."name" = x."name"
           and y."label" = get_prompt.label
           and y."version" = x."version"
       ))
     )
-  order by (x."organization_id" is null), x."version" desc
+  order by (x."tenant_id" is null), x."version" desc
   limit 1;
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_prompt"(text, text, integer, uuid) from public, anon, authenticated;
@@ -301,16 +301,16 @@ begin
   select x.* into v_row from "better_supabase"."prompt_versions" x
   where x."name" = set_prompt_label.name
     and x."version" = set_prompt_label.version
-    and coalesce(x."organization_id"::text, '') = coalesce(set_prompt_label.tenant::text, '');
+    and coalesce(x."tenant_id"::text, '') = coalesce(set_prompt_label.tenant::text, '');
   if not found then
     raise exception 'No version % of prompt %', set_prompt_label.version, set_prompt_label.name using errcode = 'P0002', hint = 'PROMPT_NOT_FOUND';
   end if;
-  insert into "better_supabase"."prompt_labels" ("organization_id", "name", "label", "version")
+  insert into "better_supabase"."prompt_labels" ("tenant_id", "name", "label", "version")
   values (set_prompt_label.tenant, set_prompt_label.name, set_prompt_label.label, set_prompt_label.version)
-  on conflict ((coalesce("organization_id"::text, '')), "name", "label") do update set
+  on conflict ((coalesce("tenant_id"::text, '')), "name", "label") do update set
     "version" = excluded."version",
     "updated_at" = now();
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."set_prompt_label"(text, text, integer, uuid) from public, anon, authenticated;
@@ -328,14 +328,14 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'name', x."name", 'version', x."version", 'template', x."template", 'variables', x."variables", 'created_at', x."created_at") || jsonb_build_object('labels', coalesce((
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'version', x."version", 'template', x."template", 'variables', x."variables", 'created_at', x."created_at") || jsonb_build_object('labels', coalesce((
       select jsonb_agg(y."label" order by y."label") from "better_supabase"."prompt_labels" y
-      where coalesce(y."organization_id"::text, '') = coalesce(x."organization_id"::text, '')
+      where coalesce(y."tenant_id"::text, '') = coalesce(x."tenant_id"::text, '')
         and y."name" = x."name" and y."version" = x."version"
     ), '[]'::jsonb)) order by x."version" desc), '[]'::jsonb)
     from "better_supabase"."prompt_versions" x
     where x."name" = list_prompt_versions.name
-      and coalesce(x."organization_id"::text, '') = coalesce(list_prompt_versions.tenant::text, '')
+      and coalesce(x."tenant_id"::text, '') = coalesce(list_prompt_versions.tenant::text, '')
   );
 end;
 $$;
@@ -359,7 +359,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:927551d0356ee71f61a2dc74090c0cdce3d1cae37541f615c3e9c76b55f6e42e
+-- @bsb-hash sha256:013f9fa78f6c3f69d0e304c27f15433bc3c96925ee41048585ca9916df4d5160
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -375,28 +375,28 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- and secrets, so only the service role reads and writes them.
 create table "app_private"."prompt_versions" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "name" text not null constraint bsb_prompt_versions_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
   "version" integer not null constraint bsb_prompt_versions_version_check check ("version" >= 1),
   "template" text not null constraint bsb_prompt_versions_template_check check (length("template") >= 1 and length("template") <= 102400),
   "variables" jsonb not null default '[]'::jsonb constraint bsb_prompt_versions_variables_check check (jsonb_typeof("variables") = 'array'),
   "created_at" timestamptz not null default now()
 );
-create unique index "bsb_prompt_versions_key" on "app_private"."prompt_versions" ((coalesce("organization_id"::text, '')), "name", "version");
-create index "prompt_versions_tenant_idx" on "app_private"."prompt_versions" ("organization_id");
+create unique index "bsb_prompt_versions_key" on "app_private"."prompt_versions" ((coalesce("tenant_id"::text, '')), "name", "version");
+create index "prompt_versions_tenant_idx" on "app_private"."prompt_versions" ("tenant_id");
 alter table "app_private"."prompt_versions" enable row level security;
 revoke all on "app_private"."prompt_versions" from public, anon, authenticated;
 grant all on "app_private"."prompt_versions" to service_role;
 
 create table "app_private"."prompt_labels" (
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "name" text not null,
   "label" text not null constraint bsb_prompt_labels_label_check check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
   "version" integer not null constraint bsb_prompt_labels_version_check check ("version" >= 1),
   "updated_at" timestamptz not null default now()
 );
-create unique index "bsb_prompt_labels_key" on "app_private"."prompt_labels" ((coalesce("organization_id"::text, '')), "name", "label");
-create index "prompt_labels_tenant_idx" on "app_private"."prompt_labels" ("organization_id");
+create unique index "bsb_prompt_labels_key" on "app_private"."prompt_labels" ((coalesce("tenant_id"::text, '')), "name", "label");
+create index "prompt_labels_tenant_idx" on "app_private"."prompt_labels" ("tenant_id");
 alter table "app_private"."prompt_labels" enable row level security;
 revoke all on "app_private"."prompt_labels" from public, anon, authenticated;
 grant all on "app_private"."prompt_labels" to service_role;
@@ -416,18 +416,18 @@ declare
 begin
   perform pg_advisory_xact_lock(hashtextextended(coalesce(create_prompt_version.tenant::text, '') || ':' || create_prompt_version.name, 0));
   select coalesce(max(x."version"), 0) + 1 into v_next from "app_private"."prompt_versions" x
-  where coalesce(x."organization_id"::text, '') = coalesce(create_prompt_version.tenant::text, '') and x."name" = create_prompt_version.name;
-  insert into "app_private"."prompt_versions" ("organization_id", "name", "version", "template", "variables")
+  where coalesce(x."tenant_id"::text, '') = coalesce(create_prompt_version.tenant::text, '') and x."name" = create_prompt_version.name;
+  insert into "app_private"."prompt_versions" ("tenant_id", "name", "version", "template", "variables")
   values (create_prompt_version.tenant, create_prompt_version.name, v_next, create_prompt_version.template, coalesce(create_prompt_version.variables, '[]'::jsonb))
   returning * into v_row;
   if create_prompt_version.label is not null then
-    insert into "app_private"."prompt_labels" ("organization_id", "name", "label", "version")
+    insert into "app_private"."prompt_labels" ("tenant_id", "name", "label", "version")
     values (create_prompt_version.tenant, create_prompt_version.name, create_prompt_version.label, v_next)
-    on conflict ((coalesce("organization_id"::text, '')), "name", "label") do update set
+    on conflict ((coalesce("tenant_id"::text, '')), "name", "label") do update set
       "version" = excluded."version",
       "updated_at" = now();
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "app_private"."create_prompt_version"(text, text, uuid, jsonb, text) from public, anon, authenticated;
@@ -449,23 +449,23 @@ declare
 begin
   select x.* into v_row from "app_private"."prompt_versions" x
   where x."name" = get_prompt.name
-    and (x."organization_id" is null or x."organization_id" = get_prompt.tenant)
+    and (x."tenant_id" is null or x."tenant_id" = get_prompt.tenant)
     and (
       (get_prompt.version is not null and x."version" = get_prompt.version)
       or (get_prompt.version is null and exists (
         select 1 from "app_private"."prompt_labels" y
-        where coalesce(y."organization_id"::text, '') = coalesce(x."organization_id"::text, '')
+        where coalesce(y."tenant_id"::text, '') = coalesce(x."tenant_id"::text, '')
           and y."name" = x."name"
           and y."label" = get_prompt.label
           and y."version" = x."version"
       ))
     )
-  order by (x."organization_id" is null), x."version" desc
+  order by (x."tenant_id" is null), x."version" desc
   limit 1;
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "app_private"."get_prompt"(text, text, integer, uuid) from public, anon, authenticated;
@@ -485,16 +485,16 @@ begin
   select x.* into v_row from "app_private"."prompt_versions" x
   where x."name" = set_prompt_label.name
     and x."version" = set_prompt_label.version
-    and coalesce(x."organization_id"::text, '') = coalesce(set_prompt_label.tenant::text, '');
+    and coalesce(x."tenant_id"::text, '') = coalesce(set_prompt_label.tenant::text, '');
   if not found then
     raise exception 'No version % of prompt %', set_prompt_label.version, set_prompt_label.name using errcode = 'P0002', hint = 'PROMPT_NOT_FOUND';
   end if;
-  insert into "app_private"."prompt_labels" ("organization_id", "name", "label", "version")
+  insert into "app_private"."prompt_labels" ("tenant_id", "name", "label", "version")
   values (set_prompt_label.tenant, set_prompt_label.name, set_prompt_label.label, set_prompt_label.version)
-  on conflict ((coalesce("organization_id"::text, '')), "name", "label") do update set
+  on conflict ((coalesce("tenant_id"::text, '')), "name", "label") do update set
     "version" = excluded."version",
     "updated_at" = now();
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "app_private"."set_prompt_label"(text, text, integer, uuid) from public, anon, authenticated;
@@ -512,14 +512,14 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'name', x."name", 'version', x."version", 'template', x."template", 'variables', x."variables", 'created_at', x."created_at") || jsonb_build_object('labels', coalesce((
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'version', x."version", 'template', x."template", 'variables', x."variables", 'created_at', x."created_at") || jsonb_build_object('labels', coalesce((
       select jsonb_agg(y."label" order by y."label") from "app_private"."prompt_labels" y
-      where coalesce(y."organization_id"::text, '') = coalesce(x."organization_id"::text, '')
+      where coalesce(y."tenant_id"::text, '') = coalesce(x."tenant_id"::text, '')
         and y."name" = x."name" and y."version" = x."version"
     ), '[]'::jsonb)) order by x."version" desc), '[]'::jsonb)
     from "app_private"."prompt_versions" x
     where x."name" = list_prompt_versions.name
-      and coalesce(x."organization_id"::text, '') = coalesce(list_prompt_versions.tenant::text, '')
+      and coalesce(x."tenant_id"::text, '') = coalesce(list_prompt_versions.tenant::text, '')
   );
 end;
 $$;
@@ -543,7 +543,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:64f3b57ef07380a63fe849dfd8e2eb189866fcb13fa90fd7716571e23e7751de
+-- @bsb-hash sha256:d655ecd103ad715396f7437f548a86bb29fe9d8ad8630c842d617a9348dca182
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -554,28 +554,28 @@ on conflict (name) do update
 -- and secrets, so only the service role reads and writes them.
 create table "better_supabase"."prompt_versions" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "name" text not null constraint bsb_prompt_versions_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$'),
   "version" integer not null constraint bsb_prompt_versions_version_check check ("version" >= 1),
   "template" text not null constraint bsb_prompt_versions_template_check check (length("template") >= 1 and length("template") <= 102400),
   "variables" jsonb not null default '[]'::jsonb constraint bsb_prompt_versions_variables_check check (jsonb_typeof("variables") = 'array'),
   "created_at" timestamptz not null default now()
 );
-create unique index "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("organization_id"::text, '')), "name", "version");
-create index "prompt_versions_tenant_idx" on "better_supabase"."prompt_versions" ("organization_id");
+create unique index "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("tenant_id"::text, '')), "name", "version");
+create index "prompt_versions_tenant_idx" on "better_supabase"."prompt_versions" ("tenant_id");
 alter table "better_supabase"."prompt_versions" enable row level security;
 revoke all on "better_supabase"."prompt_versions" from public, anon, authenticated;
 grant all on "better_supabase"."prompt_versions" to service_role;
 
 create table "better_supabase"."prompt_labels" (
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "name" text not null,
   "label" text not null constraint bsb_prompt_labels_label_check check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$'),
   "version" integer not null constraint bsb_prompt_labels_version_check check ("version" >= 1),
   "updated_at" timestamptz not null default now()
 );
-create unique index "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("organization_id"::text, '')), "name", "label");
-create index "prompt_labels_tenant_idx" on "better_supabase"."prompt_labels" ("organization_id");
+create unique index "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("tenant_id"::text, '')), "name", "label");
+create index "prompt_labels_tenant_idx" on "better_supabase"."prompt_labels" ("tenant_id");
 alter table "better_supabase"."prompt_labels" enable row level security;
 revoke all on "better_supabase"."prompt_labels" from public, anon, authenticated;
 grant all on "better_supabase"."prompt_labels" to service_role;
@@ -595,18 +595,18 @@ declare
 begin
   perform pg_advisory_xact_lock(hashtextextended(coalesce(create_prompt_version.tenant::text, '') || ':' || create_prompt_version.name, 0));
   select coalesce(max(x."version"), 0) + 1 into v_next from "better_supabase"."prompt_versions" x
-  where coalesce(x."organization_id"::text, '') = coalesce(create_prompt_version.tenant::text, '') and x."name" = create_prompt_version.name;
-  insert into "better_supabase"."prompt_versions" ("organization_id", "name", "version", "template", "variables")
+  where coalesce(x."tenant_id"::text, '') = coalesce(create_prompt_version.tenant::text, '') and x."name" = create_prompt_version.name;
+  insert into "better_supabase"."prompt_versions" ("tenant_id", "name", "version", "template", "variables")
   values (create_prompt_version.tenant, create_prompt_version.name, v_next, create_prompt_version.template, coalesce(create_prompt_version.variables, '[]'::jsonb))
   returning * into v_row;
   if create_prompt_version.label is not null then
-    insert into "better_supabase"."prompt_labels" ("organization_id", "name", "label", "version")
+    insert into "better_supabase"."prompt_labels" ("tenant_id", "name", "label", "version")
     values (create_prompt_version.tenant, create_prompt_version.name, create_prompt_version.label, v_next)
-    on conflict ((coalesce("organization_id"::text, '')), "name", "label") do update set
+    on conflict ((coalesce("tenant_id"::text, '')), "name", "label") do update set
       "version" = excluded."version",
       "updated_at" = now();
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_prompt_version"(text, text, uuid, jsonb, text) from public, anon, authenticated;
@@ -628,23 +628,23 @@ declare
 begin
   select x.* into v_row from "better_supabase"."prompt_versions" x
   where x."name" = get_prompt.name
-    and (x."organization_id" is null or x."organization_id" = get_prompt.tenant)
+    and (x."tenant_id" is null or x."tenant_id" = get_prompt.tenant)
     and (
       (get_prompt.version is not null and x."version" = get_prompt.version)
       or (get_prompt.version is null and exists (
         select 1 from "better_supabase"."prompt_labels" y
-        where coalesce(y."organization_id"::text, '') = coalesce(x."organization_id"::text, '')
+        where coalesce(y."tenant_id"::text, '') = coalesce(x."tenant_id"::text, '')
           and y."name" = x."name"
           and y."label" = get_prompt.label
           and y."version" = x."version"
       ))
     )
-  order by (x."organization_id" is null), x."version" desc
+  order by (x."tenant_id" is null), x."version" desc
   limit 1;
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_prompt"(text, text, integer, uuid) from public, anon, authenticated;
@@ -664,16 +664,16 @@ begin
   select x.* into v_row from "better_supabase"."prompt_versions" x
   where x."name" = set_prompt_label.name
     and x."version" = set_prompt_label.version
-    and coalesce(x."organization_id"::text, '') = coalesce(set_prompt_label.tenant::text, '');
+    and coalesce(x."tenant_id"::text, '') = coalesce(set_prompt_label.tenant::text, '');
   if not found then
     raise exception 'No version % of prompt %', set_prompt_label.version, set_prompt_label.name using errcode = 'P0002', hint = 'PROMPT_NOT_FOUND';
   end if;
-  insert into "better_supabase"."prompt_labels" ("organization_id", "name", "label", "version")
+  insert into "better_supabase"."prompt_labels" ("tenant_id", "name", "label", "version")
   values (set_prompt_label.tenant, set_prompt_label.name, set_prompt_label.label, set_prompt_label.version)
-  on conflict ((coalesce("organization_id"::text, '')), "name", "label") do update set
+  on conflict ((coalesce("tenant_id"::text, '')), "name", "label") do update set
     "version" = excluded."version",
     "updated_at" = now();
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."set_prompt_label"(text, text, integer, uuid) from public, anon, authenticated;
@@ -691,14 +691,14 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'name', x."name", 'version', x."version", 'template', x."template", 'variables', x."variables", 'created_at', x."created_at") || jsonb_build_object('labels', coalesce((
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'version', x."version", 'template', x."template", 'variables', x."variables", 'created_at', x."created_at") || jsonb_build_object('labels', coalesce((
       select jsonb_agg(y."label" order by y."label") from "better_supabase"."prompt_labels" y
-      where coalesce(y."organization_id"::text, '') = coalesce(x."organization_id"::text, '')
+      where coalesce(y."tenant_id"::text, '') = coalesce(x."tenant_id"::text, '')
         and y."name" = x."name" and y."version" = x."version"
     ), '[]'::jsonb)) order by x."version" desc), '[]'::jsonb)
     from "better_supabase"."prompt_versions" x
     where x."name" = list_prompt_versions.name
-      and coalesce(x."organization_id"::text, '') = coalesce(list_prompt_versions.tenant::text, '')
+      and coalesce(x."tenant_id"::text, '') = coalesce(list_prompt_versions.tenant::text, '')
   );
 end;
 $$;
@@ -764,7 +764,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:a73e434a769c0bc5b4a3dc12649e8907037fa39d3e17e5bbb83a179b838fae60
+-- @bsb-hash sha256:8e933614c1f392bcaecf10ca3e0362700e5cb18b91264fc588752b44c7afefd6
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -775,25 +775,25 @@ on conflict (name) do update
 -- and secrets, so only the service role reads and writes them.
 -- better_supabase.prompt_versions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."prompt_versions" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."prompt_versions" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."prompt_versions" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."prompt_versions" add column if not exists "name" text constraint bsb_prompt_versions_name_check check ("name" ~ '^[a-z0-9][a-z0-9_.:/-]{0,127}$');
 alter table "better_supabase"."prompt_versions" add column if not exists "version" integer constraint bsb_prompt_versions_version_check check ("version" >= 1);
 alter table "better_supabase"."prompt_versions" add column if not exists "template" text constraint bsb_prompt_versions_template_check check (length("template") >= 1 and length("template") <= 102400);
 alter table "better_supabase"."prompt_versions" add column if not exists "variables" jsonb not null default '[]'::jsonb constraint bsb_prompt_versions_variables_check check (jsonb_typeof("variables") = 'array');
 alter table "better_supabase"."prompt_versions" add column if not exists "created_at" timestamptz not null default now();
-create unique index if not exists "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("organization_id"::text, '')), "name", "version");
-create index if not exists "prompt_versions_tenant_idx" on "better_supabase"."prompt_versions" ("organization_id");
+create unique index if not exists "bsb_prompt_versions_key" on "better_supabase"."prompt_versions" ((coalesce("tenant_id"::text, '')), "name", "version");
+create index if not exists "prompt_versions_tenant_idx" on "better_supabase"."prompt_versions" ("tenant_id");
 alter table "better_supabase"."prompt_versions" enable row level security;
 grant all on "better_supabase"."prompt_versions" to service_role;
 
 -- better_supabase.prompt_labels is the app's table: this block adds only the columns it needs.
-alter table "better_supabase"."prompt_labels" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."prompt_labels" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."prompt_labels" add column if not exists "name" text;
 alter table "better_supabase"."prompt_labels" add column if not exists "label" text constraint bsb_prompt_labels_label_check check ("label" ~ '^[a-z0-9][a-z0-9_-]{0,63}$');
 alter table "better_supabase"."prompt_labels" add column if not exists "version" integer constraint bsb_prompt_labels_version_check check ("version" >= 1);
 alter table "better_supabase"."prompt_labels" add column if not exists "updated_at" timestamptz not null default now();
-create unique index if not exists "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("organization_id"::text, '')), "name", "label");
-create index if not exists "prompt_labels_tenant_idx" on "better_supabase"."prompt_labels" ("organization_id");
+create unique index if not exists "bsb_prompt_labels_key" on "better_supabase"."prompt_labels" ((coalesce("tenant_id"::text, '')), "name", "label");
+create index if not exists "prompt_labels_tenant_idx" on "better_supabase"."prompt_labels" ("tenant_id");
 alter table "better_supabase"."prompt_labels" enable row level security;
 grant all on "better_supabase"."prompt_labels" to service_role;
 
@@ -812,18 +812,18 @@ declare
 begin
   perform pg_advisory_xact_lock(hashtextextended(coalesce(create_prompt_version.tenant::text, '') || ':' || create_prompt_version.name, 0));
   select coalesce(max(x."version"), 0) + 1 into v_next from "better_supabase"."prompt_versions" x
-  where coalesce(x."organization_id"::text, '') = coalesce(create_prompt_version.tenant::text, '') and x."name" = create_prompt_version.name;
-  insert into "better_supabase"."prompt_versions" ("organization_id", "name", "version", "template", "variables")
+  where coalesce(x."tenant_id"::text, '') = coalesce(create_prompt_version.tenant::text, '') and x."name" = create_prompt_version.name;
+  insert into "better_supabase"."prompt_versions" ("tenant_id", "name", "version", "template", "variables")
   values (create_prompt_version.tenant, create_prompt_version.name, v_next, create_prompt_version.template, coalesce(create_prompt_version.variables, '[]'::jsonb))
   returning * into v_row;
   if create_prompt_version.label is not null then
-    insert into "better_supabase"."prompt_labels" ("organization_id", "name", "label", "version")
+    insert into "better_supabase"."prompt_labels" ("tenant_id", "name", "label", "version")
     values (create_prompt_version.tenant, create_prompt_version.name, create_prompt_version.label, v_next)
-    on conflict ((coalesce("organization_id"::text, '')), "name", "label") do update set
+    on conflict ((coalesce("tenant_id"::text, '')), "name", "label") do update set
       "version" = excluded."version",
       "updated_at" = now();
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_prompt_version"(text, text, uuid, jsonb, text) from public, anon, authenticated;
@@ -845,23 +845,23 @@ declare
 begin
   select x.* into v_row from "better_supabase"."prompt_versions" x
   where x."name" = get_prompt.name
-    and (x."organization_id" is null or x."organization_id" = get_prompt.tenant)
+    and (x."tenant_id" is null or x."tenant_id" = get_prompt.tenant)
     and (
       (get_prompt.version is not null and x."version" = get_prompt.version)
       or (get_prompt.version is null and exists (
         select 1 from "better_supabase"."prompt_labels" y
-        where coalesce(y."organization_id"::text, '') = coalesce(x."organization_id"::text, '')
+        where coalesce(y."tenant_id"::text, '') = coalesce(x."tenant_id"::text, '')
           and y."name" = x."name"
           and y."label" = get_prompt.label
           and y."version" = x."version"
       ))
     )
-  order by (x."organization_id" is null), x."version" desc
+  order by (x."tenant_id" is null), x."version" desc
   limit 1;
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_prompt"(text, text, integer, uuid) from public, anon, authenticated;
@@ -881,16 +881,16 @@ begin
   select x.* into v_row from "better_supabase"."prompt_versions" x
   where x."name" = set_prompt_label.name
     and x."version" = set_prompt_label.version
-    and coalesce(x."organization_id"::text, '') = coalesce(set_prompt_label.tenant::text, '');
+    and coalesce(x."tenant_id"::text, '') = coalesce(set_prompt_label.tenant::text, '');
   if not found then
     raise exception 'No version % of prompt %', set_prompt_label.version, set_prompt_label.name using errcode = 'P0002', hint = 'PROMPT_NOT_FOUND';
   end if;
-  insert into "better_supabase"."prompt_labels" ("organization_id", "name", "label", "version")
+  insert into "better_supabase"."prompt_labels" ("tenant_id", "name", "label", "version")
   values (set_prompt_label.tenant, set_prompt_label.name, set_prompt_label.label, set_prompt_label.version)
-  on conflict ((coalesce("organization_id"::text, '')), "name", "label") do update set
+  on conflict ((coalesce("tenant_id"::text, '')), "name", "label") do update set
     "version" = excluded."version",
     "updated_at" = now();
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."set_prompt_label"(text, text, integer, uuid) from public, anon, authenticated;
@@ -908,14 +908,14 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."organization_id", 'name', x."name", 'version', x."version", 'template', x."template", 'variables', x."variables", 'created_at', x."created_at") || jsonb_build_object('labels', coalesce((
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'name', x."name", 'version', x."version", 'template', x."template", 'variables', x."variables", 'created_at', x."created_at") || jsonb_build_object('labels', coalesce((
       select jsonb_agg(y."label" order by y."label") from "better_supabase"."prompt_labels" y
-      where coalesce(y."organization_id"::text, '') = coalesce(x."organization_id"::text, '')
+      where coalesce(y."tenant_id"::text, '') = coalesce(x."tenant_id"::text, '')
         and y."name" = x."name" and y."version" = x."version"
     ), '[]'::jsonb)) order by x."version" desc), '[]'::jsonb)
     from "better_supabase"."prompt_versions" x
     where x."name" = list_prompt_versions.name
-      and coalesce(x."organization_id"::text, '') = coalesce(list_prompt_versions.tenant::text, '')
+      and coalesce(x."tenant_id"::text, '') = coalesce(list_prompt_versions.tenant::text, '')
   );
 end;
 $$;
@@ -939,7 +939,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_180_prompts.sql
 -- better-supabase module: prompts
 -- @bsb-block prompts@1 managed
--- @bsb-hash sha256:e39f3230392134f0a2ae2955b7f68dbf1ad1a3feb76f40ae5dbec688962be81a
+-- @bsb-hash sha256:8b5f7cc231dc88f13bcf48f503536160ea2781c4bd50df76621a76abcd29d323
 -- Versioned prompt templates by name, per tenant or for the whole system, with labels such as production that point at one version; only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1002,7 +1002,7 @@ begin
       "version" = excluded."version",
       "updated_at" = now();
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."org_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."create_prompt_version"(text, text, uuid, jsonb, text) from public, anon, authenticated;
@@ -1040,7 +1040,7 @@ begin
   if not found then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."org_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_prompt"(text, text, integer, uuid) from public, anon, authenticated;
@@ -1069,7 +1069,7 @@ begin
   on conflict ((coalesce("org_id"::text, '')), "name", "label") do update set
     "version" = excluded."version",
     "updated_at" = now();
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."org_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'name', v_row."name", 'version', v_row."version", 'template', v_row."template", 'variables', v_row."variables", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."set_prompt_label"(text, text, integer, uuid) from public, anon, authenticated;
@@ -1087,7 +1087,7 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."org_id", 'name', x."name", 'version', x."version", 'template', x."template", 'variables', x."variables", 'created_at', x."created_at") || jsonb_build_object('labels', coalesce((
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."org_id", 'name', x."name", 'version', x."version", 'template', x."template", 'variables', x."variables", 'created_at', x."created_at") || jsonb_build_object('labels', coalesce((
       select jsonb_agg(y."label" order by y."label") from "better_supabase"."prompt_labels" y
       where coalesce(y."org_id"::text, '') = coalesce(x."org_id"::text, '')
         and y."name" = x."name" and y."version" = x."version"

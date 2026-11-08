@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_031_billing.sql
 -- better-supabase module: billing
 -- @bsb-block billing@4 managed
--- @bsb-hash sha256:d92056e0b64c5bf57c8e4485041672f8902129b09a7d65476fb83ce95179a9b6
+-- @bsb-hash sha256:310b95b6987815fb631bb335566b40dbd855b0f420059594967c6f27aecf91cb
 -- Each tenant's Stripe customer, seat counts (options.seatRoles) and the active subscription item from the Stripe Sync Engine, for createBilling(): checkout, the customer portal, seat sync and Stripe webhook handling.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,7 +11,7 @@
 -- as a Stripe Accounts v2 account has its acct_ id first; Stripe creates the
 -- linked cus_ id at the first checkout, and the webhook records it.
 create table "better_supabase"."billing_customers" (
-  "workspace_id" uuid primary key,
+  "tenant_id" uuid primary key,
   "stripe_customer_id" text unique constraint bsb_billing_customers_stripe_customer_id_check check ("stripe_customer_id" ~ '^cus_'),
   "stripe_customer_account_id" text unique constraint bsb_billing_customers_stripe_customer_account_id_check check ("stripe_customer_account_id" ~ '^acct_'),
   "created_at" timestamptz not null default now()
@@ -24,7 +24,7 @@ grant select on "better_supabase"."billing_customers" to authenticated;
 grant all on "better_supabase"."billing_customers" to service_role;
 create policy bsb_billing_customers_read on "better_supabase"."billing_customers"
   for select to authenticated
-  using ("workspace_id" in (select better_supabase.tenant_ids_with('billing.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('billing.read')));
 
 create or replace function "better_supabase"."billing_customer"(tenant uuid)
 returns text
@@ -34,7 +34,7 @@ security definer
 set search_path = ''
 as $$
   select b."stripe_customer_id" from "better_supabase"."billing_customers" b
-  where b."workspace_id" = billing_customer.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', billing_customer.tenant, 'billing.read'), false))
+  where b."tenant_id" = billing_customer.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', billing_customer.tenant, 'billing.read'), false))
 $$;
 
 -- The tenant's Stripe Accounts v2 account (acct_), when it is billed as one.
@@ -46,7 +46,7 @@ security definer
 set search_path = ''
 as $$
   select b."stripe_customer_account_id" from "better_supabase"."billing_customers" b
-  where b."workspace_id" = billing_account.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', billing_account.tenant, 'billing.read'), false))
+  where b."tenant_id" = billing_account.tenant and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', billing_account.tenant, 'billing.read'), false))
 $$;
 
 -- The tenant of a customer (cus_) or an account (acct_).
@@ -57,7 +57,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select b."workspace_id" from "better_supabase"."billing_customers" b
+  select b."tenant_id" from "better_supabase"."billing_customers" b
   where b."stripe_customer_id" = billing_customer_tenant.customer
     or b."stripe_customer_account_id" = billing_customer_tenant.customer
 $$;
@@ -73,14 +73,14 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  insert into "better_supabase"."billing_customers" as b ("workspace_id", "stripe_customer_id")
+  insert into "better_supabase"."billing_customers" as b ("tenant_id", "stripe_customer_id")
   values (link_billing_customer.tenant, link_billing_customer.customer)
-  on conflict ("workspace_id") do update set "stripe_customer_id" = excluded."stripe_customer_id"
+  on conflict ("tenant_id") do update set "stripe_customer_id" = excluded."stripe_customer_id"
     where b."stripe_customer_id" is null;
   if found then
     null;
   end if;
-  return (select b."stripe_customer_id" from "better_supabase"."billing_customers" b where b."workspace_id" = link_billing_customer.tenant);
+  return (select b."stripe_customer_id" from "better_supabase"."billing_customers" b where b."tenant_id" = link_billing_customer.tenant);
 end;
 $$;
 
@@ -94,14 +94,14 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  insert into "better_supabase"."billing_customers" as b ("workspace_id", "stripe_customer_account_id")
+  insert into "better_supabase"."billing_customers" as b ("tenant_id", "stripe_customer_account_id")
   values (link_billing_account.tenant, link_billing_account.account)
-  on conflict ("workspace_id") do update set "stripe_customer_account_id" = excluded."stripe_customer_account_id"
+  on conflict ("tenant_id") do update set "stripe_customer_account_id" = excluded."stripe_customer_account_id"
     where b."stripe_customer_account_id" is null;
   if found then
     null;
   end if;
-  return (select b."stripe_customer_account_id" from "better_supabase"."billing_customers" b where b."workspace_id" = link_billing_account.tenant);
+  return (select b."stripe_customer_account_id" from "better_supabase"."billing_customers" b where b."tenant_id" = link_billing_account.tenant);
 end;
 $$;
 
@@ -128,7 +128,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  customer text := (select b."stripe_customer_id" from "better_supabase"."billing_customers" b where b."workspace_id" = billing_subscription_item.tenant);
+  customer text := (select b."stripe_customer_id" from "better_supabase"."billing_customers" b where b."tenant_id" = billing_subscription_item.tenant);
   found jsonb;
 begin
   if customer is null or to_regclass('stripe.subscription_items') is null then
@@ -214,7 +214,7 @@ begin
       r.unit_amount * coalesce(r.quantity, 1), r.currency, r.recurring_interval, r.current_period_start,
       r.current_period_end, r.cancel_at_period_end, r.created
     from (
-      select distinct on (b."workspace_id") b."workspace_id" as tenant, b."stripe_customer_id"::text as customer,
+      select distinct on (b."tenant_id") b."tenant_id" as tenant, b."stripe_customer_id"::text as customer,
         cu.customer_row ->> 'email' as customer_email, cu.customer_row ->> 'name' as customer_name,
         s.id::text as subscription, x.row ->> 'status' as status,
         coalesce(it.item -> 'price' ->> 'id', it.item ->> 'price') as price,
@@ -233,7 +233,7 @@ begin
       %s
       %s
       %s
-      order by b."workspace_id", (x.row ->> 'status' in ('active', 'trialing', 'past_due')) desc, (case jsonb_typeof(x.row -> 'created') when 'number' then to_timestamp((x.row -> 'created')::text::double precision) when 'string' then (x.row -> 'created' #>> '{}')::timestamptz end) desc nulls last
+      order by b."tenant_id", (x.row ->> 'status' in ('active', 'trialing', 'past_due')) desc, (case jsonb_typeof(x.row -> 'created') when 'number' then to_timestamp((x.row -> 'created')::text::double precision) when 'string' then (x.row -> 'created' #>> '{}')::timestamptz end) desc nulls last
     ) r
   $q$, items, prices, customers);
 end;
@@ -278,7 +278,7 @@ begin
     return;
   end if;
   return query execute format($q$
-    select b."workspace_id", b."stripe_customer_id"::text, v.id::text,
+    select b."tenant_id", b."stripe_customer_id"::text, v.id::text,
       coalesce(x.row -> 'subscription' ->> 'id', x.row ->> 'subscription'),
       x.row ->> 'number', x.row ->> 'status',
       (x.row ->> 'amount_due')::bigint, (x.row ->> 'amount_paid')::bigint,
@@ -324,13 +324,13 @@ begin
     raise exception 'Not allowed to read every tenant''s billing' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
   end if;
   return query execute format($q$
-    select b."workspace_id", b."stripe_customer_id"::text,
+    select b."tenant_id", b."stripe_customer_id"::text,
       cu.customer_row ->> 'email', cu.customer_row ->> 'name',
       (case jsonb_typeof(cu.customer_row -> 'created') when 'number' then to_timestamp((cu.customer_row -> 'created')::text::double precision) when 'string' then (cu.customer_row -> 'created' #>> '{}')::timestamptz end)
     from "better_supabase"."billing_customers" b
     %s
     where b."stripe_customer_id" is not null
-    order by b."workspace_id"
+    order by b."tenant_id"
   $q$, customers);
 end;
 $$;
@@ -366,7 +366,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  customer text := (select b."stripe_customer_id" from "better_supabase"."billing_customers" b where b."workspace_id" = billing_stripe_rows.tenant);
+  customer text := (select b."stripe_customer_id" from "better_supabase"."billing_customers" b where b."tenant_id" = billing_stripe_rows.tenant);
   found jsonb;
 begin
   if not ((coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', tenant, 'billing.read'), false)) or (select coalesce(better_supabase.is_platform('billing.read'), false))) then
@@ -456,7 +456,7 @@ security definer
 set search_path = ''
 as $$
 declare
-  customer text := (select b."stripe_customer_id" from "better_supabase"."billing_customers" b where b."workspace_id" = billing_tenant_subscription.tenant);
+  customer text := (select b."stripe_customer_id" from "better_supabase"."billing_customers" b where b."tenant_id" = billing_tenant_subscription.tenant);
   found jsonb;
 begin
   if customer is null or to_regclass('stripe.subscriptions') is null then
@@ -515,7 +515,7 @@ begin
     select coalesce(jsonb_agg(jsonb_build_object('tenant', p.tenant, 'customer', p.customer, 'subscription', p.subscription) order by p.created desc nulls last), '[]'::jsonb)
     from (
       select * from (
-        select distinct on (b."workspace_id") b."workspace_id"::text as tenant, b."stripe_customer_id" as customer, s.created,
+        select distinct on (b."tenant_id") b."tenant_id"::text as tenant, b."stripe_customer_id" as customer, s.created,
           to_jsonb(s.*) || jsonb_build_object('items', coalesce((
             select jsonb_agg(to_jsonb(i.*) order by i.created nulls last)
             from stripe.subscription_items i where i.subscription = s.id
@@ -524,7 +524,7 @@ begin
         join stripe.subscriptions s on s.customer = b."stripe_customer_id"
         where ($1::text is null or s.status = $1)
           and ($3::bigint is null or s.created < $3)
-        order by b."workspace_id", s.created desc nulls last
+        order by b."tenant_id", s.created desc nulls last
       ) r
       order by r.created desc nulls last
       limit greatest(1, least(coalesce($2, 100), 500))
@@ -555,7 +555,7 @@ begin
   execute $q$
     select coalesce(jsonb_agg(jsonb_build_object('tenant', p.tenant, 'customer', p.customer, 'invoice', p.invoice) order by p.created desc nulls last), '[]'::jsonb)
     from (
-      select b."workspace_id"::text as tenant, b."stripe_customer_id" as customer, x.created, to_jsonb(x.*) as invoice
+      select b."tenant_id"::text as tenant, b."stripe_customer_id" as customer, x.created, to_jsonb(x.*) as invoice
       from "better_supabase"."billing_customers" b
       join stripe.invoices x on x.customer = b."stripe_customer_id"
       where ($1::text is null or x.status = $1)
@@ -581,8 +581,8 @@ begin
     raise exception 'Not allowed to read billing in this tenant' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
   end if;
   return jsonb_build_object(
-    'customer', (select b."stripe_customer_id" from "better_supabase"."billing_customers" b where b."workspace_id" = billing_status.tenant),
-    'account', (select b."stripe_customer_account_id" from "better_supabase"."billing_customers" b where b."workspace_id" = billing_status.tenant),
+    'customer', (select b."stripe_customer_id" from "better_supabase"."billing_customers" b where b."tenant_id" = billing_status.tenant),
+    'account', (select b."stripe_customer_account_id" from "better_supabase"."billing_customers" b where b."tenant_id" = billing_status.tenant),
     'seats', "better_supabase"."billing_seat_count"(tenant),
     'subscription', "better_supabase"."billing_subscription_item"(tenant)
   );
@@ -654,7 +654,7 @@ grant execute on function "better_supabase"."billing_overview"(uuid, integer) to
 -- is the current period.
 create table "better_supabase"."billing_native_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
-  "workspace_id" uuid not null,
+  "tenant_id" uuid not null,
   "plan" text not null constraint bsb_billing_native_subscriptions_plan_check check (length("plan") >= 1 and length("plan") <= 100),
   "currency" text not null constraint bsb_billing_native_subscriptions_currency_check check ("currency" ~ '^[A-Z]{3}$'),
   "unit_amount" bigint not null constraint bsb_billing_native_subscriptions_unit_amount_check check ("unit_amount" >= 0),
@@ -668,7 +668,7 @@ create table "better_supabase"."billing_native_subscriptions" (
   constraint "bsb_billing_native_subscriptions_interval_check" check ("billing_interval" in ('week', 'month', 'year')),
   constraint bsb_billing_native_subscriptions_check check ("period_end" > "period_start")
 );
-create index "billing_native_subscriptions_tenant_idx" on "better_supabase"."billing_native_subscriptions" ("workspace_id", "status");
+create index "billing_native_subscriptions_tenant_idx" on "better_supabase"."billing_native_subscriptions" ("tenant_id", "status");
 alter table "better_supabase"."billing_native_subscriptions" enable row level security;
 revoke all on "better_supabase"."billing_native_subscriptions" from public, anon, authenticated;
 grant all on "better_supabase"."billing_native_subscriptions" to service_role;
@@ -689,7 +689,7 @@ begin
   if not coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then
     raise exception 'Only the service role creates native subscriptions' using errcode = '42501', hint = 'BILLING_FORBIDDEN';
   end if;
-  insert into "better_supabase"."billing_native_subscriptions" ("workspace_id", "plan", "currency", "unit_amount", "quantity", "billing_interval", "period_start", "period_end")
+  insert into "better_supabase"."billing_native_subscriptions" ("tenant_id", "plan", "currency", "unit_amount", "quantity", "billing_interval", "period_start", "period_end")
   values (create_native_subscription.tenant, create_native_subscription.plan, upper(create_native_subscription.currency), create_native_subscription.unit_amount,
     coalesce(create_native_subscription.quantity, 1), coalesce(create_native_subscription.billing_interval, 'month'), v_start,
     v_start + ('1 ' || coalesce(create_native_subscription.billing_interval, 'month'))::interval)
@@ -781,19 +781,19 @@ grant execute on function "better_supabase"."cancel_native_subscription"(uuid) t
 create policy bsb_tenant_scope_select on "better_supabase"."billing_customers" as restrictive
   for select to public
   using (
-    "workspace_id" in (select better_supabase.member_workspace_ids())
-    or ("workspace_id" in (select better_supabase.tenant_ids_with('billing.read')))
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('billing.read')))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."billing_customers" as restrictive
   for insert to public
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."billing_customers" as restrictive
   for update to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."billing_customers" as restrictive
   for delete to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_031_billing.sql
 -- better-supabase module: billing

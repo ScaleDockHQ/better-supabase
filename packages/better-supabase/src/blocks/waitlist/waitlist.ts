@@ -192,7 +192,7 @@ function codeOf(value: unknown): InviteCode {
     maxUses: optionalNumber(row["max_uses"]),
     uses: Number(row["uses"]),
     expiresAt: optionalInstant(row["expires_at"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     role: optionalText(row["role"]),
     createdBy: optionalText(row["created_by"]),
     createdAt: toInstant(textOf(row["created_at"])),

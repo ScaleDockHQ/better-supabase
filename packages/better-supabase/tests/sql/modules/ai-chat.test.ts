@@ -194,7 +194,7 @@ describe("ai-chat module", () => {
     expect(sql).toContain("'chat:' || chat::text");
     expect(sql).toContain("interval '2 hours'");
     expect(sql).toContain("interval '1 minute'");
-    expect(sql).toContain('"organization_id" bigint not null');
+    expect(sql).toContain('"tenant_id" bigint not null');
     expect(() =>
       body({ "ai-chat": { options: { topic: "Bad Topic" } } }),
     ).toThrow(/options.topic/);
@@ -238,7 +238,7 @@ describe("ai-chat tool approvals with the provider's approver templates", () => 
     );
 
     expect(sql).toContain(
-      `v_row."owner_id" is distinct from (select auth.uid()) and coalesce((authz.is_approver('ai-tool', v_row."tool", (select c."organization_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id"), 'organization')), false)`,
+      `v_row."owner_id" is distinct from (select auth.uid()) and coalesce((authz.is_approver('ai-tool', v_row."tool", (select c."tenant_id" from "better_supabase"."ai_chats" c where c."id" = v_row."chat_id"), 'organization')), false)`,
     );
     expect(sql).not.toContain("can_approve");
     expect(sql).toContain(

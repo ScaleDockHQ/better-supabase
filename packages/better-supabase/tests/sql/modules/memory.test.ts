@@ -230,16 +230,16 @@ describe("memory module", () => {
 
   it("lets personal memory have no tenant with options.tenant false", () => {
     const shared = body();
-    expect(shared).toContain('"organization_id" uuid not null,');
-    expect(shared).toContain('x."organization_id" = memory_view.tenant');
+    expect(shared).toContain('"tenant_id" uuid not null,');
+    expect(shared).toContain('x."tenant_id" = memory_view.tenant');
 
     const sql = body({ memory: { options: { tenant: false } } });
-    expect(sql).toContain('"organization_id" uuid,');
+    expect(sql).toContain('"tenant_id" uuid,');
     expect(sql).toContain(
-      'alter table "better_supabase"."memories" alter column "organization_id" drop not null;',
+      'alter table "better_supabase"."memories" alter column "tenant_id" drop not null;',
     );
     expect(sql).toContain(
-      'x."organization_id" is not distinct from memory_view.tenant',
+      'x."tenant_id" is not distinct from memory_view.tenant',
     );
     expect(sql).toContain(
       "or (memory_view.tenant is null and v_owner is null)",
@@ -253,7 +253,7 @@ describe("memory module", () => {
     const sql = body({ memory: { options: { maxItems: 50 } } });
     expect(sql).toContain("offset 50");
     expect(sql).toContain(
-      'y."organization_id" is not distinct from memory_save.tenant and y."owner_id" is not distinct from v_owner',
+      'y."tenant_id" is not distinct from memory_save.tenant and y."owner_id" is not distinct from v_owner',
     );
     expect(sql).toContain(
       'update "better_supabase"."memories" x set "archived_at" = now(), "updated_at" = now()',
@@ -269,7 +269,7 @@ describe("memory module", () => {
       '"purge_memories"(retention_days integer default 30, batch integer default 1000, tenant uuid default null)',
     );
     expect(sql).toContain(
-      'purge_memories.tenant is null or y."organization_id" = purge_memories.tenant',
+      'purge_memories.tenant is null or y."tenant_id" = purge_memories.tenant',
     );
   });
 

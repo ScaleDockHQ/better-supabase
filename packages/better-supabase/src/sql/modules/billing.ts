@@ -58,7 +58,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       optional: ["account", "createdAt"],
       columns: {
-        tenant: "organization_id",
+        tenant: "tenant_id",
         customer: "stripe_customer_id",
         account: "stripe_customer_account_id",
         createdAt: "created_at",
@@ -71,7 +71,7 @@ const NAMES: BlockSqlNames = {
       optional: ["price", "plan", "periodEnd", "cancelAt", "updatedAt"],
       typed: ["status"],
       columns: {
-        tenant: "organization_id",
+        tenant: "tenant_id",
         subscription: "subscription_id",
         status: "status",
         price: "price_id",

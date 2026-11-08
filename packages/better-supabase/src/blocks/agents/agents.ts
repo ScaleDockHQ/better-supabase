@@ -291,7 +291,7 @@ function agentOf(value: unknown): Agent {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     ownerId: optionalText(row["owner_id"]),
     slug: textOf(row["slug"]),
     name: textOf(row["name"]),

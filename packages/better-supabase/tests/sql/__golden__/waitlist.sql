@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:7e218d8ccd69ad932dfe84cbca45c838c3855348cc58a8a0789e9b1bf87c62d9
+-- @bsb-hash sha256:e450a639aea7f671310623277e3bc92159c5e604139a4e579006ce88cd6db166
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,13 +38,13 @@ create table "better_supabase"."invite_codes" (
   "max_uses" integer constraint bsb_invite_codes_max_uses_check check ("max_uses" > 0),
   "uses" integer not null default 0 constraint bsb_invite_codes_uses_check check ("uses" >= 0),
   "expires_at" timestamptz,
-  "organization_id" uuid,
-  "role" text constraint bsb_invite_codes_check check ("role" is null or "organization_id" is not null),
+  "tenant_id" uuid,
+  "role" text constraint bsb_invite_codes_check check ("role" is null or "tenant_id" is not null),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create index invite_codes_tenant_idx on "better_supabase"."invite_codes" ("organization_id");
+create index invite_codes_tenant_idx on "better_supabase"."invite_codes" ("tenant_id");
 create index invite_codes_created_by_idx on "better_supabase"."invite_codes" ("created_by");
 alter table "better_supabase"."invite_codes" enable row level security;
 revoke all on "better_supabase"."invite_codes" from public, anon, authenticated;
@@ -195,7 +195,7 @@ begin
     and not coalesce(better_supabase.can_assign(create_invite_code.tenant, create_invite_code.role), false) then
     raise exception 'You may not grant role %', create_invite_code.role using errcode = '42501', hint = 'WAITLIST_ROLE_FORBIDDEN';
   end if;
-  insert into "better_supabase"."invite_codes" ("code_hash", "prefix", "max_uses", "expires_at", "organization_id", "role")
+  insert into "better_supabase"."invite_codes" ("code_hash", "prefix", "max_uses", "expires_at", "tenant_id", "role")
   values (
     encode(extensions.digest(upper(trim(create_invite_code.code)), 'sha256'), 'hex'),
     upper(left(trim(create_invite_code.code), 4)),
@@ -226,7 +226,7 @@ begin
   return (
     select coalesce(jsonb_agg(to_jsonb(x) - 'code_hash' order by x."created_at" desc), '[]'::jsonb)
     from "better_supabase"."invite_codes" x
-    where x."organization_id" is not distinct from list_invite_codes.tenant
+    where x."tenant_id" is not distinct from list_invite_codes.tenant
   );
 end;
 $$;
@@ -244,7 +244,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."organization_id" into v_tenant from "better_supabase"."invite_codes" x where x."id" = revoke_invite_code.id;
+  select x."tenant_id" into v_tenant from "better_supabase"."invite_codes" x where x."id" = revoke_invite_code.id;
   if not found then
     return false;
   end if;
@@ -317,10 +317,10 @@ begin
     raise exception 'You already used this invite code' using errcode = '23505', hint = 'WAITLIST_CODE_USED';
   end if;
   update "better_supabase"."invite_codes" x set "uses" = x."uses" + 1 where x."id" = v_code."id";
-  if v_code."organization_id" is not null then
+  if v_code."tenant_id" is not null then
     v_role := coalesce(v_code."role", 'member');
     insert into "better_supabase"."memberships" ("organization_id", "user_id", "role")
-    values (v_code."organization_id", redeem_for.member, v_role)
+    values (v_code."tenant_id", redeem_for.member, v_role)
     on conflict do nothing;
     v_added := found;
     if v_added then
@@ -329,7 +329,7 @@ begin
       v_role := null;
     end if;
   end if;
-  return jsonb_build_object('organizationId', v_code."organization_id", 'role', v_role);
+  return jsonb_build_object('organizationId', v_code."tenant_id", 'role', v_role);
 end;
 $$;
 
@@ -415,7 +415,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:7f0926531c274ae6bb1e1503f8d0d9c272084c2bbae8c6b1c6250e2adacc91aa
+-- @bsb-hash sha256:07c42adede3b93d003fa1dc24bc2313ca621ef19456ab7e58a50d5bc4d1e888b
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -452,13 +452,13 @@ create table "better_supabase"."invite_codes" (
   "max_uses" integer constraint bsb_invite_codes_max_uses_check check ("max_uses" > 0),
   "uses" integer not null default 0 constraint bsb_invite_codes_uses_check check ("uses" >= 0),
   "expires_at" timestamptz,
-  "organization_id" uuid,
-  "role" text constraint bsb_invite_codes_check check ("role" is null or "organization_id" is not null),
+  "tenant_id" uuid,
+  "role" text constraint bsb_invite_codes_check check ("role" is null or "tenant_id" is not null),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create index invite_codes_tenant_idx on "better_supabase"."invite_codes" ("organization_id");
+create index invite_codes_tenant_idx on "better_supabase"."invite_codes" ("tenant_id");
 create index invite_codes_created_by_idx on "better_supabase"."invite_codes" ("created_by");
 alter table "better_supabase"."invite_codes" enable row level security;
 revoke all on "better_supabase"."invite_codes" from public, anon, authenticated;
@@ -625,7 +625,7 @@ begin
     and not coalesce(better_supabase.can_assign(create_invite_code.tenant, create_invite_code.role), false) then
     raise exception 'You may not grant role %', create_invite_code.role using errcode = '42501', hint = 'WAITLIST_ROLE_FORBIDDEN';
   end if;
-  insert into "better_supabase"."invite_codes" ("code_hash", "prefix", "max_uses", "expires_at", "organization_id", "role")
+  insert into "better_supabase"."invite_codes" ("code_hash", "prefix", "max_uses", "expires_at", "tenant_id", "role")
   values (
     encode(extensions.digest(upper(trim(create_invite_code.code)), 'sha256'), 'hex'),
     upper(left(trim(create_invite_code.code), 4)),
@@ -635,15 +635,15 @@ begin
     create_invite_code.role
   )
   returning * into v_row;
-  perform "better_supabase".emit_event('invite_code.created', jsonb_build_object('codeId', v_row."id"::text, 'organizationId', v_row."organization_id"::text, 'prefix', v_row."prefix", 'role', v_row."role"), 'invite-codes/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/waitlist');
+  perform "better_supabase".emit_event('invite_code.created', jsonb_build_object('codeId', v_row."id"::text, 'organizationId', v_row."tenant_id"::text, 'prefix', v_row."prefix", 'role', v_row."role"), 'invite-codes/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/waitlist');
   perform better_supabase.audit_event(
     event_type => 'invite_code.created',
     category => 'access',
     target_type => 'invite_code',
     record_id => v_row."id"::text,
     target_label => v_row."prefix",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('codeId', v_row."id"::text, 'organizationId', v_row."organization_id"::text, 'prefix', v_row."prefix", 'role', v_row."role")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('codeId', v_row."id"::text, 'organizationId', v_row."tenant_id"::text, 'prefix', v_row."prefix", 'role', v_row."role")
   );
   return to_jsonb(v_row) - 'code_hash';
 exception when unique_violation then
@@ -665,7 +665,7 @@ begin
   return (
     select coalesce(jsonb_agg(to_jsonb(x) - 'code_hash' order by x."created_at" desc), '[]'::jsonb)
     from "better_supabase"."invite_codes" x
-    where x."organization_id" is not distinct from list_invite_codes.tenant
+    where x."tenant_id" is not distinct from list_invite_codes.tenant
   );
 end;
 $$;
@@ -683,7 +683,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."organization_id" into v_tenant from "better_supabase"."invite_codes" x where x."id" = revoke_invite_code.id;
+  select x."tenant_id" into v_tenant from "better_supabase"."invite_codes" x where x."id" = revoke_invite_code.id;
   if not found then
     return false;
   end if;
@@ -765,27 +765,27 @@ begin
     raise exception 'You already used this invite code' using errcode = '23505', hint = 'WAITLIST_CODE_USED';
   end if;
   update "better_supabase"."invite_codes" x set "uses" = x."uses" + 1 where x."id" = v_code."id";
-  if v_code."organization_id" is not null then
+  if v_code."tenant_id" is not null then
     v_role := coalesce(v_code."role", 'member');
     insert into "better_supabase"."memberships" ("organization_id", "user_id", "role")
-    values (v_code."organization_id", redeem_for.member, v_role)
+    values (v_code."tenant_id", redeem_for.member, v_role)
     on conflict do nothing;
     v_added := found;
     if v_added then
-      perform "better_supabase".emit_event('organization.member_added', jsonb_build_object('organizationId', v_code."organization_id"::text, 'userId', redeem_for.member, 'role', v_role), 'organizations/' || v_code."organization_id"::text, (v_code."organization_id")::text, null, 'better-supabase/waitlist');
+      perform "better_supabase".emit_event('organization.member_added', jsonb_build_object('organizationId', v_code."tenant_id"::text, 'userId', redeem_for.member, 'role', v_role), 'organizations/' || v_code."tenant_id"::text, (v_code."tenant_id")::text, null, 'better-supabase/waitlist');
   perform better_supabase.audit_event(
     event_type => 'organization.member_added',
     category => 'membership',
     target_type => 'user',
     record_id => redeem_for.member::text,
-    tenant => (v_code."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_code."organization_id"::text, 'userId', redeem_for.member, 'role', v_role)
+    tenant => (v_code."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_code."tenant_id"::text, 'userId', redeem_for.member, 'role', v_role)
   );
     else
       v_role := null;
     end if;
   end if;
-  return jsonb_build_object('organizationId', v_code."organization_id", 'role', v_role);
+  return jsonb_build_object('organizationId', v_code."tenant_id", 'role', v_role);
 end;
 $$;
 
@@ -874,7 +874,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:0070d08e19db4b125a492df50c56787d0520f85bc9cd0dfe45d0247be1ec37d8
+-- @bsb-hash sha256:b3da79697226fd39b211d1d67a23574f7c8def9b1c09d6a71231563e09b604ac
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -916,13 +916,13 @@ create table "app_private"."invite_codes" (
   "max_uses" integer constraint bsb_invite_codes_max_uses_check check ("max_uses" > 0),
   "uses" integer not null default 0 constraint bsb_invite_codes_uses_check check ("uses" >= 0),
   "expires_at" timestamptz,
-  "organization_id" uuid,
-  "role" text constraint bsb_invite_codes_check check ("role" is null or "organization_id" is not null),
+  "tenant_id" uuid,
+  "role" text constraint bsb_invite_codes_check check ("role" is null or "tenant_id" is not null),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create index invite_codes_tenant_idx on "app_private"."invite_codes" ("organization_id");
+create index invite_codes_tenant_idx on "app_private"."invite_codes" ("tenant_id");
 create index invite_codes_created_by_idx on "app_private"."invite_codes" ("created_by");
 alter table "app_private"."invite_codes" enable row level security;
 revoke all on "app_private"."invite_codes" from public, anon, authenticated;
@@ -1073,7 +1073,7 @@ begin
     and not coalesce(better_supabase.can_assign(create_invite_code.tenant, create_invite_code.role), false) then
     raise exception 'You may not grant role %', create_invite_code.role using errcode = '42501', hint = 'WAITLIST_ROLE_FORBIDDEN';
   end if;
-  insert into "app_private"."invite_codes" ("code_hash", "prefix", "max_uses", "expires_at", "organization_id", "role")
+  insert into "app_private"."invite_codes" ("code_hash", "prefix", "max_uses", "expires_at", "tenant_id", "role")
   values (
     encode(extensions.digest(upper(trim(create_invite_code.code)), 'sha256'), 'hex'),
     upper(left(trim(create_invite_code.code), 4)),
@@ -1104,7 +1104,7 @@ begin
   return (
     select coalesce(jsonb_agg(to_jsonb(x) - 'code_hash' order by x."created_at" desc), '[]'::jsonb)
     from "app_private"."invite_codes" x
-    where x."organization_id" is not distinct from list_invite_codes.tenant
+    where x."tenant_id" is not distinct from list_invite_codes.tenant
   );
 end;
 $$;
@@ -1122,7 +1122,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."organization_id" into v_tenant from "app_private"."invite_codes" x where x."id" = revoke_invite_code.id;
+  select x."tenant_id" into v_tenant from "app_private"."invite_codes" x where x."id" = revoke_invite_code.id;
   if not found then
     return false;
   end if;
@@ -1195,10 +1195,10 @@ begin
     raise exception 'You already used this invite code' using errcode = '23505', hint = 'WAITLIST_CODE_USED';
   end if;
   update "app_private"."invite_codes" x set "uses" = x."uses" + 1 where x."id" = v_code."id";
-  if v_code."organization_id" is not null then
+  if v_code."tenant_id" is not null then
     v_role := coalesce(v_code."role", 'member');
     insert into "better_supabase"."memberships" ("organization_id", "user_id", "role")
-    values (v_code."organization_id", redeem_for.member, v_role)
+    values (v_code."tenant_id", redeem_for.member, v_role)
     on conflict do nothing;
     v_added := found;
     if v_added then
@@ -1207,7 +1207,7 @@ begin
       v_role := null;
     end if;
   end if;
-  return jsonb_build_object('organizationId', v_code."organization_id", 'role', v_role);
+  return jsonb_build_object('organizationId', v_code."tenant_id", 'role', v_role);
 end;
 $$;
 
@@ -1293,7 +1293,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:af70fb264b2bd2611de66d662e485b1a6d80a696cabcfd5f2269ca09ad157804
+-- @bsb-hash sha256:43a21f1c56d028ab480aa2b183158551fbfcad0ef5391e5cc2041a4b5ebb6bfc
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1330,13 +1330,13 @@ create table "better_supabase"."invite_codes" (
   "max_uses" integer constraint bsb_invite_codes_max_uses_check check ("max_uses" > 0),
   "uses" integer not null default 0 constraint bsb_invite_codes_uses_check check ("uses" >= 0),
   "expires_at" timestamptz,
-  "organization_id" uuid,
-  "role" text constraint bsb_invite_codes_check check ("role" is null or "organization_id" is not null),
+  "tenant_id" uuid,
+  "role" text constraint bsb_invite_codes_check check ("role" is null or "tenant_id" is not null),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create index invite_codes_tenant_idx on "better_supabase"."invite_codes" ("organization_id");
+create index invite_codes_tenant_idx on "better_supabase"."invite_codes" ("tenant_id");
 create index invite_codes_created_by_idx on "better_supabase"."invite_codes" ("created_by");
 alter table "better_supabase"."invite_codes" enable row level security;
 revoke all on "better_supabase"."invite_codes" from public, anon, authenticated;
@@ -1487,7 +1487,7 @@ begin
     and not coalesce(better_supabase.can_assign(create_invite_code.tenant, create_invite_code.role), false) then
     raise exception 'You may not grant role %', create_invite_code.role using errcode = '42501', hint = 'WAITLIST_ROLE_FORBIDDEN';
   end if;
-  insert into "better_supabase"."invite_codes" ("code_hash", "prefix", "max_uses", "expires_at", "organization_id", "role")
+  insert into "better_supabase"."invite_codes" ("code_hash", "prefix", "max_uses", "expires_at", "tenant_id", "role")
   values (
     encode(extensions.digest(upper(trim(create_invite_code.code)), 'sha256'), 'hex'),
     upper(left(trim(create_invite_code.code), 4)),
@@ -1518,7 +1518,7 @@ begin
   return (
     select coalesce(jsonb_agg(to_jsonb(x) - 'code_hash' order by x."created_at" desc), '[]'::jsonb)
     from "better_supabase"."invite_codes" x
-    where x."organization_id" is not distinct from list_invite_codes.tenant
+    where x."tenant_id" is not distinct from list_invite_codes.tenant
   );
 end;
 $$;
@@ -1536,7 +1536,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."organization_id" into v_tenant from "better_supabase"."invite_codes" x where x."id" = revoke_invite_code.id;
+  select x."tenant_id" into v_tenant from "better_supabase"."invite_codes" x where x."id" = revoke_invite_code.id;
   if not found then
     return false;
   end if;
@@ -1609,10 +1609,10 @@ begin
     raise exception 'You already used this invite code' using errcode = '23505', hint = 'WAITLIST_CODE_USED';
   end if;
   update "better_supabase"."invite_codes" x set "uses" = x."uses" + 1 where x."id" = v_code."id";
-  if v_code."organization_id" is not null then
+  if v_code."tenant_id" is not null then
     v_role := coalesce(v_code."role", 'member');
     insert into "better_supabase"."memberships" ("organization_id", "user_id", "role")
-    values (v_code."organization_id", redeem_for.member, v_role)
+    values (v_code."tenant_id", redeem_for.member, v_role)
     on conflict do nothing;
     v_added := found;
     if v_added then
@@ -1621,7 +1621,7 @@ begin
       v_role := null;
     end if;
   end if;
-  return jsonb_build_object('organizationId', v_code."organization_id", 'role', v_role);
+  return jsonb_build_object('organizationId', v_code."tenant_id", 'role', v_role);
 end;
 $$;
 
@@ -1795,7 +1795,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:46b41eb301cf839aa337d016463c2dc17cfabef2f98d0fac5f4dfa082366bf96
+-- @bsb-hash sha256:7cb58cbfba6b72a640b2af88bc5a59c78943f502aede52bcc7355e4061bb646f
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1831,12 +1831,12 @@ alter table "better_supabase"."invite_codes" add column if not exists "prefix" t
 alter table "better_supabase"."invite_codes" add column if not exists "max_uses" integer constraint bsb_invite_codes_max_uses_check check ("max_uses" > 0);
 alter table "better_supabase"."invite_codes" add column if not exists "uses" integer not null default 0 constraint bsb_invite_codes_uses_check check ("uses" >= 0);
 alter table "better_supabase"."invite_codes" add column if not exists "expires_at" timestamptz;
-alter table "better_supabase"."invite_codes" add column if not exists "organization_id" uuid;
-alter table "better_supabase"."invite_codes" add column if not exists "role" text constraint bsb_invite_codes_check check ("role" is null or "organization_id" is);
+alter table "better_supabase"."invite_codes" add column if not exists "tenant_id" uuid;
+alter table "better_supabase"."invite_codes" add column if not exists "role" text constraint bsb_invite_codes_check check ("role" is null or "tenant_id" is);
 alter table "better_supabase"."invite_codes" add column if not exists "created_by" uuid references auth.users (id) on delete set null default auth.uid();
 alter table "better_supabase"."invite_codes" add column if not exists "created_at" timestamptz not null default now();
 alter table "better_supabase"."invite_codes" add column if not exists "revoked_at" timestamptz;
-create index if not exists invite_codes_tenant_idx on "better_supabase"."invite_codes" ("organization_id");
+create index if not exists invite_codes_tenant_idx on "better_supabase"."invite_codes" ("tenant_id");
 create index if not exists invite_codes_created_by_idx on "better_supabase"."invite_codes" ("created_by");
 create unique index if not exists "bsb_invite_codes_hash_key" on "better_supabase"."invite_codes" ("code_hash");
 alter table "better_supabase"."invite_codes" enable row level security;
@@ -1985,7 +1985,7 @@ begin
     and not coalesce(better_supabase.can_assign(create_invite_code.tenant, create_invite_code.role), false) then
     raise exception 'You may not grant role %', create_invite_code.role using errcode = '42501', hint = 'WAITLIST_ROLE_FORBIDDEN';
   end if;
-  insert into "better_supabase"."invite_codes" ("code_hash", "prefix", "max_uses", "expires_at", "organization_id", "role", "created_by")
+  insert into "better_supabase"."invite_codes" ("code_hash", "prefix", "max_uses", "expires_at", "tenant_id", "role", "created_by")
   values (
     encode(extensions.digest(upper(trim(create_invite_code.code)), 'sha256'), 'hex'),
     upper(left(trim(create_invite_code.code), 4)),
@@ -1997,7 +1997,7 @@ begin
   )
   returning * into v_row;
   null;
-  return jsonb_build_object('id', v_row."id", 'prefix', v_row."prefix", 'max_uses', v_row."max_uses", 'uses', v_row."uses", 'expires_at', v_row."expires_at", 'organization_id', v_row."organization_id", 'role', v_row."role", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'revoked_at', v_row."revoked_at");
+  return jsonb_build_object('id', v_row."id", 'prefix', v_row."prefix", 'max_uses', v_row."max_uses", 'uses', v_row."uses", 'expires_at', v_row."expires_at", 'tenant_id', v_row."tenant_id", 'role', v_row."role", 'created_by', v_row."created_by", 'created_at', v_row."created_at", 'revoked_at', v_row."revoked_at");
 exception when unique_violation then
   raise exception 'That invite code exists' using errcode = '23505', hint = 'WAITLIST_CODE_TAKEN';
 end;
@@ -2015,9 +2015,9 @@ begin
     raise exception 'You may not see these invite codes' using errcode = '42501', hint = 'WAITLIST_FORBIDDEN';
   end if;
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'prefix', x."prefix", 'max_uses', x."max_uses", 'uses', x."uses", 'expires_at', x."expires_at", 'organization_id', x."organization_id", 'role', x."role", 'created_by', x."created_by", 'created_at', x."created_at", 'revoked_at', x."revoked_at") order by x."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'prefix', x."prefix", 'max_uses', x."max_uses", 'uses', x."uses", 'expires_at', x."expires_at", 'tenant_id', x."tenant_id", 'role', x."role", 'created_by', x."created_by", 'created_at', x."created_at", 'revoked_at', x."revoked_at") order by x."created_at" desc), '[]'::jsonb)
     from "better_supabase"."invite_codes" x
-    where x."organization_id" is not distinct from list_invite_codes.tenant
+    where x."tenant_id" is not distinct from list_invite_codes.tenant
   );
 end;
 $$;
@@ -2035,7 +2035,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."organization_id" into v_tenant from "better_supabase"."invite_codes" x where x."id" = revoke_invite_code.id;
+  select x."tenant_id" into v_tenant from "better_supabase"."invite_codes" x where x."id" = revoke_invite_code.id;
   if not found then
     return false;
   end if;
@@ -2108,10 +2108,10 @@ begin
     raise exception 'You already used this invite code' using errcode = '23505', hint = 'WAITLIST_CODE_USED';
   end if;
   update "better_supabase"."invite_codes" x set "uses" = x."uses" + 1 where x."id" = v_code."id";
-  if v_code."organization_id" is not null then
+  if v_code."tenant_id" is not null then
     v_role := coalesce(v_code."role"::text, 'member');
     insert into "better_supabase"."memberships" ("organization_id", "user_id", "role")
-    values (v_code."organization_id", redeem_for.member, v_role)
+    values (v_code."tenant_id", redeem_for.member, v_role)
     on conflict do nothing;
     v_added := found;
     if v_added then
@@ -2120,7 +2120,7 @@ begin
       v_role := null;
     end if;
   end if;
-  return jsonb_build_object('organizationId', v_code."organization_id", 'role', v_role);
+  return jsonb_build_object('organizationId', v_code."tenant_id", 'role', v_role);
 end;
 $$;
 

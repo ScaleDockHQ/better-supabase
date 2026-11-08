@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:a92f73c750c8557b55d72fb01fd445886d40af216eed0896036cbee46d76ee86
+-- @bsb-hash sha256:a04fb386089f7c02a9f9a1404fa0670054d1eb5cde00c9d33a653a57d7c2a8bc
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -14,21 +14,21 @@
 -- these tables.
 create table "better_supabase"."guardrail_policies" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "agent" text not null constraint bsb_guardrail_policies_agent_check check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
   "stage" text not null constraint bsb_guardrail_policies_stage_check check ("stage" in ('input', 'output')),
   "config" jsonb not null default '{}'::jsonb constraint bsb_guardrail_policies_config_check check (jsonb_typeof("config") = 'object'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
-create unique index "bsb_guardrail_policies_key" on "better_supabase"."guardrail_policies" ((coalesce("organization_id"::text, '')), "agent", "stage");
+create unique index "bsb_guardrail_policies_key" on "better_supabase"."guardrail_policies" ((coalesce("tenant_id"::text, '')), "agent", "stage");
 alter table "better_supabase"."guardrail_policies" enable row level security;
 revoke all on "better_supabase"."guardrail_policies" from public, anon, authenticated;
 grant all on "better_supabase"."guardrail_policies" to service_role;
 
 create table "better_supabase"."guardrail_decisions" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "agent" text not null,
   "stage" text not null constraint bsb_guardrail_decisions_stage_check check ("stage" in ('input', 'output')),
   "decision" text not null constraint bsb_guardrail_decisions_decision_check check ("decision" in ('allow', 'redact', 'block')),
@@ -38,7 +38,7 @@ create table "better_supabase"."guardrail_decisions" (
   "created_at" timestamptz not null default now()
 );
 create index "guardrail_decisions_agent_idx" on "better_supabase"."guardrail_decisions" ("agent", "created_at" desc);
-create index "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("organization_id", "created_at" desc);
+create index "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("tenant_id", "created_at" desc);
 alter table "better_supabase"."guardrail_decisions" enable row level security;
 revoke all on "better_supabase"."guardrail_decisions" from public, anon, authenticated;
 grant all on "better_supabase"."guardrail_decisions" to service_role;
@@ -58,12 +58,12 @@ begin
   if jsonb_typeof(set_guardrail_policy.config) is distinct from 'object' then
     raise exception 'config must be a JSON object' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
   end if;
-  insert into "better_supabase"."guardrail_policies" ("organization_id", "agent", "stage", "config", "enabled")
+  insert into "better_supabase"."guardrail_policies" ("tenant_id", "agent", "stage", "config", "enabled")
   values (set_guardrail_policy.tenant, set_guardrail_policy.agent, set_guardrail_policy.stage, set_guardrail_policy.config, coalesce(set_guardrail_policy.enabled, true))
-  on conflict ((coalesce("organization_id"::text, '')), "agent", "stage") do update set
+  on conflict ((coalesce("tenant_id"::text, '')), "agent", "stage") do update set
     "config" = excluded."config", "enabled" = excluded."enabled", "updated_at" = now()
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."set_guardrail_policy"(text, text, jsonb, uuid, boolean) from public, anon, authenticated;
@@ -86,13 +86,13 @@ begin
   select x.* into v_row from "better_supabase"."guardrail_policies" x
   where x."stage" = get_guardrail_policy.stage
     and x."agent" in (get_guardrail_policy.agent, '*')
-    and (x."organization_id" is null or x."organization_id" = get_guardrail_policy.tenant)
-  order by (x."organization_id" is null), (x."agent" = '*')
+    and (x."tenant_id" is null or x."tenant_id" = get_guardrail_policy.tenant)
+  order by (x."tenant_id" is null), (x."agent" = '*')
   limit 1;
   if not found or not v_row."enabled" then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_guardrail_policy"(text, text, uuid) from public, anon, authenticated;
@@ -110,13 +110,13 @@ as $$
 declare
   v_row "better_supabase"."guardrail_decisions"%rowtype;
 begin
-  insert into "better_supabase"."guardrail_decisions" ("organization_id", "agent", "stage", "decision", "reasons", "chat_id", "content_hash")
+  insert into "better_supabase"."guardrail_decisions" ("tenant_id", "agent", "stage", "decision", "reasons", "chat_id", "content_hash")
   values (record_guardrail_decision.tenant, record_guardrail_decision.agent, record_guardrail_decision.stage, record_guardrail_decision.decision, coalesce(record_guardrail_decision.reasons, '[]'::jsonb), record_guardrail_decision.chat, record_guardrail_decision.content_hash)
   returning * into v_row;
   if v_row."decision" = 'block' then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'agent', v_row."agent", 'stage', v_row."stage", 'decision', v_row."decision", 'reasons', v_row."reasons", 'chat_id', v_row."chat_id", 'content_hash', v_row."content_hash", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'agent', v_row."agent", 'stage', v_row."stage", 'decision', v_row."decision", 'reasons', v_row."reasons", 'chat_id', v_row."chat_id", 'content_hash', v_row."content_hash", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."record_guardrail_decision"(text, text, text, jsonb, uuid, text, text) from public, anon, authenticated;
@@ -133,12 +133,12 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organization_id', q."organization_id", 'agent', q."agent", 'stage', q."stage", 'decision', q."decision", 'reasons', q."reasons", 'chat_id', q."chat_id", 'content_hash', q."content_hash", 'created_at', q."created_at") order by q."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'tenant_id', q."tenant_id", 'agent', q."agent", 'stage', q."stage", 'decision', q."decision", 'reasons', q."reasons", 'chat_id', q."chat_id", 'content_hash', q."content_hash", 'created_at', q."created_at") order by q."created_at" desc), '[]'::jsonb)
     from (
       select x.* from "better_supabase"."guardrail_decisions" x
       where (list_guardrail_decisions.agent is null or x."agent" = list_guardrail_decisions.agent)
         and (list_guardrail_decisions.decision is null or x."decision" = list_guardrail_decisions.decision)
-        and (list_guardrail_decisions.tenant is null or x."organization_id" = list_guardrail_decisions.tenant)
+        and (list_guardrail_decisions.tenant is null or x."tenant_id" = list_guardrail_decisions.tenant)
       order by x."created_at" desc
       limit least(greatest(coalesce(list_guardrail_decisions.max_rows, 100), 1), 1000)
     ) q
@@ -183,7 +183,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:3dbb2a8202694634d57122c0009c1c8adfd1928d85dcc77080a06ed97ebe0f43
+-- @bsb-hash sha256:3630b5e6e1266a0507888429392318d3b3c08a04e256bf0f88c861b67dbf7748
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -196,21 +196,21 @@ on conflict (name) do update
 -- these tables.
 create table "better_supabase"."guardrail_policies" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "agent" text not null constraint bsb_guardrail_policies_agent_check check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
   "stage" text not null constraint bsb_guardrail_policies_stage_check check ("stage" in ('input', 'output')),
   "config" jsonb not null default '{}'::jsonb constraint bsb_guardrail_policies_config_check check (jsonb_typeof("config") = 'object'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
-create unique index "bsb_guardrail_policies_key" on "better_supabase"."guardrail_policies" ((coalesce("organization_id"::text, '')), "agent", "stage");
+create unique index "bsb_guardrail_policies_key" on "better_supabase"."guardrail_policies" ((coalesce("tenant_id"::text, '')), "agent", "stage");
 alter table "better_supabase"."guardrail_policies" enable row level security;
 revoke all on "better_supabase"."guardrail_policies" from public, anon, authenticated;
 grant all on "better_supabase"."guardrail_policies" to service_role;
 
 create table "better_supabase"."guardrail_decisions" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "agent" text not null,
   "stage" text not null constraint bsb_guardrail_decisions_stage_check check ("stage" in ('input', 'output')),
   "decision" text not null constraint bsb_guardrail_decisions_decision_check check ("decision" in ('allow', 'redact', 'block')),
@@ -220,7 +220,7 @@ create table "better_supabase"."guardrail_decisions" (
   "created_at" timestamptz not null default now()
 );
 create index "guardrail_decisions_agent_idx" on "better_supabase"."guardrail_decisions" ("agent", "created_at" desc);
-create index "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("organization_id", "created_at" desc);
+create index "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("tenant_id", "created_at" desc);
 alter table "better_supabase"."guardrail_decisions" enable row level security;
 revoke all on "better_supabase"."guardrail_decisions" from public, anon, authenticated;
 grant all on "better_supabase"."guardrail_decisions" to service_role;
@@ -240,12 +240,12 @@ begin
   if jsonb_typeof(set_guardrail_policy.config) is distinct from 'object' then
     raise exception 'config must be a JSON object' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
   end if;
-  insert into "better_supabase"."guardrail_policies" ("organization_id", "agent", "stage", "config", "enabled")
+  insert into "better_supabase"."guardrail_policies" ("tenant_id", "agent", "stage", "config", "enabled")
   values (set_guardrail_policy.tenant, set_guardrail_policy.agent, set_guardrail_policy.stage, set_guardrail_policy.config, coalesce(set_guardrail_policy.enabled, true))
-  on conflict ((coalesce("organization_id"::text, '')), "agent", "stage") do update set
+  on conflict ((coalesce("tenant_id"::text, '')), "agent", "stage") do update set
     "config" = excluded."config", "enabled" = excluded."enabled", "updated_at" = now()
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."set_guardrail_policy"(text, text, jsonb, uuid, boolean) from public, anon, authenticated;
@@ -268,13 +268,13 @@ begin
   select x.* into v_row from "better_supabase"."guardrail_policies" x
   where x."stage" = get_guardrail_policy.stage
     and x."agent" in (get_guardrail_policy.agent, '*')
-    and (x."organization_id" is null or x."organization_id" = get_guardrail_policy.tenant)
-  order by (x."organization_id" is null), (x."agent" = '*')
+    and (x."tenant_id" is null or x."tenant_id" = get_guardrail_policy.tenant)
+  order by (x."tenant_id" is null), (x."agent" = '*')
   limit 1;
   if not found or not v_row."enabled" then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_guardrail_policy"(text, text, uuid) from public, anon, authenticated;
@@ -292,22 +292,22 @@ as $$
 declare
   v_row "better_supabase"."guardrail_decisions"%rowtype;
 begin
-  insert into "better_supabase"."guardrail_decisions" ("organization_id", "agent", "stage", "decision", "reasons", "chat_id", "content_hash")
+  insert into "better_supabase"."guardrail_decisions" ("tenant_id", "agent", "stage", "decision", "reasons", "chat_id", "content_hash")
   values (record_guardrail_decision.tenant, record_guardrail_decision.agent, record_guardrail_decision.stage, record_guardrail_decision.decision, coalesce(record_guardrail_decision.reasons, '[]'::jsonb), record_guardrail_decision.chat, record_guardrail_decision.content_hash)
   returning * into v_row;
   if v_row."decision" = 'block' then
-    perform "better_supabase".emit_event('guardrail.blocked', jsonb_build_object('organizationId', v_row."organization_id"::text, 'decisionId', v_row."id", 'agent', v_row."agent", 'stage', v_row."stage", 'reasons', v_row."reasons"), 'guardrail-decisions/' || v_row."id"::text, (v_row."organization_id")::text, null, 'better-supabase/ai-guardrails');
+    perform "better_supabase".emit_event('guardrail.blocked', jsonb_build_object('organizationId', v_row."tenant_id"::text, 'decisionId', v_row."id", 'agent', v_row."agent", 'stage', v_row."stage", 'reasons', v_row."reasons"), 'guardrail-decisions/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/ai-guardrails');
   perform better_supabase.audit_event(
     event_type => 'guardrail.blocked',
     category => 'ai',
     target_type => 'guardrail_decision',
     record_id => v_row."id"::text,
     target_label => v_row."agent" || '/' || v_row."stage",
-    tenant => (v_row."organization_id")::uuid,
-    metadata => jsonb_build_object('organizationId', v_row."organization_id"::text, 'decisionId', v_row."id", 'agent', v_row."agent", 'stage', v_row."stage", 'reasons', v_row."reasons")
+    tenant => (v_row."tenant_id")::uuid,
+    metadata => jsonb_build_object('organizationId', v_row."tenant_id"::text, 'decisionId', v_row."id", 'agent', v_row."agent", 'stage', v_row."stage", 'reasons', v_row."reasons")
   );
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'agent', v_row."agent", 'stage', v_row."stage", 'decision', v_row."decision", 'reasons', v_row."reasons", 'chat_id', v_row."chat_id", 'content_hash', v_row."content_hash", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'agent', v_row."agent", 'stage', v_row."stage", 'decision', v_row."decision", 'reasons', v_row."reasons", 'chat_id', v_row."chat_id", 'content_hash', v_row."content_hash", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."record_guardrail_decision"(text, text, text, jsonb, uuid, text, text) from public, anon, authenticated;
@@ -324,12 +324,12 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organization_id', q."organization_id", 'agent', q."agent", 'stage', q."stage", 'decision', q."decision", 'reasons', q."reasons", 'chat_id', q."chat_id", 'content_hash', q."content_hash", 'created_at', q."created_at") order by q."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'tenant_id', q."tenant_id", 'agent', q."agent", 'stage', q."stage", 'decision', q."decision", 'reasons', q."reasons", 'chat_id', q."chat_id", 'content_hash', q."content_hash", 'created_at', q."created_at") order by q."created_at" desc), '[]'::jsonb)
     from (
       select x.* from "better_supabase"."guardrail_decisions" x
       where (list_guardrail_decisions.agent is null or x."agent" = list_guardrail_decisions.agent)
         and (list_guardrail_decisions.decision is null or x."decision" = list_guardrail_decisions.decision)
-        and (list_guardrail_decisions.tenant is null or x."organization_id" = list_guardrail_decisions.tenant)
+        and (list_guardrail_decisions.tenant is null or x."tenant_id" = list_guardrail_decisions.tenant)
       order by x."created_at" desc
       limit least(greatest(coalesce(list_guardrail_decisions.max_rows, 100), 1), 1000)
     ) q
@@ -374,7 +374,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:0fed31d211be42c25e7e151366fb7ea93c8339eb7bfc91348f22be636aaf4ade
+-- @bsb-hash sha256:c2e45bd0a92998e3cd19ae38268e41deeee0d1a3ae1939e5949633472de00c10
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -392,21 +392,21 @@ alter default privileges in schema "app_private" revoke all on functions from pu
 -- these tables.
 create table "app_private"."guardrail_policies" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "agent" text not null constraint bsb_guardrail_policies_agent_check check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
   "stage" text not null constraint bsb_guardrail_policies_stage_check check ("stage" in ('input', 'output')),
   "config" jsonb not null default '{}'::jsonb constraint bsb_guardrail_policies_config_check check (jsonb_typeof("config") = 'object'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
-create unique index "bsb_guardrail_policies_key" on "app_private"."guardrail_policies" ((coalesce("organization_id"::text, '')), "agent", "stage");
+create unique index "bsb_guardrail_policies_key" on "app_private"."guardrail_policies" ((coalesce("tenant_id"::text, '')), "agent", "stage");
 alter table "app_private"."guardrail_policies" enable row level security;
 revoke all on "app_private"."guardrail_policies" from public, anon, authenticated;
 grant all on "app_private"."guardrail_policies" to service_role;
 
 create table "app_private"."guardrail_decisions" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "agent" text not null,
   "stage" text not null constraint bsb_guardrail_decisions_stage_check check ("stage" in ('input', 'output')),
   "decision" text not null constraint bsb_guardrail_decisions_decision_check check ("decision" in ('allow', 'redact', 'block')),
@@ -416,7 +416,7 @@ create table "app_private"."guardrail_decisions" (
   "created_at" timestamptz not null default now()
 );
 create index "guardrail_decisions_agent_idx" on "app_private"."guardrail_decisions" ("agent", "created_at" desc);
-create index "guardrail_decisions_tenant_idx" on "app_private"."guardrail_decisions" ("organization_id", "created_at" desc);
+create index "guardrail_decisions_tenant_idx" on "app_private"."guardrail_decisions" ("tenant_id", "created_at" desc);
 alter table "app_private"."guardrail_decisions" enable row level security;
 revoke all on "app_private"."guardrail_decisions" from public, anon, authenticated;
 grant all on "app_private"."guardrail_decisions" to service_role;
@@ -436,12 +436,12 @@ begin
   if jsonb_typeof(set_guardrail_policy.config) is distinct from 'object' then
     raise exception 'config must be a JSON object' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
   end if;
-  insert into "app_private"."guardrail_policies" ("organization_id", "agent", "stage", "config", "enabled")
+  insert into "app_private"."guardrail_policies" ("tenant_id", "agent", "stage", "config", "enabled")
   values (set_guardrail_policy.tenant, set_guardrail_policy.agent, set_guardrail_policy.stage, set_guardrail_policy.config, coalesce(set_guardrail_policy.enabled, true))
-  on conflict ((coalesce("organization_id"::text, '')), "agent", "stage") do update set
+  on conflict ((coalesce("tenant_id"::text, '')), "agent", "stage") do update set
     "config" = excluded."config", "enabled" = excluded."enabled", "updated_at" = now()
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."set_guardrail_policy"(text, text, jsonb, uuid, boolean) from public, anon, authenticated;
@@ -464,13 +464,13 @@ begin
   select x.* into v_row from "app_private"."guardrail_policies" x
   where x."stage" = get_guardrail_policy.stage
     and x."agent" in (get_guardrail_policy.agent, '*')
-    and (x."organization_id" is null or x."organization_id" = get_guardrail_policy.tenant)
-  order by (x."organization_id" is null), (x."agent" = '*')
+    and (x."tenant_id" is null or x."tenant_id" = get_guardrail_policy.tenant)
+  order by (x."tenant_id" is null), (x."agent" = '*')
   limit 1;
   if not found or not v_row."enabled" then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "app_private"."get_guardrail_policy"(text, text, uuid) from public, anon, authenticated;
@@ -488,13 +488,13 @@ as $$
 declare
   v_row "app_private"."guardrail_decisions"%rowtype;
 begin
-  insert into "app_private"."guardrail_decisions" ("organization_id", "agent", "stage", "decision", "reasons", "chat_id", "content_hash")
+  insert into "app_private"."guardrail_decisions" ("tenant_id", "agent", "stage", "decision", "reasons", "chat_id", "content_hash")
   values (record_guardrail_decision.tenant, record_guardrail_decision.agent, record_guardrail_decision.stage, record_guardrail_decision.decision, coalesce(record_guardrail_decision.reasons, '[]'::jsonb), record_guardrail_decision.chat, record_guardrail_decision.content_hash)
   returning * into v_row;
   if v_row."decision" = 'block' then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'agent', v_row."agent", 'stage', v_row."stage", 'decision', v_row."decision", 'reasons', v_row."reasons", 'chat_id', v_row."chat_id", 'content_hash', v_row."content_hash", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'agent', v_row."agent", 'stage', v_row."stage", 'decision', v_row."decision", 'reasons', v_row."reasons", 'chat_id', v_row."chat_id", 'content_hash', v_row."content_hash", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "app_private"."record_guardrail_decision"(text, text, text, jsonb, uuid, text, text) from public, anon, authenticated;
@@ -511,12 +511,12 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organization_id', q."organization_id", 'agent', q."agent", 'stage', q."stage", 'decision', q."decision", 'reasons', q."reasons", 'chat_id', q."chat_id", 'content_hash', q."content_hash", 'created_at', q."created_at") order by q."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'tenant_id', q."tenant_id", 'agent', q."agent", 'stage', q."stage", 'decision', q."decision", 'reasons', q."reasons", 'chat_id', q."chat_id", 'content_hash', q."content_hash", 'created_at', q."created_at") order by q."created_at" desc), '[]'::jsonb)
     from (
       select x.* from "app_private"."guardrail_decisions" x
       where (list_guardrail_decisions.agent is null or x."agent" = list_guardrail_decisions.agent)
         and (list_guardrail_decisions.decision is null or x."decision" = list_guardrail_decisions.decision)
-        and (list_guardrail_decisions.tenant is null or x."organization_id" = list_guardrail_decisions.tenant)
+        and (list_guardrail_decisions.tenant is null or x."tenant_id" = list_guardrail_decisions.tenant)
       order by x."created_at" desc
       limit least(greatest(coalesce(list_guardrail_decisions.max_rows, 100), 1), 1000)
     ) q
@@ -561,7 +561,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:d0f9f380a1cf46c1dab56ca8daf5c09cad33834228513db38d3e9a7a381ffc77
+-- @bsb-hash sha256:e30114e392cb58b632c117cc2132d1cd0b8f16c32b703e4904f0f5a915eae4ab
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -574,21 +574,21 @@ on conflict (name) do update
 -- these tables.
 create table "better_supabase"."guardrail_policies" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "agent" text not null constraint bsb_guardrail_policies_agent_check check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$'),
   "stage" text not null constraint bsb_guardrail_policies_stage_check check ("stage" in ('input', 'output')),
   "config" jsonb not null default '{}'::jsonb constraint bsb_guardrail_policies_config_check check (jsonb_typeof("config") = 'object'),
   "enabled" boolean not null default true,
   "updated_at" timestamptz not null default now()
 );
-create unique index "bsb_guardrail_policies_key" on "better_supabase"."guardrail_policies" ((coalesce("organization_id"::text, '')), "agent", "stage");
+create unique index "bsb_guardrail_policies_key" on "better_supabase"."guardrail_policies" ((coalesce("tenant_id"::text, '')), "agent", "stage");
 alter table "better_supabase"."guardrail_policies" enable row level security;
 revoke all on "better_supabase"."guardrail_policies" from public, anon, authenticated;
 grant all on "better_supabase"."guardrail_policies" to service_role;
 
 create table "better_supabase"."guardrail_decisions" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "agent" text not null,
   "stage" text not null constraint bsb_guardrail_decisions_stage_check check ("stage" in ('input', 'output')),
   "decision" text not null constraint bsb_guardrail_decisions_decision_check check ("decision" in ('allow', 'redact', 'block')),
@@ -598,7 +598,7 @@ create table "better_supabase"."guardrail_decisions" (
   "created_at" timestamptz not null default now()
 );
 create index "guardrail_decisions_agent_idx" on "better_supabase"."guardrail_decisions" ("agent", "created_at" desc);
-create index "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("organization_id", "created_at" desc);
+create index "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("tenant_id", "created_at" desc);
 alter table "better_supabase"."guardrail_decisions" enable row level security;
 revoke all on "better_supabase"."guardrail_decisions" from public, anon, authenticated;
 grant all on "better_supabase"."guardrail_decisions" to service_role;
@@ -618,12 +618,12 @@ begin
   if jsonb_typeof(set_guardrail_policy.config) is distinct from 'object' then
     raise exception 'config must be a JSON object' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
   end if;
-  insert into "better_supabase"."guardrail_policies" ("organization_id", "agent", "stage", "config", "enabled")
+  insert into "better_supabase"."guardrail_policies" ("tenant_id", "agent", "stage", "config", "enabled")
   values (set_guardrail_policy.tenant, set_guardrail_policy.agent, set_guardrail_policy.stage, set_guardrail_policy.config, coalesce(set_guardrail_policy.enabled, true))
-  on conflict ((coalesce("organization_id"::text, '')), "agent", "stage") do update set
+  on conflict ((coalesce("tenant_id"::text, '')), "agent", "stage") do update set
     "config" = excluded."config", "enabled" = excluded."enabled", "updated_at" = now()
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."set_guardrail_policy"(text, text, jsonb, uuid, boolean) from public, anon, authenticated;
@@ -646,13 +646,13 @@ begin
   select x.* into v_row from "better_supabase"."guardrail_policies" x
   where x."stage" = get_guardrail_policy.stage
     and x."agent" in (get_guardrail_policy.agent, '*')
-    and (x."organization_id" is null or x."organization_id" = get_guardrail_policy.tenant)
-  order by (x."organization_id" is null), (x."agent" = '*')
+    and (x."tenant_id" is null or x."tenant_id" = get_guardrail_policy.tenant)
+  order by (x."tenant_id" is null), (x."agent" = '*')
   limit 1;
   if not found or not v_row."enabled" then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_guardrail_policy"(text, text, uuid) from public, anon, authenticated;
@@ -670,13 +670,13 @@ as $$
 declare
   v_row "better_supabase"."guardrail_decisions"%rowtype;
 begin
-  insert into "better_supabase"."guardrail_decisions" ("organization_id", "agent", "stage", "decision", "reasons", "chat_id", "content_hash")
+  insert into "better_supabase"."guardrail_decisions" ("tenant_id", "agent", "stage", "decision", "reasons", "chat_id", "content_hash")
   values (record_guardrail_decision.tenant, record_guardrail_decision.agent, record_guardrail_decision.stage, record_guardrail_decision.decision, coalesce(record_guardrail_decision.reasons, '[]'::jsonb), record_guardrail_decision.chat, record_guardrail_decision.content_hash)
   returning * into v_row;
   if v_row."decision" = 'block' then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'agent', v_row."agent", 'stage', v_row."stage", 'decision', v_row."decision", 'reasons', v_row."reasons", 'chat_id', v_row."chat_id", 'content_hash', v_row."content_hash", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'agent', v_row."agent", 'stage', v_row."stage", 'decision', v_row."decision", 'reasons', v_row."reasons", 'chat_id', v_row."chat_id", 'content_hash', v_row."content_hash", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."record_guardrail_decision"(text, text, text, jsonb, uuid, text, text) from public, anon, authenticated;
@@ -693,12 +693,12 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organization_id', q."organization_id", 'agent', q."agent", 'stage', q."stage", 'decision', q."decision", 'reasons', q."reasons", 'chat_id', q."chat_id", 'content_hash', q."content_hash", 'created_at', q."created_at") order by q."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'tenant_id', q."tenant_id", 'agent', q."agent", 'stage', q."stage", 'decision', q."decision", 'reasons', q."reasons", 'chat_id', q."chat_id", 'content_hash', q."content_hash", 'created_at', q."created_at") order by q."created_at" desc), '[]'::jsonb)
     from (
       select x.* from "better_supabase"."guardrail_decisions" x
       where (list_guardrail_decisions.agent is null or x."agent" = list_guardrail_decisions.agent)
         and (list_guardrail_decisions.decision is null or x."decision" = list_guardrail_decisions.decision)
-        and (list_guardrail_decisions.tenant is null or x."organization_id" = list_guardrail_decisions.tenant)
+        and (list_guardrail_decisions.tenant is null or x."tenant_id" = list_guardrail_decisions.tenant)
       order by x."created_at" desc
       limit least(greatest(coalesce(list_guardrail_decisions.max_rows, 100), 1), 1000)
     ) q
@@ -794,7 +794,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:eee7ce29ae5dc42e948fd67c03f3354375718e023b8725ef538597209110ab7e
+-- @bsb-hash sha256:a2b8609a883cebf98defacc8a04030c4a020f232f82edbef4a7a85b48b389783
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -807,19 +807,19 @@ on conflict (name) do update
 -- these tables.
 -- better_supabase.guardrail_policies is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."guardrail_policies" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."guardrail_policies" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."guardrail_policies" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."guardrail_policies" add column if not exists "agent" text constraint bsb_guardrail_policies_agent_check check ("agent" ~ '^(\*|[a-z0-9][a-z0-9_.:/-]{0,127})$');
 alter table "better_supabase"."guardrail_policies" add column if not exists "stage" text constraint bsb_guardrail_policies_stage_check check ("stage" in ('input', 'output'));
 alter table "better_supabase"."guardrail_policies" add column if not exists "config" jsonb not null default '{}'::jsonb constraint bsb_guardrail_policies_config_check check (jsonb_typeof("config") = 'object');
 alter table "better_supabase"."guardrail_policies" add column if not exists "enabled" boolean not null default true;
 alter table "better_supabase"."guardrail_policies" add column if not exists "updated_at" timestamptz not null default now();
-create unique index if not exists "bsb_guardrail_policies_key" on "better_supabase"."guardrail_policies" ((coalesce("organization_id"::text, '')), "agent", "stage");
+create unique index if not exists "bsb_guardrail_policies_key" on "better_supabase"."guardrail_policies" ((coalesce("tenant_id"::text, '')), "agent", "stage");
 alter table "better_supabase"."guardrail_policies" enable row level security;
 grant all on "better_supabase"."guardrail_policies" to service_role;
 
 -- better_supabase.guardrail_decisions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."guardrail_decisions" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."guardrail_decisions" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."guardrail_decisions" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."guardrail_decisions" add column if not exists "agent" text;
 alter table "better_supabase"."guardrail_decisions" add column if not exists "stage" text constraint bsb_guardrail_decisions_stage_check check ("stage" in ('input', 'output'));
 alter table "better_supabase"."guardrail_decisions" add column if not exists "decision" text constraint bsb_guardrail_decisions_decision_check check ("decision" in ('allow', 'redact', 'block'));
@@ -828,7 +828,7 @@ alter table "better_supabase"."guardrail_decisions" add column if not exists "ch
 alter table "better_supabase"."guardrail_decisions" add column if not exists "content_hash" text;
 alter table "better_supabase"."guardrail_decisions" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists "guardrail_decisions_agent_idx" on "better_supabase"."guardrail_decisions" ("agent", "created_at" desc);
-create index if not exists "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("organization_id", "created_at" desc);
+create index if not exists "guardrail_decisions_tenant_idx" on "better_supabase"."guardrail_decisions" ("tenant_id", "created_at" desc);
 alter table "better_supabase"."guardrail_decisions" enable row level security;
 grant all on "better_supabase"."guardrail_decisions" to service_role;
 
@@ -847,12 +847,12 @@ begin
   if jsonb_typeof(set_guardrail_policy.config) is distinct from 'object' then
     raise exception 'config must be a JSON object' using errcode = '22023', hint = 'GUARDRAIL_INVALID';
   end if;
-  insert into "better_supabase"."guardrail_policies" ("organization_id", "agent", "stage", "config", "enabled")
+  insert into "better_supabase"."guardrail_policies" ("tenant_id", "agent", "stage", "config", "enabled")
   values (set_guardrail_policy.tenant, set_guardrail_policy.agent, set_guardrail_policy.stage, set_guardrail_policy.config, coalesce(set_guardrail_policy.enabled, true))
-  on conflict ((coalesce("organization_id"::text, '')), "agent", "stage") do update set
+  on conflict ((coalesce("tenant_id"::text, '')), "agent", "stage") do update set
     "config" = excluded."config", "enabled" = excluded."enabled", "updated_at" = now()
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."set_guardrail_policy"(text, text, jsonb, uuid, boolean) from public, anon, authenticated;
@@ -875,13 +875,13 @@ begin
   select x.* into v_row from "better_supabase"."guardrail_policies" x
   where x."stage" = get_guardrail_policy.stage
     and x."agent" in (get_guardrail_policy.agent, '*')
-    and (x."organization_id" is null or x."organization_id" = get_guardrail_policy.tenant)
-  order by (x."organization_id" is null), (x."agent" = '*')
+    and (x."tenant_id" is null or x."tenant_id" = get_guardrail_policy.tenant)
+  order by (x."tenant_id" is null), (x."agent" = '*')
   limit 1;
   if not found or not v_row."enabled" then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_guardrail_policy"(text, text, uuid) from public, anon, authenticated;
@@ -899,13 +899,13 @@ as $$
 declare
   v_row "better_supabase"."guardrail_decisions"%rowtype;
 begin
-  insert into "better_supabase"."guardrail_decisions" ("organization_id", "agent", "stage", "decision", "reasons", "chat_id", "content_hash")
+  insert into "better_supabase"."guardrail_decisions" ("tenant_id", "agent", "stage", "decision", "reasons", "chat_id", "content_hash")
   values (record_guardrail_decision.tenant, record_guardrail_decision.agent, record_guardrail_decision.stage, record_guardrail_decision.decision, coalesce(record_guardrail_decision.reasons, '[]'::jsonb), record_guardrail_decision.chat, record_guardrail_decision.content_hash)
   returning * into v_row;
   if v_row."decision" = 'block' then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."organization_id", 'agent', v_row."agent", 'stage', v_row."stage", 'decision', v_row."decision", 'reasons', v_row."reasons", 'chat_id', v_row."chat_id", 'content_hash', v_row."content_hash", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'agent', v_row."agent", 'stage', v_row."stage", 'decision', v_row."decision", 'reasons', v_row."reasons", 'chat_id', v_row."chat_id", 'content_hash', v_row."content_hash", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."record_guardrail_decision"(text, text, text, jsonb, uuid, text, text) from public, anon, authenticated;
@@ -922,12 +922,12 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organization_id', q."organization_id", 'agent', q."agent", 'stage', q."stage", 'decision', q."decision", 'reasons', q."reasons", 'chat_id', q."chat_id", 'content_hash', q."content_hash", 'created_at', q."created_at") order by q."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'tenant_id', q."tenant_id", 'agent', q."agent", 'stage', q."stage", 'decision', q."decision", 'reasons', q."reasons", 'chat_id', q."chat_id", 'content_hash', q."content_hash", 'created_at', q."created_at") order by q."created_at" desc), '[]'::jsonb)
     from (
       select x.* from "better_supabase"."guardrail_decisions" x
       where (list_guardrail_decisions.agent is null or x."agent" = list_guardrail_decisions.agent)
         and (list_guardrail_decisions.decision is null or x."decision" = list_guardrail_decisions.decision)
-        and (list_guardrail_decisions.tenant is null or x."organization_id" = list_guardrail_decisions.tenant)
+        and (list_guardrail_decisions.tenant is null or x."tenant_id" = list_guardrail_decisions.tenant)
       order by x."created_at" desc
       limit least(greatest(coalesce(list_guardrail_decisions.max_rows, 100), 1), 1000)
     ) q
@@ -972,7 +972,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_182_ai_guardrails.sql
 -- better-supabase module: ai-guardrails
 -- @bsb-block ai-guardrails@1 managed
--- @bsb-hash sha256:45f101ec4e1cb546ccb3aad970b341367e0caae34a342efd688b53db986d3833
+-- @bsb-hash sha256:b9b1e61f6937d48f5ece96001c76489165e2713fdd1f05ee3d8aea78874aefdd
 -- Input and output policies per agent (prompt-injection heuristics, PII redaction, topic deny lists, a tool depth limit) and a decision log; a blocked check records guardrail.blocked. Only the service role reads and writes them.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1034,7 +1034,7 @@ begin
   on conflict ((coalesce("org_id"::text, '')), "agent", "stage") do update set
     "config" = excluded."config", "enabled" = excluded."enabled", "updated_at" = now()
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."org_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."set_guardrail_policy"(text, text, jsonb, uuid, boolean) from public, anon, authenticated;
@@ -1063,7 +1063,7 @@ begin
   if not found or not v_row."enabled" then
     return null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."org_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'agent', v_row."agent", 'stage', v_row."stage", 'config', v_row."config", 'enabled', v_row."enabled", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."get_guardrail_policy"(text, text, uuid) from public, anon, authenticated;
@@ -1087,7 +1087,7 @@ begin
   if v_row."decision" = 'block' then
     null;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."org_id", 'agent', v_row."agent", 'stage', v_row."stage", 'decision', v_row."decision", 'reasons', v_row."reasons", 'chat_id', v_row."chat_id", 'content_hash', v_row."content_hash", 'created_at', v_row."created_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."org_id", 'agent', v_row."agent", 'stage', v_row."stage", 'decision', v_row."decision", 'reasons', v_row."reasons", 'chat_id', v_row."chat_id", 'content_hash', v_row."content_hash", 'created_at', v_row."created_at");
 end;
 $$;
 revoke execute on function "better_supabase"."record_guardrail_decision"(text, text, text, jsonb, uuid, text, text) from public, anon, authenticated;
@@ -1104,7 +1104,7 @@ as $$
 #variable_conflict use_column
 begin
   return (
-    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'organization_id', q."org_id", 'agent', q."agent", 'stage', q."stage", 'decision', q."decision", 'reasons', q."reasons", 'chat_id', q."chat_id", 'content_hash', q."content_hash", 'created_at', q."created_at") order by q."created_at" desc), '[]'::jsonb)
+    select coalesce(jsonb_agg(jsonb_build_object('id', q."id", 'tenant_id', q."org_id", 'agent', q."agent", 'stage', q."stage", 'decision', q."decision", 'reasons', q."reasons", 'chat_id', q."chat_id", 'content_hash', q."content_hash", 'created_at', q."created_at") order by q."created_at" desc), '[]'::jsonb)
     from (
       select x.* from "better_supabase"."guardrail_decisions" x
       where (list_guardrail_decisions.agent is null or x."agent" = list_guardrail_decisions.agent)

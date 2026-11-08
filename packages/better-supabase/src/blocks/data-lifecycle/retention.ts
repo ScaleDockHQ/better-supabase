@@ -100,7 +100,7 @@ function policyOf(value: unknown): RetentionPolicy {
     id: textOf(row["id"]),
     kind: textOf(row["kind"]),
     keep: textOf(row["keep"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     plan: optionalText(row["plan"]),
     updatedAt: toInstant(textOf(row["updated_at"])),
   };
@@ -111,7 +111,7 @@ function holdOf(value: unknown): LegalHold {
 
   return {
     id: textOf(row["id"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     kind: optionalText(row["kind"]),
     reason: textOf(row["reason"]),
     placedBy: optionalText(row["placed_by"]),

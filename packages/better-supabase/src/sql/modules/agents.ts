@@ -24,7 +24,7 @@ import { moduleOperations } from "./permissions-model.ts";
 
 const AGENTS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   owner: "owner_id",
   slug: "slug",
   name: "name",
@@ -47,7 +47,7 @@ const AGENTS = {
 const INSTALLS = {
   agent: "agent_id",
   user: "user_id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   installedAt: "installed_at",
 } as const;
 

@@ -542,7 +542,7 @@ describe.skipIf(!live)("organizations and invitations", () => {
       ]);
       expect(
         await s.value(
-          `(select (select count(*) from ${schema}.memberships where organization_id = $1) + (select count(*) from ${schema}.invitations where organization_id = $1))::int`,
+          `(select (select count(*) from ${schema}.memberships where organization_id = $1) + (select count(*) from ${schema}.invitations where tenant_id = $1))::int`,
           [organization],
         ),
       ).toBe(0);

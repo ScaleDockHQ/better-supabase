@@ -71,7 +71,7 @@ const NAMES: BlockSqlNames = {
         id: "id",
         subject: "subject",
         user: "user_id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         status: "status",
         bucket: "bucket",
         files: "files",
@@ -96,7 +96,7 @@ const NAMES: BlockSqlNames = {
     deletions: {
       name: "organization_deletions",
       columns: {
-        tenant: "organization_id",
+        tenant: "tenant_id",
         requestedBy: "requested_by",
         requestedAt: "requested_at",
         purgeAfter: "purge_at",

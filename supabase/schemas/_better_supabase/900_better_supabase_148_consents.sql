@@ -1,6 +1,6 @@
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:56e7aff91d41bbd299ed94ac61539be334f69194da5acf08fb22391c8ec6db5b
+-- @bsb-hash sha256:c5fd38123c44cdd8e9fa66a31cf55e2fceb6c945238cbdb6d9140694194b6849
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -506,7 +506,7 @@ begin
   v_attachment := (v_evidence ->> 'attachmentId')::uuid;
   if v_attachment is not null and not exists (
     select 1 from "better_supabase"."attachments" x
-    where x."id" = v_attachment and x."organization_id"::text = v_tenant::text
+    where x."id" = v_attachment and x."tenant_id"::text = v_tenant::text
   ) then
     raise exception 'evidence.attachmentId is not an attachment of this organization' using errcode = '22023', hint = 'CONSENT_INVALID';
   end if;

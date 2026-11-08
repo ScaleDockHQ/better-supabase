@@ -1,14 +1,14 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:f65c87861fdaff044f5dcc418f06665294538634cb2fd117a4de42898fe58b99
+-- @bsb-hash sha256:5b10e2cdd4ddeb82ef1b9f7487d08bba229918cf4501a32e9434a131192b8920
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create table "better_supabase"."notification_events" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "type" text not null,
   "actor_id" uuid references auth.users (id) on delete set null,
   "subject_type" text,
@@ -23,7 +23,7 @@ create table "better_supabase"."notification_events" (
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now()
 );
-create unique index notification_events_key_idx on "better_supabase"."notification_events" ("idempotency_key", "organization_id") nulls not distinct where "idempotency_key" is not null;
+create unique index notification_events_key_idx on "better_supabase"."notification_events" ("idempotency_key", "tenant_id") nulls not distinct where "idempotency_key" is not null;
 create index notification_events_subject_idx on "better_supabase"."notification_events" ("subject_type", "subject_id");
 create index notification_events_actor_idx on "better_supabase"."notification_events" ("actor_id");
 create index notification_events_created_by_idx on "better_supabase"."notification_events" ("created_by");
@@ -49,7 +49,7 @@ grant all on "better_supabase"."notification_events" to service_role;
 create table "better_supabase"."notification_recipients" (
   "id" uuid primary key default gen_random_uuid(),
   "event_id" uuid not null references "better_supabase"."notification_events" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "read_at" timestamptz,
   "dismissed_at" timestamptz,
@@ -87,7 +87,7 @@ create policy bsb_notification_events_read on "better_supabase"."notification_ev
 create table "better_supabase"."notification_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "recipient_id" uuid not null references "better_supabase"."notification_recipients" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "channel" text not null,
   "status" text not null default 'pending' constraint bsb_notification_deliveries_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
   "provider" text,
@@ -118,16 +118,16 @@ create policy bsb_notification_deliveries_read on "better_supabase"."notificatio
 
 create table "better_supabase"."notification_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "subject_type" text not null,
   "subject_id" text not null,
   "level" text not null default 'participating' constraint bsb_notification_subscriptions_level_check check ("level" in ('participating', 'all', 'ignore')),
   "created_at" timestamptz not null default now(),
-  unique nulls not distinct ("organization_id", "user_id", "subject_type", "subject_id")
+  unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id")
 );
 create index notification_subscriptions_user_idx on "better_supabase"."notification_subscriptions" ("user_id");
-create index notification_subscriptions_subject_idx on "better_supabase"."notification_subscriptions" ("organization_id", "subject_type", "subject_id");
+create index notification_subscriptions_subject_idx on "better_supabase"."notification_subscriptions" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."notification_subscriptions" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."notification_subscriptions"
   for each row
@@ -153,13 +153,13 @@ create policy "bsb_notification_subscriptions_own_delete" on "better_supabase"."
 create table "better_supabase"."notification_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "type" text not null,
   "channel" text not null,
   "enabled" boolean not null default true,
   "cadence" text not null default 'immediate' constraint bsb_notification_preferences_cadence_check check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
   "created_at" timestamptz not null default now(),
-  unique nulls not distinct ("user_id", "organization_id", "type", "channel")
+  unique nulls not distinct ("user_id", "tenant_id", "type", "channel")
 );
 alter table "better_supabase"."notification_preferences" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."notification_preferences"
@@ -212,7 +212,7 @@ create index notification_deliveries_provider_message_idx on "better_supabase"."
 create table "better_supabase"."notification_delivery_events" (
   "id" uuid primary key default gen_random_uuid(),
   "delivery_id" uuid not null references "better_supabase"."notification_deliveries" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "kind" text not null constraint bsb_notification_delivery_events_kind_check check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
   "provider" text,
   "provider_event_id" text unique,
@@ -239,7 +239,7 @@ create policy bsb_notification_delivery_events_read on "better_supabase"."notifi
 create table "better_supabase"."notification_digests" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "channel" text not null,
   "cadence" text not null constraint bsb_notification_digests_cadence_check check ("cadence" in ('daily', 'weekly')),
   "items" jsonb not null,
@@ -273,8 +273,8 @@ as $$
     where p."user_id" = notification_enabled.member
       and p."channel" = notification_enabled.channel
       and (p."type" = notification_enabled.type or p."type" = '*')
-      and (p."organization_id" is null or p."organization_id" = notification_enabled.tenant)
-    order by p."organization_id" is null, p."type" = '*'
+      and (p."tenant_id" is null or p."tenant_id" = notification_enabled.tenant)
+    order by p."tenant_id" is null, p."type" = '*'
     limit 1
   ), case notification_enabled.channel when 'in_app' then true else false end)
 $$;
@@ -357,7 +357,7 @@ begin
     if coalesce((notification ->> 'watchers')::boolean, true) then
       v_recipients := v_recipients || array(
         select s."user_id" from "better_supabase"."notification_subscriptions" s
-        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."organization_id" is not distinct from v_tenant
+        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."tenant_id" is not distinct from v_tenant
           and (s."level" = 'all' or (v_activity = 'participating' and s."level" = 'participating'))
       );
     end if;
@@ -365,7 +365,7 @@ begin
       select x from unnest(v_recipients) x
       where not exists (
         select 1 from "better_supabase"."notification_subscriptions" s
-        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."organization_id" is not distinct from v_tenant
+        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."tenant_id" is not distinct from v_tenant
           and s."level" = 'ignore' and s."user_id" = x
       )
     );
@@ -397,8 +397,8 @@ begin
       left join "better_supabase"."notification_preferences" p
         on p."user_id" = x and p."channel" = c
         and (p."type" = v_type or p."type" = '*')
-        and (p."organization_id" is null or p."organization_id" = v_tenant)
-      order by x, c, p."organization_id" is null, p."type" = '*'
+        and (p."tenant_id" is null or p."tenant_id" = v_tenant)
+      order by x, c, p."tenant_id" is null, p."type" = '*'
     ) w
     where w.enabled
   ) w;
@@ -409,24 +409,24 @@ begin
 
   if v_key is not null then
     select ev."id" into v_event from "better_supabase"."notification_events" ev
-    where ev."idempotency_key" = v_key and ev."organization_id" is not distinct from v_tenant;
+    where ev."idempotency_key" = v_key and ev."tenant_id" is not distinct from v_tenant;
   end if;
   if v_event is null then
-    insert into "better_supabase"."notification_events" ("type", "data", "organization_id", "actor_id", "subject_type", "subject_id", "subject_label", "summary", "action_path", "actions", "priority", "idempotency_key", "created_by")
+    insert into "better_supabase"."notification_events" ("type", "data", "tenant_id", "actor_id", "subject_type", "subject_id", "subject_label", "summary", "action_path", "actions", "priority", "idempotency_key", "created_by")
     values (v_type, coalesce(notification -> 'data', '{}'), v_tenant, v_actor, v_subject_type, v_subject_id, notification ->> 'subject_label', notification ->> 'summary', notification ->> 'action_path', nullif(notification -> 'actions', 'null'::jsonb), v_priority, v_key, auth.uid())
     on conflict do nothing
     returning "id" into v_event;
   end if;
   if v_event is null then
     select ev."id" into v_event from "better_supabase"."notification_events" ev
-    where ev."idempotency_key" = v_key and ev."organization_id" is not distinct from v_tenant;
+    where ev."idempotency_key" = v_key and ev."tenant_id" is not distinct from v_tenant;
   end if;
 
-  insert into "better_supabase"."notification_recipients" ("event_id", "organization_id", "user_id", "dismissed_at", "resolved_at", "created_at")
+  insert into "better_supabase"."notification_recipients" ("event_id", "tenant_id", "user_id", "dismissed_at", "resolved_at", "created_at")
   select v_event, v_tenant, x, case when exists (select 1 from unnest(v_want_members, v_want_channels) w(member, channel) where w.member = x and w.channel = 'in_app') then null else now() end, case when coalesce((notification ->> 'resolved')::boolean, false) then now() end, clock_timestamp()
   from unnest(v_recipients) x
   on conflict do nothing;
-  insert into "better_supabase"."notification_deliveries" ("recipient_id", "organization_id", "channel", "status", "delivered_at")
+  insert into "better_supabase"."notification_deliveries" ("recipient_id", "tenant_id", "channel", "status", "delivered_at")
   select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else case when "better_supabase"."notification_cadence"(rc."user_id", v_tenant, v_type, c) in ('daily', 'weekly') then 'held' else 'pending' end end, case when c = 'in_app' then now() end
   from "better_supabase"."notification_recipients" rc
   join unnest(v_want_members, v_want_channels) w(member, c) on w.member = rc."user_id"
@@ -527,14 +527,14 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
   from (
-    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
+    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
     from "better_supabase"."notification_recipients" rc
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
     where rc."user_id" = auth.uid()
       and case when coalesce(list_notifications.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) when list_notifications.dismissed is null then true else (rc."dismissed_at" is not null) = list_notifications.dismissed end
       and (list_notifications.read is null or (rc."read_at" is not null) = list_notifications.read)
       and (list_notifications.resolved is null or (rc."resolved_at" is not null) = list_notifications.resolved)
-      and (list_notifications.tenant is null or rc."organization_id" = list_notifications.tenant)
+      and (list_notifications.tenant is null or rc."tenant_id" = list_notifications.tenant)
       and (list_notifications.types is null or ev."type" = any(list_notifications.types))
       and (list_notifications.subject_types is null or ev."subject_type" = any(list_notifications.subject_types))
       and (list_notifications.search is null or btrim(list_notifications.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
@@ -572,14 +572,14 @@ security definer
 set search_path = ''
 as $$
   with matched as (
-    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
+    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
     from "better_supabase"."notification_recipients" rc
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
     where rc."user_id" = auth.uid()
       and case when coalesce(notification_page.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) when notification_page.dismissed is null then true else (rc."dismissed_at" is not null) = notification_page.dismissed end
       and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)
       and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)
-      and (notification_page.tenant is null or rc."organization_id" = notification_page.tenant)
+      and (notification_page.tenant is null or rc."tenant_id" = notification_page.tenant)
       and (notification_page.types is null or ev."type" = any(notification_page.types))
       and (notification_page.subject_types is null or ev."subject_type" = any(notification_page.subject_types))
       and (notification_page.search is null or btrim(notification_page.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
@@ -617,7 +617,7 @@ as $$
     'actionable', count(*) filter (
       where rc."resolved_at" is null and ev."type" = any(coalesce(notification_counts.actionable, '{}'))
     ),
-    'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."organization_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end) filter (
+    'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."tenant_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end) filter (
       where rc."resolved_at" is null and ev."type" = any(coalesce(notification_counts.actionable, '{}'))
     )
   )
@@ -625,7 +625,7 @@ as $$
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
   where rc."user_id" = auth.uid()
     and rc."dismissed_at" is null
-    and (notification_counts.tenant is null or rc."organization_id" = notification_counts.tenant)
+    and (notification_counts.tenant is null or rc."tenant_id" = notification_counts.tenant)
 $$;
 
 create or replace function "better_supabase"."get_notification"(id uuid)
@@ -635,7 +635,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution")
+  select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution")
   from "better_supabase"."notification_recipients" rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
   where rc."id" = get_notification.id
@@ -656,12 +656,12 @@ as $$
       and rc."read_at" is not null
       and rc."dismissed_at" is null
       and rc."id" = any(mark_notifications_unread.ids)
-      and (mark_notifications_unread.tenant is null or rc."organization_id" = mark_notifications_unread.tenant)
+      and (mark_notifications_unread.tenant is null or rc."tenant_id" = mark_notifications_unread.tenant)
     returning rc.*
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -681,12 +681,12 @@ as $$
       and rc."read_at" is null
       and rc."dismissed_at" is null
       and (mark_notifications_read.ids is null or rc."id" = any(mark_notifications_read.ids))
-      and (mark_notifications_read.tenant is null or rc."organization_id" = mark_notifications_read.tenant)
+      and (mark_notifications_read.tenant is null or rc."tenant_id" = mark_notifications_read.tenant)
     returning rc.*
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -710,7 +710,7 @@ as $$
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -746,14 +746,14 @@ begin
       and ev."type" = resolve_notifications.type
       and ev."subject_type" = resolve_notifications.subject_type
       and ev."subject_id" = resolve_notifications.subject_id
-      and ev."organization_id" is not distinct from resolve_notifications.tenant
+      and ev."tenant_id" is not distinct from resolve_notifications.tenant
       and rc."resolved_at" is null
       and rc."dismissed_at" is null
     returning rc.*
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id" into v_changed;
@@ -807,9 +807,9 @@ begin
       where s."user_id" = v_user
         and s."subject_type" = set_notification_subscription.subject_type
         and s."subject_id" = set_notification_subscription.subject_id
-        and s."organization_id" is not distinct from set_notification_subscription.tenant
+        and s."tenant_id" is not distinct from set_notification_subscription.tenant
     ) then
-      insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+      insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
       values (set_notification_subscription.tenant, v_user, set_notification_subscription.subject_type, set_notification_subscription.subject_id, set_notification_subscription.level);
     end if;
     return;
@@ -818,9 +818,9 @@ begin
   where s."user_id" = v_user
     and s."subject_type" = set_notification_subscription.subject_type
     and s."subject_id" = set_notification_subscription.subject_id
-    and s."organization_id" is not distinct from set_notification_subscription.tenant;
+    and s."tenant_id" is not distinct from set_notification_subscription.tenant;
   if set_notification_subscription.level is not null then
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (set_notification_subscription.tenant, v_user, set_notification_subscription.subject_type, set_notification_subscription.subject_id, set_notification_subscription.level);
   end if;
 end;
@@ -847,9 +847,9 @@ begin
   where p."user_id" = auth.uid()
     and p."type" = set_notification_preference.type
     and p."channel" = set_notification_preference.channel
-    and p."organization_id" is not distinct from set_notification_preference.tenant;
+    and p."tenant_id" is not distinct from set_notification_preference.tenant;
   if set_notification_preference.enabled is not null then
-    insert into "better_supabase"."notification_preferences" ("user_id", "organization_id", "type", "channel", "enabled")
+    insert into "better_supabase"."notification_preferences" ("user_id", "tenant_id", "type", "channel", "enabled")
     values (auth.uid(), set_notification_preference.tenant, set_notification_preference.type, set_notification_preference.channel, set_notification_preference.enabled);
   end if;
 end;
@@ -868,12 +868,12 @@ as $$
     'subject_type', s."subject_type",
     'subject_id', s."subject_id",
     'level', s."level",
-    'tenant', s."organization_id",
+    'tenant', s."tenant_id",
     'created_at', s."created_at"
   ) order by s."created_at" desc, s."id"), '[]')
   from "better_supabase"."notification_subscriptions" s
   where s."user_id" = auth.uid()
-    and (list_notification_subscriptions.tenant is null or s."organization_id" = list_notification_subscriptions.tenant)
+    and (list_notification_subscriptions.tenant is null or s."tenant_id" = list_notification_subscriptions.tenant)
     and (list_notification_subscriptions.subject_type is null or s."subject_type" = list_notification_subscriptions.subject_type)
     and (list_notification_subscriptions.subject_id is null or s."subject_id" = list_notification_subscriptions.subject_id)
 $$;
@@ -892,11 +892,11 @@ as $$
     'channel', p."channel",
     'enabled', p."enabled",
     'cadence', p."cadence",
-    'tenant', p."organization_id"
-  ) order by p."organization_id" nulls first, p."type", p."channel"), '[]')
+    'tenant', p."tenant_id"
+  ) order by p."tenant_id" nulls first, p."type", p."channel"), '[]')
   from "better_supabase"."notification_preferences" p
   where p."user_id" = auth.uid()
-    and (list_notification_preferences.tenant is null or p."organization_id" is null or p."organization_id" = list_notification_preferences.tenant)
+    and (list_notification_preferences.tenant is null or p."tenant_id" is null or p."tenant_id" = list_notification_preferences.tenant)
 $$;
 revoke execute on function "better_supabase"."list_notification_preferences"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_notification_preferences"(uuid) to authenticated, service_role;
@@ -940,7 +940,7 @@ begin
     'user_id', rc."user_id",
     'email', u.email,
     'locale', null::text,
-    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution"),
+    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution"),
     'suppressed', s."reason"
   )), '[]') into claimed
   from leased l
@@ -1007,8 +1007,8 @@ as $$
     where p."user_id" = notification_cadence.member
       and p."channel" = notification_cadence.channel
       and (p."type" = notification_cadence.type or p."type" = '*')
-      and (p."organization_id" is null or p."organization_id" = notification_cadence.tenant)
-    order by p."organization_id" is null, p."type" = '*'
+      and (p."tenant_id" is null or p."tenant_id" = notification_cadence.tenant)
+    order by p."tenant_id" is null, p."type" = '*'
     limit 1
   ), 'immediate')
 $$;
@@ -1036,9 +1036,9 @@ begin
   update "better_supabase"."notification_preferences" x set "cadence" = set_notification_cadence.cadence
   where x."user_id" = auth.uid() and x."type" = set_notification_cadence.type
     and x."channel" = set_notification_cadence.channel
-    and x."organization_id" is not distinct from set_notification_cadence.tenant;
+    and x."tenant_id" is not distinct from set_notification_cadence.tenant;
   if not found then
-    insert into "better_supabase"."notification_preferences" ("user_id", "organization_id", "type", "channel", "cadence")
+    insert into "better_supabase"."notification_preferences" ("user_id", "tenant_id", "type", "channel", "cadence")
     values (auth.uid(), set_notification_cadence.tenant, set_notification_cadence.type, set_notification_cadence.channel, set_notification_cadence.cadence);
   end if;
 end;
@@ -1063,13 +1063,13 @@ declare
   v_count integer;
 begin
   for v_group in
-    select rc."user_id" as member, ev."organization_id" as tenant, d."channel" as channel,
-      min(case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
+    select rc."user_id" as member, ev."tenant_id" as tenant, d."channel" as channel,
+      min(case "better_supabase"."notification_cadence"(rc."user_id", ev."tenant_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
     from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
     where d."status" = 'held'
-      and d."created_at" <= now() - case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
+      and d."created_at" <= now() - case "better_supabase"."notification_cadence"(rc."user_id", ev."tenant_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
     group by 1, 2, 3
     limit greatest(1, coalesce(run_notification_digests.max_digests, 100))
   loop
@@ -1079,15 +1079,15 @@ begin
       join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
       join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
       where d."status" = 'held' and d."channel" = v_group.channel
-        and rc."user_id" = v_group.member and ev."organization_id" is not distinct from v_group.tenant
+        and rc."user_id" = v_group.member and ev."tenant_id" is not distinct from v_group.tenant
       for update of d skip locked
     ) d;
     if cardinality(v_ids) = 0 then
       continue;
     end if;
-    insert into "better_supabase"."notification_digests" ("user_id", "organization_id", "channel", "cadence", "items", "item_count")
+    insert into "better_supabase"."notification_digests" ("user_id", "tenant_id", "channel", "cadence", "items", "item_count")
     select v_group.member, v_group.tenant, v_group.channel, v_group.cadence,
-      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
+      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
     from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -1135,7 +1135,7 @@ begin
     'email', u.email,
     'channel', l."channel",
     'cadence', l."cadence",
-    'tenant', l."organization_id",
+    'tenant', l."tenant_id",
     'item_count', l."item_count",
     'items', l."items"
   )), '[]') into claimed
@@ -1286,7 +1286,7 @@ begin
   if record_delivery_event.provider_message_id is null or btrim(record_delivery_event.provider_message_id) = '' then
     raise exception 'provider_message_id is required' using errcode = '22023', hint = 'NOTIFICATION_DELIVERY_MESSAGE_ID';
   end if;
-  select d."id", d."channel", rc."user_id", ev."id", ev."type", d."organization_id",
+  select d."id", d."channel", rc."user_id", ev."id", ev."type", d."tenant_id",
     coalesce(ev."subject_type", 'notification'),
     coalesce(ev."subject_id", ev."id"::text)
   into v_delivery, v_channel, v_user, v_event, v_type, v_tenant, v_subject_type, v_subject_id
@@ -1300,7 +1300,7 @@ begin
   if v_delivery is null then
     return null;
   end if;
-  insert into "better_supabase"."notification_delivery_events" ("delivery_id", "organization_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
+  insert into "better_supabase"."notification_delivery_events" ("delivery_id", "tenant_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
   values (v_delivery, v_tenant, v_kind, record_delivery_event.provider, nullif(record_delivery_event.provider_event_id, ''), v_at, coalesce(record_delivery_event.detail, '{}'))
   on conflict ("provider_event_id") do nothing
   returning "id" into v_row;
@@ -1368,7 +1368,7 @@ begin
       join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
       where ev."subject_type" = list_subject_deliveries.subject_type
         and ev."subject_id" = list_subject_deliveries.subject_id
-        and (list_subject_deliveries.tenant is null or ev."organization_id" = list_subject_deliveries.tenant)
+        and (list_subject_deliveries.tenant is null or ev."tenant_id" = list_subject_deliveries.tenant)
       order by d."created_at" desc, d."id" desc
       limit least(greatest(coalesce(list_subject_deliveries.max_items, 50), 1), 200)
     ) x
@@ -1412,7 +1412,7 @@ set search_path = ''
 as $$
 begin
   perform realtime.send(
-    jsonb_build_object('id', new."id", 'event_id', new."event_id", 'operation', lower(tg_op), 'tenant', new."organization_id"),
+    jsonb_build_object('id', new."id", 'event_id', new."event_id", 'operation', lower(tg_op), 'tenant', new."tenant_id"),
     case when tg_op = 'INSERT' then 'notification_created' else 'notification_updated' end,
     'notifications:' || new."user_id"::text,
     true
@@ -1436,7 +1436,7 @@ create policy bsb_notifications_receive on realtime.messages
 create policy bsb_tenant_scope_select on "better_supabase"."notification_events" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."event_id" = "better_supabase"."notification_events"."id"
@@ -1445,40 +1445,40 @@ create policy bsb_tenant_scope_select on "better_supabase"."notification_events"
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_events" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_events" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_events" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_recipients" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_recipients" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_recipients" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_recipients" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_deliveries" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
@@ -1487,18 +1487,18 @@ create policy bsb_tenant_scope_select on "better_supabase"."notification_deliver
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_deliveries" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_deliveries" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_deliveries" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_delivery_events" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
@@ -1508,68 +1508,68 @@ create policy bsb_tenant_scope_select on "better_supabase"."notification_deliver
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_delivery_events" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_delivery_events" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_delivery_events" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_subscriptions" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_subscriptions" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."notification_subscriptions" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_subscriptions" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_select on "better_supabase"."notification_preferences" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_preferences" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."notification_preferences" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_preferences" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 
@@ -1590,14 +1590,14 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:ea7e07bb0d476344635eb4984d1ee55b509adf942f502d04638258a4430787d5
+-- @bsb-hash sha256:58e732a2e6eb58ddb7b0636ea014e7d70c16a7c5065c3e96154d325805b22ade
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create table "better_supabase"."notification_events" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "type" text not null,
   "actor_id" uuid references auth.users (id) on delete set null,
   "subject_type" text,
@@ -1612,7 +1612,7 @@ create table "better_supabase"."notification_events" (
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now()
 );
-create unique index notification_events_key_idx on "better_supabase"."notification_events" ("idempotency_key", "organization_id") nulls not distinct where "idempotency_key" is not null;
+create unique index notification_events_key_idx on "better_supabase"."notification_events" ("idempotency_key", "tenant_id") nulls not distinct where "idempotency_key" is not null;
 create index notification_events_subject_idx on "better_supabase"."notification_events" ("subject_type", "subject_id");
 create index notification_events_actor_idx on "better_supabase"."notification_events" ("actor_id");
 create index notification_events_created_by_idx on "better_supabase"."notification_events" ("created_by");
@@ -1638,7 +1638,7 @@ grant all on "better_supabase"."notification_events" to service_role;
 create table "better_supabase"."notification_recipients" (
   "id" uuid primary key default gen_random_uuid(),
   "event_id" uuid not null references "better_supabase"."notification_events" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "read_at" timestamptz,
   "dismissed_at" timestamptz,
@@ -1676,7 +1676,7 @@ create policy bsb_notification_events_read on "better_supabase"."notification_ev
 create table "better_supabase"."notification_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "recipient_id" uuid not null references "better_supabase"."notification_recipients" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "channel" text not null,
   "status" text not null default 'pending' constraint bsb_notification_deliveries_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
   "provider" text,
@@ -1707,16 +1707,16 @@ create policy bsb_notification_deliveries_read on "better_supabase"."notificatio
 
 create table "better_supabase"."notification_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "subject_type" text not null,
   "subject_id" text not null,
   "level" text not null default 'participating' constraint bsb_notification_subscriptions_level_check check ("level" in ('participating', 'all', 'ignore')),
   "created_at" timestamptz not null default now(),
-  unique nulls not distinct ("organization_id", "user_id", "subject_type", "subject_id")
+  unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id")
 );
 create index notification_subscriptions_user_idx on "better_supabase"."notification_subscriptions" ("user_id");
-create index notification_subscriptions_subject_idx on "better_supabase"."notification_subscriptions" ("organization_id", "subject_type", "subject_id");
+create index notification_subscriptions_subject_idx on "better_supabase"."notification_subscriptions" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."notification_subscriptions" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."notification_subscriptions"
   for each row
@@ -1730,11 +1730,11 @@ create policy "bsb_notification_subscriptions_own_read" on "better_supabase"."no
   using ("user_id" = (select auth.uid()));
 create policy "bsb_notification_subscriptions_own_insert" on "better_supabase"."notification_subscriptions"
   for insert to authenticated
-  with check (("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read')))) and (select better_supabase.actor_may_write()));
+  with check (("user_id" = (select auth.uid()) and ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('notifications.read')))) and (select better_supabase.actor_may_write()));
 create policy "bsb_notification_subscriptions_own_update" on "better_supabase"."notification_subscriptions"
   for update to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
-  with check (("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read')))) and (select better_supabase.actor_may_write()));
+  with check (("user_id" = (select auth.uid()) and ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('notifications.read')))) and (select better_supabase.actor_may_write()));
 create policy "bsb_notification_subscriptions_own_delete" on "better_supabase"."notification_subscriptions"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
@@ -1742,13 +1742,13 @@ create policy "bsb_notification_subscriptions_own_delete" on "better_supabase"."
 create table "better_supabase"."notification_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "type" text not null,
   "channel" text not null,
   "enabled" boolean not null default true,
   "cadence" text not null default 'immediate' constraint bsb_notification_preferences_cadence_check check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
   "created_at" timestamptz not null default now(),
-  unique nulls not distinct ("user_id", "organization_id", "type", "channel")
+  unique nulls not distinct ("user_id", "tenant_id", "type", "channel")
 );
 alter table "better_supabase"."notification_preferences" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."notification_preferences"
@@ -1763,11 +1763,11 @@ create policy "bsb_notification_preferences_own_read" on "better_supabase"."noti
   using ("user_id" = (select auth.uid()));
 create policy "bsb_notification_preferences_own_insert" on "better_supabase"."notification_preferences"
   for insert to authenticated
-  with check (("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read')))) and (select better_supabase.actor_may_write()));
+  with check (("user_id" = (select auth.uid()) and ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('notifications.read')))) and (select better_supabase.actor_may_write()));
 create policy "bsb_notification_preferences_own_update" on "better_supabase"."notification_preferences"
   for update to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()))
-  with check (("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read')))) and (select better_supabase.actor_may_write()));
+  with check (("user_id" = (select auth.uid()) and ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('notifications.read')))) and (select better_supabase.actor_may_write()));
 create policy "bsb_notification_preferences_own_delete" on "better_supabase"."notification_preferences"
   for delete to authenticated
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
@@ -1801,7 +1801,7 @@ create index notification_deliveries_provider_message_idx on "better_supabase"."
 create table "better_supabase"."notification_delivery_events" (
   "id" uuid primary key default gen_random_uuid(),
   "delivery_id" uuid not null references "better_supabase"."notification_deliveries" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "kind" text not null constraint bsb_notification_delivery_events_kind_check check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
   "provider" text,
   "provider_event_id" text unique,
@@ -1828,7 +1828,7 @@ create policy bsb_notification_delivery_events_read on "better_supabase"."notifi
 create table "better_supabase"."notification_digests" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "channel" text not null,
   "cadence" text not null constraint bsb_notification_digests_cadence_check check ("cadence" in ('daily', 'weekly')),
   "items" jsonb not null,
@@ -1862,8 +1862,8 @@ as $$
     where p."user_id" = notification_enabled.member
       and p."channel" = notification_enabled.channel
       and (p."type" = notification_enabled.type or p."type" = '*')
-      and (p."organization_id" is null or p."organization_id" = notification_enabled.tenant)
-    order by p."organization_id" is null, p."type" = '*'
+      and (p."tenant_id" is null or p."tenant_id" = notification_enabled.tenant)
+    order by p."tenant_id" is null, p."type" = '*'
     limit 1
   ), case notification_enabled.channel when 'in_app' then true else false end)
 $$;
@@ -1959,7 +1959,7 @@ begin
     if coalesce((notification ->> 'watchers')::boolean, true) then
       v_recipients := v_recipients || array(
         select s."user_id" from "better_supabase"."notification_subscriptions" s
-        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."organization_id" is not distinct from v_tenant
+        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."tenant_id" is not distinct from v_tenant
           and (s."level" = 'all' or (v_activity = 'participating' and s."level" = 'participating'))
       );
     end if;
@@ -1967,7 +1967,7 @@ begin
       select x from unnest(v_recipients) x
       where not exists (
         select 1 from "better_supabase"."notification_subscriptions" s
-        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."organization_id" is not distinct from v_tenant
+        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."tenant_id" is not distinct from v_tenant
           and s."level" = 'ignore' and s."user_id" = x
       )
     );
@@ -2014,8 +2014,8 @@ begin
       left join "better_supabase"."notification_preferences" p
         on p."user_id" = x and p."channel" = c
         and (p."type" = v_type or p."type" = '*')
-        and (p."organization_id" is null or p."organization_id" = v_tenant)
-      order by x, c, p."organization_id" is null, p."type" = '*'
+        and (p."tenant_id" is null or p."tenant_id" = v_tenant)
+      order by x, c, p."tenant_id" is null, p."type" = '*'
     ) w
     where w.enabled
   ) w;
@@ -2026,24 +2026,24 @@ begin
 
   if v_key is not null then
     select ev."id" into v_event from "better_supabase"."notification_events" ev
-    where ev."idempotency_key" = v_key and ev."organization_id" is not distinct from v_tenant;
+    where ev."idempotency_key" = v_key and ev."tenant_id" is not distinct from v_tenant;
   end if;
   if v_event is null then
-    insert into "better_supabase"."notification_events" ("type", "data", "organization_id", "actor_id", "subject_type", "subject_id", "subject_label", "summary", "action_path", "actions", "priority", "idempotency_key", "created_by")
+    insert into "better_supabase"."notification_events" ("type", "data", "tenant_id", "actor_id", "subject_type", "subject_id", "subject_label", "summary", "action_path", "actions", "priority", "idempotency_key", "created_by")
     values (v_type, coalesce(notification -> 'data', '{}'), v_tenant, v_actor, v_subject_type, v_subject_id, notification ->> 'subject_label', notification ->> 'summary', notification ->> 'action_path', nullif(notification -> 'actions', 'null'::jsonb), v_priority, v_key, auth.uid())
     on conflict do nothing
     returning "id" into v_event;
   end if;
   if v_event is null then
     select ev."id" into v_event from "better_supabase"."notification_events" ev
-    where ev."idempotency_key" = v_key and ev."organization_id" is not distinct from v_tenant;
+    where ev."idempotency_key" = v_key and ev."tenant_id" is not distinct from v_tenant;
   end if;
 
-  insert into "better_supabase"."notification_recipients" ("event_id", "organization_id", "user_id", "dismissed_at", "resolved_at", "created_at")
+  insert into "better_supabase"."notification_recipients" ("event_id", "tenant_id", "user_id", "dismissed_at", "resolved_at", "created_at")
   select v_event, v_tenant, x, case when exists (select 1 from unnest(v_want_members, v_want_channels) w(member, channel) where w.member = x and w.channel = 'in_app') then null else now() end, case when coalesce((notification ->> 'resolved')::boolean, false) then now() end, clock_timestamp()
   from unnest(v_recipients) x
   on conflict do nothing;
-  insert into "better_supabase"."notification_deliveries" ("recipient_id", "organization_id", "channel", "status", "delivered_at")
+  insert into "better_supabase"."notification_deliveries" ("recipient_id", "tenant_id", "channel", "status", "delivered_at")
   select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else case when "better_supabase"."notification_cadence"(rc."user_id", v_tenant, v_type, c) in ('daily', 'weekly') then 'held' else 'pending' end end, case when c = 'in_app' then now() end
   from "better_supabase"."notification_recipients" rc
   join unnest(v_want_members, v_want_channels) w(member, c) on w.member = rc."user_id"
@@ -2144,14 +2144,14 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
   from (
-    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
+    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
     from "better_supabase"."notification_recipients" rc
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
     where rc."user_id" = auth.uid()
       and case when coalesce(list_notifications.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) when list_notifications.dismissed is null then true else (rc."dismissed_at" is not null) = list_notifications.dismissed end
       and (list_notifications.read is null or (rc."read_at" is not null) = list_notifications.read)
       and (list_notifications.resolved is null or (rc."resolved_at" is not null) = list_notifications.resolved)
-      and (list_notifications.tenant is null or rc."organization_id" = list_notifications.tenant)
+      and (list_notifications.tenant is null or rc."tenant_id" = list_notifications.tenant)
       and (list_notifications.types is null or ev."type" = any(list_notifications.types))
       and (list_notifications.subject_types is null or ev."subject_type" = any(list_notifications.subject_types))
       and (list_notifications.search is null or btrim(list_notifications.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
@@ -2189,14 +2189,14 @@ security definer
 set search_path = ''
 as $$
   with matched as (
-    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
+    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
     from "better_supabase"."notification_recipients" rc
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
     where rc."user_id" = auth.uid()
       and case when coalesce(notification_page.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) when notification_page.dismissed is null then true else (rc."dismissed_at" is not null) = notification_page.dismissed end
       and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)
       and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)
-      and (notification_page.tenant is null or rc."organization_id" = notification_page.tenant)
+      and (notification_page.tenant is null or rc."tenant_id" = notification_page.tenant)
       and (notification_page.types is null or ev."type" = any(notification_page.types))
       and (notification_page.subject_types is null or ev."subject_type" = any(notification_page.subject_types))
       and (notification_page.search is null or btrim(notification_page.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
@@ -2234,7 +2234,7 @@ as $$
     'actionable', count(*) filter (
       where rc."resolved_at" is null and ev."type" = any(coalesce(notification_counts.actionable, '{}'))
     ),
-    'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."organization_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end) filter (
+    'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."tenant_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end) filter (
       where rc."resolved_at" is null and ev."type" = any(coalesce(notification_counts.actionable, '{}'))
     )
   )
@@ -2242,7 +2242,7 @@ as $$
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
   where rc."user_id" = auth.uid()
     and rc."dismissed_at" is null
-    and (notification_counts.tenant is null or rc."organization_id" = notification_counts.tenant)
+    and (notification_counts.tenant is null or rc."tenant_id" = notification_counts.tenant)
 $$;
 
 create or replace function "better_supabase"."get_notification"(id uuid)
@@ -2252,7 +2252,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution")
+  select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution")
   from "better_supabase"."notification_recipients" rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
   where rc."id" = get_notification.id
@@ -2273,12 +2273,12 @@ as $$
       and rc."read_at" is not null
       and rc."dismissed_at" is null
       and rc."id" = any(mark_notifications_unread.ids)
-      and (mark_notifications_unread.tenant is null or rc."organization_id" = mark_notifications_unread.tenant)
+      and (mark_notifications_unread.tenant is null or rc."tenant_id" = mark_notifications_unread.tenant)
     returning rc.*
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -2298,12 +2298,12 @@ as $$
       and rc."read_at" is null
       and rc."dismissed_at" is null
       and (mark_notifications_read.ids is null or rc."id" = any(mark_notifications_read.ids))
-      and (mark_notifications_read.tenant is null or rc."organization_id" = mark_notifications_read.tenant)
+      and (mark_notifications_read.tenant is null or rc."tenant_id" = mark_notifications_read.tenant)
     returning rc.*
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -2327,7 +2327,7 @@ as $$
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -2363,14 +2363,14 @@ begin
       and ev."type" = resolve_notifications.type
       and ev."subject_type" = resolve_notifications.subject_type
       and ev."subject_id" = resolve_notifications.subject_id
-      and ev."organization_id" is not distinct from resolve_notifications.tenant
+      and ev."tenant_id" is not distinct from resolve_notifications.tenant
       and rc."resolved_at" is null
       and rc."dismissed_at" is null
     returning rc.*
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id" into v_changed;
@@ -2454,9 +2454,9 @@ begin
       where s."user_id" = v_user
         and s."subject_type" = set_notification_subscription.subject_type
         and s."subject_id" = set_notification_subscription.subject_id
-        and s."organization_id" is not distinct from set_notification_subscription.tenant
+        and s."tenant_id" is not distinct from set_notification_subscription.tenant
     ) then
-      insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+      insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
       values (set_notification_subscription.tenant, v_user, set_notification_subscription.subject_type, set_notification_subscription.subject_id, set_notification_subscription.level);
     end if;
     return;
@@ -2465,9 +2465,9 @@ begin
   where s."user_id" = v_user
     and s."subject_type" = set_notification_subscription.subject_type
     and s."subject_id" = set_notification_subscription.subject_id
-    and s."organization_id" is not distinct from set_notification_subscription.tenant;
+    and s."tenant_id" is not distinct from set_notification_subscription.tenant;
   if set_notification_subscription.level is not null then
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (set_notification_subscription.tenant, v_user, set_notification_subscription.subject_type, set_notification_subscription.subject_id, set_notification_subscription.level);
   end if;
 end;
@@ -2498,9 +2498,9 @@ begin
   where p."user_id" = auth.uid()
     and p."type" = set_notification_preference.type
     and p."channel" = set_notification_preference.channel
-    and p."organization_id" is not distinct from set_notification_preference.tenant;
+    and p."tenant_id" is not distinct from set_notification_preference.tenant;
   if set_notification_preference.enabled is not null then
-    insert into "better_supabase"."notification_preferences" ("user_id", "organization_id", "type", "channel", "enabled")
+    insert into "better_supabase"."notification_preferences" ("user_id", "tenant_id", "type", "channel", "enabled")
     values (auth.uid(), set_notification_preference.tenant, set_notification_preference.type, set_notification_preference.channel, set_notification_preference.enabled);
   end if;
 end;
@@ -2519,12 +2519,12 @@ as $$
     'subject_type', s."subject_type",
     'subject_id', s."subject_id",
     'level', s."level",
-    'tenant', s."organization_id",
+    'tenant', s."tenant_id",
     'created_at', s."created_at"
   ) order by s."created_at" desc, s."id"), '[]')
   from "better_supabase"."notification_subscriptions" s
   where s."user_id" = auth.uid()
-    and (list_notification_subscriptions.tenant is null or s."organization_id" = list_notification_subscriptions.tenant)
+    and (list_notification_subscriptions.tenant is null or s."tenant_id" = list_notification_subscriptions.tenant)
     and (list_notification_subscriptions.subject_type is null or s."subject_type" = list_notification_subscriptions.subject_type)
     and (list_notification_subscriptions.subject_id is null or s."subject_id" = list_notification_subscriptions.subject_id)
 $$;
@@ -2543,11 +2543,11 @@ as $$
     'channel', p."channel",
     'enabled', p."enabled",
     'cadence', p."cadence",
-    'tenant', p."organization_id"
-  ) order by p."organization_id" nulls first, p."type", p."channel"), '[]')
+    'tenant', p."tenant_id"
+  ) order by p."tenant_id" nulls first, p."type", p."channel"), '[]')
   from "better_supabase"."notification_preferences" p
   where p."user_id" = auth.uid()
-    and (list_notification_preferences.tenant is null or p."organization_id" is null or p."organization_id" = list_notification_preferences.tenant)
+    and (list_notification_preferences.tenant is null or p."tenant_id" is null or p."tenant_id" = list_notification_preferences.tenant)
 $$;
 revoke execute on function "better_supabase"."list_notification_preferences"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_notification_preferences"(uuid) to authenticated, service_role;
@@ -2591,7 +2591,7 @@ begin
     'user_id', rc."user_id",
     'email', u.email,
     'locale', pr."locale"::text,
-    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution"),
+    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution"),
     'suppressed', s."reason"
   )), '[]') into claimed
   from leased l
@@ -2659,8 +2659,8 @@ as $$
     where p."user_id" = notification_cadence.member
       and p."channel" = notification_cadence.channel
       and (p."type" = notification_cadence.type or p."type" = '*')
-      and (p."organization_id" is null or p."organization_id" = notification_cadence.tenant)
-    order by p."organization_id" is null, p."type" = '*'
+      and (p."tenant_id" is null or p."tenant_id" = notification_cadence.tenant)
+    order by p."tenant_id" is null, p."type" = '*'
     limit 1
   ), 'immediate')
 $$;
@@ -2688,9 +2688,9 @@ begin
   update "better_supabase"."notification_preferences" x set "cadence" = set_notification_cadence.cadence
   where x."user_id" = auth.uid() and x."type" = set_notification_cadence.type
     and x."channel" = set_notification_cadence.channel
-    and x."organization_id" is not distinct from set_notification_cadence.tenant;
+    and x."tenant_id" is not distinct from set_notification_cadence.tenant;
   if not found then
-    insert into "better_supabase"."notification_preferences" ("user_id", "organization_id", "type", "channel", "cadence")
+    insert into "better_supabase"."notification_preferences" ("user_id", "tenant_id", "type", "channel", "cadence")
     values (auth.uid(), set_notification_cadence.tenant, set_notification_cadence.type, set_notification_cadence.channel, set_notification_cadence.cadence);
   end if;
 end;
@@ -2715,13 +2715,13 @@ declare
   v_count integer;
 begin
   for v_group in
-    select rc."user_id" as member, ev."organization_id" as tenant, d."channel" as channel,
-      min(case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
+    select rc."user_id" as member, ev."tenant_id" as tenant, d."channel" as channel,
+      min(case "better_supabase"."notification_cadence"(rc."user_id", ev."tenant_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
     from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
     where d."status" = 'held'
-      and d."created_at" <= now() - case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
+      and d."created_at" <= now() - case "better_supabase"."notification_cadence"(rc."user_id", ev."tenant_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
     group by 1, 2, 3
     limit greatest(1, coalesce(run_notification_digests.max_digests, 100))
   loop
@@ -2731,15 +2731,15 @@ begin
       join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
       join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
       where d."status" = 'held' and d."channel" = v_group.channel
-        and rc."user_id" = v_group.member and ev."organization_id" is not distinct from v_group.tenant
+        and rc."user_id" = v_group.member and ev."tenant_id" is not distinct from v_group.tenant
       for update of d skip locked
     ) d;
     if cardinality(v_ids) = 0 then
       continue;
     end if;
-    insert into "better_supabase"."notification_digests" ("user_id", "organization_id", "channel", "cadence", "items", "item_count")
+    insert into "better_supabase"."notification_digests" ("user_id", "tenant_id", "channel", "cadence", "items", "item_count")
     select v_group.member, v_group.tenant, v_group.channel, v_group.cadence,
-      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
+      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
     from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -2787,7 +2787,7 @@ begin
     'email', u.email,
     'channel', l."channel",
     'cadence', l."cadence",
-    'tenant', l."organization_id",
+    'tenant', l."tenant_id",
     'item_count', l."item_count",
     'items', l."items"
   )), '[]') into claimed
@@ -2938,7 +2938,7 @@ begin
   if record_delivery_event.provider_message_id is null or btrim(record_delivery_event.provider_message_id) = '' then
     raise exception 'provider_message_id is required' using errcode = '22023', hint = 'NOTIFICATION_DELIVERY_MESSAGE_ID';
   end if;
-  select d."id", d."channel", rc."user_id", ev."id", ev."type", d."organization_id",
+  select d."id", d."channel", rc."user_id", ev."id", ev."type", d."tenant_id",
     coalesce(ev."subject_type", 'notification'),
     coalesce(ev."subject_id", ev."id"::text)
   into v_delivery, v_channel, v_user, v_event, v_type, v_tenant, v_subject_type, v_subject_id
@@ -2952,7 +2952,7 @@ begin
   if v_delivery is null then
     return null;
   end if;
-  insert into "better_supabase"."notification_delivery_events" ("delivery_id", "organization_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
+  insert into "better_supabase"."notification_delivery_events" ("delivery_id", "tenant_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
   values (v_delivery, v_tenant, v_kind, record_delivery_event.provider, nullif(record_delivery_event.provider_event_id, ''), v_at, coalesce(record_delivery_event.detail, '{}'))
   on conflict ("provider_event_id") do nothing
   returning "id" into v_row;
@@ -3033,7 +3033,7 @@ begin
       join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
       where ev."subject_type" = list_subject_deliveries.subject_type
         and ev."subject_id" = list_subject_deliveries.subject_id
-        and (list_subject_deliveries.tenant is null or ev."organization_id" = list_subject_deliveries.tenant)
+        and (list_subject_deliveries.tenant is null or ev."tenant_id" = list_subject_deliveries.tenant)
       order by d."created_at" desc, d."id" desc
       limit least(greatest(coalesce(list_subject_deliveries.max_items, 50), 1), 200)
     ) x
@@ -3057,8 +3057,8 @@ begin
   where "id" in (
     select ev."id" from "better_supabase"."notification_events" ev
     where (ev."created_at" < now() - least(coalesce(older_than, '90 days'), "better_supabase"."retention_floor"('notifications'))
-      and ev."created_at" < now() - coalesce("better_supabase"."retention_for"('notifications', (ev."organization_id")::text), coalesce(older_than, '90 days'))
-      and not "better_supabase"."is_held"('notifications', (ev."organization_id")::text))
+      and ev."created_at" < now() - coalesce("better_supabase"."retention_for"('notifications', (ev."tenant_id")::text), coalesce(older_than, '90 days'))
+      and not "better_supabase"."is_held"('notifications', (ev."tenant_id")::text))
     order by ev."created_at"
     limit coalesce(batch, 10000)
   );
@@ -3079,7 +3079,7 @@ set search_path = ''
 as $$
 begin
   perform realtime.send(
-    jsonb_build_object('id', new."id", 'event_id', new."event_id", 'operation', lower(tg_op), 'tenant', new."organization_id"),
+    jsonb_build_object('id', new."id", 'event_id', new."event_id", 'operation', lower(tg_op), 'tenant', new."tenant_id"),
     case when tg_op = 'INSERT' then 'notification_created' else 'notification_updated' end,
     'notifications:' || new."user_id"::text,
     true
@@ -3103,7 +3103,7 @@ create policy bsb_notifications_receive on realtime.messages
 create policy bsb_tenant_scope_select on "better_supabase"."notification_events" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."event_id" = "better_supabase"."notification_events"."id"
@@ -3112,40 +3112,40 @@ create policy bsb_tenant_scope_select on "better_supabase"."notification_events"
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_events" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_events" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_events" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_recipients" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_recipients" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_recipients" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_recipients" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_deliveries" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
@@ -3154,18 +3154,18 @@ create policy bsb_tenant_scope_select on "better_supabase"."notification_deliver
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_deliveries" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_deliveries" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_deliveries" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_delivery_events" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
@@ -3175,68 +3175,68 @@ create policy bsb_tenant_scope_select on "better_supabase"."notification_deliver
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_delivery_events" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_delivery_events" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_delivery_events" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_subscriptions" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_subscriptions" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read'))))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) and ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('notifications.read'))))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."notification_subscriptions" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read'))))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) and ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('notifications.read'))))
   );
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_subscriptions" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_select on "better_supabase"."notification_preferences" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_preferences" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read'))))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) and ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('notifications.read'))))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."notification_preferences" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("user_id" = (select auth.uid()) and ("organization_id" is null or "organization_id" in (select better_supabase.tenant_ids_with('notifications.read'))))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("user_id" = (select auth.uid()) and ("tenant_id" is null or "tenant_id" in (select better_supabase.tenant_ids_with('notifications.read'))))
   );
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_preferences" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 
@@ -3257,7 +3257,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:65565de5244226b267870640ce22f63f17e9f09276d7c17e320b7bf1492e220d
+-- @bsb-hash sha256:7bc31b21c3afc3fd1af1919d51ac876aabfcbf495811a1d0cfc43d2a77e80b53
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3269,7 +3269,7 @@ alter default privileges in schema "app_private" revoke all on sequences from pu
 alter default privileges in schema "app_private" revoke all on functions from public, anon, authenticated;
 create table "app_private"."notification_events" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "type" text not null,
   "actor_id" uuid references auth.users (id) on delete set null,
   "subject_type" text,
@@ -3284,7 +3284,7 @@ create table "app_private"."notification_events" (
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now()
 );
-create unique index notification_events_key_idx on "app_private"."notification_events" ("idempotency_key", "organization_id") nulls not distinct where "idempotency_key" is not null;
+create unique index notification_events_key_idx on "app_private"."notification_events" ("idempotency_key", "tenant_id") nulls not distinct where "idempotency_key" is not null;
 create index notification_events_subject_idx on "app_private"."notification_events" ("subject_type", "subject_id");
 create index notification_events_actor_idx on "app_private"."notification_events" ("actor_id");
 create index notification_events_created_by_idx on "app_private"."notification_events" ("created_by");
@@ -3310,7 +3310,7 @@ grant all on "app_private"."notification_events" to service_role;
 create table "app_private"."notification_recipients" (
   "id" uuid primary key default gen_random_uuid(),
   "event_id" uuid not null references "app_private"."notification_events" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "read_at" timestamptz,
   "dismissed_at" timestamptz,
@@ -3348,7 +3348,7 @@ create policy bsb_notification_events_read on "app_private"."notification_events
 create table "app_private"."notification_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "recipient_id" uuid not null references "app_private"."notification_recipients" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "channel" text not null,
   "status" text not null default 'pending' constraint bsb_notification_deliveries_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
   "provider" text,
@@ -3379,16 +3379,16 @@ create policy bsb_notification_deliveries_read on "app_private"."notification_de
 
 create table "app_private"."notification_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "subject_type" text not null,
   "subject_id" text not null,
   "level" text not null default 'participating' constraint bsb_notification_subscriptions_level_check check ("level" in ('participating', 'all', 'ignore')),
   "created_at" timestamptz not null default now(),
-  unique nulls not distinct ("organization_id", "user_id", "subject_type", "subject_id")
+  unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id")
 );
 create index notification_subscriptions_user_idx on "app_private"."notification_subscriptions" ("user_id");
-create index notification_subscriptions_subject_idx on "app_private"."notification_subscriptions" ("organization_id", "subject_type", "subject_id");
+create index notification_subscriptions_subject_idx on "app_private"."notification_subscriptions" ("tenant_id", "subject_type", "subject_id");
 alter table "app_private"."notification_subscriptions" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "app_private"."notification_subscriptions"
   for each row
@@ -3414,13 +3414,13 @@ create policy "bsb_notification_subscriptions_own_delete" on "app_private"."noti
 create table "app_private"."notification_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "type" text not null,
   "channel" text not null,
   "enabled" boolean not null default true,
   "cadence" text not null default 'immediate' constraint bsb_notification_preferences_cadence_check check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
   "created_at" timestamptz not null default now(),
-  unique nulls not distinct ("user_id", "organization_id", "type", "channel")
+  unique nulls not distinct ("user_id", "tenant_id", "type", "channel")
 );
 alter table "app_private"."notification_preferences" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "app_private"."notification_preferences"
@@ -3473,7 +3473,7 @@ create index notification_deliveries_provider_message_idx on "app_private"."noti
 create table "app_private"."notification_delivery_events" (
   "id" uuid primary key default gen_random_uuid(),
   "delivery_id" uuid not null references "app_private"."notification_deliveries" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "kind" text not null constraint bsb_notification_delivery_events_kind_check check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
   "provider" text,
   "provider_event_id" text unique,
@@ -3500,7 +3500,7 @@ create policy bsb_notification_delivery_events_read on "app_private"."notificati
 create table "app_private"."notification_digests" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "channel" text not null,
   "cadence" text not null constraint bsb_notification_digests_cadence_check check ("cadence" in ('daily', 'weekly')),
   "items" jsonb not null,
@@ -3534,8 +3534,8 @@ as $$
     where p."user_id" = notification_enabled.member
       and p."channel" = notification_enabled.channel
       and (p."type" = notification_enabled.type or p."type" = '*')
-      and (p."organization_id" is null or p."organization_id" = notification_enabled.tenant)
-    order by p."organization_id" is null, p."type" = '*'
+      and (p."tenant_id" is null or p."tenant_id" = notification_enabled.tenant)
+    order by p."tenant_id" is null, p."type" = '*'
     limit 1
   ), case notification_enabled.channel when 'in_app' then true else false end)
 $$;
@@ -3618,7 +3618,7 @@ begin
     if coalesce((notification ->> 'watchers')::boolean, true) then
       v_recipients := v_recipients || array(
         select s."user_id" from "app_private"."notification_subscriptions" s
-        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."organization_id" is not distinct from v_tenant
+        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."tenant_id" is not distinct from v_tenant
           and (s."level" = 'all' or (v_activity = 'participating' and s."level" = 'participating'))
       );
     end if;
@@ -3626,7 +3626,7 @@ begin
       select x from unnest(v_recipients) x
       where not exists (
         select 1 from "app_private"."notification_subscriptions" s
-        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."organization_id" is not distinct from v_tenant
+        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."tenant_id" is not distinct from v_tenant
           and s."level" = 'ignore' and s."user_id" = x
       )
     );
@@ -3658,8 +3658,8 @@ begin
       left join "app_private"."notification_preferences" p
         on p."user_id" = x and p."channel" = c
         and (p."type" = v_type or p."type" = '*')
-        and (p."organization_id" is null or p."organization_id" = v_tenant)
-      order by x, c, p."organization_id" is null, p."type" = '*'
+        and (p."tenant_id" is null or p."tenant_id" = v_tenant)
+      order by x, c, p."tenant_id" is null, p."type" = '*'
     ) w
     where w.enabled
   ) w;
@@ -3670,24 +3670,24 @@ begin
 
   if v_key is not null then
     select ev."id" into v_event from "app_private"."notification_events" ev
-    where ev."idempotency_key" = v_key and ev."organization_id" is not distinct from v_tenant;
+    where ev."idempotency_key" = v_key and ev."tenant_id" is not distinct from v_tenant;
   end if;
   if v_event is null then
-    insert into "app_private"."notification_events" ("type", "data", "organization_id", "actor_id", "subject_type", "subject_id", "subject_label", "summary", "action_path", "actions", "priority", "idempotency_key", "created_by")
+    insert into "app_private"."notification_events" ("type", "data", "tenant_id", "actor_id", "subject_type", "subject_id", "subject_label", "summary", "action_path", "actions", "priority", "idempotency_key", "created_by")
     values (v_type, coalesce(notification -> 'data', '{}'), v_tenant, v_actor, v_subject_type, v_subject_id, notification ->> 'subject_label', notification ->> 'summary', notification ->> 'action_path', nullif(notification -> 'actions', 'null'::jsonb), v_priority, v_key, auth.uid())
     on conflict do nothing
     returning "id" into v_event;
   end if;
   if v_event is null then
     select ev."id" into v_event from "app_private"."notification_events" ev
-    where ev."idempotency_key" = v_key and ev."organization_id" is not distinct from v_tenant;
+    where ev."idempotency_key" = v_key and ev."tenant_id" is not distinct from v_tenant;
   end if;
 
-  insert into "app_private"."notification_recipients" ("event_id", "organization_id", "user_id", "dismissed_at", "resolved_at", "created_at")
+  insert into "app_private"."notification_recipients" ("event_id", "tenant_id", "user_id", "dismissed_at", "resolved_at", "created_at")
   select v_event, v_tenant, x, case when exists (select 1 from unnest(v_want_members, v_want_channels) w(member, channel) where w.member = x and w.channel = 'in_app') then null else now() end, case when coalesce((notification ->> 'resolved')::boolean, false) then now() end, clock_timestamp()
   from unnest(v_recipients) x
   on conflict do nothing;
-  insert into "app_private"."notification_deliveries" ("recipient_id", "organization_id", "channel", "status", "delivered_at")
+  insert into "app_private"."notification_deliveries" ("recipient_id", "tenant_id", "channel", "status", "delivered_at")
   select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else case when "app_private"."notification_cadence"(rc."user_id", v_tenant, v_type, c) in ('daily', 'weekly') then 'held' else 'pending' end end, case when c = 'in_app' then now() end
   from "app_private"."notification_recipients" rc
   join unnest(v_want_members, v_want_channels) w(member, c) on w.member = rc."user_id"
@@ -3788,14 +3788,14 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
   from (
-    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
+    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
     from "app_private"."notification_recipients" rc
     join "app_private"."notification_events" ev on ev."id" = rc."event_id"
     where rc."user_id" = auth.uid()
       and case when coalesce(list_notifications.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) when list_notifications.dismissed is null then true else (rc."dismissed_at" is not null) = list_notifications.dismissed end
       and (list_notifications.read is null or (rc."read_at" is not null) = list_notifications.read)
       and (list_notifications.resolved is null or (rc."resolved_at" is not null) = list_notifications.resolved)
-      and (list_notifications.tenant is null or rc."organization_id" = list_notifications.tenant)
+      and (list_notifications.tenant is null or rc."tenant_id" = list_notifications.tenant)
       and (list_notifications.types is null or ev."type" = any(list_notifications.types))
       and (list_notifications.subject_types is null or ev."subject_type" = any(list_notifications.subject_types))
       and (list_notifications.search is null or btrim(list_notifications.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
@@ -3833,14 +3833,14 @@ security definer
 set search_path = ''
 as $$
   with matched as (
-    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
+    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
     from "app_private"."notification_recipients" rc
     join "app_private"."notification_events" ev on ev."id" = rc."event_id"
     where rc."user_id" = auth.uid()
       and case when coalesce(notification_page.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) when notification_page.dismissed is null then true else (rc."dismissed_at" is not null) = notification_page.dismissed end
       and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)
       and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)
-      and (notification_page.tenant is null or rc."organization_id" = notification_page.tenant)
+      and (notification_page.tenant is null or rc."tenant_id" = notification_page.tenant)
       and (notification_page.types is null or ev."type" = any(notification_page.types))
       and (notification_page.subject_types is null or ev."subject_type" = any(notification_page.subject_types))
       and (notification_page.search is null or btrim(notification_page.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
@@ -3878,7 +3878,7 @@ as $$
     'actionable', count(*) filter (
       where rc."resolved_at" is null and ev."type" = any(coalesce(notification_counts.actionable, '{}'))
     ),
-    'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."organization_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end) filter (
+    'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."tenant_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end) filter (
       where rc."resolved_at" is null and ev."type" = any(coalesce(notification_counts.actionable, '{}'))
     )
   )
@@ -3886,7 +3886,7 @@ as $$
   join "app_private"."notification_events" ev on ev."id" = rc."event_id"
   where rc."user_id" = auth.uid()
     and rc."dismissed_at" is null
-    and (notification_counts.tenant is null or rc."organization_id" = notification_counts.tenant)
+    and (notification_counts.tenant is null or rc."tenant_id" = notification_counts.tenant)
 $$;
 
 create or replace function "app_private"."get_notification"(id uuid)
@@ -3896,7 +3896,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution")
+  select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution")
   from "app_private"."notification_recipients" rc
   join "app_private"."notification_events" ev on ev."id" = rc."event_id"
   where rc."id" = get_notification.id
@@ -3917,12 +3917,12 @@ as $$
       and rc."read_at" is not null
       and rc."dismissed_at" is null
       and rc."id" = any(mark_notifications_unread.ids)
-      and (mark_notifications_unread.tenant is null or rc."organization_id" = mark_notifications_unread.tenant)
+      and (mark_notifications_unread.tenant is null or rc."tenant_id" = mark_notifications_unread.tenant)
     returning rc.*
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "app_private"."notification_events" ev on ev."id" = rc."event_id"
@@ -3942,12 +3942,12 @@ as $$
       and rc."read_at" is null
       and rc."dismissed_at" is null
       and (mark_notifications_read.ids is null or rc."id" = any(mark_notifications_read.ids))
-      and (mark_notifications_read.tenant is null or rc."organization_id" = mark_notifications_read.tenant)
+      and (mark_notifications_read.tenant is null or rc."tenant_id" = mark_notifications_read.tenant)
     returning rc.*
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "app_private"."notification_events" ev on ev."id" = rc."event_id"
@@ -3971,7 +3971,7 @@ as $$
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "app_private"."notification_events" ev on ev."id" = rc."event_id"
@@ -4007,14 +4007,14 @@ begin
       and ev."type" = resolve_notifications.type
       and ev."subject_type" = resolve_notifications.subject_type
       and ev."subject_id" = resolve_notifications.subject_id
-      and ev."organization_id" is not distinct from resolve_notifications.tenant
+      and ev."tenant_id" is not distinct from resolve_notifications.tenant
       and rc."resolved_at" is null
       and rc."dismissed_at" is null
     returning rc.*
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "app_private"."notification_events" ev on ev."id" = rc."event_id" into v_changed;
@@ -4068,9 +4068,9 @@ begin
       where s."user_id" = v_user
         and s."subject_type" = set_notification_subscription.subject_type
         and s."subject_id" = set_notification_subscription.subject_id
-        and s."organization_id" is not distinct from set_notification_subscription.tenant
+        and s."tenant_id" is not distinct from set_notification_subscription.tenant
     ) then
-      insert into "app_private"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+      insert into "app_private"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
       values (set_notification_subscription.tenant, v_user, set_notification_subscription.subject_type, set_notification_subscription.subject_id, set_notification_subscription.level);
     end if;
     return;
@@ -4079,9 +4079,9 @@ begin
   where s."user_id" = v_user
     and s."subject_type" = set_notification_subscription.subject_type
     and s."subject_id" = set_notification_subscription.subject_id
-    and s."organization_id" is not distinct from set_notification_subscription.tenant;
+    and s."tenant_id" is not distinct from set_notification_subscription.tenant;
   if set_notification_subscription.level is not null then
-    insert into "app_private"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "app_private"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (set_notification_subscription.tenant, v_user, set_notification_subscription.subject_type, set_notification_subscription.subject_id, set_notification_subscription.level);
   end if;
 end;
@@ -4108,9 +4108,9 @@ begin
   where p."user_id" = auth.uid()
     and p."type" = set_notification_preference.type
     and p."channel" = set_notification_preference.channel
-    and p."organization_id" is not distinct from set_notification_preference.tenant;
+    and p."tenant_id" is not distinct from set_notification_preference.tenant;
   if set_notification_preference.enabled is not null then
-    insert into "app_private"."notification_preferences" ("user_id", "organization_id", "type", "channel", "enabled")
+    insert into "app_private"."notification_preferences" ("user_id", "tenant_id", "type", "channel", "enabled")
     values (auth.uid(), set_notification_preference.tenant, set_notification_preference.type, set_notification_preference.channel, set_notification_preference.enabled);
   end if;
 end;
@@ -4129,12 +4129,12 @@ as $$
     'subject_type', s."subject_type",
     'subject_id', s."subject_id",
     'level', s."level",
-    'tenant', s."organization_id",
+    'tenant', s."tenant_id",
     'created_at', s."created_at"
   ) order by s."created_at" desc, s."id"), '[]')
   from "app_private"."notification_subscriptions" s
   where s."user_id" = auth.uid()
-    and (list_notification_subscriptions.tenant is null or s."organization_id" = list_notification_subscriptions.tenant)
+    and (list_notification_subscriptions.tenant is null or s."tenant_id" = list_notification_subscriptions.tenant)
     and (list_notification_subscriptions.subject_type is null or s."subject_type" = list_notification_subscriptions.subject_type)
     and (list_notification_subscriptions.subject_id is null or s."subject_id" = list_notification_subscriptions.subject_id)
 $$;
@@ -4153,11 +4153,11 @@ as $$
     'channel', p."channel",
     'enabled', p."enabled",
     'cadence', p."cadence",
-    'tenant', p."organization_id"
-  ) order by p."organization_id" nulls first, p."type", p."channel"), '[]')
+    'tenant', p."tenant_id"
+  ) order by p."tenant_id" nulls first, p."type", p."channel"), '[]')
   from "app_private"."notification_preferences" p
   where p."user_id" = auth.uid()
-    and (list_notification_preferences.tenant is null or p."organization_id" is null or p."organization_id" = list_notification_preferences.tenant)
+    and (list_notification_preferences.tenant is null or p."tenant_id" is null or p."tenant_id" = list_notification_preferences.tenant)
 $$;
 revoke execute on function "app_private"."list_notification_preferences"(uuid) from public, anon;
 grant execute on function "app_private"."list_notification_preferences"(uuid) to authenticated, service_role;
@@ -4201,7 +4201,7 @@ begin
     'user_id', rc."user_id",
     'email', u.email,
     'locale', null::text,
-    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution"),
+    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution"),
     'suppressed', s."reason"
   )), '[]') into claimed
   from leased l
@@ -4268,8 +4268,8 @@ as $$
     where p."user_id" = notification_cadence.member
       and p."channel" = notification_cadence.channel
       and (p."type" = notification_cadence.type or p."type" = '*')
-      and (p."organization_id" is null or p."organization_id" = notification_cadence.tenant)
-    order by p."organization_id" is null, p."type" = '*'
+      and (p."tenant_id" is null or p."tenant_id" = notification_cadence.tenant)
+    order by p."tenant_id" is null, p."type" = '*'
     limit 1
   ), 'immediate')
 $$;
@@ -4297,9 +4297,9 @@ begin
   update "app_private"."notification_preferences" x set "cadence" = set_notification_cadence.cadence
   where x."user_id" = auth.uid() and x."type" = set_notification_cadence.type
     and x."channel" = set_notification_cadence.channel
-    and x."organization_id" is not distinct from set_notification_cadence.tenant;
+    and x."tenant_id" is not distinct from set_notification_cadence.tenant;
   if not found then
-    insert into "app_private"."notification_preferences" ("user_id", "organization_id", "type", "channel", "cadence")
+    insert into "app_private"."notification_preferences" ("user_id", "tenant_id", "type", "channel", "cadence")
     values (auth.uid(), set_notification_cadence.tenant, set_notification_cadence.type, set_notification_cadence.channel, set_notification_cadence.cadence);
   end if;
 end;
@@ -4324,13 +4324,13 @@ declare
   v_count integer;
 begin
   for v_group in
-    select rc."user_id" as member, ev."organization_id" as tenant, d."channel" as channel,
-      min(case "app_private"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
+    select rc."user_id" as member, ev."tenant_id" as tenant, d."channel" as channel,
+      min(case "app_private"."notification_cadence"(rc."user_id", ev."tenant_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
     from "app_private"."notification_deliveries" d
     join "app_private"."notification_recipients" rc on rc."id" = d."recipient_id"
     join "app_private"."notification_events" ev on ev."id" = rc."event_id"
     where d."status" = 'held'
-      and d."created_at" <= now() - case "app_private"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
+      and d."created_at" <= now() - case "app_private"."notification_cadence"(rc."user_id", ev."tenant_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
     group by 1, 2, 3
     limit greatest(1, coalesce(run_notification_digests.max_digests, 100))
   loop
@@ -4340,15 +4340,15 @@ begin
       join "app_private"."notification_recipients" rc on rc."id" = d."recipient_id"
       join "app_private"."notification_events" ev on ev."id" = rc."event_id"
       where d."status" = 'held' and d."channel" = v_group.channel
-        and rc."user_id" = v_group.member and ev."organization_id" is not distinct from v_group.tenant
+        and rc."user_id" = v_group.member and ev."tenant_id" is not distinct from v_group.tenant
       for update of d skip locked
     ) d;
     if cardinality(v_ids) = 0 then
       continue;
     end if;
-    insert into "app_private"."notification_digests" ("user_id", "organization_id", "channel", "cadence", "items", "item_count")
+    insert into "app_private"."notification_digests" ("user_id", "tenant_id", "channel", "cadence", "items", "item_count")
     select v_group.member, v_group.tenant, v_group.channel, v_group.cadence,
-      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
+      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
     from "app_private"."notification_deliveries" d
     join "app_private"."notification_recipients" rc on rc."id" = d."recipient_id"
     join "app_private"."notification_events" ev on ev."id" = rc."event_id"
@@ -4396,7 +4396,7 @@ begin
     'email', u.email,
     'channel', l."channel",
     'cadence', l."cadence",
-    'tenant', l."organization_id",
+    'tenant', l."tenant_id",
     'item_count', l."item_count",
     'items', l."items"
   )), '[]') into claimed
@@ -4547,7 +4547,7 @@ begin
   if record_delivery_event.provider_message_id is null or btrim(record_delivery_event.provider_message_id) = '' then
     raise exception 'provider_message_id is required' using errcode = '22023', hint = 'NOTIFICATION_DELIVERY_MESSAGE_ID';
   end if;
-  select d."id", d."channel", rc."user_id", ev."id", ev."type", d."organization_id",
+  select d."id", d."channel", rc."user_id", ev."id", ev."type", d."tenant_id",
     coalesce(ev."subject_type", 'notification'),
     coalesce(ev."subject_id", ev."id"::text)
   into v_delivery, v_channel, v_user, v_event, v_type, v_tenant, v_subject_type, v_subject_id
@@ -4561,7 +4561,7 @@ begin
   if v_delivery is null then
     return null;
   end if;
-  insert into "app_private"."notification_delivery_events" ("delivery_id", "organization_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
+  insert into "app_private"."notification_delivery_events" ("delivery_id", "tenant_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
   values (v_delivery, v_tenant, v_kind, record_delivery_event.provider, nullif(record_delivery_event.provider_event_id, ''), v_at, coalesce(record_delivery_event.detail, '{}'))
   on conflict ("provider_event_id") do nothing
   returning "id" into v_row;
@@ -4629,7 +4629,7 @@ begin
       join "app_private"."notification_events" ev on ev."id" = rc."event_id"
       where ev."subject_type" = list_subject_deliveries.subject_type
         and ev."subject_id" = list_subject_deliveries.subject_id
-        and (list_subject_deliveries.tenant is null or ev."organization_id" = list_subject_deliveries.tenant)
+        and (list_subject_deliveries.tenant is null or ev."tenant_id" = list_subject_deliveries.tenant)
       order by d."created_at" desc, d."id" desc
       limit least(greatest(coalesce(list_subject_deliveries.max_items, 50), 1), 200)
     ) x
@@ -4673,7 +4673,7 @@ set search_path = ''
 as $$
 begin
   perform realtime.send(
-    jsonb_build_object('id', new."id", 'event_id', new."event_id", 'operation', lower(tg_op), 'tenant', new."organization_id"),
+    jsonb_build_object('id', new."id", 'event_id', new."event_id", 'operation', lower(tg_op), 'tenant', new."tenant_id"),
     case when tg_op = 'INSERT' then 'notification_created' else 'notification_updated' end,
     'notifications:' || new."user_id"::text,
     true
@@ -4697,7 +4697,7 @@ create policy bsb_notifications_receive on realtime.messages
 create policy bsb_tenant_scope_select on "app_private"."notification_events" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "app_private"."notification_recipients" r
     where r."event_id" = "app_private"."notification_events"."id"
@@ -4706,40 +4706,40 @@ create policy bsb_tenant_scope_select on "app_private"."notification_events" as 
   );
 create policy bsb_tenant_scope_insert on "app_private"."notification_events" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "app_private"."notification_events" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "app_private"."notification_events" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "app_private"."notification_recipients" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "app_private"."notification_recipients" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "app_private"."notification_recipients" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_delete on "app_private"."notification_recipients" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "app_private"."notification_deliveries" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "app_private"."notification_recipients" r
     where r."id" = "app_private"."notification_deliveries"."recipient_id"
@@ -4748,18 +4748,18 @@ create policy bsb_tenant_scope_select on "app_private"."notification_deliveries"
   );
 create policy bsb_tenant_scope_insert on "app_private"."notification_deliveries" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "app_private"."notification_deliveries" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "app_private"."notification_deliveries" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "app_private"."notification_delivery_events" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "app_private"."notification_deliveries" d
     join "app_private"."notification_recipients" r on r."id" = d."recipient_id"
@@ -4769,68 +4769,68 @@ create policy bsb_tenant_scope_select on "app_private"."notification_delivery_ev
   );
 create policy bsb_tenant_scope_insert on "app_private"."notification_delivery_events" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "app_private"."notification_delivery_events" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "app_private"."notification_delivery_events" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "app_private"."notification_subscriptions" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "app_private"."notification_subscriptions" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_update on "app_private"."notification_subscriptions" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_delete on "app_private"."notification_subscriptions" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_select on "app_private"."notification_preferences" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "app_private"."notification_preferences" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_update on "app_private"."notification_preferences" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_delete on "app_private"."notification_preferences" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 
@@ -4851,14 +4851,14 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:7138c4e79fe4a2c9e1c43618e1356fb92aecde261f151d675f9479776a0cbb64
+-- @bsb-hash sha256:c4ff2e3b40f72b937b3a7848f2749b1020898dac0d73f9aa8243912b0a4a5509
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create table "better_supabase"."notification_events" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "type" text not null,
   "actor_id" uuid references auth.users (id) on delete set null,
   "subject_type" text,
@@ -4873,7 +4873,7 @@ create table "better_supabase"."notification_events" (
   "created_by" uuid references auth.users (id) on delete set null,
   "created_at" timestamptz not null default now()
 );
-create unique index notification_events_key_idx on "better_supabase"."notification_events" ("idempotency_key", "organization_id") nulls not distinct where "idempotency_key" is not null;
+create unique index notification_events_key_idx on "better_supabase"."notification_events" ("idempotency_key", "tenant_id") nulls not distinct where "idempotency_key" is not null;
 create index notification_events_subject_idx on "better_supabase"."notification_events" ("subject_type", "subject_id");
 create index notification_events_actor_idx on "better_supabase"."notification_events" ("actor_id");
 create index notification_events_created_by_idx on "better_supabase"."notification_events" ("created_by");
@@ -4899,7 +4899,7 @@ grant all on "better_supabase"."notification_events" to service_role;
 create table "better_supabase"."notification_recipients" (
   "id" uuid primary key default gen_random_uuid(),
   "event_id" uuid not null references "better_supabase"."notification_events" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "read_at" timestamptz,
   "dismissed_at" timestamptz,
@@ -4937,7 +4937,7 @@ create policy bsb_notification_events_read on "better_supabase"."notification_ev
 create table "better_supabase"."notification_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
   "recipient_id" uuid not null references "better_supabase"."notification_recipients" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "channel" text not null,
   "status" text not null default 'pending' constraint bsb_notification_deliveries_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested')),
   "provider" text,
@@ -4968,16 +4968,16 @@ create policy bsb_notification_deliveries_read on "better_supabase"."notificatio
 
 create table "better_supabase"."notification_subscriptions" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "user_id" uuid not null references auth.users (id) on delete cascade,
   "subject_type" text not null,
   "subject_id" text not null,
   "level" text not null default 'participating' constraint bsb_notification_subscriptions_level_check check ("level" in ('participating', 'all', 'ignore')),
   "created_at" timestamptz not null default now(),
-  unique nulls not distinct ("organization_id", "user_id", "subject_type", "subject_id")
+  unique nulls not distinct ("tenant_id", "user_id", "subject_type", "subject_id")
 );
 create index notification_subscriptions_user_idx on "better_supabase"."notification_subscriptions" ("user_id");
-create index notification_subscriptions_subject_idx on "better_supabase"."notification_subscriptions" ("organization_id", "subject_type", "subject_id");
+create index notification_subscriptions_subject_idx on "better_supabase"."notification_subscriptions" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."notification_subscriptions" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."notification_subscriptions"
   for each row
@@ -5003,13 +5003,13 @@ create policy "bsb_notification_subscriptions_own_delete" on "better_supabase"."
 create table "better_supabase"."notification_preferences" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "type" text not null,
   "channel" text not null,
   "enabled" boolean not null default true,
   "cadence" text not null default 'immediate' constraint bsb_notification_preferences_cadence_check check ("cadence" in ('immediate', 'daily', 'weekly', 'off')),
   "created_at" timestamptz not null default now(),
-  unique nulls not distinct ("user_id", "organization_id", "type", "channel")
+  unique nulls not distinct ("user_id", "tenant_id", "type", "channel")
 );
 alter table "better_supabase"."notification_preferences" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."notification_preferences"
@@ -5062,7 +5062,7 @@ create index notification_deliveries_provider_message_idx on "better_supabase"."
 create table "better_supabase"."notification_delivery_events" (
   "id" uuid primary key default gen_random_uuid(),
   "delivery_id" uuid not null references "better_supabase"."notification_deliveries" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "kind" text not null constraint bsb_notification_delivery_events_kind_check check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
   "provider" text,
   "provider_event_id" text unique,
@@ -5089,7 +5089,7 @@ create policy bsb_notification_delivery_events_read on "better_supabase"."notifi
 create table "better_supabase"."notification_digests" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "channel" text not null,
   "cadence" text not null constraint bsb_notification_digests_cadence_check check ("cadence" in ('daily', 'weekly')),
   "items" jsonb not null,
@@ -5123,8 +5123,8 @@ as $$
     where p."user_id" = notification_enabled.member
       and p."channel" = notification_enabled.channel
       and (p."type" = notification_enabled.type or p."type" = '*')
-      and (p."organization_id" is null or p."organization_id" = notification_enabled.tenant)
-    order by p."organization_id" is null, p."type" = '*'
+      and (p."tenant_id" is null or p."tenant_id" = notification_enabled.tenant)
+    order by p."tenant_id" is null, p."type" = '*'
     limit 1
   ), case notification_enabled.channel when 'in_app' then true else false end)
 $$;
@@ -5207,7 +5207,7 @@ begin
     if coalesce((notification ->> 'watchers')::boolean, true) then
       v_recipients := v_recipients || array(
         select s."user_id" from "better_supabase"."notification_subscriptions" s
-        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."organization_id" is not distinct from v_tenant
+        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."tenant_id" is not distinct from v_tenant
           and (s."level" = 'all' or (v_activity = 'participating' and s."level" = 'participating'))
       );
     end if;
@@ -5215,7 +5215,7 @@ begin
       select x from unnest(v_recipients) x
       where not exists (
         select 1 from "better_supabase"."notification_subscriptions" s
-        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."organization_id" is not distinct from v_tenant
+        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."tenant_id" is not distinct from v_tenant
           and s."level" = 'ignore' and s."user_id" = x
       )
     );
@@ -5247,8 +5247,8 @@ begin
       left join "better_supabase"."notification_preferences" p
         on p."user_id" = x and p."channel" = c
         and (p."type" = v_type or p."type" = '*')
-        and (p."organization_id" is null or p."organization_id" = v_tenant)
-      order by x, c, p."organization_id" is null, p."type" = '*'
+        and (p."tenant_id" is null or p."tenant_id" = v_tenant)
+      order by x, c, p."tenant_id" is null, p."type" = '*'
     ) w
     where w.enabled
   ) w;
@@ -5259,24 +5259,24 @@ begin
 
   if v_key is not null then
     select ev."id" into v_event from "better_supabase"."notification_events" ev
-    where ev."idempotency_key" = v_key and ev."organization_id" is not distinct from v_tenant;
+    where ev."idempotency_key" = v_key and ev."tenant_id" is not distinct from v_tenant;
   end if;
   if v_event is null then
-    insert into "better_supabase"."notification_events" ("type", "data", "organization_id", "actor_id", "subject_type", "subject_id", "subject_label", "summary", "action_path", "actions", "priority", "idempotency_key", "created_by")
+    insert into "better_supabase"."notification_events" ("type", "data", "tenant_id", "actor_id", "subject_type", "subject_id", "subject_label", "summary", "action_path", "actions", "priority", "idempotency_key", "created_by")
     values (v_type, coalesce(notification -> 'data', '{}'), v_tenant, v_actor, v_subject_type, v_subject_id, notification ->> 'subject_label', notification ->> 'summary', notification ->> 'action_path', nullif(notification -> 'actions', 'null'::jsonb), v_priority, v_key, auth.uid())
     on conflict do nothing
     returning "id" into v_event;
   end if;
   if v_event is null then
     select ev."id" into v_event from "better_supabase"."notification_events" ev
-    where ev."idempotency_key" = v_key and ev."organization_id" is not distinct from v_tenant;
+    where ev."idempotency_key" = v_key and ev."tenant_id" is not distinct from v_tenant;
   end if;
 
-  insert into "better_supabase"."notification_recipients" ("event_id", "organization_id", "user_id", "dismissed_at", "resolved_at", "created_at")
+  insert into "better_supabase"."notification_recipients" ("event_id", "tenant_id", "user_id", "dismissed_at", "resolved_at", "created_at")
   select v_event, v_tenant, x, case when exists (select 1 from unnest(v_want_members, v_want_channels) w(member, channel) where w.member = x and w.channel = 'in_app') then null else now() end, case when coalesce((notification ->> 'resolved')::boolean, false) then now() end, clock_timestamp()
   from unnest(v_recipients) x
   on conflict do nothing;
-  insert into "better_supabase"."notification_deliveries" ("recipient_id", "organization_id", "channel", "status", "delivered_at")
+  insert into "better_supabase"."notification_deliveries" ("recipient_id", "tenant_id", "channel", "status", "delivered_at")
   select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else case when "better_supabase"."notification_cadence"(rc."user_id", v_tenant, v_type, c) in ('daily', 'weekly') then 'held' else 'pending' end end, case when c = 'in_app' then now() end
   from "better_supabase"."notification_recipients" rc
   join unnest(v_want_members, v_want_channels) w(member, c) on w.member = rc."user_id"
@@ -5377,14 +5377,14 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
   from (
-    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
+    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
     from "better_supabase"."notification_recipients" rc
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
     where rc."user_id" = auth.uid()
       and case when coalesce(list_notifications.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) when list_notifications.dismissed is null then true else (rc."dismissed_at" is not null) = list_notifications.dismissed end
       and (list_notifications.read is null or (rc."read_at" is not null) = list_notifications.read)
       and (list_notifications.resolved is null or (rc."resolved_at" is not null) = list_notifications.resolved)
-      and (list_notifications.tenant is null or rc."organization_id" = list_notifications.tenant)
+      and (list_notifications.tenant is null or rc."tenant_id" = list_notifications.tenant)
       and (list_notifications.types is null or ev."type" = any(list_notifications.types))
       and (list_notifications.subject_types is null or ev."subject_type" = any(list_notifications.subject_types))
       and (list_notifications.search is null or btrim(list_notifications.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
@@ -5422,14 +5422,14 @@ security definer
 set search_path = ''
 as $$
   with matched as (
-    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
+    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
     from "better_supabase"."notification_recipients" rc
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
     where rc."user_id" = auth.uid()
       and case when coalesce(notification_page.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) when notification_page.dismissed is null then true else (rc."dismissed_at" is not null) = notification_page.dismissed end
       and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)
       and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)
-      and (notification_page.tenant is null or rc."organization_id" = notification_page.tenant)
+      and (notification_page.tenant is null or rc."tenant_id" = notification_page.tenant)
       and (notification_page.types is null or ev."type" = any(notification_page.types))
       and (notification_page.subject_types is null or ev."subject_type" = any(notification_page.subject_types))
       and (notification_page.search is null or btrim(notification_page.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
@@ -5467,7 +5467,7 @@ as $$
     'actionable', count(*) filter (
       where rc."resolved_at" is null and ev."type" = any(coalesce(notification_counts.actionable, '{}'))
     ),
-    'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."organization_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end) filter (
+    'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."tenant_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end) filter (
       where rc."resolved_at" is null and ev."type" = any(coalesce(notification_counts.actionable, '{}'))
     )
   )
@@ -5475,7 +5475,7 @@ as $$
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
   where rc."user_id" = auth.uid()
     and rc."dismissed_at" is null
-    and (notification_counts.tenant is null or rc."organization_id" = notification_counts.tenant)
+    and (notification_counts.tenant is null or rc."tenant_id" = notification_counts.tenant)
 $$;
 
 create or replace function "better_supabase"."get_notification"(id uuid)
@@ -5485,7 +5485,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution")
+  select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution")
   from "better_supabase"."notification_recipients" rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
   where rc."id" = get_notification.id
@@ -5506,12 +5506,12 @@ as $$
       and rc."read_at" is not null
       and rc."dismissed_at" is null
       and rc."id" = any(mark_notifications_unread.ids)
-      and (mark_notifications_unread.tenant is null or rc."organization_id" = mark_notifications_unread.tenant)
+      and (mark_notifications_unread.tenant is null or rc."tenant_id" = mark_notifications_unread.tenant)
     returning rc.*
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -5531,12 +5531,12 @@ as $$
       and rc."read_at" is null
       and rc."dismissed_at" is null
       and (mark_notifications_read.ids is null or rc."id" = any(mark_notifications_read.ids))
-      and (mark_notifications_read.tenant is null or rc."organization_id" = mark_notifications_read.tenant)
+      and (mark_notifications_read.tenant is null or rc."tenant_id" = mark_notifications_read.tenant)
     returning rc.*
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -5560,7 +5560,7 @@ as $$
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -5596,14 +5596,14 @@ begin
       and ev."type" = resolve_notifications.type
       and ev."subject_type" = resolve_notifications.subject_type
       and ev."subject_id" = resolve_notifications.subject_id
-      and ev."organization_id" is not distinct from resolve_notifications.tenant
+      and ev."tenant_id" is not distinct from resolve_notifications.tenant
       and rc."resolved_at" is null
       and rc."dismissed_at" is null
     returning rc.*
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id" into v_changed;
@@ -5657,9 +5657,9 @@ begin
       where s."user_id" = v_user
         and s."subject_type" = set_notification_subscription.subject_type
         and s."subject_id" = set_notification_subscription.subject_id
-        and s."organization_id" is not distinct from set_notification_subscription.tenant
+        and s."tenant_id" is not distinct from set_notification_subscription.tenant
     ) then
-      insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+      insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
       values (set_notification_subscription.tenant, v_user, set_notification_subscription.subject_type, set_notification_subscription.subject_id, set_notification_subscription.level);
     end if;
     return;
@@ -5668,9 +5668,9 @@ begin
   where s."user_id" = v_user
     and s."subject_type" = set_notification_subscription.subject_type
     and s."subject_id" = set_notification_subscription.subject_id
-    and s."organization_id" is not distinct from set_notification_subscription.tenant;
+    and s."tenant_id" is not distinct from set_notification_subscription.tenant;
   if set_notification_subscription.level is not null then
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (set_notification_subscription.tenant, v_user, set_notification_subscription.subject_type, set_notification_subscription.subject_id, set_notification_subscription.level);
   end if;
 end;
@@ -5697,9 +5697,9 @@ begin
   where p."user_id" = auth.uid()
     and p."type" = set_notification_preference.type
     and p."channel" = set_notification_preference.channel
-    and p."organization_id" is not distinct from set_notification_preference.tenant;
+    and p."tenant_id" is not distinct from set_notification_preference.tenant;
   if set_notification_preference.enabled is not null then
-    insert into "better_supabase"."notification_preferences" ("user_id", "organization_id", "type", "channel", "enabled")
+    insert into "better_supabase"."notification_preferences" ("user_id", "tenant_id", "type", "channel", "enabled")
     values (auth.uid(), set_notification_preference.tenant, set_notification_preference.type, set_notification_preference.channel, set_notification_preference.enabled);
   end if;
 end;
@@ -5718,12 +5718,12 @@ as $$
     'subject_type', s."subject_type",
     'subject_id', s."subject_id",
     'level', s."level",
-    'tenant', s."organization_id",
+    'tenant', s."tenant_id",
     'created_at', s."created_at"
   ) order by s."created_at" desc, s."id"), '[]')
   from "better_supabase"."notification_subscriptions" s
   where s."user_id" = auth.uid()
-    and (list_notification_subscriptions.tenant is null or s."organization_id" = list_notification_subscriptions.tenant)
+    and (list_notification_subscriptions.tenant is null or s."tenant_id" = list_notification_subscriptions.tenant)
     and (list_notification_subscriptions.subject_type is null or s."subject_type" = list_notification_subscriptions.subject_type)
     and (list_notification_subscriptions.subject_id is null or s."subject_id" = list_notification_subscriptions.subject_id)
 $$;
@@ -5742,11 +5742,11 @@ as $$
     'channel', p."channel",
     'enabled', p."enabled",
     'cadence', p."cadence",
-    'tenant', p."organization_id"
-  ) order by p."organization_id" nulls first, p."type", p."channel"), '[]')
+    'tenant', p."tenant_id"
+  ) order by p."tenant_id" nulls first, p."type", p."channel"), '[]')
   from "better_supabase"."notification_preferences" p
   where p."user_id" = auth.uid()
-    and (list_notification_preferences.tenant is null or p."organization_id" is null or p."organization_id" = list_notification_preferences.tenant)
+    and (list_notification_preferences.tenant is null or p."tenant_id" is null or p."tenant_id" = list_notification_preferences.tenant)
 $$;
 revoke execute on function "better_supabase"."list_notification_preferences"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_notification_preferences"(uuid) to authenticated, service_role;
@@ -5790,7 +5790,7 @@ begin
     'user_id', rc."user_id",
     'email', u.email,
     'locale', null::text,
-    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution"),
+    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution"),
     'suppressed', s."reason"
   )), '[]') into claimed
   from leased l
@@ -5857,8 +5857,8 @@ as $$
     where p."user_id" = notification_cadence.member
       and p."channel" = notification_cadence.channel
       and (p."type" = notification_cadence.type or p."type" = '*')
-      and (p."organization_id" is null or p."organization_id" = notification_cadence.tenant)
-    order by p."organization_id" is null, p."type" = '*'
+      and (p."tenant_id" is null or p."tenant_id" = notification_cadence.tenant)
+    order by p."tenant_id" is null, p."type" = '*'
     limit 1
   ), 'immediate')
 $$;
@@ -5886,9 +5886,9 @@ begin
   update "better_supabase"."notification_preferences" x set "cadence" = set_notification_cadence.cadence
   where x."user_id" = auth.uid() and x."type" = set_notification_cadence.type
     and x."channel" = set_notification_cadence.channel
-    and x."organization_id" is not distinct from set_notification_cadence.tenant;
+    and x."tenant_id" is not distinct from set_notification_cadence.tenant;
   if not found then
-    insert into "better_supabase"."notification_preferences" ("user_id", "organization_id", "type", "channel", "cadence")
+    insert into "better_supabase"."notification_preferences" ("user_id", "tenant_id", "type", "channel", "cadence")
     values (auth.uid(), set_notification_cadence.tenant, set_notification_cadence.type, set_notification_cadence.channel, set_notification_cadence.cadence);
   end if;
 end;
@@ -5913,13 +5913,13 @@ declare
   v_count integer;
 begin
   for v_group in
-    select rc."user_id" as member, ev."organization_id" as tenant, d."channel" as channel,
-      min(case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
+    select rc."user_id" as member, ev."tenant_id" as tenant, d."channel" as channel,
+      min(case "better_supabase"."notification_cadence"(rc."user_id", ev."tenant_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
     from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
     where d."status" = 'held'
-      and d."created_at" <= now() - case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
+      and d."created_at" <= now() - case "better_supabase"."notification_cadence"(rc."user_id", ev."tenant_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
     group by 1, 2, 3
     limit greatest(1, coalesce(run_notification_digests.max_digests, 100))
   loop
@@ -5929,15 +5929,15 @@ begin
       join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
       join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
       where d."status" = 'held' and d."channel" = v_group.channel
-        and rc."user_id" = v_group.member and ev."organization_id" is not distinct from v_group.tenant
+        and rc."user_id" = v_group.member and ev."tenant_id" is not distinct from v_group.tenant
       for update of d skip locked
     ) d;
     if cardinality(v_ids) = 0 then
       continue;
     end if;
-    insert into "better_supabase"."notification_digests" ("user_id", "organization_id", "channel", "cadence", "items", "item_count")
+    insert into "better_supabase"."notification_digests" ("user_id", "tenant_id", "channel", "cadence", "items", "item_count")
     select v_group.member, v_group.tenant, v_group.channel, v_group.cadence,
-      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
+      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
     from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -5985,7 +5985,7 @@ begin
     'email', u.email,
     'channel', l."channel",
     'cadence', l."cadence",
-    'tenant', l."organization_id",
+    'tenant', l."tenant_id",
     'item_count', l."item_count",
     'items', l."items"
   )), '[]') into claimed
@@ -6136,7 +6136,7 @@ begin
   if record_delivery_event.provider_message_id is null or btrim(record_delivery_event.provider_message_id) = '' then
     raise exception 'provider_message_id is required' using errcode = '22023', hint = 'NOTIFICATION_DELIVERY_MESSAGE_ID';
   end if;
-  select d."id", d."channel", rc."user_id", ev."id", ev."type", d."organization_id",
+  select d."id", d."channel", rc."user_id", ev."id", ev."type", d."tenant_id",
     coalesce(ev."subject_type", 'notification'),
     coalesce(ev."subject_id", ev."id"::text)
   into v_delivery, v_channel, v_user, v_event, v_type, v_tenant, v_subject_type, v_subject_id
@@ -6150,7 +6150,7 @@ begin
   if v_delivery is null then
     return null;
   end if;
-  insert into "better_supabase"."notification_delivery_events" ("delivery_id", "organization_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
+  insert into "better_supabase"."notification_delivery_events" ("delivery_id", "tenant_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
   values (v_delivery, v_tenant, v_kind, record_delivery_event.provider, nullif(record_delivery_event.provider_event_id, ''), v_at, coalesce(record_delivery_event.detail, '{}'))
   on conflict ("provider_event_id") do nothing
   returning "id" into v_row;
@@ -6218,7 +6218,7 @@ begin
       join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
       where ev."subject_type" = list_subject_deliveries.subject_type
         and ev."subject_id" = list_subject_deliveries.subject_id
-        and (list_subject_deliveries.tenant is null or ev."organization_id" = list_subject_deliveries.tenant)
+        and (list_subject_deliveries.tenant is null or ev."tenant_id" = list_subject_deliveries.tenant)
       order by d."created_at" desc, d."id" desc
       limit least(greatest(coalesce(list_subject_deliveries.max_items, 50), 1), 200)
     ) x
@@ -6262,7 +6262,7 @@ set search_path = ''
 as $$
 begin
   perform realtime.send(
-    jsonb_build_object('id', new."id", 'event_id', new."event_id", 'operation', lower(tg_op), 'tenant', new."organization_id"),
+    jsonb_build_object('id', new."id", 'event_id', new."event_id", 'operation', lower(tg_op), 'tenant', new."tenant_id"),
     case when tg_op = 'INSERT' then 'notification_created' else 'notification_updated' end,
     'notifications:' || new."user_id"::text,
     true
@@ -6299,7 +6299,7 @@ grant all on "api"."notification_preferences" to service_role;
 create policy bsb_tenant_scope_select on "better_supabase"."notification_events" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."event_id" = "better_supabase"."notification_events"."id"
@@ -6308,40 +6308,40 @@ create policy bsb_tenant_scope_select on "better_supabase"."notification_events"
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_events" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_events" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_events" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_recipients" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_recipients" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_recipients" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_recipients" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_deliveries" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
@@ -6350,18 +6350,18 @@ create policy bsb_tenant_scope_select on "better_supabase"."notification_deliver
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_deliveries" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_deliveries" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_deliveries" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_delivery_events" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
@@ -6371,68 +6371,68 @@ create policy bsb_tenant_scope_select on "better_supabase"."notification_deliver
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_delivery_events" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_delivery_events" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_delivery_events" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_subscriptions" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_subscriptions" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."notification_subscriptions" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_subscriptions" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_select on "better_supabase"."notification_preferences" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_preferences" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."notification_preferences" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_preferences" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 
@@ -6728,14 +6728,14 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:6e16bf1a15a466701e6f459577326d0581ffc9d0afc0b09de6b4f7a3e37f8db2
+-- @bsb-hash sha256:0cd9f0411058bec23fc25f9233a245eab0f62c00e3e8f251d328d0d4a2942318
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 -- better_supabase.notification_events is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."notification_events" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."notification_events" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."notification_events" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."notification_events" add column if not exists "type" text;
 alter table "better_supabase"."notification_events" add column if not exists "actor_id" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."notification_events" add column if not exists "subject_type" text;
@@ -6749,7 +6749,7 @@ alter table "better_supabase"."notification_events" add column if not exists "da
 alter table "better_supabase"."notification_events" add column if not exists "idempotency_key" text;
 alter table "better_supabase"."notification_events" add column if not exists "created_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."notification_events" add column if not exists "created_at" timestamptz not null default now();
-create unique index if not exists notification_events_key_idx on "better_supabase"."notification_events" ("idempotency_key", "organization_id") nulls not distinct where "idempotency_key" is not null;
+create unique index if not exists notification_events_key_idx on "better_supabase"."notification_events" ("idempotency_key", "tenant_id") nulls not distinct where "idempotency_key" is not null;
 create index if not exists notification_events_subject_idx on "better_supabase"."notification_events" ("subject_type", "subject_id");
 create index if not exists notification_events_actor_idx on "better_supabase"."notification_events" ("actor_id");
 create index if not exists notification_events_created_by_idx on "better_supabase"."notification_events" ("created_by");
@@ -6771,7 +6771,7 @@ grant all on "better_supabase"."notification_events" to service_role;
 -- better_supabase.notification_recipients is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."notification_recipients" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."notification_recipients" add column if not exists "event_id" uuid references "better_supabase"."notification_events" ("id") on delete cascade;
-alter table "better_supabase"."notification_recipients" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."notification_recipients" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."notification_recipients" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."notification_recipients" add column if not exists "read_at" timestamptz;
 alter table "better_supabase"."notification_recipients" add column if not exists "dismissed_at" timestamptz;
@@ -6808,7 +6808,7 @@ create policy bsb_notification_events_read on "better_supabase"."notification_ev
 -- better_supabase.notification_deliveries is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."notification_deliveries" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."notification_deliveries" add column if not exists "recipient_id" uuid references "better_supabase"."notification_recipients" ("id") on delete cascade;
-alter table "better_supabase"."notification_deliveries" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."notification_deliveries" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."notification_deliveries" add column if not exists "channel" text;
 alter table "better_supabase"."notification_deliveries" add column if not exists "status" text not null default 'pending' constraint bsb_notification_deliveries_status_check check ("status" in ('pending', 'sent', 'failed', 'skipped', 'held', 'digested'));
 alter table "better_supabase"."notification_deliveries" add column if not exists "provider" text;
@@ -6836,14 +6836,14 @@ create policy bsb_notification_deliveries_read on "better_supabase"."notificatio
 
 -- better_supabase.notification_subscriptions is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."notification_subscriptions" add column if not exists "id" uuid default gen_random_uuid();
-alter table "better_supabase"."notification_subscriptions" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."notification_subscriptions" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."notification_subscriptions" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
 alter table "better_supabase"."notification_subscriptions" add column if not exists "subject_type" text;
 alter table "better_supabase"."notification_subscriptions" add column if not exists "subject_id" text;
 alter table "better_supabase"."notification_subscriptions" add column if not exists "level" text not null default 'participating' constraint bsb_notification_subscriptions_level_check check ("level" in ('participating', 'all', 'ignore'));
 alter table "better_supabase"."notification_subscriptions" add column if not exists "created_at" timestamptz not null default now();
 create index if not exists notification_subscriptions_user_idx on "better_supabase"."notification_subscriptions" ("user_id");
-create index if not exists notification_subscriptions_subject_idx on "better_supabase"."notification_subscriptions" ("organization_id", "subject_type", "subject_id");
+create index if not exists notification_subscriptions_subject_idx on "better_supabase"."notification_subscriptions" ("tenant_id", "subject_type", "subject_id");
 alter table "better_supabase"."notification_subscriptions" add column if not exists "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."notification_subscriptions"
   for each row
@@ -6868,7 +6868,7 @@ create policy "bsb_notification_subscriptions_own_delete" on "better_supabase"."
 -- better_supabase.notification_preferences is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."notification_preferences" add column if not exists "id" uuid default gen_random_uuid();
 alter table "better_supabase"."notification_preferences" add column if not exists "user_id" uuid references auth.users (id) on delete cascade;
-alter table "better_supabase"."notification_preferences" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."notification_preferences" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."notification_preferences" add column if not exists "type" text;
 alter table "better_supabase"."notification_preferences" add column if not exists "channel" text;
 alter table "better_supabase"."notification_preferences" add column if not exists "enabled" boolean not null default true;
@@ -6924,7 +6924,7 @@ create index if not exists notification_deliveries_provider_message_idx on "bett
 create table "better_supabase"."notification_delivery_events" (
   "id" uuid primary key default gen_random_uuid(),
   "delivery_id" uuid not null references "better_supabase"."notification_deliveries" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "kind" text not null constraint bsb_notification_delivery_events_kind_check check ("kind" in ('delayed', 'delivered', 'opened', 'clicked', 'bounced', 'complained')),
   "provider" text,
   "provider_event_id" text unique,
@@ -6951,7 +6951,7 @@ create policy bsb_notification_delivery_events_read on "better_supabase"."notifi
 create table "better_supabase"."notification_digests" (
   "id" uuid primary key default gen_random_uuid(),
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "channel" text not null,
   "cadence" text not null constraint bsb_notification_digests_cadence_check check ("cadence" in ('daily', 'weekly')),
   "items" jsonb not null,
@@ -6985,8 +6985,8 @@ as $$
     where p."user_id" = notification_enabled.member
       and p."channel" = notification_enabled.channel
       and (p."type" = notification_enabled.type or p."type" = '*')
-      and (p."organization_id" is null or p."organization_id" = notification_enabled.tenant)
-    order by p."organization_id" is null, p."type" = '*'
+      and (p."tenant_id" is null or p."tenant_id" = notification_enabled.tenant)
+    order by p."tenant_id" is null, p."type" = '*'
     limit 1
   ), case notification_enabled.channel when 'in_app' then true else false end)
 $$;
@@ -7069,7 +7069,7 @@ begin
     if coalesce((notification ->> 'watchers')::boolean, true) then
       v_recipients := v_recipients || array(
         select s."user_id" from "better_supabase"."notification_subscriptions" s
-        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."organization_id" is not distinct from v_tenant
+        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."tenant_id" is not distinct from v_tenant
           and (s."level" = 'all' or (v_activity = 'participating' and s."level" = 'participating'))
       );
     end if;
@@ -7077,7 +7077,7 @@ begin
       select x from unnest(v_recipients) x
       where not exists (
         select 1 from "better_supabase"."notification_subscriptions" s
-        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."organization_id" is not distinct from v_tenant
+        where s."subject_type" = v_subject_type and s."subject_id" = v_subject_id and s."tenant_id" is not distinct from v_tenant
           and s."level" = 'ignore' and s."user_id" = x
       )
     );
@@ -7109,8 +7109,8 @@ begin
       left join "better_supabase"."notification_preferences" p
         on p."user_id" = x and p."channel" = c
         and (p."type" = v_type or p."type" = '*')
-        and (p."organization_id" is null or p."organization_id" = v_tenant)
-      order by x, c, p."organization_id" is null, p."type" = '*'
+        and (p."tenant_id" is null or p."tenant_id" = v_tenant)
+      order by x, c, p."tenant_id" is null, p."type" = '*'
     ) w
     where w.enabled
   ) w;
@@ -7121,24 +7121,24 @@ begin
 
   if v_key is not null then
     select ev."id" into v_event from "better_supabase"."notification_events" ev
-    where ev."idempotency_key" = v_key and ev."organization_id" is not distinct from v_tenant;
+    where ev."idempotency_key" = v_key and ev."tenant_id" is not distinct from v_tenant;
   end if;
   if v_event is null then
-    insert into "better_supabase"."notification_events" ("type", "data", "organization_id", "actor_id", "subject_type", "subject_id", "subject_label", "summary", "action_path", "actions", "priority", "idempotency_key", "created_by")
+    insert into "better_supabase"."notification_events" ("type", "data", "tenant_id", "actor_id", "subject_type", "subject_id", "subject_label", "summary", "action_path", "actions", "priority", "idempotency_key", "created_by")
     values (v_type, coalesce(notification -> 'data', '{}'), v_tenant, v_actor, v_subject_type, v_subject_id, notification ->> 'subject_label', notification ->> 'summary', notification ->> 'action_path', nullif(notification -> 'actions', 'null'::jsonb), v_priority, v_key, auth.uid())
     on conflict do nothing
     returning "id" into v_event;
   end if;
   if v_event is null then
     select ev."id" into v_event from "better_supabase"."notification_events" ev
-    where ev."idempotency_key" = v_key and ev."organization_id" is not distinct from v_tenant;
+    where ev."idempotency_key" = v_key and ev."tenant_id" is not distinct from v_tenant;
   end if;
 
-  insert into "better_supabase"."notification_recipients" ("event_id", "organization_id", "user_id", "dismissed_at", "resolved_at", "created_at")
+  insert into "better_supabase"."notification_recipients" ("event_id", "tenant_id", "user_id", "dismissed_at", "resolved_at", "created_at")
   select v_event, v_tenant, x, case when exists (select 1 from unnest(v_want_members, v_want_channels) w(member, channel) where w.member = x and w.channel = 'in_app') then null else now() end, case when coalesce((notification ->> 'resolved')::boolean, false) then now() end, clock_timestamp()
   from unnest(v_recipients) x
   on conflict do nothing;
-  insert into "better_supabase"."notification_deliveries" ("recipient_id", "organization_id", "channel", "status", "delivered_at")
+  insert into "better_supabase"."notification_deliveries" ("recipient_id", "tenant_id", "channel", "status", "delivered_at")
   select rc."id", v_tenant, c, case when c = 'in_app' then 'sent' else case when "better_supabase"."notification_cadence"(rc."user_id", v_tenant, v_type, c) in ('daily', 'weekly') then 'held' else 'pending' end end, case when c = 'in_app' then now() end
   from "better_supabase"."notification_recipients" rc
   join unnest(v_want_members, v_want_channels) w(member, c) on w.member = rc."user_id"
@@ -7239,14 +7239,14 @@ set search_path = ''
 as $$
   select coalesce(jsonb_agg(x.item order by x.created_at desc, x.id desc), '[]')
   from (
-    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
+    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
     from "better_supabase"."notification_recipients" rc
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
     where rc."user_id" = auth.uid()
       and case when coalesce(list_notifications.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) when list_notifications.dismissed is null then true else (rc."dismissed_at" is not null) = list_notifications.dismissed end
       and (list_notifications.read is null or (rc."read_at" is not null) = list_notifications.read)
       and (list_notifications.resolved is null or (rc."resolved_at" is not null) = list_notifications.resolved)
-      and (list_notifications.tenant is null or rc."organization_id" = list_notifications.tenant)
+      and (list_notifications.tenant is null or rc."tenant_id" = list_notifications.tenant)
       and (list_notifications.types is null or ev."type" = any(list_notifications.types))
       and (list_notifications.subject_types is null or ev."subject_type" = any(list_notifications.subject_types))
       and (list_notifications.search is null or btrim(list_notifications.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
@@ -7284,14 +7284,14 @@ security definer
 set search_path = ''
 as $$
   with matched as (
-    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
+    select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") as item, rc."created_at" as created_at, rc."id" as id
     from "better_supabase"."notification_recipients" rc
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
     where rc."user_id" = auth.uid()
       and case when coalesce(notification_page.status, 'all') = 'settled' then (rc."resolved_at" is not null or rc."dismissed_at" is not null) when notification_page.dismissed is null then true else (rc."dismissed_at" is not null) = notification_page.dismissed end
       and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)
       and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)
-      and (notification_page.tenant is null or rc."organization_id" = notification_page.tenant)
+      and (notification_page.tenant is null or rc."tenant_id" = notification_page.tenant)
       and (notification_page.types is null or ev."type" = any(notification_page.types))
       and (notification_page.subject_types is null or ev."subject_type" = any(notification_page.subject_types))
       and (notification_page.search is null or btrim(notification_page.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
@@ -7329,7 +7329,7 @@ as $$
     'actionable', count(*) filter (
       where rc."resolved_at" is null and ev."type" = any(coalesce(notification_counts.actionable, '{}'))
     ),
-    'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."organization_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end) filter (
+    'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."tenant_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end) filter (
       where rc."resolved_at" is null and ev."type" = any(coalesce(notification_counts.actionable, '{}'))
     )
   )
@@ -7337,7 +7337,7 @@ as $$
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
   where rc."user_id" = auth.uid()
     and rc."dismissed_at" is null
-    and (notification_counts.tenant is null or rc."organization_id" = notification_counts.tenant)
+    and (notification_counts.tenant is null or rc."tenant_id" = notification_counts.tenant)
 $$;
 
 create or replace function "better_supabase"."get_notification"(id uuid)
@@ -7347,7 +7347,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution")
+  select jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution")
   from "better_supabase"."notification_recipients" rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
   where rc."id" = get_notification.id
@@ -7368,12 +7368,12 @@ as $$
       and rc."read_at" is not null
       and rc."dismissed_at" is null
       and rc."id" = any(mark_notifications_unread.ids)
-      and (mark_notifications_unread.tenant is null or rc."organization_id" = mark_notifications_unread.tenant)
+      and (mark_notifications_unread.tenant is null or rc."tenant_id" = mark_notifications_unread.tenant)
     returning rc.*
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -7393,12 +7393,12 @@ as $$
       and rc."read_at" is null
       and rc."dismissed_at" is null
       and (mark_notifications_read.ids is null or rc."id" = any(mark_notifications_read.ids))
-      and (mark_notifications_read.tenant is null or rc."organization_id" = mark_notifications_read.tenant)
+      and (mark_notifications_read.tenant is null or rc."tenant_id" = mark_notifications_read.tenant)
     returning rc.*
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -7422,7 +7422,7 @@ as $$
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -7458,14 +7458,14 @@ begin
       and ev."type" = resolve_notifications.type
       and ev."subject_type" = resolve_notifications.subject_type
       and ev."subject_id" = resolve_notifications.subject_id
-      and ev."organization_id" is not distinct from resolve_notifications.tenant
+      and ev."tenant_id" is not distinct from resolve_notifications.tenant
       and rc."resolved_at" is null
       and rc."dismissed_at" is null
     returning rc.*
   )
   select jsonb_build_object(
     'count', count(*),
-    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
+    'items', coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at" desc, rc."id" desc) filter (where rc."user_id" = auth.uid()), '[]')
   )
   from rc
   join "better_supabase"."notification_events" ev on ev."id" = rc."event_id" into v_changed;
@@ -7519,9 +7519,9 @@ begin
       where s."user_id" = v_user
         and s."subject_type" = set_notification_subscription.subject_type
         and s."subject_id" = set_notification_subscription.subject_id
-        and s."organization_id" is not distinct from set_notification_subscription.tenant
+        and s."tenant_id" is not distinct from set_notification_subscription.tenant
     ) then
-      insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+      insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
       values (set_notification_subscription.tenant, v_user, set_notification_subscription.subject_type, set_notification_subscription.subject_id, set_notification_subscription.level);
     end if;
     return;
@@ -7530,9 +7530,9 @@ begin
   where s."user_id" = v_user
     and s."subject_type" = set_notification_subscription.subject_type
     and s."subject_id" = set_notification_subscription.subject_id
-    and s."organization_id" is not distinct from set_notification_subscription.tenant;
+    and s."tenant_id" is not distinct from set_notification_subscription.tenant;
   if set_notification_subscription.level is not null then
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (set_notification_subscription.tenant, v_user, set_notification_subscription.subject_type, set_notification_subscription.subject_id, set_notification_subscription.level);
   end if;
 end;
@@ -7559,9 +7559,9 @@ begin
   where p."user_id" = auth.uid()
     and p."type" = set_notification_preference.type
     and p."channel" = set_notification_preference.channel
-    and p."organization_id" is not distinct from set_notification_preference.tenant;
+    and p."tenant_id" is not distinct from set_notification_preference.tenant;
   if set_notification_preference.enabled is not null then
-    insert into "better_supabase"."notification_preferences" ("user_id", "organization_id", "type", "channel", "enabled")
+    insert into "better_supabase"."notification_preferences" ("user_id", "tenant_id", "type", "channel", "enabled")
     values (auth.uid(), set_notification_preference.tenant, set_notification_preference.type, set_notification_preference.channel, set_notification_preference.enabled);
   end if;
 end;
@@ -7580,12 +7580,12 @@ as $$
     'subject_type', s."subject_type",
     'subject_id', s."subject_id",
     'level', s."level",
-    'tenant', s."organization_id",
+    'tenant', s."tenant_id",
     'created_at', s."created_at"
   ) order by s."created_at" desc, s."id"), '[]')
   from "better_supabase"."notification_subscriptions" s
   where s."user_id" = auth.uid()
-    and (list_notification_subscriptions.tenant is null or s."organization_id" = list_notification_subscriptions.tenant)
+    and (list_notification_subscriptions.tenant is null or s."tenant_id" = list_notification_subscriptions.tenant)
     and (list_notification_subscriptions.subject_type is null or s."subject_type" = list_notification_subscriptions.subject_type)
     and (list_notification_subscriptions.subject_id is null or s."subject_id" = list_notification_subscriptions.subject_id)
 $$;
@@ -7604,11 +7604,11 @@ as $$
     'channel', p."channel",
     'enabled', p."enabled",
     'cadence', p."cadence",
-    'tenant', p."organization_id"
-  ) order by p."organization_id" nulls first, p."type", p."channel"), '[]')
+    'tenant', p."tenant_id"
+  ) order by p."tenant_id" nulls first, p."type", p."channel"), '[]')
   from "better_supabase"."notification_preferences" p
   where p."user_id" = auth.uid()
-    and (list_notification_preferences.tenant is null or p."organization_id" is null or p."organization_id" = list_notification_preferences.tenant)
+    and (list_notification_preferences.tenant is null or p."tenant_id" is null or p."tenant_id" = list_notification_preferences.tenant)
 $$;
 revoke execute on function "better_supabase"."list_notification_preferences"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_notification_preferences"(uuid) to authenticated, service_role;
@@ -7652,7 +7652,7 @@ begin
     'user_id', rc."user_id",
     'email', u.email,
     'locale', null::text,
-    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution"),
+    'notification', jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution"),
     'suppressed', s."reason"
   )), '[]') into claimed
   from leased l
@@ -7719,8 +7719,8 @@ as $$
     where p."user_id" = notification_cadence.member
       and p."channel" = notification_cadence.channel
       and (p."type" = notification_cadence.type or p."type" = '*')
-      and (p."organization_id" is null or p."organization_id" = notification_cadence.tenant)
-    order by p."organization_id" is null, p."type" = '*'
+      and (p."tenant_id" is null or p."tenant_id" = notification_cadence.tenant)
+    order by p."tenant_id" is null, p."type" = '*'
     limit 1
   ), 'immediate')
 $$;
@@ -7748,9 +7748,9 @@ begin
   update "better_supabase"."notification_preferences" x set "cadence" = set_notification_cadence.cadence
   where x."user_id" = auth.uid() and x."type" = set_notification_cadence.type
     and x."channel" = set_notification_cadence.channel
-    and x."organization_id" is not distinct from set_notification_cadence.tenant;
+    and x."tenant_id" is not distinct from set_notification_cadence.tenant;
   if not found then
-    insert into "better_supabase"."notification_preferences" ("user_id", "organization_id", "type", "channel", "cadence")
+    insert into "better_supabase"."notification_preferences" ("user_id", "tenant_id", "type", "channel", "cadence")
     values (auth.uid(), set_notification_cadence.tenant, set_notification_cadence.type, set_notification_cadence.channel, set_notification_cadence.cadence);
   end if;
 end;
@@ -7775,13 +7775,13 @@ declare
   v_count integer;
 begin
   for v_group in
-    select rc."user_id" as member, ev."organization_id" as tenant, d."channel" as channel,
-      min(case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
+    select rc."user_id" as member, ev."tenant_id" as tenant, d."channel" as channel,
+      min(case "better_supabase"."notification_cadence"(rc."user_id", ev."tenant_id", ev."type", d."channel") when 'weekly' then 'weekly' else 'daily' end) as cadence
     from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
     where d."status" = 'held'
-      and d."created_at" <= now() - case "better_supabase"."notification_cadence"(rc."user_id", ev."organization_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
+      and d."created_at" <= now() - case "better_supabase"."notification_cadence"(rc."user_id", ev."tenant_id", ev."type", d."channel") when 'weekly' then interval '7 days' else interval '1 day' end
     group by 1, 2, 3
     limit greatest(1, coalesce(run_notification_digests.max_digests, 100))
   loop
@@ -7791,15 +7791,15 @@ begin
       join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
       join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
       where d."status" = 'held' and d."channel" = v_group.channel
-        and rc."user_id" = v_group.member and ev."organization_id" is not distinct from v_group.tenant
+        and rc."user_id" = v_group.member and ev."tenant_id" is not distinct from v_group.tenant
       for update of d skip locked
     ) d;
     if cardinality(v_ids) = 0 then
       continue;
     end if;
-    insert into "better_supabase"."notification_digests" ("user_id", "organization_id", "channel", "cadence", "items", "item_count")
+    insert into "better_supabase"."notification_digests" ("user_id", "tenant_id", "channel", "cadence", "items", "item_count")
     select v_group.member, v_group.tenant, v_group.channel, v_group.cadence,
-      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."organization_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
+      coalesce(jsonb_agg(jsonb_build_object('id', rc."id", 'event_id', ev."id", 'type', ev."type", 'data', ev."data", 'created_at', rc."created_at", 'read_at', rc."read_at", 'tenant', ev."tenant_id", 'actor_id', ev."actor_id", 'subject_type', ev."subject_type", 'subject_id', ev."subject_id", 'subject_label', ev."subject_label", 'summary', ev."summary", 'action_path', ev."action_path", 'actions', ev."actions", 'priority', ev."priority", 'resolved_at', rc."resolved_at", 'resolution', rc."resolution") order by rc."created_at", rc."id"), '[]'), count(*)
     from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" rc on rc."id" = d."recipient_id"
     join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
@@ -7847,7 +7847,7 @@ begin
     'email', u.email,
     'channel', l."channel",
     'cadence', l."cadence",
-    'tenant', l."organization_id",
+    'tenant', l."tenant_id",
     'item_count', l."item_count",
     'items', l."items"
   )), '[]') into claimed
@@ -7998,7 +7998,7 @@ begin
   if record_delivery_event.provider_message_id is null or btrim(record_delivery_event.provider_message_id) = '' then
     raise exception 'provider_message_id is required' using errcode = '22023', hint = 'NOTIFICATION_DELIVERY_MESSAGE_ID';
   end if;
-  select d."id", d."channel", rc."user_id", ev."id", ev."type", d."organization_id",
+  select d."id", d."channel", rc."user_id", ev."id", ev."type", d."tenant_id",
     coalesce(ev."subject_type", 'notification'),
     coalesce(ev."subject_id", ev."id"::text)
   into v_delivery, v_channel, v_user, v_event, v_type, v_tenant, v_subject_type, v_subject_id
@@ -8012,7 +8012,7 @@ begin
   if v_delivery is null then
     return null;
   end if;
-  insert into "better_supabase"."notification_delivery_events" ("delivery_id", "organization_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
+  insert into "better_supabase"."notification_delivery_events" ("delivery_id", "tenant_id", "kind", "provider", "provider_event_id", "occurred_at", "detail")
   values (v_delivery, v_tenant, v_kind, record_delivery_event.provider, nullif(record_delivery_event.provider_event_id, ''), v_at, coalesce(record_delivery_event.detail, '{}'))
   on conflict ("provider_event_id") do nothing
   returning "id" into v_row;
@@ -8080,7 +8080,7 @@ begin
       join "better_supabase"."notification_events" ev on ev."id" = rc."event_id"
       where ev."subject_type" = list_subject_deliveries.subject_type
         and ev."subject_id" = list_subject_deliveries.subject_id
-        and (list_subject_deliveries.tenant is null or ev."organization_id" = list_subject_deliveries.tenant)
+        and (list_subject_deliveries.tenant is null or ev."tenant_id" = list_subject_deliveries.tenant)
       order by d."created_at" desc, d."id" desc
       limit least(greatest(coalesce(list_subject_deliveries.max_items, 50), 1), 200)
     ) x
@@ -8124,7 +8124,7 @@ set search_path = ''
 as $$
 begin
   perform realtime.send(
-    jsonb_build_object('id', new."id", 'event_id', new."event_id", 'operation', lower(tg_op), 'tenant', new."organization_id"),
+    jsonb_build_object('id', new."id", 'event_id', new."event_id", 'operation', lower(tg_op), 'tenant', new."tenant_id"),
     case when tg_op = 'INSERT' then 'notification_created' else 'notification_updated' end,
     'notifications:' || new."user_id"::text,
     true
@@ -8148,7 +8148,7 @@ create policy bsb_notifications_receive on realtime.messages
 create policy bsb_tenant_scope_select on "better_supabase"."notification_events" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."event_id" = "better_supabase"."notification_events"."id"
@@ -8157,40 +8157,40 @@ create policy bsb_tenant_scope_select on "better_supabase"."notification_events"
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_events" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_events" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_events" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_recipients" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_recipients" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_recipients" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_recipients" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_deliveries" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "better_supabase"."notification_recipients" r
     where r."id" = "better_supabase"."notification_deliveries"."recipient_id"
@@ -8199,18 +8199,18 @@ create policy bsb_tenant_scope_select on "better_supabase"."notification_deliver
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_deliveries" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_deliveries" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_deliveries" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_delivery_events" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or (exists (
     select 1 from "better_supabase"."notification_deliveries" d
     join "better_supabase"."notification_recipients" r on r."id" = d."recipient_id"
@@ -8220,68 +8220,68 @@ create policy bsb_tenant_scope_select on "better_supabase"."notification_deliver
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_delivery_events" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."notification_delivery_events" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_delivery_events" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."notification_subscriptions" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_subscriptions" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."notification_subscriptions" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_subscriptions" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_select on "better_supabase"."notification_preferences" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."notification_preferences" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."notification_preferences" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_delete on "better_supabase"."notification_preferences" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("user_id" = (select auth.uid()))
   );
 

@@ -7,15 +7,15 @@ select plan(7);
 
 -- options.resolveAddress: a claimed delivery carries the app's address, the
 -- sign-in email when the function returns null.
-insert into better_supabase.notification_events (id, organization_id, type, summary)
+insert into better_supabase.notification_events (id, tenant_id, type, summary)
 values ('00000000-0000-4000-8000-0000000e0001', '00000000-0000-4000-8000-000000000001', 'test.address', 'Address test');
 select set_config('t.event', '00000000-0000-4000-8000-0000000e0001', true);
-insert into better_supabase.notification_recipients (event_id, organization_id, user_id)
+insert into better_supabase.notification_recipients (event_id, tenant_id, user_id)
 values (current_setting('t.event')::uuid, '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1');
-insert into better_supabase.notification_deliveries (recipient_id, organization_id, channel)
-select r.id, r.organization_id, 'email' from better_supabase.notification_recipients r where r.event_id = current_setting('t.event')::uuid;
-insert into better_supabase.notification_deliveries (recipient_id, organization_id, channel)
-select r.id, r.organization_id, 'sms' from better_supabase.notification_recipients r where r.event_id = current_setting('t.event')::uuid;
+insert into better_supabase.notification_deliveries (recipient_id, tenant_id, channel)
+select r.id, r.tenant_id, 'email' from better_supabase.notification_recipients r where r.event_id = current_setting('t.event')::uuid;
+insert into better_supabase.notification_deliveries (recipient_id, tenant_id, channel)
+select r.id, r.tenant_id, 'sms' from better_supabase.notification_recipients r where r.event_id = current_setting('t.event')::uuid;
 
 select set_config('t.email', (select email from auth.users where id = '00000000-0000-4000-8000-0000000000a1'), true);
 set local role service_role;

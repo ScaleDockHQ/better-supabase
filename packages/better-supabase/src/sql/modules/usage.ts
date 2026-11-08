@@ -46,7 +46,7 @@ const NAMES: BlockSqlNames = {
       app: { writes: false },
       lifecycle: { tenant: "tenant" },
       columns: {
-        tenant: "organization_id",
+        tenant: "tenant_id",
         meter: "meter",
         day: "day",
         value: "value",
@@ -60,7 +60,7 @@ const NAMES: BlockSqlNames = {
       app: { writes: false },
       lifecycle: { tenant: "tenant" },
       columns: {
-        tenant: "organization_id",
+        tenant: "tenant_id",
         meter: "meter",
         key: "idempotency_key",
         quantity: "quantity",
@@ -73,7 +73,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { user: "actor", tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         meter: "meter",
         quantity: "quantity",
         actor: "actor_id",
@@ -88,7 +88,7 @@ const NAMES: BlockSqlNames = {
       app: { writes: false },
       lifecycle: { tenant: "tenant" },
       columns: {
-        tenant: "organization_id",
+        tenant: "tenant_id",
         meter: "meter",
         periodStart: "period_start",
         subject: "subject",
@@ -113,7 +113,7 @@ const NAMES: BlockSqlNames = {
       app: { writes: false },
       lifecycle: { tenant: "tenant" },
       columns: {
-        tenant: "organization_id",
+        tenant: "tenant_id",
         periodStart: "period_start",
         periodEnd: "period_end",
         invoice: "invoice_id",
@@ -126,7 +126,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         plan: "plan",
         meter: "meter",
         limit: "limit",

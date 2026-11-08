@@ -157,7 +157,7 @@ export class Session {
     await this.client.query("reset role");
     await this.client.query(
       `insert into better_supabase.notification_subscriptions
-         (organization_id, user_id, subject_type, subject_id, level)
+         (tenant_id, user_id, subject_type, subject_id, level)
        values ($1, $2, $3, $4, 'all')`,
       [organizationId, user.id, subjectType, subjectId],
     );

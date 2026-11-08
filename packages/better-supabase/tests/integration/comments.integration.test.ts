@@ -177,7 +177,7 @@ describe.skipIf(!live)("comments", () => {
       const notified = await s.rows<{ user_id: string; type: string }>(
         `select r.user_id, e.type from better_supabase.notification_recipients r
          join better_supabase.notification_events e on e.id = r.event_id
-         where e.organization_id = $1 and e.type = 'message.mentioned'`,
+         where e.tenant_id = $1 and e.type = 'message.mentioned'`,
         [organization],
       );
 
@@ -253,7 +253,7 @@ describe.skipIf(!live)("comments", () => {
         payload: Record<string, unknown>;
       }>(
         `select type, payload from better_supabase.outbox_events
-         where organization_id = $1 and (type like 'message.%' or type like 'conversation.%' or type like 'comment.%')
+         where tenant_id = $1 and (type like 'message.%' or type like 'conversation.%' or type like 'comment.%')
          order by position`,
         [organization],
       );
@@ -414,7 +414,7 @@ describe.skipIf(!live)("comments", () => {
         const rows = await s.rows<{ user_id: string }>(
           `select r.user_id::text from better_supabase.notification_recipients r
            join better_supabase.notification_events e on e.id = r.event_id
-           where e.organization_id = $1 and e.type = 'message.mentioned'
+           where e.tenant_id = $1 and e.type = 'message.mentioned'
            order by e.created_at, r.user_id`,
           [organization],
         );
@@ -680,7 +680,7 @@ describe.skipIf(!live)("comments", () => {
 
       await s.service();
       await s.rows(
-        `insert into better_supabase.notification_subscriptions (organization_id, user_id, subject_type, subject_id, level)
+        `insert into better_supabase.notification_subscriptions (tenant_id, user_id, subject_type, subject_id, level)
          values ($1, $2, 'quote', $3, 'ignore')`,
         [organization, admin.id, quote!.id],
       );
@@ -851,7 +851,7 @@ describe.skipIf(!live)("comments", () => {
         payload: Record<string, unknown>;
       }>(
         `select type, payload from better_supabase.outbox_events
-         where organization_id = $1 and type in ('message.resolved', 'message.pinned')
+         where tenant_id = $1 and type in ('message.resolved', 'message.pinned')
          order by position`,
         [organization],
       );

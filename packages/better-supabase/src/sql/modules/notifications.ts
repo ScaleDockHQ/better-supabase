@@ -119,7 +119,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         type: "type",
         actor: "actor_id",
         subjectType: "subject_type",
@@ -155,7 +155,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         id: "id",
         event: "event_id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         user: "user_id",
         readAt: "read_at",
         dismissedAt: "dismissed_at",
@@ -173,7 +173,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         id: "id",
         recipient: "recipient_id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         channel: "channel",
         status: "status",
         provider: "provider",
@@ -208,7 +208,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         id: "id",
         delivery: "delivery_id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         kind: "kind",
         provider: "provider",
         providerEventId: "provider_event_id",
@@ -226,7 +226,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { user: "user", tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         user: "user_id",
         subjectType: "subject_type",
         subjectId: "subject_id",
@@ -244,7 +244,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         id: "id",
         user: "user_id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         type: "type",
         channel: "channel",
         enabled: "enabled",

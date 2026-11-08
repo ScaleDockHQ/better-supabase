@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:ea4fd9282dd6c1a49f9cd08085d215c6b05fd8183246db2382d1d0a05b30207b
+-- @bsb-hash sha256:64bd10e59a780f0db3b99885522e175ad8cbeed78f5a719810fbb737f856a01a
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -15,12 +15,12 @@ create table "better_supabase"."rate_limit_rules" (
   "max_requests" integer not null constraint bsb_rate_limit_rules_max_requests_check check ("max_requests" > 0),
   "period" interval not null constraint bsb_rate_limit_rules_period_check check ("period" > interval '0'),
   "key_claim" text not null default 'sub',
-  "organization_id" uuid
+  "tenant_id" uuid
 );
 -- Rules from before organization_id are global rules.
 
-create unique index "bsb_rate_limit_rules_scope_global_key" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
-create unique index "bsb_rate_limit_rules_scope_org_key" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
+create unique index "bsb_rate_limit_rules_scope_global_key" on "better_supabase"."rate_limit_rules" ("scope") where "tenant_id" is null;
+create unique index "bsb_rate_limit_rules_scope_org_key" on "better_supabase"."rate_limit_rules" ("scope", "tenant_id") where "tenant_id" is not null;
 
 create unlogged table "better_supabase"."rate_limits" (
   "scope" text not null,
@@ -54,13 +54,13 @@ as $$
 #variable_conflict use_column
 begin
   if max_requests is null then
-    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope and r."organization_id" is null;
+    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope and r."tenant_id" is null;
     delete from "better_supabase"."rate_limits" l where l."scope" = set_rate_limit.scope;
     return;
   end if;
   insert into "better_supabase"."rate_limit_rules" as r ("scope", "max_requests", "period", "key_claim")
   values (scope, max_requests, period, key_claim)
-  on conflict ("scope") where "organization_id" is null do update
+  on conflict ("scope") where "tenant_id" is null do update
     set "max_requests" = excluded."max_requests", "period" = excluded."period", "key_claim" = excluded."key_claim";
 end
 $$;
@@ -91,12 +91,12 @@ begin
   if max_requests is null then
     delete from "better_supabase"."rate_limit_rules" r
     where r."scope" = set_organization_rate_limit.scope
-      and r."organization_id" = set_organization_rate_limit.organization_id;
+      and r."tenant_id" = set_organization_rate_limit.organization_id;
     return;
   end if;
-  insert into "better_supabase"."rate_limit_rules" as r ("scope", "organization_id", "max_requests", "period")
+  insert into "better_supabase"."rate_limit_rules" as r ("scope", "tenant_id", "max_requests", "period")
   values (scope, organization_id, max_requests, period)
-  on conflict ("scope", "organization_id") where "organization_id" is not null do update
+  on conflict ("scope", "tenant_id") where "tenant_id" is not null do update
     set "max_requests" = excluded."max_requests", "period" = excluded."period";
 end
 $$;
@@ -136,7 +136,7 @@ begin
     return;
   end if;
   for rule in
-    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) and r."organization_id" is null order by r."scope"
+    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) and r."tenant_id" is null order by r."scope"
   loop
     caller := coalesce(
       claims ->> rule."key_claim",
@@ -201,8 +201,8 @@ declare
 begin
   select * into rule from "better_supabase"."rate_limit_rules" r
   where r."scope" = hit_rate_limit.scope
-    and (r."organization_id" is null or r."organization_id" = hit_rate_limit.organization_id)
-  order by (r."organization_id" is null)
+    and (r."tenant_id" is null or r."tenant_id" = hit_rate_limit.organization_id)
+  order by (r."tenant_id" is null)
   limit 1;
   limit_max := coalesce(max_requests, rule."max_requests");
   limit_period := coalesce(period, rule."period");
@@ -289,8 +289,8 @@ begin
     end if;
     select * into rule from "better_supabase"."rate_limit_rules" r
     where r."scope" = hit ->> 'scope'
-      and (r."organization_id" is null or r."organization_id" = (hit ->> 'organization_id')::uuid)
-    order by (r."organization_id" is null)
+      and (r."tenant_id" is null or r."tenant_id" = (hit ->> 'organization_id')::uuid)
+    order by (r."tenant_id" is null)
     limit 1;
     limit_max := coalesce((hit ->> 'max_requests')::integer, rule."max_requests");
     limit_period := coalesce((hit ->> 'period')::interval, rule."period");
@@ -388,7 +388,7 @@ set search_path = ''
 as $$
   with expired as (
     select l."scope", l."key" from "better_supabase"."rate_limits" l
-    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope" and r."organization_id" is null
+    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope" and r."tenant_id" is null
     where l."window_started_at" + coalesce(l."period", r."period", interval '1 day') <= now()
     limit batch
   ),
@@ -441,7 +441,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:ea4fd9282dd6c1a49f9cd08085d215c6b05fd8183246db2382d1d0a05b30207b
+-- @bsb-hash sha256:64bd10e59a780f0db3b99885522e175ad8cbeed78f5a719810fbb737f856a01a
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -455,12 +455,12 @@ create table "better_supabase"."rate_limit_rules" (
   "max_requests" integer not null constraint bsb_rate_limit_rules_max_requests_check check ("max_requests" > 0),
   "period" interval not null constraint bsb_rate_limit_rules_period_check check ("period" > interval '0'),
   "key_claim" text not null default 'sub',
-  "organization_id" uuid
+  "tenant_id" uuid
 );
 -- Rules from before organization_id are global rules.
 
-create unique index "bsb_rate_limit_rules_scope_global_key" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
-create unique index "bsb_rate_limit_rules_scope_org_key" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
+create unique index "bsb_rate_limit_rules_scope_global_key" on "better_supabase"."rate_limit_rules" ("scope") where "tenant_id" is null;
+create unique index "bsb_rate_limit_rules_scope_org_key" on "better_supabase"."rate_limit_rules" ("scope", "tenant_id") where "tenant_id" is not null;
 
 create unlogged table "better_supabase"."rate_limits" (
   "scope" text not null,
@@ -494,13 +494,13 @@ as $$
 #variable_conflict use_column
 begin
   if max_requests is null then
-    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope and r."organization_id" is null;
+    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope and r."tenant_id" is null;
     delete from "better_supabase"."rate_limits" l where l."scope" = set_rate_limit.scope;
     return;
   end if;
   insert into "better_supabase"."rate_limit_rules" as r ("scope", "max_requests", "period", "key_claim")
   values (scope, max_requests, period, key_claim)
-  on conflict ("scope") where "organization_id" is null do update
+  on conflict ("scope") where "tenant_id" is null do update
     set "max_requests" = excluded."max_requests", "period" = excluded."period", "key_claim" = excluded."key_claim";
 end
 $$;
@@ -531,12 +531,12 @@ begin
   if max_requests is null then
     delete from "better_supabase"."rate_limit_rules" r
     where r."scope" = set_organization_rate_limit.scope
-      and r."organization_id" = set_organization_rate_limit.organization_id;
+      and r."tenant_id" = set_organization_rate_limit.organization_id;
     return;
   end if;
-  insert into "better_supabase"."rate_limit_rules" as r ("scope", "organization_id", "max_requests", "period")
+  insert into "better_supabase"."rate_limit_rules" as r ("scope", "tenant_id", "max_requests", "period")
   values (scope, organization_id, max_requests, period)
-  on conflict ("scope", "organization_id") where "organization_id" is not null do update
+  on conflict ("scope", "tenant_id") where "tenant_id" is not null do update
     set "max_requests" = excluded."max_requests", "period" = excluded."period";
 end
 $$;
@@ -576,7 +576,7 @@ begin
     return;
   end if;
   for rule in
-    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) and r."organization_id" is null order by r."scope"
+    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) and r."tenant_id" is null order by r."scope"
   loop
     caller := coalesce(
       claims ->> rule."key_claim",
@@ -641,8 +641,8 @@ declare
 begin
   select * into rule from "better_supabase"."rate_limit_rules" r
   where r."scope" = hit_rate_limit.scope
-    and (r."organization_id" is null or r."organization_id" = hit_rate_limit.organization_id)
-  order by (r."organization_id" is null)
+    and (r."tenant_id" is null or r."tenant_id" = hit_rate_limit.organization_id)
+  order by (r."tenant_id" is null)
   limit 1;
   limit_max := coalesce(max_requests, rule."max_requests");
   limit_period := coalesce(period, rule."period");
@@ -729,8 +729,8 @@ begin
     end if;
     select * into rule from "better_supabase"."rate_limit_rules" r
     where r."scope" = hit ->> 'scope'
-      and (r."organization_id" is null or r."organization_id" = (hit ->> 'organization_id')::uuid)
-    order by (r."organization_id" is null)
+      and (r."tenant_id" is null or r."tenant_id" = (hit ->> 'organization_id')::uuid)
+    order by (r."tenant_id" is null)
     limit 1;
     limit_max := coalesce((hit ->> 'max_requests')::integer, rule."max_requests");
     limit_period := coalesce((hit ->> 'period')::interval, rule."period");
@@ -828,7 +828,7 @@ set search_path = ''
 as $$
   with expired as (
     select l."scope", l."key" from "better_supabase"."rate_limits" l
-    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope" and r."organization_id" is null
+    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope" and r."tenant_id" is null
     where l."window_started_at" + coalesce(l."period", r."period", interval '1 day') <= now()
     limit batch
   ),
@@ -881,7 +881,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:2daca0e9a44a61556ea764184bc8c411f7f8ca6f909d70aa07fa09c9703df073
+-- @bsb-hash sha256:f11acf22e3fa76473e6d1912e22001052752f9582451e453dc23452c9a99a6fa
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -901,12 +901,12 @@ create table "app_private"."rate_limit_rules" (
   "max_requests" integer not null constraint bsb_rate_limit_rules_max_requests_check check ("max_requests" > 0),
   "period" interval not null constraint bsb_rate_limit_rules_period_check check ("period" > interval '0'),
   "key_claim" text not null default 'sub',
-  "organization_id" uuid
+  "tenant_id" uuid
 );
 -- Rules from before organization_id are global rules.
 
-create unique index "bsb_rate_limit_rules_scope_global_key" on "app_private"."rate_limit_rules" ("scope") where "organization_id" is null;
-create unique index "bsb_rate_limit_rules_scope_org_key" on "app_private"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
+create unique index "bsb_rate_limit_rules_scope_global_key" on "app_private"."rate_limit_rules" ("scope") where "tenant_id" is null;
+create unique index "bsb_rate_limit_rules_scope_org_key" on "app_private"."rate_limit_rules" ("scope", "tenant_id") where "tenant_id" is not null;
 
 create unlogged table "app_private"."rate_limits" (
   "scope" text not null,
@@ -940,13 +940,13 @@ as $$
 #variable_conflict use_column
 begin
   if max_requests is null then
-    delete from "app_private"."rate_limit_rules" r where r."scope" = set_rate_limit.scope and r."organization_id" is null;
+    delete from "app_private"."rate_limit_rules" r where r."scope" = set_rate_limit.scope and r."tenant_id" is null;
     delete from "app_private"."rate_limits" l where l."scope" = set_rate_limit.scope;
     return;
   end if;
   insert into "app_private"."rate_limit_rules" as r ("scope", "max_requests", "period", "key_claim")
   values (scope, max_requests, period, key_claim)
-  on conflict ("scope") where "organization_id" is null do update
+  on conflict ("scope") where "tenant_id" is null do update
     set "max_requests" = excluded."max_requests", "period" = excluded."period", "key_claim" = excluded."key_claim";
 end
 $$;
@@ -977,12 +977,12 @@ begin
   if max_requests is null then
     delete from "app_private"."rate_limit_rules" r
     where r."scope" = set_organization_rate_limit.scope
-      and r."organization_id" = set_organization_rate_limit.organization_id;
+      and r."tenant_id" = set_organization_rate_limit.organization_id;
     return;
   end if;
-  insert into "app_private"."rate_limit_rules" as r ("scope", "organization_id", "max_requests", "period")
+  insert into "app_private"."rate_limit_rules" as r ("scope", "tenant_id", "max_requests", "period")
   values (scope, organization_id, max_requests, period)
-  on conflict ("scope", "organization_id") where "organization_id" is not null do update
+  on conflict ("scope", "tenant_id") where "tenant_id" is not null do update
     set "max_requests" = excluded."max_requests", "period" = excluded."period";
 end
 $$;
@@ -1022,7 +1022,7 @@ begin
     return;
   end if;
   for rule in
-    select * from "app_private"."rate_limit_rules" r where r."scope" in ('*', path) and r."organization_id" is null order by r."scope"
+    select * from "app_private"."rate_limit_rules" r where r."scope" in ('*', path) and r."tenant_id" is null order by r."scope"
   loop
     caller := coalesce(
       claims ->> rule."key_claim",
@@ -1087,8 +1087,8 @@ declare
 begin
   select * into rule from "app_private"."rate_limit_rules" r
   where r."scope" = hit_rate_limit.scope
-    and (r."organization_id" is null or r."organization_id" = hit_rate_limit.organization_id)
-  order by (r."organization_id" is null)
+    and (r."tenant_id" is null or r."tenant_id" = hit_rate_limit.organization_id)
+  order by (r."tenant_id" is null)
   limit 1;
   limit_max := coalesce(max_requests, rule."max_requests");
   limit_period := coalesce(period, rule."period");
@@ -1175,8 +1175,8 @@ begin
     end if;
     select * into rule from "app_private"."rate_limit_rules" r
     where r."scope" = hit ->> 'scope'
-      and (r."organization_id" is null or r."organization_id" = (hit ->> 'organization_id')::uuid)
-    order by (r."organization_id" is null)
+      and (r."tenant_id" is null or r."tenant_id" = (hit ->> 'organization_id')::uuid)
+    order by (r."tenant_id" is null)
     limit 1;
     limit_max := coalesce((hit ->> 'max_requests')::integer, rule."max_requests");
     limit_period := coalesce((hit ->> 'period')::interval, rule."period");
@@ -1274,7 +1274,7 @@ set search_path = ''
 as $$
   with expired as (
     select l."scope", l."key" from "app_private"."rate_limits" l
-    left join "app_private"."rate_limit_rules" r on r."scope" = l."scope" and r."organization_id" is null
+    left join "app_private"."rate_limit_rules" r on r."scope" = l."scope" and r."tenant_id" is null
     where l."window_started_at" + coalesce(l."period", r."period", interval '1 day') <= now()
     limit batch
   ),
@@ -1327,7 +1327,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:27f150a8ef5f9d36ea7e25c02d3d5539347ec7a29803865891d553f4b98e7e7b
+-- @bsb-hash sha256:431190473355051f9e60d44fa041a5b7d3f73e556311809ef54b0ecddc305c18
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1341,12 +1341,12 @@ create table "better_supabase"."rate_limit_rules" (
   "max_requests" integer not null constraint bsb_rate_limit_rules_max_requests_check check ("max_requests" > 0),
   "period" interval not null constraint bsb_rate_limit_rules_period_check check ("period" > interval '0'),
   "key_claim" text not null default 'sub',
-  "organization_id" uuid
+  "tenant_id" uuid
 );
 -- Rules from before organization_id are global rules.
 
-create unique index "bsb_rate_limit_rules_scope_global_key" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
-create unique index "bsb_rate_limit_rules_scope_org_key" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
+create unique index "bsb_rate_limit_rules_scope_global_key" on "better_supabase"."rate_limit_rules" ("scope") where "tenant_id" is null;
+create unique index "bsb_rate_limit_rules_scope_org_key" on "better_supabase"."rate_limit_rules" ("scope", "tenant_id") where "tenant_id" is not null;
 
 create unlogged table "better_supabase"."rate_limits" (
   "scope" text not null,
@@ -1380,13 +1380,13 @@ as $$
 #variable_conflict use_column
 begin
   if max_requests is null then
-    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope and r."organization_id" is null;
+    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope and r."tenant_id" is null;
     delete from "better_supabase"."rate_limits" l where l."scope" = set_rate_limit.scope;
     return;
   end if;
   insert into "better_supabase"."rate_limit_rules" as r ("scope", "max_requests", "period", "key_claim")
   values (scope, max_requests, period, key_claim)
-  on conflict ("scope") where "organization_id" is null do update
+  on conflict ("scope") where "tenant_id" is null do update
     set "max_requests" = excluded."max_requests", "period" = excluded."period", "key_claim" = excluded."key_claim";
 end
 $$;
@@ -1417,12 +1417,12 @@ begin
   if max_requests is null then
     delete from "better_supabase"."rate_limit_rules" r
     where r."scope" = set_organization_rate_limit.scope
-      and r."organization_id" = set_organization_rate_limit.organization_id;
+      and r."tenant_id" = set_organization_rate_limit.organization_id;
     return;
   end if;
-  insert into "better_supabase"."rate_limit_rules" as r ("scope", "organization_id", "max_requests", "period")
+  insert into "better_supabase"."rate_limit_rules" as r ("scope", "tenant_id", "max_requests", "period")
   values (scope, organization_id, max_requests, period)
-  on conflict ("scope", "organization_id") where "organization_id" is not null do update
+  on conflict ("scope", "tenant_id") where "tenant_id" is not null do update
     set "max_requests" = excluded."max_requests", "period" = excluded."period";
 end
 $$;
@@ -1462,7 +1462,7 @@ begin
     return;
   end if;
   for rule in
-    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) and r."organization_id" is null order by r."scope"
+    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) and r."tenant_id" is null order by r."scope"
   loop
     caller := coalesce(
       claims ->> rule."key_claim",
@@ -1527,8 +1527,8 @@ declare
 begin
   select * into rule from "better_supabase"."rate_limit_rules" r
   where r."scope" = hit_rate_limit.scope
-    and (r."organization_id" is null or r."organization_id" = hit_rate_limit.organization_id)
-  order by (r."organization_id" is null)
+    and (r."tenant_id" is null or r."tenant_id" = hit_rate_limit.organization_id)
+  order by (r."tenant_id" is null)
   limit 1;
   limit_max := coalesce(max_requests, rule."max_requests");
   limit_period := coalesce(period, rule."period");
@@ -1615,8 +1615,8 @@ begin
     end if;
     select * into rule from "better_supabase"."rate_limit_rules" r
     where r."scope" = hit ->> 'scope'
-      and (r."organization_id" is null or r."organization_id" = (hit ->> 'organization_id')::uuid)
-    order by (r."organization_id" is null)
+      and (r."tenant_id" is null or r."tenant_id" = (hit ->> 'organization_id')::uuid)
+    order by (r."tenant_id" is null)
     limit 1;
     limit_max := coalesce((hit ->> 'max_requests')::integer, rule."max_requests");
     limit_period := coalesce((hit ->> 'period')::interval, rule."period");
@@ -1714,7 +1714,7 @@ set search_path = ''
 as $$
   with expired as (
     select l."scope", l."key" from "better_supabase"."rate_limits" l
-    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope" and r."organization_id" is null
+    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope" and r."tenant_id" is null
     where l."window_started_at" + coalesce(l."period", r."period", interval '1 day') <= now()
     limit batch
   ),
@@ -1834,7 +1834,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_017_rate_limit.sql
 -- better-supabase module: rate-limit
 -- @bsb-block rate-limit@2 managed
--- @bsb-hash sha256:bba7358ce670a740d6ad47aa8fa217666e240baa10e6a3f104b8097550591d0a
+-- @bsb-hash sha256:2420f8728d6218d37b21f89f854b13384e6391a4535a7a06ebe3255b48396410
 -- Fixed-window limits on Data API writes (POST, PATCH, PUT, DELETE) per user or claim, checked by pgrst.db_pre_request. Over the limit: 429 with Retry-After.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1848,11 +1848,11 @@ alter table "better_supabase"."rate_limit_rules" add column if not exists "scope
 alter table "better_supabase"."rate_limit_rules" add column if not exists "max_requests" integer constraint bsb_rate_limit_rules_max_requests_check check ("max_requests" > 0);
 alter table "better_supabase"."rate_limit_rules" add column if not exists "period" interval constraint bsb_rate_limit_rules_period_check check ("period" > interval '0');
 alter table "better_supabase"."rate_limit_rules" add column if not exists "key_claim" text not null default 'sub';
-alter table "better_supabase"."rate_limit_rules" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."rate_limit_rules" add column if not exists "tenant_id" uuid;
 -- Rules from before organization_id are global rules.
-alter table "better_supabase"."rate_limit_rules" add column if not exists "organization_id" uuid;
-create unique index if not exists "bsb_rate_limit_rules_scope_global_key" on "better_supabase"."rate_limit_rules" ("scope") where "organization_id" is null;
-create unique index if not exists "bsb_rate_limit_rules_scope_org_key" on "better_supabase"."rate_limit_rules" ("scope", "organization_id") where "organization_id" is not null;
+alter table "better_supabase"."rate_limit_rules" add column if not exists "tenant_id" uuid;
+create unique index if not exists "bsb_rate_limit_rules_scope_global_key" on "better_supabase"."rate_limit_rules" ("scope") where "tenant_id" is null;
+create unique index if not exists "bsb_rate_limit_rules_scope_org_key" on "better_supabase"."rate_limit_rules" ("scope", "tenant_id") where "tenant_id" is not null;
 
 -- better_supabase.rate_limits is the app's table: this block adds only the columns it needs.
 alter table "better_supabase"."rate_limits" add column if not exists "scope" text;
@@ -1883,13 +1883,13 @@ as $$
 #variable_conflict use_column
 begin
   if max_requests is null then
-    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope and r."organization_id" is null;
+    delete from "better_supabase"."rate_limit_rules" r where r."scope" = set_rate_limit.scope and r."tenant_id" is null;
     delete from "better_supabase"."rate_limits" l where l."scope" = set_rate_limit.scope;
     return;
   end if;
   insert into "better_supabase"."rate_limit_rules" as r ("scope", "max_requests", "period", "key_claim")
   values (scope, max_requests, period, key_claim)
-  on conflict ("scope") where "organization_id" is null do update
+  on conflict ("scope") where "tenant_id" is null do update
     set "max_requests" = excluded."max_requests", "period" = excluded."period", "key_claim" = excluded."key_claim";
 end
 $$;
@@ -1920,12 +1920,12 @@ begin
   if max_requests is null then
     delete from "better_supabase"."rate_limit_rules" r
     where r."scope" = set_organization_rate_limit.scope
-      and r."organization_id" = set_organization_rate_limit.organization_id;
+      and r."tenant_id" = set_organization_rate_limit.organization_id;
     return;
   end if;
-  insert into "better_supabase"."rate_limit_rules" as r ("scope", "organization_id", "max_requests", "period")
+  insert into "better_supabase"."rate_limit_rules" as r ("scope", "tenant_id", "max_requests", "period")
   values (scope, organization_id, max_requests, period)
-  on conflict ("scope", "organization_id") where "organization_id" is not null do update
+  on conflict ("scope", "tenant_id") where "tenant_id" is not null do update
     set "max_requests" = excluded."max_requests", "period" = excluded."period";
 end
 $$;
@@ -1965,7 +1965,7 @@ begin
     return;
   end if;
   for rule in
-    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) and r."organization_id" is null order by r."scope"
+    select * from "better_supabase"."rate_limit_rules" r where r."scope" in ('*', path) and r."tenant_id" is null order by r."scope"
   loop
     caller := coalesce(
       claims ->> rule."key_claim",
@@ -2030,8 +2030,8 @@ declare
 begin
   select * into rule from "better_supabase"."rate_limit_rules" r
   where r."scope" = hit_rate_limit.scope
-    and (r."organization_id" is null or r."organization_id" = hit_rate_limit.organization_id)
-  order by (r."organization_id" is null)
+    and (r."tenant_id" is null or r."tenant_id" = hit_rate_limit.organization_id)
+  order by (r."tenant_id" is null)
   limit 1;
   limit_max := coalesce(max_requests, rule."max_requests");
   limit_period := coalesce(period, rule."period");
@@ -2118,8 +2118,8 @@ begin
     end if;
     select * into rule from "better_supabase"."rate_limit_rules" r
     where r."scope" = hit ->> 'scope'
-      and (r."organization_id" is null or r."organization_id" = (hit ->> 'organization_id')::uuid)
-    order by (r."organization_id" is null)
+      and (r."tenant_id" is null or r."tenant_id" = (hit ->> 'organization_id')::uuid)
+    order by (r."tenant_id" is null)
     limit 1;
     limit_max := coalesce((hit ->> 'max_requests')::integer, rule."max_requests");
     limit_period := coalesce((hit ->> 'period')::interval, rule."period");
@@ -2217,7 +2217,7 @@ set search_path = ''
 as $$
   with expired as (
     select l."scope", l."key" from "better_supabase"."rate_limits" l
-    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope" and r."organization_id" is null
+    left join "better_supabase"."rate_limit_rules" r on r."scope" = l."scope" and r."tenant_id" is null
     where l."window_started_at" + coalesce(l."period", r."period", interval '1 day') <= now()
     limit batch
   ),

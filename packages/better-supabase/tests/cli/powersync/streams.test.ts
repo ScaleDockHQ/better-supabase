@@ -68,7 +68,7 @@ describe("powersyncOutput", () => {
     );
 
     expect(output.streams).toContain(
-      'query: "SELECT * FROM better_supabase.attachments WHERE organization_id IN active_orgs"',
+      'query: "SELECT * FROM better_supabase.attachments WHERE tenant_id IN active_orgs"',
     );
   });
 
@@ -109,7 +109,7 @@ describe("powersyncOutput", () => {
     );
 
     expect(gated.streams).toContain(
-      "WHERE organization_id IN active_orgs AND organization_id IN reader_orgs",
+      "WHERE tenant_id IN active_orgs AND tenant_id IN reader_orgs",
     );
   });
 

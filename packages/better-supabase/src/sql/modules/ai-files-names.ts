@@ -2,7 +2,7 @@ import type { BlockSqlContext, BlockSqlNames } from "../context.ts";
 
 export const FILES = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   owner: "owner_id",
   chat: "chat_id",
   project: "project_id",
@@ -29,7 +29,7 @@ export const PROVIDER_FILES = {
 
 export const DOCUMENTS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   owner: "owner_id",
   chat: "chat_id",
   kind: "kind",

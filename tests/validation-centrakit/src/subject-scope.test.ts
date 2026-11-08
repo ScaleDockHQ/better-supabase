@@ -45,7 +45,7 @@ describe.skipIf(!live)("provider subject scopes on CentraKit's tables", () => {
         [organization, ...subjects, USERS.owner],
       );
       await s.client.query(
-        `insert into better_supabase.attachments (organization_id, subject_type, subject_id, name, mime_type, size)
+        `insert into better_supabase.attachments (tenant_id, subject_type, subject_id, name, mime_type, size)
          values ($1, 'project', $2, 'seen.pdf', 'application/pdf', 1),
                 ($1, 'project', $3, 'unseen.pdf', 'application/pdf', 1)`,
         [organization, ...subjects],

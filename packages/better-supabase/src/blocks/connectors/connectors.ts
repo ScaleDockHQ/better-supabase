@@ -235,7 +235,7 @@ function grantOf(value: unknown): ConnectorGrant {
     id: textOf(row["id"]),
     userId: textOf(row["user_id"]),
     serverId: textOf(row["server_id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     credentialRef,
     scopes: stringsOf(row["scopes"]),
     expiresAt: optionalInstant(row["expires_at"]),
@@ -251,7 +251,7 @@ function serverOf(value: unknown): ConnectorServer {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     name: textOf(row["name"]),
     url: textOf(row["url"]),
     // SAFETY: TRANSPORTS holds exactly the ConnectorTransport members.

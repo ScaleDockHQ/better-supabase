@@ -629,7 +629,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_142_content.sql
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:522bc249ef7f265bebb357c2faed1bb612dbf90ebaef47f96c93b7bebc91490e
+-- @bsb-hash sha256:f89f4b1b0c6de6c3358b229663b56fc7f6039fd978b271ad0cb63241fca628ce
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -731,7 +731,7 @@ begin
   end if;
   if v_cover is not null and not exists (
     select 1 from "better_supabase"."attachments" a
-    where a."id" = v_cover and a."organization_id" = create_content_entry.tenant
+    where a."id" = v_cover and a."tenant_id" = create_content_entry.tenant
   ) then
     raise exception 'the cover image is not an attachment of this organization' using errcode = '22023', hint = 'CONTENT_INVALID';
   end if;
@@ -826,7 +826,7 @@ begin
   end if;
   if v_cover is not null and not exists (
     select 1 from "better_supabase"."attachments" a
-    where a."id" = v_cover and a."organization_id" = v_row."tenant_id"
+    where a."id" = v_cover and a."tenant_id" = v_row."tenant_id"
   ) then
     raise exception 'the cover image is not an attachment of this organization' using errcode = '22023', hint = 'CONTENT_INVALID';
   end if;

@@ -31,16 +31,16 @@ describe("comments module", () => {
     expect(sql).toContain(
       `create policy bsb_comment_tasks_read on "better_supabase"."comment_tasks"
   for select to authenticated
-  using ("better_supabase"."comment_message_readable"("message_id", "organization_id"));`,
+  using ("better_supabase"."comment_message_readable"("message_id", "tenant_id"));`,
     );
     expect(sql).toContain(
-      `with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id"))`,
+      `with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "tenant_id"))`,
     );
     expect(sql).toContain(
       `x."id" = comment_message_readable.message and x."tenant_id" = comment_message_readable.tenant`,
     );
     expect(sql).toContain(
-      `grant insert ("message_id", "organization_id", "task_id") on "better_supabase"."comment_tasks" to authenticated;`,
+      `grant insert ("message_id", "tenant_id", "task_id") on "better_supabase"."comment_tasks" to authenticated;`,
     );
   });
 
@@ -63,12 +63,12 @@ describe("comments module", () => {
         table: "app.team_members",
         group: "team_id",
         member: "user_id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
       },
     });
 
     expect(sql).toContain(
-      `union select g."user_id" from "app"."team_members" g where g."team_id" = any (v_raw) and g."organization_id" = create_comment.tenant`,
+      `union select g."user_id" from "app"."team_members" g where g."team_id" = any (v_raw) and g."tenant_id" = create_comment.tenant`,
     );
     expect(
       sqlOf(["comments"], {

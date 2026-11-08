@@ -8,7 +8,7 @@ import { teamIdType } from "./teams.ts";
 
 export const COLLECTIONS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   name: "name",
   description: "description",
   visibility: "visibility",
@@ -20,7 +20,7 @@ export const COLLECTIONS = {
 
 export const COLLECTION_GRANTS = {
   collection: "collection_id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   user: "user_id",
   team: "team_id",
   createdAt: "created_at",

@@ -255,11 +255,20 @@ export default defineConfig({
         preferences: "centrakit.notification_preferences",
       },
       columns: {
-        events: { key: null, actor: "actor_user_id", data: "metadata" },
-        recipients: { user: "recipient_user_id" },
-        deliveries: { attempts: null, nextAttemptAt: null },
-        subscriptions: { updatedAt: null },
-        preferences: { updatedAt: null },
+        events: {
+          tenant: "organization_id",
+          key: null,
+          actor: "actor_user_id",
+          data: "metadata",
+        },
+        recipients: { tenant: "organization_id", user: "recipient_user_id" },
+        deliveries: {
+          tenant: "organization_id",
+          attempts: null,
+          nextAttemptAt: null,
+        },
+        subscriptions: { tenant: "organization_id", updatedAt: null },
+        preferences: { tenant: "organization_id", updatedAt: null },
       },
       idType: "uuid",
       options: {
@@ -275,13 +284,20 @@ export default defineConfig({
       },
       columns: {
         endpoints: {
+          tenant: "organization_id",
           eventTypes: "event_kinds",
           failingSince: null,
           disabledAt: null,
           disabledReason: null,
         },
-        secrets: { endpoint: "destination_id", vaultId: null, expiresAt: null },
+        secrets: {
+          tenant: "organization_id",
+          endpoint: "destination_id",
+          vaultId: null,
+          expiresAt: null,
+        },
         deliveries: {
+          tenant: "organization_id",
           endpoint: "destination_id",
           type: "event_kind",
           run: "workflow_run_id",

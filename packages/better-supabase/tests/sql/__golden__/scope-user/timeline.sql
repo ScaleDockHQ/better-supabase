@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:4838202af29b82b9f18156055427ec5506178dac6b4895e794dfe58f0a3c822b
+-- @bsb-hash sha256:11ee9e99ee6b950a194ba9493b383256d5e4d64c1c79870101d14b6d8e9c0830
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,7 +9,7 @@
 -- The activity feed: one row per outbox event, written by activitySink().
 create table "better_supabase"."timeline_entries" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid default auth.uid(),
+  "tenant_id" uuid default auth.uid(),
   "event_id" text not null unique,
   "type" text not null,
   "actor_id" uuid references auth.users (id) on delete set null,
@@ -19,8 +19,8 @@ create table "better_supabase"."timeline_entries" (
   "data" jsonb not null default '{}'::jsonb,
   "occurred_at" timestamptz not null default now()
 );
-create index "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("organization_id", "occurred_at" desc, "id" desc);
-create index "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("organization_id", "subject_type", "subject_id");
+create index "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("tenant_id", "occurred_at" desc, "id" desc);
+create index "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("tenant_id", "subject_type", "subject_id");
 create index "timeline_entries_actor_idx" on "better_supabase"."timeline_entries" ("actor_id");
 alter table "better_supabase"."timeline_entries" enable row level security;
 revoke all on "better_supabase"."timeline_entries" from public, anon, authenticated;
@@ -28,7 +28,7 @@ grant select on "better_supabase"."timeline_entries" to authenticated;
 grant all on "better_supabase"."timeline_entries" to service_role;
 create policy bsb_timeline_entries_read on "better_supabase"."timeline_entries"
   for select to authenticated
-  using ("organization_id" = (select auth.uid()));
+  using ("tenant_id" = (select auth.uid()));
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -47,7 +47,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role records activity' using errcode = '42501', hint = 'TIMELINE_ENTRY_FORBIDDEN';
   end if;
-  insert into "better_supabase"."timeline_entries" ("event_id", "organization_id", "type", "actor_id", "subject_type", "subject_id", "summary", "data", "occurred_at")
+  insert into "better_supabase"."timeline_entries" ("event_id", "tenant_id", "type", "actor_id", "subject_type", "subject_id", "summary", "data", "occurred_at")
   select e ->> 'event_id', (e ->> 'organization_id')::uuid, e ->> 'type', nullif(e ->> 'actor_id', '')::uuid,
     e ->> 'subject_type', e ->> 'subject_id', e ->> 'summary', coalesce(e -> 'data', '{}'::jsonb),
     coalesce((e ->> 'occurred_at')::timestamptz, now())
@@ -87,7 +87,7 @@ begin
     (select to_jsonb(y.*) || jsonb_build_object('source', 'event') as entry,
       y."occurred_at" as at, y."id"::text as id
     from "better_supabase"."timeline_entries" y
-    where y."organization_id" = coalesce(list_activity.tenant, (select auth.uid()))
+    where y."tenant_id" = coalesce(list_activity.tenant, (select auth.uid()))
       and (list_activity.sources is null or 'event' = any (list_activity.sources))
       and (list_activity.subject_type is null or y."subject_type" = list_activity.subject_type)
       and (list_activity.subject_id is null or y."subject_id" = list_activity.subject_id)

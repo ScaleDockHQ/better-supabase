@@ -11,7 +11,7 @@ import { lockTable, raise, schemaPreamble, serviceGrant } from "../shared.ts";
 
 const POLICIES = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   agent: "agent",
   stage: "stage",
   config: "config",
@@ -21,7 +21,7 @@ const POLICIES = {
 
 const DECISIONS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   agent: "agent",
   stage: "stage",
   decision: "decision",

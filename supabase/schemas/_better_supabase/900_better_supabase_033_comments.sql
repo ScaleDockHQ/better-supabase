@@ -1,6 +1,6 @@
 -- better-supabase module: comments
 -- @bsb-block comments@9 managed
--- @bsb-hash sha256:dfabb90664887625b6a260f3d2f38cd01f940170e7fbf1164d3dd690ff5cf34c
+-- @bsb-hash sha256:8ec55b67153578ac347a673e9b477dbaf0249c69885ae73a3a78a9165af635fa
 -- Comments on any record as its conversation on the messaging core: whoever reads the record reads them, with replies, mentions and mention groups, anchors, files, edits with history, pins, resolved threads and read markers. The author and the mentioned follow the record and its followers hear of new comments (with notifications), and a comment becomes a work item (with tasks).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16,7 +16,7 @@
 -- The work item a comment was turned into (assign_comment).
 create table "better_supabase"."comment_tasks" (
   "message_id" uuid primary key,
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "task_id" uuid not null,
   "created_by" uuid default auth.uid(),
   "created_at" timestamptz not null default now()
@@ -25,7 +25,7 @@ create index comment_tasks_task_idx on "better_supabase"."comment_tasks" ("task_
 alter table "better_supabase"."comment_tasks" enable row level security;
 revoke all on "better_supabase"."comment_tasks" from public, anon, authenticated;
 grant select on "better_supabase"."comment_tasks" to authenticated;
-grant insert ("message_id", "organization_id", "task_id") on "better_supabase"."comment_tasks" to authenticated;
+grant insert ("message_id", "tenant_id", "task_id") on "better_supabase"."comment_tasks" to authenticated;
 grant all on "better_supabase"."comment_tasks" to service_role;
 
 -- Whether the caller reads a message in this tenant: the messages policy
@@ -50,10 +50,10 @@ grant execute on function "better_supabase"."comment_message_readable"(uuid, uui
 
 create policy bsb_comment_tasks_read on "better_supabase"."comment_tasks"
   for select to authenticated
-  using ("better_supabase"."comment_message_readable"("message_id", "organization_id"));
+  using ("better_supabase"."comment_message_readable"("message_id", "tenant_id"));
 create policy bsb_comment_tasks_insert on "better_supabase"."comment_tasks"
   for insert to authenticated
-  with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id")) and (select better_supabase.actor_may_write()));
+  with check (("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "tenant_id")) and (select better_supabase.actor_may_write()));
 
 -- A record's conversation, or null before its first comment.
 create or replace function "better_supabase"."comment_conversation"(tenant uuid, subject_type text, subject_id text)
@@ -210,13 +210,13 @@ begin
     return;
   end if;
   foreach v_user in array array(select distinct x from unnest(array[v_msg."author_id"] || v_msg."mentions") x where x = v_msg."author_id" or coalesce(better_supabase.can_user(x, 'tenant', v_msg."tenant_id", 'messages.read'), false)) loop
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (v_conv."tenant_id", v_user, v_conv."subject_type", v_conv."subject_id", 'participating')
     on conflict do nothing;
   end loop;
   if (exists (
       select 1 from "better_supabase"."notification_subscriptions" s
-      where s."subject_type" = v_conv."subject_type" and s."subject_id" = v_conv."subject_id" and s."organization_id" = v_conv."tenant_id"
+      where s."subject_type" = v_conv."subject_type" and s."subject_id" = v_conv."subject_id" and s."tenant_id" = v_conv."tenant_id"
         and s."level" in ('all', 'participating')
         and not s."user_id" = any (array[v_msg."author_id"] || v_msg."mentions")
     ) or to_regprocedure('"public"."notification_audience"(jsonb)') is not null) then
@@ -436,7 +436,7 @@ begin
     ),
     case when assign_comment.assignee is null then '{}'::uuid[] else array[assign_comment.assignee] end
   ) ->> 'id')::uuid;
-  insert into "better_supabase"."comment_tasks" ("message_id", "organization_id", "task_id")
+  insert into "better_supabase"."comment_tasks" ("message_id", "tenant_id", "task_id")
   values (v_msg."id", v_msg."tenant_id", v_task);
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_comment_assign"(uuid)');
@@ -481,22 +481,22 @@ create trigger "bsb_comments_product_variant_cascade"
 create policy bsb_tenant_scope_select on "better_supabase"."comment_tasks" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("better_supabase"."comment_message_readable"("message_id", "organization_id"))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("better_supabase"."comment_message_readable"("message_id", "tenant_id"))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."comment_tasks" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "organization_id"))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("created_by" = (select auth.uid()) and "better_supabase"."comment_message_readable"("message_id", "tenant_id"))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."comment_tasks" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."comment_tasks" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- blocks.comments.api: entry points for the Data API.
 create schema if not exists "api";

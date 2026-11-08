@@ -1098,6 +1098,524 @@
       "kind": "column",
       "since": "0.54",
       "table": "better_supabase.work_projects"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.agent_installs"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.agents"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_batch_items"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_batches"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_cache_entries"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_chats"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_documents"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_files"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_moderation_events"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_projects"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_provider_keys"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_sandboxes"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_scheduled_tasks"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_task_runs"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.ai_tool_policies"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.api_keys"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.attachment_document_types"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.attachment_versions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.attachments"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.audit_events"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.automation_evaluations"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.automation_versions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.automations"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.billing_customers"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.billing_native_subscriptions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.comment_tasks"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.connector_grants"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.connector_servers"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.data_exports"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.data_subject_requests"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.eval_datasets"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.eval_runs"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.flag_overrides"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.guardrail_decisions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.guardrail_policies"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.hostnames"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.invitations"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.invite_codes"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.knowledge_collection_grants"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.knowledge_collections"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.knowledge_documents"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.legal_holds"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.memories"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.memory_message_embeddings"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.notification_deliveries"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.notification_delivery_events"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.notification_digests"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.notification_events"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.notification_preferences"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.notification_recipients"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.notification_subscriptions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.organization_deletions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.organization_settings"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.outbox_events"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.permission_overrides"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.prompt_labels"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.prompt_versions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.rate_limit_rules"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.retention_policies"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.scim_groups"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.scim_users"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.sso_domains"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.sso_providers"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.support_requests"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.support_sessions"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.timeline_entries"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.usage_billed_periods"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.usage_counters"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.usage_events"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.usage_history"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.usage_quotas"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.webhook_deliveries"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.webhook_endpoint_secrets"
+    },
+    {
+      "from": "organization_id",
+      "to": "tenant_id",
+      "kind": "column",
+      "since": "0.54",
+      "table": "better_supabase.webhook_endpoints"
     }
   ],
   "allowlist": {

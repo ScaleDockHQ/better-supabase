@@ -117,7 +117,7 @@ describe.skipIf(!live)("engagement recordings", () => {
 
       const file = async (userId: string, status = "ready") => {
         const [row] = await s.rows<{ id: string }>(
-          `insert into better_supabase.ai_files (organization_id, owner_id, bucket, filename, media_type, byte_size, status)
+          `insert into better_supabase.ai_files (tenant_id, owner_id, bucket, filename, media_type, byte_size, status)
            values ($1, $2, 'ai-files', 'call.webm', 'audio/webm', 3, $3) returning id`,
           [org, userId, status],
         );

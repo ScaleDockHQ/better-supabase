@@ -1,13 +1,13 @@
 -- better-supabase module: webhooks-out
 -- @bsb-block webhooks-out@6 managed
--- @bsb-hash sha256:19c21fee6018ffae6a8214073f831c47c565a4fad054816a2e866e6b6047f6b0
+-- @bsb-hash sha256:1f4b2217bbfeea703b902625eb8828e7622662ea5dd6dc49cf1a554a454dfc00
 -- Outgoing webhooks: endpoints subscribed to event types, a delivery log unique per endpoint and event with leases and retries, direct dispatch, secrets in Vault with overlap while rotating, auto-disable after an endpoint keeps failing and redelivery.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create table "better_supabase"."webhook_endpoints" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "name" text not null constraint bsb_webhook_endpoints_name_check check (length(trim("name")) > 0),
   "url" text not null constraint bsb_webhook_endpoints_url_check check ("url" ~* '^https://'),
   "enabled" boolean not null default true,
@@ -26,7 +26,7 @@ create table "better_supabase"."webhook_endpoints" (
 );
 alter table "better_supabase"."webhook_endpoints" alter column "format" set default 'cloudevents';
 create index webhook_endpoints_types_idx on "better_supabase"."webhook_endpoints" using gin ("event_types");
-create index webhook_endpoints_tenant_idx on "better_supabase"."webhook_endpoints" ("organization_id");
+create index webhook_endpoints_tenant_idx on "better_supabase"."webhook_endpoints" ("tenant_id");
 create index webhook_endpoints_created_by_idx on "better_supabase"."webhook_endpoints" ("created_by");
 create trigger bsb_updated_at before update on "better_supabase"."webhook_endpoints"
   for each row
@@ -37,22 +37,22 @@ grant all on "better_supabase"."webhook_endpoints" to service_role;
 grant select, insert, update, delete on "better_supabase"."webhook_endpoints" to authenticated;
 create policy bsb_webhook_endpoints_read on "better_supabase"."webhook_endpoints"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('webhooks.read')));
 create policy bsb_webhook_endpoints_insert on "better_supabase"."webhook_endpoints"
   for insert to authenticated
-  with check (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()));
+  with check (("tenant_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()));
 create policy bsb_webhook_endpoints_update on "better_supabase"."webhook_endpoints"
   for update to authenticated
-  using (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()))
-  with check (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()))
+  with check (("tenant_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()));
 create policy bsb_webhook_endpoints_delete on "better_supabase"."webhook_endpoints"
   for delete to authenticated
-  using (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()));
 
 create table "better_supabase"."webhook_endpoint_secrets" (
   "id" uuid primary key default gen_random_uuid(),
   "endpoint_id" uuid not null references "better_supabase"."webhook_endpoints" ("id") on delete cascade,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "vault_secret_id" uuid not null,
   "expires_at" timestamptz,
   "created_at" timestamptz not null default now()
@@ -64,7 +64,7 @@ grant all on "better_supabase"."webhook_endpoint_secrets" to service_role;
 
 create table "better_supabase"."webhook_deliveries" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "endpoint_id" uuid not null references "better_supabase"."webhook_endpoints" ("id") on delete cascade,
   "event_id" text,
   "run_id" text,
@@ -87,7 +87,7 @@ create index webhook_deliveries_due_idx on "better_supabase"."webhook_deliveries
 create index webhook_deliveries_endpoint_idx on "better_supabase"."webhook_deliveries" ("endpoint_id", "created_at" desc);
 create index webhook_deliveries_open_idx on "better_supabase"."webhook_deliveries" ("endpoint_id") where "status" in ('pending', 'retrying');
 create index webhook_deliveries_finished_idx on "better_supabase"."webhook_deliveries" ("created_at") where "status" in ('succeeded', 'canceled', 'dead');
-create index webhook_deliveries_tenant_created_idx on "better_supabase"."webhook_deliveries" ("organization_id", "created_at" desc);
+create index webhook_deliveries_tenant_created_idx on "better_supabase"."webhook_deliveries" ("tenant_id", "created_at" desc);
 create unique index webhook_deliveries_endpoint_event_idx on "better_supabase"."webhook_deliveries" ("endpoint_id", "event_id") where "event_id" is not null;
 alter table "better_supabase"."webhook_deliveries" enable row level security;
 revoke all on "better_supabase"."webhook_deliveries" from public, anon, authenticated;
@@ -95,7 +95,7 @@ grant all on "better_supabase"."webhook_deliveries" to service_role;
 grant select on "better_supabase"."webhook_deliveries" to authenticated;
 create policy bsb_webhook_deliveries_read on "better_supabase"."webhook_deliveries"
   for select to authenticated
-  using ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('webhooks.read')));
 
 create or replace function "better_supabase"."reset_webhook_endpoint"()
 returns trigger
@@ -165,13 +165,13 @@ begin
     from (select string_to_array(v_permission, '.') as p) parts,
       generate_series(1, cardinality(parts.p) - 1) i
   );
-  insert into "better_supabase"."webhook_deliveries" ("endpoint_id", "event_type", "payload", "organization_id", "event_id", "subject")
-  select d."id", publish_webhook_event.event_type, coalesce(publish_webhook_event.payload, '{}'), d."organization_id", publish_webhook_event.event_id::text, publish_webhook_event.subject
+  insert into "better_supabase"."webhook_deliveries" ("endpoint_id", "event_type", "payload", "tenant_id", "event_id", "subject")
+  select d."id", publish_webhook_event.event_type, coalesce(publish_webhook_event.payload, '{}'), d."tenant_id", publish_webhook_event.event_id::text, publish_webhook_event.subject
   from "better_supabase"."webhook_endpoints" d
   where d."enabled"
-    and d."organization_id" is not distinct from publish_webhook_event.tenant
+    and d."tenant_id" is not distinct from publish_webhook_event.tenant
     and d."event_types" && patterns
-    and (case when d."created_by" is not null then coalesce(better_supabase.can_user(d."created_by", 'tenant', d."organization_id", v_permission), false) else (case when "better_supabase"."default_service_principal"(d."organization_id") is not null then coalesce(better_supabase.can_user("better_supabase"."default_service_principal"(d."organization_id"), 'tenant', d."organization_id", v_permission), false) else (publish_webhook_event.read_permission is null or coalesce(d."permissions" && v_held, false)) end) end)
+    and (case when d."created_by" is not null then coalesce(better_supabase.can_user(d."created_by", 'tenant', d."tenant_id", v_permission), false) else (case when "better_supabase"."default_service_principal"(d."tenant_id") is not null then coalesce(better_supabase.can_user("better_supabase"."default_service_principal"(d."tenant_id"), 'tenant', d."tenant_id", v_permission), false) else (publish_webhook_event.read_permission is null or coalesce(d."permissions" && v_held, false)) end) end)
   on conflict ("endpoint_id", "event_id") where "event_id" is not null do nothing;
   get diagnostics inserted = row_count;
   return inserted;
@@ -252,7 +252,7 @@ begin
   if coalesce(dispatch_webhook.event_type, '') = '' then
     raise exception 'An event type is required' using errcode = '22023', hint = 'WEBHOOK_TYPE_REQUIRED';
   end if;
-  select d."organization_id", d."enabled" into v_tenant, v_enabled
+  select d."tenant_id", d."enabled" into v_tenant, v_enabled
   from "better_supabase"."webhook_endpoints" d where d."id" = dispatch_webhook.endpoint;
   if not found then
     raise exception 'Webhook endpoint not found' using errcode = 'P0002', hint = 'WEBHOOK_ENDPOINT_NOT_FOUND';
@@ -270,7 +270,7 @@ begin
       return v_id;
     end if;
   end if;
-  insert into "better_supabase"."webhook_deliveries" ("endpoint_id", "event_type", "payload", "organization_id", "run_id", "event_id")
+  insert into "better_supabase"."webhook_deliveries" ("endpoint_id", "event_type", "payload", "tenant_id", "run_id", "event_id")
   values (dispatch_webhook.endpoint, dispatch_webhook.event_type, coalesce(dispatch_webhook.payload, '{}'), v_tenant, dispatch_webhook.run_id::text, dispatch_webhook.event_id::text)
   on conflict ("endpoint_id", "event_id") where "event_id" is not null do nothing
   returning "id" into v_id;
@@ -338,7 +338,7 @@ begin
     'payload', c."payload",
     'attempt', c."attempt",
     'url', d."url",
-    'created_at', c."created_at", 'tenant', c."organization_id", 'event_id', c."event_id", 'run_id', c."run_id", 'subject', c."subject", 'owner', d."created_by", 'principal', case when d."created_by" is null then "better_supabase"."default_service_principal"(d."organization_id") end, 'permissions', d."permissions", 'batch', d."batch", 'signing', d."signing", 'format', d."format", 'credential_ref', d."credential_ref"
+    'created_at', c."created_at", 'tenant', c."tenant_id", 'event_id', c."event_id", 'run_id', c."run_id", 'subject', c."subject", 'owner', d."created_by", 'principal', case when d."created_by" is null then "better_supabase"."default_service_principal"(d."tenant_id") end, 'permissions', d."permissions", 'batch', d."batch", 'signing', d."signing", 'format', d."format", 'credential_ref', d."credential_ref"
   ) order by c."available_at"), '[]')
   into result
   from claimed c
@@ -401,7 +401,7 @@ begin
   elsif v_status in ('retrying', 'dead') then
     update "better_supabase"."webhook_endpoints" d set "first_failed_at" = coalesce(d."first_failed_at", now())
     where d."id" = v_endpoint
-    returning d."first_failed_at", d."organization_id" into v_since, v_tenant;
+    returning d."first_failed_at", d."tenant_id" into v_since, v_tenant;
     if v_since <= now() - '5 days'::interval then
       update "better_supabase"."webhook_endpoints" d set "enabled" = false, "disabled_at" = now(), "disabled_reason" = format('Deliveries failed since %s', v_since), "updated_at" = now()
       where d."id" = v_endpoint and d."enabled";
@@ -456,7 +456,7 @@ begin
   if not found then
     raise exception 'Webhook delivery not found' using errcode = 'P0002', hint = 'WEBHOOK_DELIVERY_NOT_FOUND';
   end if;
-  select d."organization_id", d."enabled" into v_tenant, v_enabled
+  select d."tenant_id", d."enabled" into v_tenant, v_enabled
   from "better_supabase"."webhook_endpoints" d where d."id" = v_endpoint;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_tenant, 'webhooks.manage'), false) then
     raise exception 'Not allowed to manage this webhook endpoint' using errcode = '42501', hint = 'WEBHOOK_FORBIDDEN';
@@ -494,8 +494,8 @@ begin
     where "id" in (
       select v."id" from "better_supabase"."webhook_deliveries" v
       where (v."created_at" < now() - least(purge_webhook_deliveries.older_than, "better_supabase"."retention_floor"('webhook_deliveries'))
-      and v."created_at" < now() - coalesce("better_supabase"."retention_for"('webhook_deliveries', (v."organization_id")::text), purge_webhook_deliveries.older_than)
-      and not "better_supabase"."is_held"('webhook_deliveries', (v."organization_id")::text))
+      and v."created_at" < now() - coalesce("better_supabase"."retention_for"('webhook_deliveries', (v."tenant_id")::text), purge_webhook_deliveries.older_than)
+      and not "better_supabase"."is_held"('webhook_deliveries', (v."tenant_id")::text))
         and (
           v."status" in ('succeeded', 'canceled')
           or (purge_webhook_deliveries.include_dead and v."status" = 'dead')
@@ -532,7 +532,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select d."organization_id", d."enabled" into v_tenant, v_enabled
+  select d."tenant_id", d."enabled" into v_tenant, v_enabled
   from "better_supabase"."webhook_endpoints" d where d."id" = rotate_webhook_secret.endpoint;
   if not found then
     raise exception 'Webhook endpoint not found' using errcode = 'P0002', hint = 'WEBHOOK_ENDPOINT_NOT_FOUND';
@@ -552,7 +552,7 @@ begin
     'webhook:' || rotate_webhook_secret.endpoint::text || ':' || gen_random_uuid()::text,
     'better-supabase outgoing webhook signing secret'
   );
-  insert into "better_supabase"."webhook_endpoint_secrets" ("endpoint_id", "vault_secret_id", "organization_id")
+  insert into "better_supabase"."webhook_endpoint_secrets" ("endpoint_id", "vault_secret_id", "tenant_id")
   values (rotate_webhook_secret.endpoint, v_vault, v_tenant);
   perform "better_supabase".emit_event('webhook_endpoint.secret_rotated', jsonb_build_object('endpointId', rotate_webhook_secret.endpoint, 'organizationId', v_tenant::text), 'webhooks/' || rotate_webhook_secret.endpoint::text, (v_tenant)::text, null, 'better-supabase/webhooks-out');
   perform better_supabase.audit_event(
@@ -618,14 +618,14 @@ begin
   if create_webhook_endpoint.fields ->> 'url' is null or create_webhook_endpoint.fields ->> 'url' !~* '^https://' then
     raise exception 'A webhook endpoint URL must start with https://' using errcode = '22023', hint = 'WEBHOOK_ENDPOINT_URL';
   end if;
-  insert into "better_supabase"."webhook_endpoints" ("organization_id", "url", "enabled", "event_types", "name")
+  insert into "better_supabase"."webhook_endpoints" ("tenant_id", "url", "enabled", "event_types", "name")
   values (create_webhook_endpoint.tenant, create_webhook_endpoint.fields ->> 'url', coalesce((create_webhook_endpoint.fields ->> 'enabled')::boolean, true), coalesce(array(select jsonb_array_elements_text(create_webhook_endpoint.fields -> 'eventTypes')), '{}'), create_webhook_endpoint.fields ->> 'name')
   returning "id" into v_id;
   if create_webhook_endpoint.fields ?| array['permissions', 'batch', 'signing', 'format', 'credentialRef'] then
     update "better_supabase"."webhook_endpoints" d set "permissions" = case when create_webhook_endpoint.fields ? 'permissions' then case when jsonb_typeof(create_webhook_endpoint.fields -> 'permissions') = 'null' then null else array(select jsonb_array_elements_text(create_webhook_endpoint.fields -> 'permissions')) end else d."permissions" end, "batch" = case when create_webhook_endpoint.fields ? 'batch' then (create_webhook_endpoint.fields ->> 'batch')::boolean else d."batch" end, "signing" = case when create_webhook_endpoint.fields ? 'signing' then create_webhook_endpoint.fields ->> 'signing' else d."signing" end, "format" = case when create_webhook_endpoint.fields ? 'format' then create_webhook_endpoint.fields ->> 'format' else d."format" end, "credential_ref" = case when create_webhook_endpoint.fields ? 'credentialRef' then nullif(create_webhook_endpoint.fields -> 'credentialRef', 'null'::jsonb) else d."credential_ref" end, "updated_at" = now()
   where d."id" = v_id;
   end if;
-  select jsonb_build_object('id', d."id", 'tenant', d."organization_id", 'name', d."name", 'url', d."url", 'enabled', d."enabled", 'eventTypes', d."event_types", 'permissions', d."permissions", 'batch', d."batch", 'signing', d."signing", 'format', d."format", 'credentialRef', d."credential_ref", 'failingSince', d."first_failed_at", 'disabledAt', d."disabled_at", 'disabledReason', d."disabled_reason", 'createdBy', d."created_by", 'createdAt', d."created_at", 'updatedAt', d."updated_at") into v_endpoint
+  select jsonb_build_object('id', d."id", 'tenant', d."tenant_id", 'name', d."name", 'url', d."url", 'enabled', d."enabled", 'eventTypes', d."event_types", 'permissions', d."permissions", 'batch', d."batch", 'signing', d."signing", 'format', d."format", 'credentialRef', d."credential_ref", 'failingSince', d."first_failed_at", 'disabledAt', d."disabled_at", 'disabledReason', d."disabled_reason", 'createdBy', d."created_by", 'createdAt', d."created_at", 'updatedAt', d."updated_at") into v_endpoint
   from "better_supabase"."webhook_endpoints" d where d."id" = v_id;
   return v_endpoint;
 end;
@@ -649,7 +649,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select d."organization_id" into v_tenant
+  select d."tenant_id" into v_tenant
   from "better_supabase"."webhook_endpoints" d where d."id" = update_webhook_endpoint.endpoint;
   if not found then
     raise exception 'Webhook endpoint not found' using errcode = 'P0002', hint = 'WEBHOOK_ENDPOINT_NOT_FOUND';
@@ -670,7 +670,7 @@ begin
   end if;
   update "better_supabase"."webhook_endpoints" d set "name" = case when update_webhook_endpoint.fields ? 'name' then update_webhook_endpoint.fields ->> 'name' else d."name" end, "url" = case when update_webhook_endpoint.fields ? 'url' then update_webhook_endpoint.fields ->> 'url' else d."url" end, "enabled" = case when update_webhook_endpoint.fields ? 'enabled' then (update_webhook_endpoint.fields ->> 'enabled')::boolean else d."enabled" end, "event_types" = case when update_webhook_endpoint.fields ? 'eventTypes' then array(select jsonb_array_elements_text(update_webhook_endpoint.fields -> 'eventTypes')) else d."event_types" end, "permissions" = case when update_webhook_endpoint.fields ? 'permissions' then case when jsonb_typeof(update_webhook_endpoint.fields -> 'permissions') = 'null' then null else array(select jsonb_array_elements_text(update_webhook_endpoint.fields -> 'permissions')) end else d."permissions" end, "batch" = case when update_webhook_endpoint.fields ? 'batch' then (update_webhook_endpoint.fields ->> 'batch')::boolean else d."batch" end, "signing" = case when update_webhook_endpoint.fields ? 'signing' then update_webhook_endpoint.fields ->> 'signing' else d."signing" end, "format" = case when update_webhook_endpoint.fields ? 'format' then update_webhook_endpoint.fields ->> 'format' else d."format" end, "credential_ref" = case when update_webhook_endpoint.fields ? 'credentialRef' then nullif(update_webhook_endpoint.fields -> 'credentialRef', 'null'::jsonb) else d."credential_ref" end, "updated_at" = now()
   where d."id" = update_webhook_endpoint.endpoint;
-  select jsonb_build_object('id', d."id", 'tenant', d."organization_id", 'name', d."name", 'url', d."url", 'enabled', d."enabled", 'eventTypes', d."event_types", 'permissions', d."permissions", 'batch', d."batch", 'signing', d."signing", 'format', d."format", 'credentialRef', d."credential_ref", 'failingSince', d."first_failed_at", 'disabledAt', d."disabled_at", 'disabledReason', d."disabled_reason", 'createdBy', d."created_by", 'createdAt', d."created_at", 'updatedAt', d."updated_at") into v_endpoint
+  select jsonb_build_object('id', d."id", 'tenant', d."tenant_id", 'name', d."name", 'url', d."url", 'enabled', d."enabled", 'eventTypes', d."event_types", 'permissions', d."permissions", 'batch', d."batch", 'signing', d."signing", 'format', d."format", 'credentialRef', d."credential_ref", 'failingSince', d."first_failed_at", 'disabledAt', d."disabled_at", 'disabledReason', d."disabled_reason", 'createdBy', d."created_by", 'createdAt', d."created_at", 'updatedAt', d."updated_at") into v_endpoint
   from "better_supabase"."webhook_endpoints" d where d."id" = update_webhook_endpoint.endpoint;
   return v_endpoint;
 end;
@@ -694,10 +694,10 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) and not coalesce(better_supabase.can('tenant', v_tenant, 'webhooks.read'), false) then
     raise exception 'Not allowed to manage this webhook endpoint' using errcode = '42501', hint = 'WEBHOOK_FORBIDDEN';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', d."id", 'tenant', d."organization_id", 'name', d."name", 'url', d."url", 'enabled', d."enabled", 'eventTypes', d."event_types", 'permissions', d."permissions", 'batch', d."batch", 'signing', d."signing", 'format', d."format", 'credentialRef', d."credential_ref", 'failingSince', d."first_failed_at", 'disabledAt', d."disabled_at", 'disabledReason', d."disabled_reason", 'createdBy', d."created_by", 'createdAt', d."created_at", 'updatedAt', d."updated_at") order by d."created_at" desc, d."id"), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', d."id", 'tenant', d."tenant_id", 'name', d."name", 'url', d."url", 'enabled', d."enabled", 'eventTypes', d."event_types", 'permissions', d."permissions", 'batch', d."batch", 'signing', d."signing", 'format', d."format", 'credentialRef', d."credential_ref", 'failingSince', d."first_failed_at", 'disabledAt', d."disabled_at", 'disabledReason', d."disabled_reason", 'createdBy', d."created_by", 'createdAt', d."created_at", 'updatedAt', d."updated_at") order by d."created_at" desc, d."id"), '[]')
   into v_endpoints
   from "better_supabase"."webhook_endpoints" d
-  where d."organization_id" = list_webhook_endpoints.tenant;
+  where d."tenant_id" = list_webhook_endpoints.tenant;
   return v_endpoints;
 end;
 $$;
@@ -718,7 +718,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select d."organization_id" into v_tenant
+  select d."tenant_id" into v_tenant
   from "better_supabase"."webhook_endpoints" d where d."id" = delete_webhook_endpoint.endpoint;
   if not found then
     raise exception 'Webhook endpoint not found' using errcode = 'P0002', hint = 'WEBHOOK_ENDPOINT_NOT_FOUND';
@@ -740,47 +740,47 @@ grant execute on function "better_supabase"."delete_webhook_endpoint"(uuid) to a
 create policy bsb_tenant_scope_select on "better_supabase"."webhook_endpoints" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."webhook_endpoints" as restrictive
   for insert to public
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."webhook_endpoints" as restrictive
   for update to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
   )
   with check (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
   );
 create policy bsb_tenant_scope_delete on "better_supabase"."webhook_endpoints" as restrictive
   for delete to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('webhooks.manage')))
   );
 create policy bsb_tenant_scope_select on "better_supabase"."webhook_deliveries" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
-    or ("organization_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
+    "tenant_id" in (select better_supabase.member_organization_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('webhooks.read')))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."webhook_deliveries" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."webhook_deliveries" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."webhook_deliveries" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 
 -- Row audit for the module's tables (blocks.audit.options.blockTables)
 create constraint trigger bsb_audit after insert or update or delete on better_supabase.webhook_endpoints deferrable initially deferred for each row execute function better_supabase.audit_row_change('{"ignore":[],"redact":[],"target_type":"webhook_endpoint","event_prefix":"webhook_endpoint"}');

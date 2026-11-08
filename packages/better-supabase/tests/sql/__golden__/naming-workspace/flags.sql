@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_032_flags.sql
 -- better-supabase module: flags
 -- @bsb-block flags@4 managed
--- @bsb-hash sha256:f0e845d2e7d6488d2df7c0216e0385baa4cfa07b96ee5d5128d87409ef45095d
+-- @bsb-hash sha256:eb47490513aa1f8841a69c814db88d20848562b00b08631f16369b6a8b847783
 -- Feature flags with variants, targeting rules over tenant, user, plan, role, custom contexts such as brand and shared segments, overrides, and a scheduled percentage rollout split across weighted variants, bucketed by SHA-256. Every save records a revision you can restore. flag_enabled() goes in policies; createFlagsProvider() evaluates the same way for OpenFeature and the Flags SDK.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -40,14 +40,14 @@ grant all on "better_supabase"."flags" to service_role;
 create table "better_supabase"."flag_overrides" (
   "id" uuid primary key default gen_random_uuid(),
   "flag_key" text not null references "better_supabase"."flags" ("key") on delete cascade on update cascade,
-  "workspace_id" uuid,
+  "tenant_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
   "context" text constraint bsb_flag_overrides_context_check check ("context" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "context_key" text constraint bsb_flag_overrides_context_key_check check (length("context_key") >= 1 and length("context_key") <= 200),
   "variant" text not null,
   "created_at" timestamptz not null default now(),
-  constraint bsb_flag_overrides_target check (num_nonnulls("workspace_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
-  constraint flag_overrides_key unique nulls not distinct ("flag_key", "workspace_id", "user_id", "context", "context_key")
+  constraint bsb_flag_overrides_target check (num_nonnulls("tenant_id", "user_id", "context") = 1 and ("context" is null) = ("context_key" is null)),
+  constraint flag_overrides_key unique nulls not distinct ("flag_key", "tenant_id", "user_id", "context", "context_key")
 );
 create index flag_overrides_user_idx on "better_supabase"."flag_overrides" ("user_id");
 alter table "better_supabase"."flag_overrides" enable row level security;
@@ -192,9 +192,9 @@ begin
   select x."variant" into chosen from "better_supabase"."flag_overrides" x
   where x."flag_key" = flag."key"
     and ((member is not null and x."user_id" = member)
-      or (tenant is not null and x."workspace_id" = tenant)
+      or (tenant is not null and x."tenant_id" = tenant)
       or (x."context" is not null and x."context_key" = context_values ->> x."context"))
-  order by (x."user_id" is not null) desc, (x."workspace_id" is not null) desc,
+  order by (x."user_id" is not null) desc, (x."tenant_id" is not null) desc,
     array_position(array[]::text[], x."context") nulls last, x."context"
   limit 1;
   if chosen is not null then
@@ -298,8 +298,8 @@ as $$
     'created_at', x."created_at",
     'updated_at', x."updated_at",
     'overrides', coalesce((
-      select jsonb_agg(jsonb_build_object('organization_id', v."workspace_id", 'user_id', v."user_id", 'context', v."context", 'context_key', v."context_key", 'variant', v."variant")
-        order by (v."user_id" is not null) desc, (v."workspace_id" is not null) desc,
+      select jsonb_agg(jsonb_build_object('organization_id', v."tenant_id", 'user_id', v."user_id", 'context', v."context", 'context_key', v."context_key", 'variant', v."variant")
+        order by (v."user_id" is not null) desc, (v."tenant_id" is not null) desc,
           array_position(array[]::text[], v."context") nulls last, v."context")
       from "better_supabase"."flag_overrides" v where v."flag_key" = x."key"
     ), '[]'::jsonb)
@@ -549,7 +549,7 @@ begin
   if variant is null then
     delete from "better_supabase"."flag_overrides" v
     where v."flag_key" = set_flag_override.key
-      and v."workspace_id" is not distinct from set_flag_override.tenant
+      and v."tenant_id" is not distinct from set_flag_override.tenant
       and v."user_id" is not distinct from set_flag_override.member
       and v."context" is not distinct from set_flag_override.context
       and v."context_key" is not distinct from set_flag_override.context_key;
@@ -559,7 +559,7 @@ begin
     null;
     return true;
   end if;
-  insert into "better_supabase"."flag_overrides" ("flag_key", "workspace_id", "user_id", "context", "context_key", "variant")
+  insert into "better_supabase"."flag_overrides" ("flag_key", "tenant_id", "user_id", "context", "context_key", "variant")
   values (set_flag_override.key, set_flag_override.tenant, set_flag_override.member, set_flag_override.context, set_flag_override.context_key, set_flag_override.variant)
   on conflict on constraint flag_overrides_key do update set "variant" = excluded."variant";
   null;

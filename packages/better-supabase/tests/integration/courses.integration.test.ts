@@ -346,7 +346,7 @@ describe.skipIf(!live)("courses", () => {
       expect(
         await s.rows<{ type: string }>(
           `select distinct event_type as type from better_supabase.audit_events
-           where organization_id = $1 and event_type like 'course%' order by 1`,
+           where tenant_id = $1 and event_type like 'course%' order by 1`,
           [tenant],
         ),
       ).toEqual(

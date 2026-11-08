@@ -1,6 +1,6 @@
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:90e73aec4f4e14e334378ff8cb1481a15d43dda1142d87fbcd2122a540b223df
+-- @bsb-hash sha256:f0eee14a13c1c0b41c329c8422ebb4c34b8b5c07a1c6652335515dc3c1e2c62f
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2156,7 +2156,7 @@ begin
   if not exists (
     select 1 from "better_supabase"."attachments" f
     where f."id" = add_product_media.attachment
-      and f."organization_id" = v_tenant
+      and f."tenant_id" = v_tenant
       and (
         (f."subject_type" = 'product' and f."subject_id" = add_product_media.product::text)
         or (f."subject_type" = 'product_variant' and f."subject_id" in (select w."id"::text from "better_supabase"."product_variants" w where w."product_id" = add_product_media.product))

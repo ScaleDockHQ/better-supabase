@@ -156,10 +156,10 @@ describe.skipIf(!live)("better-supabase/eve", () => {
       const chatId = await chatIdOf("sess_live");
       expect(
         await s.rows(
-          "select organization_id, owner_id from better_supabase.ai_chats where id = $1",
+          "select tenant_id, owner_id from better_supabase.ai_chats where id = $1",
           [chatId],
         ),
-      ).toEqual([{ organization_id: tenant, owner_id: owner.id }]);
+      ).toEqual([{ tenant_id: tenant, owner_id: owner.id }]);
       expect(
         await s.rows(
           "select id, role, format, parent_id from better_supabase.ai_messages where chat_id = $1 order by role desc",
@@ -304,7 +304,7 @@ describe.skipIf(!live)("better-supabase/eve", () => {
         create schema eve_it;
         create table eve_it.tasks (
           id serial primary key,
-          organization_id uuid not null,
+          tenant_id uuid not null,
           title text not null,
           created_by uuid not null default auth.uid(),
           agent text default (auth.jwt() -> 'act' ->> 'sub')
@@ -312,7 +312,7 @@ describe.skipIf(!live)("better-supabase/eve", () => {
         alter table eve_it.tasks enable row level security;
         create policy tasks_insert on eve_it.tasks for insert to authenticated
           with check (
-            organization_id in (select better_supabase.tenant_ids_with('members.read'))
+            tenant_id in (select better_supabase.tenant_ids_with('members.read'))
             and auth.jwt() -> 'act' ->> 'kind' = 'agent'
           );
         create policy tasks_read on eve_it.tasks for select to authenticated using (true);
@@ -333,7 +333,7 @@ describe.skipIf(!live)("better-supabase/eve", () => {
 
             try {
               const { rows } = await s.client.query<{ id: number }>(
-                "insert into eve_it.tasks (organization_id, title) values ($1, $2) returning id",
+                "insert into eve_it.tasks (tenant_id, title) values ($1, $2) returning id",
                 [context.tenant, title],
               );
 

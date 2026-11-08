@@ -30,7 +30,7 @@ import { moduleOperations } from "./permissions-model.ts";
 
 const PROJECTS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   owner: "owner_id",
   name: "name",
   instructions: "instructions",
@@ -43,7 +43,7 @@ const PROJECTS = {
 
 const CHATS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   owner: "owner_id",
   project: "project_id",
   agent: "agent_id",
@@ -118,7 +118,7 @@ const APPROVALS = {
 } as const;
 
 const POLICIES = {
-  tenant: "organization_id",
+  tenant: "tenant_id",
   tool: "tool",
   policy: "policy",
   updatedAt: "updated_at",
@@ -181,7 +181,7 @@ const MODELS = {
 
 const MODERATION = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   chat: "chat_id",
   message: "message_id",
   user: "user_id",
@@ -207,7 +207,7 @@ const STEPS = {
 
 const SANDBOXES = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   user: "user_id",
   chat: "chat_id",
   harness: "harness_id",

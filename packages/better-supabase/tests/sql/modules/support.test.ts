@@ -241,7 +241,7 @@ describe("impersonation approvers from the provider", () => {
     );
 
     expect(sql).toContain(
-      `if not service and not coalesce((authz.is_approver('support-session', v_row."id"::text, v_row."organization_id", 'organization')), false) then`,
+      `if not service and not coalesce((authz.is_approver('support-session', v_row."id"::text, v_row."tenant_id", 'organization')), false) then`,
     );
     expect(sql).not.toContain("can_approve");
   });

@@ -301,7 +301,7 @@ insert into rel_it.tasks (id, organization_id) values ('${task(99)}', '${OTHER_O
     await db.service();
 
     const events = await db.rows<{ type: string }>(
-      `select type from better_supabase.outbox_events where organization_id = $1 and type like 'subject.%'`,
+      `select type from better_supabase.outbox_events where tenant_id = $1 and type like 'subject.%'`,
       [org],
     );
 

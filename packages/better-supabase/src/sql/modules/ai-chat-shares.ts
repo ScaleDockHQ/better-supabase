@@ -22,7 +22,7 @@ function chatsRef(own: BlockSqlContext, target: BlockSqlContext): ChatsRef {
     return {
       table: `${target.schema}.ai_chats`,
       id: "id",
-      tenant: target.naming.rename("organization_id"),
+      tenant: target.naming.rename("tenant_id"),
       owner: "owner_id",
       leaf: "current_leaf_id",
       title: "title",
@@ -59,7 +59,7 @@ function aiChatShareCopy(ctx: BlockSqlContext, own: BlockSqlContext): string {
 
   return `-- ai-chat sharing is this block: links of the old ai_chat_shares table.
 insert into ${links} (${ctx.col("links", "tenant")}, ${ctx.col("links", "subjectType")}, ${ctx.col("links", "subjectId")}, ${ctx.col("links", "tokenHash")}, ${ctx.col("links", "createdBy")}${leaf ? `, ${ctx.col("links", "leaf")}` : ""})
-select c.${ctx.naming.rename("organization_id")}, 'ai-chat', s.chat_id::text, s.token_hash, s.created_by${leaf ? ", s.leaf_id" : ""}
+select c.${ctx.naming.rename("tenant_id")}, 'ai-chat', s.chat_id::text, s.token_hash, s.created_by${leaf ? ", s.leaf_id" : ""}
 from ${ctx.schema}.ai_chat_shares s
 join ${ctx.schema}.ai_chats c on c.id = s.chat_id
 on conflict (${ctx.col("links", "tokenHash")}) do nothing;`;

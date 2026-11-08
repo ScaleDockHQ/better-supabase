@@ -188,7 +188,7 @@ describe.skipIf(!live)("shipments", () => {
       expect(
         (
           await s.rows<{ type: string }>(
-            "select type from better_supabase.outbox_events where organization_id = $1 and type like 'shipment.%' order by position",
+            "select type from better_supabase.outbox_events where tenant_id = $1 and type like 'shipment.%' order by position",
             [tenant],
           )
         ).map((row) => row.type),

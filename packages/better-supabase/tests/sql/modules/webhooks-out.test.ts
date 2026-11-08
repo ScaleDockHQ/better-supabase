@@ -139,7 +139,7 @@ describe("webhooks-out module", () => {
 
     expect(sql).toContain("better_supabase.can('tenant', ");
     expect(sql).toContain(
-      `using (("organization_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()))`,
+      `using (("tenant_id" in (select better_supabase.tenant_ids_with('webhooks.manage'))) and (select better_supabase.actor_may_write()))`,
     );
     expect(sql).toContain("webhook_deliveries_tenant_created_idx");
     expect(sql).toContain("'webhooks.manage'");
@@ -233,7 +233,7 @@ describe("webhooks-out module", () => {
         "v_permission text := coalesce(nullif(publish_webhook_event.read_permission, ''), 'webhooks.read');",
       );
       expect(fn).toContain(
-        `when d."created_by" is not null then coalesce(better_supabase.can_user(d."created_by", 'tenant', d."organization_id", v_permission), false)`,
+        `when d."created_by" is not null then coalesce(better_supabase.can_user(d."created_by", 'tenant', d."tenant_id", v_permission), false)`,
       );
       expect(fn).toContain(
         `(publish_webhook_event.read_permission is null or coalesce(d."permissions" && v_held, false))`,
@@ -253,7 +253,7 @@ describe("webhooks-out module", () => {
       );
 
       expect(fn).toContain(
-        `d."organization_id"::text in (select t.id::text from authz.ids_organization_for(d."created_by", v_permission) as t(id))`,
+        `d."tenant_id"::text in (select t.id::text from authz.ids_organization_for(d."created_by", v_permission) as t(id))`,
       );
       expect(fn).not.toContain("can_user");
     });

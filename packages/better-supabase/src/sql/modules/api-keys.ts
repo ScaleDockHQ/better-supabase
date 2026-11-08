@@ -76,7 +76,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant", export: false },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         user: "user_id",
         name: "name",
         prefix: "prefix",

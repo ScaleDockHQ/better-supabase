@@ -292,7 +292,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:1b16b60fecdff03652ea95be379325d369ba39f0fd737809e9984ad5f5c37a35
+-- @bsb-hash sha256:e1130c4bb69003e80ce71a98f2bc7ddec8753c8316dc7165e04a59cccba2ca4a
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -397,7 +397,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     v_subject_ok := case create_share_link.subject_type
-    when 'ai-chat' then exists (select 1 from "better_supabase".ai_chats s where s.id::text = create_share_link.subject_id and s.organization_id::text = create_share_link.tenant::text and s.owner_id = auth.uid())
+    when 'ai-chat' then exists (select 1 from "better_supabase".ai_chats s where s.id::text = create_share_link.subject_id and s.tenant_id::text = create_share_link.tenant::text and s.owner_id = auth.uid())
     when 'calendar' then exists (select 1 from "better_supabase"."calendars" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
     when 'booking_service' then exists (select 1 from "better_supabase"."booking_services" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
     when 'drive_node' then "better_supabase"."drive_share_link_allowed"(create_share_link.subject_id::text, create_share_link.tenant::text, coalesce(create_share_link.role, 'view'))
@@ -611,7 +611,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select organization_id, owner_id, current_leaf_id into v_tenant, v_owner, v_leaf
+  select tenant_id, owner_id, current_leaf_id into v_tenant, v_owner, v_leaf
   from "better_supabase".ai_chats where id = share_ai_chat.chat;
   if not found or v_owner is distinct from auth.uid() then
     raise exception 'no chat' using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -697,7 +697,7 @@ begin
   end if;
   v_chat_id := v_subject::uuid;
   -- The chat must still live in the tenant the link was created in.
-  if not exists (select 1 from "better_supabase".ai_chats where id = v_chat_id and organization_id::text = v_tenant) then
+  if not exists (select 1 from "better_supabase".ai_chats where id = v_chat_id and tenant_id::text = v_tenant) then
     return null;
   end if;
   return jsonb_build_object(
@@ -733,7 +733,7 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 -- ==== with every module: data supabase/better-supabase-data/900_better_supabase_062_share_links.sql
 -- better-supabase module: share-links
 -- @bsb-block-data share-links
--- @bsb-hash sha256:9251791ace46a9836a21e4d30588d10e717391e7de637955ccee5fcd5dd5ca93
+-- @bsb-hash sha256:6ed67e724fec9e3222ee8f093207411f31e082def1b0eceea1dbd9e018277ee0
 -- Rows and settings a schema diff doesn't capture. Run `better-supabase add --adopt`
 -- after the schema migration to put them in a migration.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -741,7 +741,7 @@ create constraint trigger bsb_audit after insert or update or delete on better_s
 
 -- ai-chat sharing is this block: links of the old ai_chat_shares table.
 insert into "better_supabase"."share_links" ("tenant_id", "subject_type", "subject_id", "token_hash", "created_by", "leaf_id")
-select c.organization_id, 'ai-chat', s.chat_id::text, s.token_hash, s.created_by, s.leaf_id
+select c.tenant_id, 'ai-chat', s.chat_id::text, s.token_hash, s.created_by, s.leaf_id
 from "better_supabase".ai_chat_shares s
 join "better_supabase".ai_chats c on c.id = s.chat_id
 on conflict ("token_hash") do nothing;

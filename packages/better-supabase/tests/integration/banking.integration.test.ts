@@ -67,7 +67,7 @@ describe.skipIf(!live)("banking module in Postgres", () => {
   const events = async (type: string): Promise<Record<string, unknown>[]> =>
     (
       await s.rows<{ data: Record<string, unknown> }>(
-        "select payload as data from better_supabase.outbox_events where organization_id = $1 and type = $2 order by position",
+        "select payload as data from better_supabase.outbox_events where tenant_id = $1 and type = $2 order by position",
         [tenant, type],
       )
     ).map((row) => row.data);

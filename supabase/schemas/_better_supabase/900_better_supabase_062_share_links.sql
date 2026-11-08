@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:23a8ae46c6c6e618bedff255027012a5dfb7e6cf78d916069e18d2082dac517f
+-- @bsb-hash sha256:bd07a4f7a39f4065f3421ba01536f3321bba78d9bd126aa9b863fcb0020c63a3
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -104,7 +104,7 @@ begin
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     v_subject_ok := case create_share_link.subject_type
-    when 'ai-chat' then exists (select 1 from "better_supabase".ai_chats s where s.id::text = create_share_link.subject_id and s.organization_id::text = create_share_link.tenant::text and s.owner_id = auth.uid())
+    when 'ai-chat' then exists (select 1 from "better_supabase".ai_chats s where s.id::text = create_share_link.subject_id and s.tenant_id::text = create_share_link.tenant::text and s.owner_id = auth.uid())
     when 'calendar' then exists (select 1 from "better_supabase"."calendars" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
     when 'booking_service' then exists (select 1 from "better_supabase"."booking_services" s where s."id"::text = create_share_link.subject_id and s."tenant_id"::text = create_share_link.tenant::text)
     when 'drive_node' then "better_supabase"."drive_share_link_allowed"(create_share_link.subject_id::text, create_share_link.tenant::text, coalesce(create_share_link.role, 'view'))
@@ -375,7 +375,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select organization_id, owner_id, current_leaf_id into v_tenant, v_owner, v_leaf
+  select tenant_id, owner_id, current_leaf_id into v_tenant, v_owner, v_leaf
   from "better_supabase".ai_chats where id = share_ai_chat.chat;
   if not found or v_owner is distinct from auth.uid() then
     raise exception 'no chat' using errcode = 'P0002', hint = 'AI_CHAT_NOT_FOUND';
@@ -461,7 +461,7 @@ begin
   end if;
   v_chat_id := v_subject::uuid;
   -- The chat must still live in the tenant the link was created in.
-  if not exists (select 1 from "better_supabase".ai_chats where id = v_chat_id and organization_id::text = v_tenant) then
+  if not exists (select 1 from "better_supabase".ai_chats where id = v_chat_id and tenant_id::text = v_tenant) then
     return null;
   end if;
   return jsonb_build_object(

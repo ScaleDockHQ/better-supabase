@@ -38,7 +38,7 @@ const EVENTS: BlockSqlEvents<DomainsEvents> = {
 
 const HOSTNAMES = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   hostname: "hostname",
   kind: "kind",
   token: "verification_token",

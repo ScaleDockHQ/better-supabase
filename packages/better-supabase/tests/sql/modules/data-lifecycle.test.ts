@@ -169,17 +169,17 @@ describe("data-lifecycle module", () => {
     ]);
 
     for (const row of [
-      `('organization', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'organization_id', true, '{}'::text[], true)`,
+      `('organization', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'tenant_id', true, '{}'::text[], true)`,
       `('user', 'better_supabase.usage_history', '"better_supabase"."usage_history"', 'actor_id', true, '{}'::text[], true)`,
-      `('organization', 'better_supabase.sso_providers', '"better_supabase"."sso_providers"', 'organization_id', true, '{}'::text[], true)`,
-      `('organization', 'better_supabase.webhook_endpoints', '"better_supabase"."webhook_endpoints"', 'organization_id', true, array['credential_ref']::text[], true)`,
+      `('organization', 'better_supabase.sso_providers', '"better_supabase"."sso_providers"', 'tenant_id', true, '{}'::text[], true)`,
+      `('organization', 'better_supabase.webhook_endpoints', '"better_supabase"."webhook_endpoints"', 'tenant_id', true, array['credential_ref']::text[], true)`,
       `('user', 'better_supabase.notification_preferences', '"better_supabase"."notification_preferences"', 'user_id', true, '{}'::text[], true)`,
     ]) {
       expect(sql).toContain(row);
     }
 
     expect(sql).toContain(
-      `('organization', 'better_supabase.webhook_endpoint_secrets', '"better_supabase"."webhook_endpoint_secrets"', 'organization_id', true, '{}'::text[], false)`,
+      `('organization', 'better_supabase.webhook_endpoint_secrets', '"better_supabase"."webhook_endpoint_secrets"', 'tenant_id', true, '{}'::text[], false)`,
     );
     expect(sql).not.toContain("'better_supabase.data_exports'");
     expect(
@@ -189,7 +189,7 @@ describe("data-lifecycle module", () => {
         .filter((file) => file.module === "data-lifecycle")
         .map((file) => file.contents)
         .join("\n"),
-    ).toContain(`'app.usage_log', '"app"."usage_log"', 'organization_id'`);
+    ).toContain(`'app.usage_log', '"app"."usage_log"', 'tenant_id'`);
   });
 
   it("disables the tenant through access.disabled.tenant when set", () => {
@@ -413,7 +413,7 @@ describe("data-lifecycle module", () => {
     });
 
     expect(sql).toContain(
-      `('organization', 'better_supabase.api_keys', '"better_supabase"."api_keys"', 'organization_id', true, '{}'::text[], false)`,
+      `('organization', 'better_supabase.api_keys', '"better_supabase"."api_keys"', 'tenant_id', true, '{}'::text[], false)`,
     );
     expect(sql).toContain(
       `('organization', 'app.secrets', '"app"."secrets"', 'organization_id', true, '{}'::text[], false)`,
@@ -436,7 +436,7 @@ describe("data-lifecycle module", () => {
 
     const defaults = sqlOf(["data-lifecycle", "invitations"]);
     expect(defaults).toContain(
-      `('organization', 'better_supabase.invitations', '"better_supabase"."invitations"', 'organization_id', true, array['token_hash']::text[], true)`,
+      `('organization', 'better_supabase.invitations', '"better_supabase"."invitations"', 'tenant_id', true, array['token_hash']::text[], true)`,
     );
   });
 
@@ -450,9 +450,9 @@ describe("data-lifecycle module", () => {
     ]);
 
     for (const [subject, table, column] of [
-      ["organization", "ai_provider_keys", "organization_id"],
-      ["organization", "connector_servers", "organization_id"],
-      ["organization", "connector_grants", "organization_id"],
+      ["organization", "ai_provider_keys", "tenant_id"],
+      ["organization", "connector_servers", "tenant_id"],
+      ["organization", "connector_grants", "tenant_id"],
       ["user", "connector_grants", "user_id"],
       ["organization", "workflow_credentials", "tenant_id"],
     ]) {
@@ -622,7 +622,7 @@ describe("data-lifecycle module", () => {
         `"better_supabase"."request_subject_export"(v_row."subject_type", v_row."subject_id", 'ndjson')`,
       );
       expect(sql).toContain(
-        `"better_supabase"."is_held"('data_subject_request', v_row."organization_id"::text)`,
+        `"better_supabase"."is_held"('data_subject_request', v_row."tenant_id"::text)`,
       );
       expect(sql).toContain("verify the requester''s identity first");
     });

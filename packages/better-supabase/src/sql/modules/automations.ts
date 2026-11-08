@@ -45,7 +45,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         subjectType: "subject_type",
         trigger: "trigger",
         name: "name",
@@ -93,7 +93,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         rule: "rule_id",
         version: "version",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         name: "name",
         conditions: "conditions",
         actions: "actions",
@@ -108,7 +108,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         rule: "rule_id",
         version: "version",
         subjectType: "subject_type",

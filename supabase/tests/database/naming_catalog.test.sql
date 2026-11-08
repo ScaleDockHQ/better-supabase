@@ -52,7 +52,7 @@ select extensions.cmp_ok(
 select extensions.cmp_ok(
   (select count(*) from information_schema.columns
     where table_schema = 'better_supabase' and column_name = 'organization_id'),
-  '<=', 63::bigint,
+  '<=', 0::bigint,
   'block tables name the tenant column tenant_id'
 );
 

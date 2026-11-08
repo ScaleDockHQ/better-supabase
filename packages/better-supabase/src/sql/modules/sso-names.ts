@@ -78,7 +78,7 @@ export const NAMES: BlockSqlNames = {
       typed: ["autoJoinRole"],
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         domain: "domain",
         token: "verification_token",
         verifiedAt: "verified_at",
@@ -96,7 +96,7 @@ export const NAMES: BlockSqlNames = {
       typed: ["type"],
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         type: "type",
         metadataUrl: "metadata_url",
         domains: "domains",
@@ -110,7 +110,7 @@ export const NAMES: BlockSqlNames = {
       optional: ["displayName", "givenName", "familyName", "updatedAt"],
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         user: "user_id",
         externalId: "external_id",
         userName: "user_name",
@@ -133,7 +133,7 @@ export const NAMES: BlockSqlNames = {
       typed: ["role"],
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         displayName: "display_name",
         externalId: "external_id",
         role: "role",
@@ -154,7 +154,7 @@ export const NAMES: BlockSqlNames = {
       typed: ["operation", "resourceType"],
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         operation: "operation",
         resourceType: "resource_type",
         resourceId: "resource_id",

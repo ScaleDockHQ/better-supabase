@@ -24,8 +24,12 @@ const CENTRAKIT: AnyBlocksConfig = {
     schema: "public",
     idType: "uuid",
     columns: {
-      events: { actor: "actor_user_id", data: "metadata" },
-      recipients: { user: "recipient_user_id" },
+      events: {
+        tenant: "organization_id",
+        actor: "actor_user_id",
+        data: "metadata",
+      },
+      recipients: { tenant: "organization_id", user: "recipient_user_id" },
     },
     options: {
       topic: "organization:{tenantId}:notifications:{userId}",
@@ -334,7 +338,7 @@ describe("notifications module", () => {
       `concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92))`,
     );
     expect(sql).toContain(
-      `'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."organization_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end)`,
+      `'actionable_subjects', count(distinct case when ev."subject_type" is not null and ev."subject_id" is not null then jsonb_build_array(ev."tenant_id", ev."subject_type", ev."subject_id")::text else rc."id"::text end)`,
     );
     expect(sql).toContain(`set "read_at" = null`);
 
@@ -412,8 +416,8 @@ describe("notification subjects", () => {
     delete from "better_supabase"."notification_events" x where x."subject_type" = v_type and x."subject_id" = v_id;
     delete from "better_supabase"."notification_subscriptions" x where x."subject_type" = v_type and x."subject_id" = v_id;
   else
-    delete from "better_supabase"."notification_events" x where x."organization_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
-    delete from "better_supabase"."notification_subscriptions" x where x."organization_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_events" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
+    delete from "better_supabase"."notification_subscriptions" x where x."tenant_id" = v_tenant::uuid and x."subject_type" = v_type and x."subject_id" = v_id;
   end if;`,
     );
     expect(sql).toContain(

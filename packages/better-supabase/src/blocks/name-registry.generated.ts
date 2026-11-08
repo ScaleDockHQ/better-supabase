@@ -127,7 +127,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "create" | "publish" | "moderate";
     readonly hooks: never;
     readonly entities: {
-      readonly "agent": "id" | "organization_id" | "owner_id" | "slug" | "name" | "description" | "instructions" | "model" | "tools" | "connector_ids" | "knowledge_scope" | "starters" | "visibility" | "published_at" | "install_count" | "rating_count" | "rating_sum" | "created_at" | "updated_at";
+      readonly "agent": "id" | "tenant_id" | "owner_id" | "slug" | "name" | "description" | "instructions" | "model" | "tools" | "connector_ids" | "knowledge_scope" | "starters" | "visibility" | "published_at" | "install_count" | "rating_count" | "rating_sum" | "created_at" | "updated_at";
     };
     readonly primary: "agent";
   };
@@ -165,8 +165,8 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "create" | "share" | "moderate" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "ai_chat": "id" | "organization_id" | "owner_id" | "project_id" | "agent_id" | "title" | "model" | "visibility" | "mode" | "pinned" | "archived_at" | "is_temporary" | "expires_at" | "current_leaf_id" | "active_stream_id" | "active_run_id" | "last_message_at" | "created_at" | "updated_at" | "search_tsv";
-      readonly "ai_project": "id" | "organization_id" | "owner_id" | "name" | "instructions" | "default_model" | "pinned" | "archived_at" | "created_at" | "updated_at";
+      readonly "ai_chat": "id" | "tenant_id" | "owner_id" | "project_id" | "agent_id" | "title" | "model" | "visibility" | "mode" | "pinned" | "archived_at" | "is_temporary" | "expires_at" | "current_leaf_id" | "active_stream_id" | "active_run_id" | "last_message_at" | "created_at" | "updated_at" | "search_tsv";
+      readonly "ai_project": "id" | "tenant_id" | "owner_id" | "name" | "instructions" | "default_model" | "pinned" | "archived_at" | "created_at" | "updated_at";
     };
     readonly primary: "ai_chat";
   };
@@ -194,7 +194,7 @@ export interface BlockNameRegistry {
     readonly actions: "upload" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "ai_document": "id" | "organization_id" | "owner_id" | "chat_id" | "kind" | "title" | "current_version" | "created_at" | "updated_at";
+      readonly "ai_document": "id" | "tenant_id" | "owner_id" | "chat_id" | "kind" | "title" | "current_version" | "created_at" | "updated_at";
     };
     readonly primary: "ai_document";
   };
@@ -230,7 +230,7 @@ export interface BlockNameRegistry {
     readonly actions: "create" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "ai_scheduled_task": "id" | "organization_id" | "user_id" | "chat_id" | "agent_id" | "title" | "prompt" | "cron" | "timezone" | "enabled" | "next_run_at" | "last_run_at" | "created_at" | "updated_at";
+      readonly "ai_scheduled_task": "id" | "tenant_id" | "user_id" | "chat_id" | "agent_id" | "title" | "prompt" | "cron" | "timezone" | "enabled" | "next_run_at" | "last_run_at" | "created_at" | "updated_at";
     };
     readonly primary: "ai_scheduled_task";
   };
@@ -255,7 +255,7 @@ export interface BlockNameRegistry {
     readonly actions: "manage" | "own";
     readonly hooks: never;
     readonly entities: {
-      readonly "api_key": "id" | "organization_id" | "user_id" | "name" | "prefix" | "public_id" | "secret_hash" | "scopes" | "kind" | "rate_limit" | "window_started_at" | "window_hits" | "expires_at" | "last_used_at" | "revoked_at" | "rotated_from" | "created_by" | "created_at";
+      readonly "api_key": "id" | "tenant_id" | "user_id" | "name" | "prefix" | "public_id" | "secret_hash" | "scopes" | "kind" | "rate_limit" | "window_started_at" | "window_hits" | "expires_at" | "last_used_at" | "revoked_at" | "rotated_from" | "created_by" | "created_at";
     };
     readonly primary: "api_key";
   };
@@ -340,7 +340,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "upload" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "attachment": "id" | "organization_id" | "subject_type" | "subject_id" | "bucket" | "object_path" | "name" | "mime_type" | "size" | "status" | "scan_detail" | "uploaded_by" | "created_at" | "uploaded_at" | "scanned_at" | "sha256" | "hash_verified_at" | "metadata" | "version" | "width" | "height" | "pages" | "document_type_id" | "source" | "external_id" | "storage_status" | "source_path";
+      readonly "attachment": "id" | "tenant_id" | "subject_type" | "subject_id" | "bucket" | "object_path" | "name" | "mime_type" | "size" | "status" | "scan_detail" | "uploaded_by" | "created_at" | "uploaded_at" | "scanned_at" | "sha256" | "hash_verified_at" | "metadata" | "version" | "width" | "height" | "pages" | "document_type_id" | "source" | "external_id" | "storage_status" | "source_path";
     };
     readonly primary: "attachment";
   };
@@ -368,7 +368,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "write" | "publish" | "manage";
     readonly hooks: "before_automation_save" | "after_automation_save" | "before_automation_remove" | "after_automation_remove";
     readonly entities: {
-      readonly "automation": "id" | "organization_id" | "subject_type" | "trigger" | "name" | "description" | "conditions" | "actions" | "enabled" | "stop_processing" | "rank" | "version" | "created_by" | "updated_by" | "created_at" | "updated_at" | "default_key";
+      readonly "automation": "id" | "tenant_id" | "subject_type" | "trigger" | "name" | "description" | "conditions" | "actions" | "enabled" | "stop_processing" | "rank" | "version" | "created_by" | "updated_by" | "created_at" | "updated_at" | "default_key";
     };
     readonly primary: "automation";
   };
@@ -653,7 +653,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "use" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "connector_server": "id" | "organization_id" | "name" | "url" | "transport" | "auth_type" | "credential_ref" | "scopes" | "client_metadata" | "enabled" | "created_by" | "created_at" | "updated_at";
+      readonly "connector_server": "id" | "tenant_id" | "name" | "url" | "transport" | "auth_type" | "credential_ref" | "scopes" | "client_metadata" | "enabled" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: "connector_server";
   };
@@ -1346,7 +1346,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "write" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "knowledge_document": "id" | "organization_id" | "owner_id" | "scope" | "scope_id" | "file_id" | "title" | "source" | "metadata" | "status" | "error" | "chunk_count" | "embedding_model" | "collection_id" | "subject_type" | "subject_id" | "created_at" | "updated_at";
+      readonly "knowledge_document": "id" | "tenant_id" | "owner_id" | "scope" | "scope_id" | "file_id" | "title" | "source" | "metadata" | "status" | "error" | "chunk_count" | "embedding_model" | "collection_id" | "subject_type" | "subject_id" | "created_at" | "updated_at";
     };
     readonly primary: "knowledge_document";
   };
@@ -1559,7 +1559,7 @@ export interface BlockNameRegistry {
     readonly actions: "read" | "manage";
     readonly hooks: never;
     readonly entities: {
-      readonly "memory": "id" | "organization_id" | "owner_id" | "scope" | "agent_id" | "chat_id" | "project_id" | "kind" | "path" | "content" | "version" | "embedding" | "embedding_model" | "source_message_id" | "superseded_by" | "subject_type" | "subject_id" | "category" | "confidence" | "expires_at" | "archived_at" | "use_count" | "last_used_at" | "tsv" | "created_at" | "updated_at";
+      readonly "memory": "id" | "tenant_id" | "owner_id" | "scope" | "agent_id" | "chat_id" | "project_id" | "kind" | "path" | "content" | "version" | "embedding" | "embedding_model" | "source_message_id" | "superseded_by" | "subject_type" | "subject_id" | "category" | "confidence" | "expires_at" | "archived_at" | "use_count" | "last_used_at" | "tsv" | "created_at" | "updated_at";
     };
     readonly primary: "memory";
   };
@@ -2462,7 +2462,7 @@ export interface BlockNameRegistry {
     readonly actions: "read";
     readonly hooks: never;
     readonly entities: {
-      readonly "timeline_entry": "id" | "organization_id" | "event_id" | "type" | "actor_id" | "subject_type" | "subject_id" | "summary" | "data" | "occurred_at";
+      readonly "timeline_entry": "id" | "tenant_id" | "event_id" | "type" | "actor_id" | "subject_type" | "subject_id" | "summary" | "data" | "occurred_at";
     };
     readonly primary: "timeline_entry";
   };
@@ -2602,7 +2602,7 @@ export interface BlockNameRegistry {
     readonly actions: "manage" | "read";
     readonly hooks: "after_webhook_delivery";
     readonly entities: {
-      readonly "webhook_endpoint": "id" | "organization_id" | "name" | "url" | "enabled" | "event_types" | "permissions" | "batch" | "signing" | "format" | "credential_ref" | "first_failed_at" | "disabled_at" | "disabled_reason" | "created_by" | "created_at" | "updated_at";
+      readonly "webhook_endpoint": "id" | "tenant_id" | "name" | "url" | "enabled" | "event_types" | "permissions" | "batch" | "signing" | "format" | "credential_ref" | "first_failed_at" | "disabled_at" | "disabled_reason" | "created_by" | "created_at" | "updated_at";
     };
     readonly primary: "webhook_endpoint";
   };

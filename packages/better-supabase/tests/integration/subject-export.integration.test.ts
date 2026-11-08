@@ -222,7 +222,7 @@ describe.skipIf(!live)("subject export", () => {
 
     expect(
       await s.value<number>(
-        "(select count(*)::int from better_supabase.audit_events where event_type = 'it_chart.viewed' and actor_id = $1 and organization_id = $2)",
+        "(select count(*)::int from better_supabase.audit_events where event_type = 'it_chart.viewed' and actor_id = $1 and tenant_id = $2)",
         [ann.id, org],
       ),
     ).toBe(1);

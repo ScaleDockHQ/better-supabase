@@ -28,7 +28,7 @@ function fake(
 
 const policyRow = (config: unknown, extra: Record<string, unknown> = {}) => ({
   id: "p1",
-  organization_id: "org1",
+  tenant_id: "org1",
   agent: "bot",
   stage: "output",
   config,
@@ -140,7 +140,7 @@ describe("decisions", () => {
       list_guardrail_decisions: () => [
         {
           id: "d1",
-          organization_id: "o",
+          tenant_id: "o",
           agent: "bot",
           stage: "output",
           decision: "redact",

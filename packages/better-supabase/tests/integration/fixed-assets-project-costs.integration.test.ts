@@ -205,7 +205,7 @@ describe.skipIf(!live)("fixed assets and project costing", () => {
       const [events] = await s.rows<{ depreciated: number; disposed: number }>(
         `select count(*) filter (where type = 'asset.depreciated')::integer as depreciated,
            count(*) filter (where type = 'asset.disposed')::integer as disposed
-         from better_supabase.outbox_events where organization_id = $1`,
+         from better_supabase.outbox_events where tenant_id = $1`,
         [tenant],
       );
 

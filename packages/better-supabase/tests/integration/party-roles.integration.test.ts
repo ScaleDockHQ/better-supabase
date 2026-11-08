@@ -188,7 +188,7 @@ describe.skipIf(!live)("party roles and suppliers", () => {
       await s.service();
       expect(
         await s.rows<{ data: unknown }>(
-          "select payload as data from better_supabase.outbox_events where organization_id = $1 and type = 'company.supplier_status_changed'",
+          "select payload as data from better_supabase.outbox_events where tenant_id = $1 and type = 'company.supplier_status_changed'",
           [org],
         ),
       ).toEqual([

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:932b84361b842e3e134eba8b978a5ade7f95b8fe5a9025cd63bb9918076a3960
+-- @bsb-hash sha256:8120f73acbdda5a2c3a178677cbd153ca94b95b24c4bbf729730a9a9cc8a5ab4
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -668,7 +668,7 @@ begin
   if cardinality(v_uploads) > 0 then
     update "better_supabase"."attachments" x set "subject_type" = 'message', "subject_id" = v_id::text
     where x."id" = any (v_uploads)
-      and x."organization_id" = v_conv."tenant_id"
+      and x."tenant_id" = v_conv."tenant_id"
       and x."subject_type" = 'conversation' and x."subject_id" = v_conv."id"::text
       and x."status" <> 'infected'
       and (inbox_add_message.author is null or x."uploaded_by" = inbox_add_message.author);
@@ -678,7 +678,7 @@ begin
     end if;
   end if;
   for v_file in select f from jsonb_array_elements(coalesce(input -> 'files', '[]'::jsonb)) f loop
-    insert into "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by", "scan_detail")
+    insert into "better_supabase"."attachments" ("tenant_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by", "scan_detail")
     values (
       v_conv."tenant_id", 'message', v_id::text,
       left(coalesce(nullif(v_file ->> 'name', ''), 'file'), 255),
@@ -927,7 +927,7 @@ begin
   if not found or (select auth.uid()) is null or not "better_supabase"."inbox_conversation_allowed"(v_conv."id"::text, true) then
     raise exception 'not allowed to write in this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
-  insert into "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by")
+  insert into "better_supabase"."attachments" ("tenant_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by")
   values (v_conv."tenant_id", 'conversation', v_conv."id"::text, create_inbox_attachment.name, lower(create_inbox_attachment.mime_type), create_inbox_attachment.size, (select auth.uid()))
   returning * into v_row;
   return to_jsonb(v_row);
@@ -1718,7 +1718,7 @@ as $$
     'id', x."id",
     'conversation_id', d."conversation_id",
     'message_id', d."message_id",
-    'tenant_id', x."organization_id",
+    'tenant_id', x."tenant_id",
     'bucket', x."bucket",
     'object_path', x."object_path",
     'name', x."name",
@@ -2380,7 +2380,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:cb9f6c1367e247ab1f02f406cefa0ba62f874e5bc15fd6a473811bd1c9df08e8
+-- @bsb-hash sha256:d54f6903cd1cbfbaa0dac1b211290e2271c22878b9a5a7f54c175617e7927d45
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3048,7 +3048,7 @@ begin
   if cardinality(v_uploads) > 0 then
     update "better_supabase"."attachments" x set "subject_type" = 'message', "subject_id" = v_id::text
     where x."id" = any (v_uploads)
-      and x."organization_id" = v_conv."tenant_id"
+      and x."tenant_id" = v_conv."tenant_id"
       and x."subject_type" = 'conversation' and x."subject_id" = v_conv."id"::text
       and x."status" <> 'infected'
       and (inbox_add_message.author is null or x."uploaded_by" = inbox_add_message.author);
@@ -3058,7 +3058,7 @@ begin
     end if;
   end if;
   for v_file in select f from jsonb_array_elements(coalesce(input -> 'files', '[]'::jsonb)) f loop
-    insert into "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by", "scan_detail")
+    insert into "better_supabase"."attachments" ("tenant_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by", "scan_detail")
     values (
       v_conv."tenant_id", 'message', v_id::text,
       left(coalesce(nullif(v_file ->> 'name', ''), 'file'), 255),
@@ -3341,7 +3341,7 @@ begin
   if not found or (select auth.uid()) is null or not "better_supabase"."inbox_conversation_allowed"(v_conv."id"::text, true) then
     raise exception 'not allowed to write in this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
-  insert into "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by")
+  insert into "better_supabase"."attachments" ("tenant_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by")
   values (v_conv."tenant_id", 'conversation', v_conv."id"::text, create_inbox_attachment.name, lower(create_inbox_attachment.mime_type), create_inbox_attachment.size, (select auth.uid()))
   returning * into v_row;
   return to_jsonb(v_row);
@@ -4212,7 +4212,7 @@ as $$
     'id', x."id",
     'conversation_id', d."conversation_id",
     'message_id', d."message_id",
-    'tenant_id', x."organization_id",
+    'tenant_id', x."tenant_id",
     'bucket', x."bucket",
     'object_path', x."object_path",
     'name', x."name",
@@ -4898,7 +4898,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:6bff46f0bc3b87ce6e53f92d785c3e5329b6cfbd4aa53a1cef207d3f62265449
+-- @bsb-hash sha256:645cb26f4b1dc9059e954c229e8aa74fc968c7ccfc20fcebe6053923c7ffa52d
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5570,7 +5570,7 @@ begin
   if cardinality(v_uploads) > 0 then
     update "better_supabase"."attachments" x set "subject_type" = 'message', "subject_id" = v_id::text
     where x."id" = any (v_uploads)
-      and x."organization_id" = v_conv."tenant_id"
+      and x."tenant_id" = v_conv."tenant_id"
       and x."subject_type" = 'conversation' and x."subject_id" = v_conv."id"::text
       and x."status" <> 'infected'
       and (inbox_add_message.author is null or x."uploaded_by" = inbox_add_message.author);
@@ -5580,7 +5580,7 @@ begin
     end if;
   end if;
   for v_file in select f from jsonb_array_elements(coalesce(input -> 'files', '[]'::jsonb)) f loop
-    insert into "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by", "scan_detail")
+    insert into "better_supabase"."attachments" ("tenant_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by", "scan_detail")
     values (
       v_conv."tenant_id", 'message', v_id::text,
       left(coalesce(nullif(v_file ->> 'name', ''), 'file'), 255),
@@ -5829,7 +5829,7 @@ begin
   if not found or (select auth.uid()) is null or not "app_private"."inbox_conversation_allowed"(v_conv."id"::text, true) then
     raise exception 'not allowed to write in this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
-  insert into "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by")
+  insert into "better_supabase"."attachments" ("tenant_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by")
   values (v_conv."tenant_id", 'conversation', v_conv."id"::text, create_inbox_attachment.name, lower(create_inbox_attachment.mime_type), create_inbox_attachment.size, (select auth.uid()))
   returning * into v_row;
   return to_jsonb(v_row);
@@ -6620,7 +6620,7 @@ as $$
     'id', x."id",
     'conversation_id', d."conversation_id",
     'message_id', d."message_id",
-    'tenant_id', x."organization_id",
+    'tenant_id', x."tenant_id",
     'bucket', x."bucket",
     'object_path', x."object_path",
     'name', x."name",
@@ -7282,7 +7282,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:5a394d038a5b0244394603b7a094d9cb799ed1a4d4d1acace1eff5e39eff7a91
+-- @bsb-hash sha256:70b1c05867ed4db9d07c07ca59904de29085c8d229cc3ff4686380128afefb13
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7949,7 +7949,7 @@ begin
   if cardinality(v_uploads) > 0 then
     update "better_supabase"."attachments" x set "subject_type" = 'message', "subject_id" = v_id::text
     where x."id" = any (v_uploads)
-      and x."organization_id" = v_conv."tenant_id"
+      and x."tenant_id" = v_conv."tenant_id"
       and x."subject_type" = 'conversation' and x."subject_id" = v_conv."id"::text
       and x."status" <> 'infected'
       and (inbox_add_message.author is null or x."uploaded_by" = inbox_add_message.author);
@@ -7959,7 +7959,7 @@ begin
     end if;
   end if;
   for v_file in select f from jsonb_array_elements(coalesce(input -> 'files', '[]'::jsonb)) f loop
-    insert into "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by", "scan_detail")
+    insert into "better_supabase"."attachments" ("tenant_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by", "scan_detail")
     values (
       v_conv."tenant_id", 'message', v_id::text,
       left(coalesce(nullif(v_file ->> 'name', ''), 'file'), 255),
@@ -8208,7 +8208,7 @@ begin
   if not found or (select auth.uid()) is null or not "better_supabase"."inbox_conversation_allowed"(v_conv."id"::text, true) then
     raise exception 'not allowed to write in this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
-  insert into "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by")
+  insert into "better_supabase"."attachments" ("tenant_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by")
   values (v_conv."tenant_id", 'conversation', v_conv."id"::text, create_inbox_attachment.name, lower(create_inbox_attachment.mime_type), create_inbox_attachment.size, (select auth.uid()))
   returning * into v_row;
   return to_jsonb(v_row);
@@ -8999,7 +8999,7 @@ as $$
     'id', x."id",
     'conversation_id', d."conversation_id",
     'message_id', d."message_id",
-    'tenant_id', x."organization_id",
+    'tenant_id', x."tenant_id",
     'bucket', x."bucket",
     'object_path', x."object_path",
     'name', x."name",
@@ -10083,7 +10083,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_046_inbox.sql
 -- better-supabase module: inbox
 -- @bsb-block inbox@10 managed
--- @bsb-hash sha256:eaf051b57d695fba58d8cbcccd6b55396aa9003d2d87d7cf1c526e98a644b603
+-- @bsb-hash sha256:0e1400a14df4ea5ec870ef38d3d1f28d633f9fd965d6c8ea304418d1b91bc575
 -- Conversations with contacts across the in-app widget and chat channels, on the messaging core: inboxes, members and teams, contacts who are people of the contacts block, messages and internal notes with scanned files, mentions, assignment, bot hand-off, read state, delivery status, stored webhook events, message templates, scheduled replies and reply drafts, including ai drafts staff review. Staff read with inbox.read; contacts read their own conversations without the notes; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10730,7 +10730,7 @@ begin
   if cardinality(v_uploads) > 0 then
     update "better_supabase"."attachments" x set "subject_type" = 'message', "subject_id" = v_id::text
     where x."id" = any (v_uploads)
-      and x."organization_id" = v_conv."tenant_id"
+      and x."tenant_id" = v_conv."tenant_id"
       and x."subject_type" = 'conversation' and x."subject_id" = v_conv."id"::text
       and x."status" <> 'infected'
       and (inbox_add_message.author is null or x."uploaded_by" = inbox_add_message.author);
@@ -10740,7 +10740,7 @@ begin
     end if;
   end if;
   for v_file in select f from jsonb_array_elements(coalesce(input -> 'files', '[]'::jsonb)) f loop
-    insert into "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by", "scan_detail")
+    insert into "better_supabase"."attachments" ("tenant_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by", "scan_detail")
     values (
       v_conv."tenant_id", 'message', v_id::text,
       left(coalesce(nullif(v_file ->> 'name', ''), 'file'), 255),
@@ -10989,7 +10989,7 @@ begin
   if not found or (select auth.uid()) is null or not "better_supabase"."inbox_conversation_allowed"(v_conv."id"::text, true) then
     raise exception 'not allowed to write in this conversation' using errcode = '42501', hint = 'INBOX_FORBIDDEN';
   end if;
-  insert into "better_supabase"."attachments" ("organization_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by")
+  insert into "better_supabase"."attachments" ("tenant_id", "subject_type", "subject_id", "name", "mime_type", "size", "uploaded_by")
   values (v_conv."tenant_id", 'conversation', v_conv."id"::text, create_inbox_attachment.name, lower(create_inbox_attachment.mime_type), create_inbox_attachment.size, (select auth.uid()))
   returning * into v_row;
   return to_jsonb(v_row);
@@ -11785,7 +11785,7 @@ as $$
     'id', x."id",
     'conversation_id', d."conversation_id",
     'message_id', d."message_id",
-    'tenant_id', x."organization_id",
+    'tenant_id', x."tenant_id",
     'bucket', x."bucket",
     'object_path', x."object_path",
     'name', x."name",

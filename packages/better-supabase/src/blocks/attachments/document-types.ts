@@ -32,7 +32,7 @@ export function documentTypeOf(value: unknown): DocumentType {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     key: textOf(row["key"]),
     name: textOf(row["name"]),
     // SAFETY: the database validates `fields` against the document field schema.

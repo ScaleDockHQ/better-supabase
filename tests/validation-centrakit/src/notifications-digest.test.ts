@@ -80,7 +80,7 @@ describe.skipIf(!live)(
         ).toEqual([{ status: "digested" }]);
         expect(
           await s.rows(
-            "select channel, cadence, item_count, status from better_supabase.notification_digests where organization_id = $1",
+            "select channel, cadence, item_count, status from better_supabase.notification_digests where tenant_id = $1",
             [organization],
           ),
         ).toEqual([

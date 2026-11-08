@@ -10,7 +10,7 @@ insert into auth.users (id, email, email_confirmed_at, aud, role, instance_id) v
 
 insert into better_supabase.activities (id, tenant_id, type, title, created_by) values
   ('00000000-0000-4000-8000-00000000d001', '00000000-0000-4000-8000-000000000001', 'call', 'Discovery call', '00000000-0000-4000-8000-0000000000a1');
-insert into better_supabase.ai_files (id, organization_id, owner_id, bucket, filename, media_type, byte_size, status) values
+insert into better_supabase.ai_files (id, tenant_id, owner_id, bucket, filename, media_type, byte_size, status) values
   ('00000000-0000-4000-8000-00000000d101', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1', 'ai-files', 'call.webm', 'audio/webm', 3, 'ready'),
   ('00000000-0000-4000-8000-00000000d102', '00000000-0000-4000-8000-000000000001', '00000000-0000-4000-8000-0000000000a1', 'ai-files', 'late.webm', 'audio/webm', 3, 'pending');
 

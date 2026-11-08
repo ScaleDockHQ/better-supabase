@@ -71,7 +71,7 @@ describe("billing module", () => {
   it("references the tenant table through the mapping", () => {
     expect(billing()).not.toContain("billing_customers_tenant_fkey");
     expect(billing({ tenantKey: "app.accounts.account_id" })).toContain(
-      `foreign key ("organization_id") references "app"."accounts" ("account_id") on delete cascade`,
+      `foreign key ("tenant_id") references "app"."accounts" ("account_id") on delete cascade`,
     );
 
     const withOrganizations = renderBlocks(["organizations", "billing"]).find(
@@ -79,7 +79,7 @@ describe("billing module", () => {
     )!.contents;
 
     expect(withOrganizations).toContain(
-      'add constraint "billing_customers_tenant_fkey"\n  foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade;',
+      'add constraint "billing_customers_tenant_fkey"\n  foreign key ("tenant_id") references "better_supabase"."organizations" ("id") on delete cascade;',
     );
 
     const off = renderBlocks(["organizations", "billing"], {
@@ -187,7 +187,7 @@ describe("billing module", () => {
       `add constraint bsb_billing_customers_party check ("stripe_customer_id" is not null or "stripe_customer_account_id" is not null);`,
     );
     expect(unnamedChecks(sql)).toContain(
-      `on conflict ("organization_id") do update set "stripe_customer_id" = excluded."stripe_customer_id"\n    where b."stripe_customer_id" is null;`,
+      `on conflict ("tenant_id") do update set "stripe_customer_id" = excluded."stripe_customer_id"\n    where b."stripe_customer_id" is null;`,
     );
     expect(unnamedChecks(sql)).toContain(
       `or b."stripe_customer_account_id" = billing_customer_tenant.customer`,

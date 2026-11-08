@@ -204,7 +204,7 @@ describe.skipIf(!live)("flags", () => {
          values ('theme', 'string', '{"a": "light", "b": "dark"}', 'a', false)`,
       );
       await s.rows(
-        `insert into better_supabase.flag_overrides (flag_key, organization_id, user_id, variant)
+        `insert into better_supabase.flag_overrides (flag_key, tenant_id, user_id, variant)
          values ('dark_mode', $1, null, 'on'), ('dark_mode', null, $2, 'off')`,
         [organization, member.id],
       );

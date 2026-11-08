@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:05d87a6d2c66f90f4ca8d440cf4bcc09112539c79a62c03336a7d19cc47f521b
+-- @bsb-hash sha256:890f620dd772bb3e039e99edcd7ae27439c4701c8ca587fe79f33f143ce00f92
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -478,7 +478,7 @@ begin
     end if;
   end if;
   select s."value" into v_value from "better_supabase"."workspace_settings" s
-    where s."workspace_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
+    where s."tenant_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
   if found then
     return jsonb_build_object('value', v_value, 'source', 'organization', 'legalEntityId', v_entity);
   end if;

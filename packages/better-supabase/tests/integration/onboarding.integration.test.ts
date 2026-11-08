@@ -110,7 +110,7 @@ describe.skipIf(!live)("onboarding", () => {
 
       await s.service();
       await s.rows(
-        `insert into better_supabase.outbox_events (type, organization_id, actor_id, payload)
+        `insert into better_supabase.outbox_events (type, tenant_id, actor_id, payload)
          values ('organization.member_added', $1, $2, '{}'), ('organization.member_added', null, $2, '{}')`,
         [tenant, owner.id],
       );

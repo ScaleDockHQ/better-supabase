@@ -127,7 +127,7 @@ describe.skipIf(!live)("field encryption", () => {
     }>(
       `select category, record_id, jsonb_array_length(metadata -> 'ids') as count
        from better_supabase.audit_events
-       where event_type = 'it_charts.viewed' and organization_id = $1 and actor_id = $2
+       where event_type = 'it_charts.viewed' and tenant_id = $1 and actor_id = $2
        order by occurred_at, id`,
       [annOrg, ann.id],
     );
@@ -344,7 +344,7 @@ describe.skipIf(!live)("field encryption", () => {
     await s.service();
     expect(
       await s.value<number>(
-        "(select count(*)::int from better_supabase.audit_events where event_type = 'field_value.viewed' and category = 'read' and organization_id = $1)",
+        "(select count(*)::int from better_supabase.audit_events where event_type = 'field_value.viewed' and category = 'read' and tenant_id = $1)",
         [annOrg],
       ),
     ).toBe(1);

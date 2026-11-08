@@ -486,7 +486,7 @@ export function attachmentOf(value: unknown): Attachment {
 
   return {
     id: textOf(row["id"]),
-    organizationId: optionalText(row["organization_id"]),
+    organizationId: optionalText(row["tenant_id"]),
     subject: optionalRecordRefOf(row["subject_type"], row["subject_id"]),
     bucket: textOf(row["bucket"]),
     path: textOf(row["object_path"]),

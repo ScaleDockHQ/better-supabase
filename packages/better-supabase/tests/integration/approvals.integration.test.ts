@@ -218,7 +218,7 @@ describe.skipIf(!live)("approvals", () => {
       await s.service();
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and type like 'approval.%' order by created_at, type",
+        "select type from better_supabase.outbox_events where tenant_id = $1 and type like 'approval.%' order by created_at, type",
         [tenant],
       );
 

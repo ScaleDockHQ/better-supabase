@@ -124,7 +124,7 @@ const NAMES: BlockSqlNames = {
         changed: "changed",
         actor: "actor_id",
         actorRole: "actor_role",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         occurredAt: "occurred_at",
         impersonatedBy: "impersonated_by",
         impersonationReason: "impersonation_reason",

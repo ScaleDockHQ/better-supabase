@@ -68,10 +68,10 @@ describe("ai-chat participants", () => {
 
     expect(sql).toContain("can''t read chats in the chat''s organization");
     expect(sql).toContain(
-      'and (x."organization_id" is null or x."organization_id" in (select',
+      'and (x."tenant_id" is null or x."tenant_id" in (select',
     );
     expect(sql).toContain(
-      'and (v_chat."organization_id" is null or v_chat."organization_id" in (select',
+      'and (v_chat."tenant_id" is null or v_chat."tenant_id" in (select',
     );
   });
 

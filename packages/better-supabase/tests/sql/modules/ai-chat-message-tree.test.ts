@@ -95,10 +95,10 @@ describe("ai-chat without a tenant", () => {
     const sql = body({ tenant: false });
 
     expect(sql).toContain(
-      'alter table "better_supabase"."ai_chats" alter column "organization_id" drop not null;',
+      'alter table "better_supabase"."ai_chats" alter column "tenant_id" drop not null;',
     );
     expect(sql).toContain(
-      'alter table "better_supabase"."ai_projects" alter column "organization_id" drop not null;',
+      'alter table "better_supabase"."ai_projects" alter column "tenant_id" drop not null;',
     );
     expect(sql).toContain("AI_CHAT_NO_TENANT");
     expect(sql).toContain("is not distinct from");
@@ -108,8 +108,8 @@ describe("ai-chat without a tenant", () => {
   it("keeps the tenant required by default", () => {
     const sql = body({});
 
-    expect(sql).not.toContain('alter column "organization_id" drop not null');
-    expect(sql).toContain('"organization_id" uuid not null');
+    expect(sql).not.toContain('alter column "tenant_id" drop not null');
+    expect(sql).toContain('"tenant_id" uuid not null');
   });
 });
 

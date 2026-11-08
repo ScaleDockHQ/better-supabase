@@ -26,7 +26,7 @@ import { moduleOperations } from "./permissions-model.ts";
 
 const SERVERS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   name: "name",
   url: "url",
   transport: "transport",
@@ -44,7 +44,7 @@ const GRANTS = {
   id: "id",
   user: "user_id",
   server: "server_id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   credentialRef: "credential_ref",
   scopes: "scopes",
   expiresAt: "expires_at",

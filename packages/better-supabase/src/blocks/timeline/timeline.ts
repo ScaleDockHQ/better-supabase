@@ -120,7 +120,7 @@ function activityOf(value: unknown): ActivityEntry {
   return {
     id: textOf(row["id"]),
     source: sourceOf(row["source"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     type: textOf(row["type"]),
     actorId: optionalText(row["actor_id"]),
     subject: optionalRecordRefOf(row["subject_type"], row["subject_id"]),

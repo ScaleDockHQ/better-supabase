@@ -11,7 +11,7 @@ const AT = "2026-01-01T00:00:00Z";
 
 const documentRow = (overrides: Record<string, unknown> = {}) => ({
   id: "d1",
-  organization_id: "o1",
+  tenant_id: "o1",
   owner_id: "u1",
   scope: "user",
   scope_id: "u1",
@@ -684,7 +684,7 @@ describe("createKnowledge", () => {
 
 const collectionRow = (overrides: Record<string, unknown> = {}) => ({
   id: "c1",
-  organization_id: "o1",
+  tenant_id: "o1",
   name: "Handbook",
   description: null,
   visibility: "restricted",
@@ -769,7 +769,7 @@ describe("knowledge collections", () => {
         collectionRow({ visibility: "unknown", priority: null }),
       list_knowledge_collections: () => [
         collectionRow(),
-        collectionRow({ id: "c2", organization_id: null }),
+        collectionRow({ id: "c2", tenant_id: null }),
       ],
       delete_knowledge_collection: () => true,
     });
@@ -844,11 +844,7 @@ describe("knowledge collections", () => {
   it("passes collections to documents and search", async () => {
     const { transport, calls } = fakeTransport({
       create_knowledge_document: () =>
-        documentRow({
-          collection_id: "c1",
-          organization_id: null,
-          owner_id: null,
-        }),
+        documentRow({ collection_id: "c1", tenant_id: null, owner_id: null }),
       list_knowledge_documents: () => [],
       knowledge_search: () => [],
     });

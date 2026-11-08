@@ -35,7 +35,7 @@ const CENTRAKIT: BlockConfig = {
       new: null,
       changed: null,
       actorRole: null,
-      tenant: "organization_id",
+      tenant: "tenant_id",
       occurredAt: "occurred_at",
       impersonatedBy: null,
       impersonationReason: null,
@@ -102,7 +102,7 @@ describe("audit module", () => {
     expect(sql).not.toContain("create table if not exists public");
     expect(sql).not.toContain('create table if not exists "public"');
     expect(sql).toContain(
-      'insert into "public"."audit_logs" ("target_id", "actor_id", "organization_id", "event_type"',
+      'insert into "public"."audit_logs" ("target_id", "actor_id", "tenant_id", "event_type"',
     );
     expect(sql).toContain('entry_id "public"."audit_logs"."id"%type;');
     expect(sql).toContain(
@@ -265,7 +265,7 @@ describe("audit module", () => {
       'alter table "better_supabase"."audit_events" add column row_hash bytea;',
     );
     expect(sql).toContain(
-      `select better_supabase.chain('"better_supabase"."audit_events"', 'organization_id');`,
+      `select better_supabase.chain('"better_supabase"."audit_events"', 'tenant_id');`,
     );
     expect(sql).not.toContain(
       "create or replace function better_supabase.verify_audit_chain",
@@ -314,7 +314,7 @@ describe("audit module", () => {
       `"better_supabase"."is_held"('audit', (v_tenant)::text)`,
     );
     expect(sql).toContain(
-      `"better_supabase"."retention_for"('audit', (l."organization_id")::text), older_than)`,
+      `"better_supabase"."retention_for"('audit', (l."tenant_id")::text), older_than)`,
     );
   });
 

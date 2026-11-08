@@ -668,7 +668,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_092_pipelines.sql
 -- better-supabase module: pipelines
 -- @bsb-block pipelines@1 managed
--- @bsb-hash sha256:fd85350cdaef080b4bcb96ed4b969ceb71a877f3f5f32ad9f11ae9de0334ddd7
+-- @bsb-hash sha256:e88f83bc1cb1d0801898f57b8d47baa5da8a509010df231b923497ca924bf0a3
 -- Tenant-editable pipelines for any registered subject: ordered stages whose categories map to open, success or failure, a stage history with time in stage, board totals per currency and a status mapping that runs through state-machine.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -891,7 +891,7 @@ begin
   if tg_op = 'UPDATE' and new."stage_id" is not distinct from old."stage_id" and new."pipeline_id" is not distinct from old."pipeline_id" then
   -- The owner watches the record; a level they already chose stays.
   if new."owner_id" is not null and (tg_op = 'INSERT' or new."owner_id" is distinct from old."owner_id") then
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (new."tenant_id", new."owner_id", 'deal', new."id"::text, 'participating')
     on conflict do nothing;
   end if;
@@ -978,7 +978,7 @@ begin
   end if;
   -- The owner watches the record; a level they already chose stays.
   if new."owner_id" is not null and (tg_op = 'INSERT' or new."owner_id" is distinct from old."owner_id") then
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (new."tenant_id", new."owner_id", 'deal', new."id"::text, 'participating')
     on conflict do nothing;
   end if;
@@ -1145,7 +1145,7 @@ begin
   if tg_op = 'UPDATE' and new."stage_id" is not distinct from old."stage_id" and new."pipeline_id" is not distinct from old."pipeline_id" then
   -- The owner watches the record; a level they already chose stays.
   if new."owner_id" is not null and (tg_op = 'INSERT' or new."owner_id" is distinct from old."owner_id") then
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (new."tenant_id", new."owner_id", 'application', new."id"::text, 'participating')
     on conflict do nothing;
   end if;
@@ -1232,7 +1232,7 @@ begin
   end if;
   -- The owner watches the record; a level they already chose stays.
   if new."owner_id" is not null and (tg_op = 'INSERT' or new."owner_id" is distinct from old."owner_id") then
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (new."tenant_id", new."owner_id", 'application', new."id"::text, 'participating')
     on conflict do nothing;
   end if;

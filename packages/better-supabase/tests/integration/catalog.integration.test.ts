@@ -63,7 +63,7 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
     ).toBe("CATALOG_SLUG_TAKEN");
 
     const events = await session.rows<{ type: string }>(
-      "select type from better_supabase.outbox_events where organization_id = $1 order by position",
+      "select type from better_supabase.outbox_events where tenant_id = $1 order by position",
       [tenant],
     );
 
@@ -216,7 +216,7 @@ describe.skipIf(!live)("catalog module in Postgres", () => {
       });
 
       const events = await session.rows<{ payload: Record<string, unknown> }>(
-        "select payload from better_supabase.outbox_events where type = 'catalog.price_changed' and organization_id = $1 order by position",
+        "select payload from better_supabase.outbox_events where type = 'catalog.price_changed' and tenant_id = $1 order by position",
         [tenant],
       );
 

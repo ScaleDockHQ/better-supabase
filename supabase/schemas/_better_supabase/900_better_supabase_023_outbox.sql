@@ -1,6 +1,6 @@
 -- better-supabase module: outbox
 -- @bsb-block outbox@5 managed
--- @bsb-hash sha256:2854157359caf03b54763f9695a1690b541a0b5ee989e50a2ff2b267b5e87348
+-- @bsb-hash sha256:fc3657033e598f4945be3fcfe209668a78d341afc25ef2e5dfca2b148c331ba3
 -- Events written in the same transaction as the change, read by named consumers with their own cursor and lease, kept for history and relayed as CloudEvents.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,14 +11,14 @@ create table "better_supabase"."outbox_events" (
   "type" text not null,
   "source" text,
   "subject" text,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "key" text,
   "payload" jsonb not null default '{}',
   "actor_id" uuid,
   "created_at" timestamptz not null default now(),
   "xid" xid8 not null default pg_current_xact_id()
 );
-create unique index outbox_events_key_idx on "better_supabase"."outbox_events" ("key", "organization_id") nulls not distinct where "key" is not null;
+create unique index outbox_events_key_idx on "better_supabase"."outbox_events" ("key", "tenant_id") nulls not distinct where "key" is not null;
 create index outbox_events_subject_idx on "better_supabase"."outbox_events" ("subject", "position");
 create index outbox_events_type_idx on "better_supabase"."outbox_events" ("type", "position");
 create index outbox_events_created_idx on "better_supabase"."outbox_events" ("created_at");
@@ -109,19 +109,19 @@ begin
   end if;
   if key is not null then
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
-    where e."key" = key and e."organization_id" is not distinct from tenant::uuid;
+    where e."key" = key and e."tenant_id" is not distinct from tenant::uuid;
     if found_id is not null then
       return found_id;
     end if;
   end if;
-  insert into "better_supabase"."outbox_events" ("type", "payload", "source", "subject", "organization_id", "key", "actor_id")
+  insert into "better_supabase"."outbox_events" ("type", "payload", "source", "subject", "tenant_id", "key", "actor_id")
   values (event_type, coalesce(payload, '{}'), source, coalesce(subject, payload ->> 'subject'), tenant::uuid, key, auth.uid())
   on conflict do nothing
   returning "id"::text into found_id;
   if found_id is null then
     -- Another transaction emitted the same key first.
     select e."id"::text into found_id from "better_supabase"."outbox_events" e
-    where e."key" = key and e."organization_id" is not distinct from tenant::uuid;
+    where e."key" = key and e."tenant_id" is not distinct from tenant::uuid;
   end if;
   return found_id;
 end;
@@ -206,7 +206,7 @@ begin
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ) as event, row_number() over (order by e."xid", e."position") as n
@@ -306,7 +306,7 @@ begin
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ), c."attempts", c."last_error"
@@ -376,7 +376,7 @@ as $$
     'created_at', e."created_at",
     'source', e."source",
     'subject', e."subject",
-    'tenant', e."organization_id",
+    'tenant', e."tenant_id",
     'key', e."key",
     'actor_id', e."actor_id"
   ) as event, e."position" as position
@@ -418,8 +418,8 @@ begin
     where e."id" in (
       select d."id" from "better_supabase"."outbox_events" d
       where (d."created_at" < now() - least(coalesce(older_than, '30 days'::interval), "better_supabase"."retention_floor"('outbox'))
-      and d."created_at" < now() - coalesce("better_supabase"."retention_for"('outbox', (d."organization_id")::text), coalesce(older_than, '30 days'::interval))
-      and not "better_supabase"."is_held"('outbox', (d."organization_id")::text))
+      and d."created_at" < now() - coalesce("better_supabase"."retention_for"('outbox', (d."tenant_id")::text), coalesce(older_than, '30 days'::interval))
+      and not "better_supabase"."is_held"('outbox', (d."tenant_id")::text))
         and (
           not exists (select 1 from active)
           or (d."xid", d."position") <= (

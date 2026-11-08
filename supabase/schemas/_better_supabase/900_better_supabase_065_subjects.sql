@@ -1,6 +1,6 @@
 -- better-supabase module: subjects
 -- @bsb-block subjects@1 managed
--- @bsb-hash sha256:aa7a3aba38a91710a58a83bb8c4d960401672776e871abd5598c8a664568293a
+-- @bsb-hash sha256:28441c031eb67af82c2e801e8e3ee6042ae5555d4e3fb488a8fb1d939e905932
 -- The app-wide subject registry from config.subjects: subject_title, subject_url, subject_titles, can_subject, can_subject_for and record_summary for every registered type, my_work across the installed blocks, record teams (subject_members, add_subject_member, end_subject_member, list_subject_members, my_subjects) that grant subjects.<type>.team actions, read logging for types with subjects.<type>.auditReads (record_subject_read, subject_access_log), and Realtime presence on presence:<type>:<id> for readers of the subject.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2396,7 +2396,7 @@ begin
     where l."table_name" is null
         and l."record_id" = record_subject_read.subject_id
         and l."event_type" = 'subject.accessed'
-        and l."organization_id" = v_tenant
+        and l."tenant_id" = v_tenant
         and l."metadata" ->> 'subjectType' = record_subject_read.subject_type
       and l."actor_id" = auth.uid()
       and l."occurred_at" > now() - make_interval(secs => 60)
@@ -2497,7 +2497,7 @@ begin
       where l."table_name" is null
         and l."record_id" = subject_access_log.subject_id
         and l."event_type" = 'subject.accessed'
-        and l."organization_id" = v_tenant
+        and l."tenant_id" = v_tenant
         and l."metadata" ->> 'subjectType' = subject_access_log.subject_type
         and (subject_access_log.since is null or l."occurred_at" >= subject_access_log.since)
       order by l."occurred_at" desc

@@ -101,7 +101,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         id: "id",
         flag: "flag_key",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         user: "user_id",
         context: "context",
         contextKey: "context_key",

@@ -1,6 +1,6 @@
 -- better-supabase module: impersonation
 -- @bsb-block impersonation@2 managed
--- @bsb-hash sha256:65c6559aa7502a5f5b38f3ecc42714fe2de3278fd317ef797d0f3f2efe3069ab
+-- @bsb-hash sha256:f856ec9d7882c814ac351880dee999305abeb4823bf55d5f26e5eca653c1204a
 -- Lets platform staff view the app as a user: time-limited, read-only by default, gated by is_platform() and a second admin's approval, recorded in the audit log, with the target's claims built by your access token hook.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -11,7 +11,7 @@ create table "better_supabase"."support_sessions" (
   "admin_id" uuid references auth.users (id) on delete set null,
   "target_user_id" uuid references auth.users (id) on delete set null,
   "reason" text not null,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "read_only" boolean not null default true,
   "started_at" timestamptz not null default now(),
   "expires_at" timestamptz not null,
@@ -41,7 +41,7 @@ create table "better_supabase"."support_requests" (
   "admin_id" uuid not null references auth.users (id) on delete cascade,
   "target_user_id" uuid not null references auth.users (id) on delete cascade,
   "reason" text not null,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "read_only" boolean not null default true,
   "metadata" jsonb not null default '{}',
   "requested_at" timestamptz not null default now(),
@@ -125,7 +125,7 @@ begin
   if not coalesce(read_only, true) then
     raise exception 'Support sessions are read-only (blocks.impersonation.options.allowWrites)' using errcode = '42501', hint = 'SUPPORT_WRITES_DISABLED';
   end if;
-  insert into "better_supabase"."support_requests" ("admin_id", "target_user_id", "reason", "organization_id", "read_only", "metadata", "expires_at", "approved_by", "approved_at")
+  insert into "better_supabase"."support_requests" ("admin_id", "target_user_id", "reason", "tenant_id", "read_only", "metadata", "expires_at", "approved_by", "approved_at")
   values (admin, target, coalesce(btrim(reason), ''), tenant, coalesce(read_only, true), coalesce(metadata, '{}'),
     now() + '1 hour'::interval, approved_by, case when approved_by is null then null else now() end)
   returning "id" into new_id;
@@ -134,7 +134,7 @@ begin
     'admin_id', x."admin_id",
     'target_user_id', x."target_user_id",
     'reason', x."reason",
-    'tenant', x."organization_id",
+    'tenant', x."tenant_id",
     'read_only', x."read_only",
     'metadata', x."metadata",
     'requested_at', x."requested_at",
@@ -222,7 +222,7 @@ begin
     'admin_id', v_row."admin_id",
     'target_user_id', v_row."target_user_id",
     'reason', v_row."reason",
-    'tenant', v_row."organization_id",
+    'tenant', v_row."tenant_id",
     'read_only', v_row."read_only",
     'metadata', v_row."metadata",
     'requested_at', v_row."requested_at",
@@ -245,7 +245,7 @@ begin
     'admin_id', v_row."admin_id",
     'target_user_id', v_row."target_user_id",
     'reason', v_row."reason",
-    'tenant', v_row."organization_id",
+    'tenant', v_row."tenant_id",
     'read_only', v_row."read_only",
     'metadata', v_row."metadata",
     'requested_at', v_row."requested_at",
@@ -273,7 +273,7 @@ as $$
     'admin_id', x."admin_id",
     'target_user_id', x."target_user_id",
     'reason', x."reason",
-    'tenant', x."organization_id",
+    'tenant', x."tenant_id",
     'read_only', x."read_only",
     'metadata', x."metadata",
     'requested_at', x."requested_at",
@@ -306,7 +306,7 @@ as $$
     'admin_id', x."admin_id",
     'target_user_id', x."target_user_id",
     'reason', x."reason",
-    'tenant', x."organization_id",
+    'tenant', x."tenant_id",
     'read_only', x."read_only",
     'metadata', x."metadata",
     'requested_at', x."requested_at",
@@ -318,7 +318,7 @@ as $$
   from "better_supabase"."support_requests" x
   where x."admin_id" = case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then $4 else auth.uid() end
     and x."target_user_id" = $1
-    and x."organization_id" is not distinct from $2
+    and x."tenant_id" is not distinct from $2
     and (not x."read_only" or coalesce($3, true))
     and x."approved_by" is not null
     and x."approved_by" <> case when coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') then $4 else auth.uid() end
@@ -402,7 +402,7 @@ begin
   end;
   update "better_supabase"."support_sessions" s set "ended_at" = now(), "ended_by" = 'admin'
   where s."admin_id" = admin and s."ended_at" is null;
-  insert into "better_supabase"."support_sessions" ("admin_id", "target_user_id", "reason", "organization_id", "read_only", "expires_at", "metadata")
+  insert into "better_supabase"."support_sessions" ("admin_id", "target_user_id", "reason", "tenant_id", "read_only", "expires_at", "metadata")
   values (admin, target, coalesce(reason, ''), tenant, read_only, now() + ttl, coalesce(metadata, '{}'))
   returning "id" into session_id;
   select jsonb_build_object(
@@ -410,7 +410,7 @@ begin
     'admin_id', s."admin_id",
     'target_user_id', s."target_user_id",
     'reason', s."reason",
-    'tenant', s."organization_id",
+    'tenant', s."tenant_id",
     'read_only', s."read_only",
     'started_at', s."started_at",
     'expires_at', s."expires_at",
@@ -477,7 +477,7 @@ begin
     'admin_id', s."admin_id",
     'target_user_id', s."target_user_id",
     'reason', s."reason",
-    'tenant', s."organization_id",
+    'tenant', s."tenant_id",
     'read_only', s."read_only",
     'started_at', s."started_at",
     'expires_at', s."expires_at",
@@ -543,7 +543,7 @@ begin
     'admin_id', s."admin_id",
     'target_user_id', s."target_user_id",
     'reason', s."reason",
-    'tenant', s."organization_id",
+    'tenant', s."tenant_id",
     'read_only', s."read_only",
     'started_at', s."started_at",
     'expires_at', s."expires_at",
@@ -576,7 +576,7 @@ as $$
     'admin_id', s."admin_id",
     'target_user_id', s."target_user_id",
     'reason', s."reason",
-    'tenant', s."organization_id",
+    'tenant', s."tenant_id",
     'read_only', s."read_only",
     'started_at', s."started_at",
     'expires_at', s."expires_at",
@@ -611,7 +611,7 @@ as $$
     'admin_id', s."admin_id",
     'target_user_id', s."target_user_id",
     'reason', s."reason",
-    'tenant', s."organization_id",
+    'tenant', s."tenant_id",
     'read_only', s."read_only",
     'started_at', s."started_at",
     'expires_at', s."expires_at",
@@ -691,33 +691,33 @@ grant execute on function "better_supabase"."expire_support_sessions"() to servi
 create policy bsb_tenant_scope_select on "better_supabase"."support_sessions" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ((select "better_supabase"."is_platform"('platform.users.manage')))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."support_sessions" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."support_sessions" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."support_sessions" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."support_requests" as restrictive
   for select to public
   using (
-    "organization_id" in (select better_supabase.member_organization_ids())
+    "tenant_id" in (select better_supabase.member_organization_ids())
     or ("admin_id" = (select auth.uid())
     or (select "better_supabase"."is_platform"('platform.users.manage')))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."support_requests" as restrictive
   for insert to public
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."support_requests" as restrictive
   for update to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()))
-  with check ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()))
+  with check ("tenant_id" in (select better_supabase.member_organization_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."support_requests" as restrictive
   for delete to public
-  using ("organization_id" in (select better_supabase.member_organization_ids()));
+  using ("tenant_id" in (select better_supabase.member_organization_ids()));

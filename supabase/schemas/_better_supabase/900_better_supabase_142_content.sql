@@ -1,6 +1,6 @@
 -- better-supabase module: content
 -- @bsb-block content@1 managed
--- @bsb-hash sha256:a4c2f7c0a2c056bab44f490f5f34bd4b23bb6bd4c708b9af451e6448bdad19cf
+-- @bsb-hash sha256:22d40334658551fad4e18f483f065008d2dd75d84329d1b8501dda9c7335c290
 -- Typed, localized content entries per organization, such as pages and posts, with a slug unique per type and locale. Entries are drafted, scheduled and published, optionally through approvals, and anyone can read published entries.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -102,7 +102,7 @@ begin
   end if;
   if v_cover is not null and not exists (
     select 1 from "better_supabase"."attachments" a
-    where a."id" = v_cover and a."organization_id" = create_content_entry.tenant
+    where a."id" = v_cover and a."tenant_id" = create_content_entry.tenant
   ) then
     raise exception 'the cover image is not an attachment of this organization' using errcode = '22023', hint = 'CONTENT_INVALID';
   end if;
@@ -197,7 +197,7 @@ begin
   end if;
   if v_cover is not null and not exists (
     select 1 from "better_supabase"."attachments" a
-    where a."id" = v_cover and a."organization_id" = v_row."tenant_id"
+    where a."id" = v_cover and a."tenant_id" = v_row."tenant_id"
   ) then
     raise exception 'the cover image is not an attachment of this organization' using errcode = '22023', hint = 'CONTENT_INVALID';
   end if;

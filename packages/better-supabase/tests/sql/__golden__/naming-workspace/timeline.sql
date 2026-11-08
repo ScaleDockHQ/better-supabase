@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline
 -- @bsb-block timeline@2 managed
--- @bsb-hash sha256:7f005f024fe47b218c9475ea20f70f130682de286559319756044d8500d0aa60
+-- @bsb-hash sha256:e85155957ac7a272e5ad8887d3300a6147bf516001c5b4c6c6231764ee22b7f9
 -- A timeline_entries feed that activitySink() fills from outbox events, filtered by can_subject and joined with the subject's audit entries, notification deliveries and workflow runs when subjects, audit, notifications and workflows are installed.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -9,7 +9,7 @@
 -- The activity feed: one row per outbox event, written by activitySink().
 create table "better_supabase"."timeline_entries" (
   "id" uuid primary key default gen_random_uuid(),
-  "workspace_id" uuid not null,
+  "tenant_id" uuid not null,
   "event_id" text not null unique,
   "type" text not null,
   "actor_id" uuid references auth.users (id) on delete set null,
@@ -19,8 +19,8 @@ create table "better_supabase"."timeline_entries" (
   "data" jsonb not null default '{}'::jsonb,
   "occurred_at" timestamptz not null default now()
 );
-create index "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("workspace_id", "occurred_at" desc, "id" desc);
-create index "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("workspace_id", "subject_type", "subject_id");
+create index "timeline_entries_feed_idx" on "better_supabase"."timeline_entries" ("tenant_id", "occurred_at" desc, "id" desc);
+create index "timeline_entries_subject_idx" on "better_supabase"."timeline_entries" ("tenant_id", "subject_type", "subject_id");
 create index "timeline_entries_actor_idx" on "better_supabase"."timeline_entries" ("actor_id");
 alter table "better_supabase"."timeline_entries" enable row level security;
 revoke all on "better_supabase"."timeline_entries" from public, anon, authenticated;
@@ -28,7 +28,7 @@ grant select on "better_supabase"."timeline_entries" to authenticated;
 grant all on "better_supabase"."timeline_entries" to service_role;
 create policy bsb_timeline_entries_read on "better_supabase"."timeline_entries"
   for select to authenticated
-  using ("workspace_id" in (select better_supabase.tenant_ids_with('timeline.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('timeline.read')));
 
 -- Inserts batch.entries ({ event_id, organization_id, type, actor_id?,
 -- subject_type?, subject_id?, summary?, data?, occurred_at? }); a seen
@@ -47,7 +47,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role records activity' using errcode = '42501', hint = 'TIMELINE_ENTRY_FORBIDDEN';
   end if;
-  insert into "better_supabase"."timeline_entries" ("event_id", "workspace_id", "type", "actor_id", "subject_type", "subject_id", "summary", "data", "occurred_at")
+  insert into "better_supabase"."timeline_entries" ("event_id", "tenant_id", "type", "actor_id", "subject_type", "subject_id", "summary", "data", "occurred_at")
   select e ->> 'event_id', (e ->> 'organization_id')::uuid, e ->> 'type', nullif(e ->> 'actor_id', '')::uuid,
     e ->> 'subject_type', e ->> 'subject_id', e ->> 'summary', coalesce(e -> 'data', '{}'::jsonb),
     coalesce((e ->> 'occurred_at')::timestamptz, now())
@@ -87,7 +87,7 @@ begin
     (select to_jsonb(y.*) || jsonb_build_object('source', 'event') as entry,
       y."occurred_at" as at, y."id"::text as id
     from "better_supabase"."timeline_entries" y
-    where y."workspace_id" = list_activity.tenant
+    where y."tenant_id" = list_activity.tenant
       and (list_activity.sources is null or 'event' = any (list_activity.sources))
       and (list_activity.subject_type is null or y."subject_type" = list_activity.subject_type)
       and (list_activity.subject_id is null or y."subject_id" = list_activity.subject_id)
@@ -112,19 +112,19 @@ grant execute on function "better_supabase"."record_activity"(jsonb) to service_
 create policy bsb_tenant_scope_select on "better_supabase"."timeline_entries" as restrictive
   for select to public
   using (
-    "workspace_id" in (select better_supabase.member_workspace_ids())
-    or ("workspace_id" in (select better_supabase.tenant_ids_with('timeline.read')))
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('timeline.read')))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."timeline_entries" as restrictive
   for insert to public
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."timeline_entries" as restrictive
   for update to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."timeline_entries" as restrictive
   for delete to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_131_timeline.sql
 -- better-supabase module: timeline

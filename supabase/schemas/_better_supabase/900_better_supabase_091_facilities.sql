@@ -1,6 +1,6 @@
 -- better-supabase module: facilities
 -- @bsb-block facilities@5 managed tasks
--- @bsb-hash sha256:15ce13a2403fcaf0646eee71e67f3ea7890437f8d943450a963bd3ced307e283
+-- @bsb-hash sha256:33aba7cf457726f27b4db722aff29367c24de332c2d38d98c60a15d6842cd5e7
 -- @bsb-names facilities task=maintenance_request/maintenance_requests
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
@@ -221,7 +221,7 @@ begin
     if jsonb_array_length(coalesce((create_maintenance_request.attrs -> 'attachments'), '[]'::jsonb)) > 0 then
       update "better_supabase"."attachments" f set "subject_type" = 'maintenance_request', "subject_id" = v_row."id"::text
       where f."id" = any (array(select jsonb_array_elements_text((create_maintenance_request.attrs -> 'attachments'))::uuid))
-        and f."organization_id" = v_row."tenant_id"
+        and f."tenant_id" = v_row."tenant_id"
         and (f."subject_type" is null or (f."subject_type" = 'maintenance_request' and f."subject_id" = v_row."id"::text))
         and ((auth.role() = 'service_role') or f."uploaded_by" = auth.uid());
       get diagnostics v_linked = row_count;
@@ -334,7 +334,7 @@ begin
     if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
       update "better_supabase"."attachments" f set "subject_type" = 'maintenance_request', "subject_id" = v_row."id"::text
       where f."id" = any (array(select jsonb_array_elements_text((v_change -> 'value'))::uuid))
-        and f."organization_id" = v_row."tenant_id"
+        and f."tenant_id" = v_row."tenant_id"
         and (f."subject_type" is null or (f."subject_type" = 'maintenance_request' and f."subject_id" = v_row."id"::text))
         and ((auth.role() = 'service_role') or f."uploaded_by" = auth.uid());
       get diagnostics v_linked = row_count;
@@ -409,7 +409,7 @@ begin
   select v_row."tenant_id", v_row."id", x from unnest(v_users) x
   on conflict do nothing;
   foreach v_user in array v_users loop
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (v_row."tenant_id", v_user, 'maintenance_request', v_row."id"::text, 'participating')
     on conflict do nothing;
   end loop;
@@ -925,7 +925,7 @@ as $$
   select coalesce(jsonb_agg(jsonb_build_object('userId', s."user_id", 'level', s."level") order by s."level", s."user_id"), '[]'::jsonb)
   from "better_supabase"."maintenance_requests" x
   join "better_supabase"."notification_subscriptions" s on s."subject_type" = 'maintenance_request' and s."subject_id" = x."id"::text
-    and s."organization_id" = x."tenant_id"
+    and s."tenant_id" = x."tenant_id"
   where x."id" = list_maintenance_request_watchers.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'facilities.read'), false)) and s."level" in ('all', 'participating')
 $$;
 revoke execute on function "better_supabase"."list_maintenance_request_watchers"(uuid) from public, anon;

@@ -336,7 +336,7 @@ describe.skipIf(!live)("employees", () => {
         type: string;
         payload: { fields?: string[] };
       }>(
-        "select type, payload from better_supabase.outbox_events where organization_id = $1 and type like 'employee.%' order by created_at, id",
+        "select type, payload from better_supabase.outbox_events where tenant_id = $1 and type like 'employee.%' order by created_at, id",
         [org],
       );
 
@@ -564,7 +564,7 @@ describe.skipIf(!live)("employees", () => {
       ).toBeNull();
       expect(
         await s.value<number>(
-          "(select count(*)::int from better_supabase.outbox_events where type = 'employee.deleted' and organization_id = $1)",
+          "(select count(*)::int from better_supabase.outbox_events where type = 'employee.deleted' and tenant_id = $1)",
           [org],
         ),
       ).toBe(1);

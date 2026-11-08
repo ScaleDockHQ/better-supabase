@@ -229,7 +229,7 @@ describe.skipIf(!live)("renamed entities against Postgres", () => {
     }).toEqual({
       tables: ["task_assignees", "tasks"],
       functions: ["create_task", "list_tasks", "update_tasks"],
-      columns: ["actor_id", "workspace_id"],
+      columns: ["actor_id", "tenant_id"],
       permissions: ["tasks.read", "tasks.write", "tasks.manage"],
     });
   });

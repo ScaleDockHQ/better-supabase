@@ -148,7 +148,7 @@ async function actions(s: BlockSession): Promise<string> {
   await s.value("better_supabase.delete_incoming_webhook($1)", [hook.id]);
 
   const [endpoint] = await s.rows<{ id: string }>(
-    `insert into better_supabase.webhook_endpoints (organization_id, name, url, event_types)
+    `insert into better_supabase.webhook_endpoints (tenant_id, name, url, event_types)
      values ($1, 'Hook', 'https://hooks.example.com', '{*}') returning id`,
     [organization],
   );

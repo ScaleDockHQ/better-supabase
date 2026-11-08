@@ -999,7 +999,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:bfb1641ddf0d7de78c88c11622884d8ee3c551adf871223ff84fbf263ae16304
+-- @bsb-hash sha256:ce9487722501b2f00b051febb847102cadc2e18a50a69a05130ecdb96944e028
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1261,7 +1261,7 @@ begin
     if jsonb_array_length(coalesce((create_task.attrs -> 'attachments'), '[]'::jsonb)) > 0 then
       update "better_supabase"."attachments" f set "subject_type" = 'task', "subject_id" = v_row."id"::text
       where f."id" = any (array(select jsonb_array_elements_text((create_task.attrs -> 'attachments'))::uuid))
-        and f."organization_id" = v_row."tenant_id"
+        and f."tenant_id" = v_row."tenant_id"
         and (f."subject_type" is null or (f."subject_type" = 'task' and f."subject_id" = v_row."id"::text))
         and ((auth.role() = 'service_role') or f."uploaded_by" = auth.uid());
       get diagnostics v_linked = row_count;
@@ -1374,7 +1374,7 @@ begin
     if jsonb_array_length(coalesce((v_change -> 'value'), '[]'::jsonb)) > 0 then
       update "better_supabase"."attachments" f set "subject_type" = 'task', "subject_id" = v_row."id"::text
       where f."id" = any (array(select jsonb_array_elements_text((v_change -> 'value'))::uuid))
-        and f."organization_id" = v_row."tenant_id"
+        and f."tenant_id" = v_row."tenant_id"
         and (f."subject_type" is null or (f."subject_type" = 'task' and f."subject_id" = v_row."id"::text))
         and ((auth.role() = 'service_role') or f."uploaded_by" = auth.uid());
       get diagnostics v_linked = row_count;
@@ -1445,7 +1445,7 @@ begin
   select v_row."tenant_id", v_row."id", x from unnest(v_users) x
   on conflict do nothing;
   foreach v_user in array v_users loop
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (v_row."tenant_id", v_user, 'task', v_row."id"::text, 'participating')
     on conflict do nothing;
   end loop;
@@ -1961,7 +1961,7 @@ as $$
   select coalesce(jsonb_agg(jsonb_build_object('userId', s."user_id", 'level', s."level") order by s."level", s."user_id"), '[]'::jsonb)
   from "better_supabase"."tasks" x
   join "better_supabase"."notification_subscriptions" s on s."subject_type" = 'task' and s."subject_id" = x."id"::text
-    and s."organization_id" = x."tenant_id"
+    and s."tenant_id" = x."tenant_id"
   where x."id" = list_task_watchers.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)) and s."level" in ('all', 'participating')
 $$;
 revoke execute on function "better_supabase"."list_task_watchers"(uuid) from public, anon;

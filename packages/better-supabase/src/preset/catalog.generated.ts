@@ -453,7 +453,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "webhook_endpoints",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "name": "name",
               "url": "url",
               "enabled": "enabled",
@@ -551,7 +551,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "api_keys",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "user": "user_id",
               "name": "name",
               "prefix": "prefix",
@@ -864,7 +864,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "attachments",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "subjectType": "subject_type",
               "subjectId": "subject_id",
               "bucket": "bucket",
@@ -1302,7 +1302,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "ai_chats",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "owner": "owner_id",
               "project": "project_id",
               "agent": "agent_id",
@@ -1327,7 +1327,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "ai_projects",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "owner": "owner_id",
               "name": "name",
               "instructions": "instructions",
@@ -1377,7 +1377,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "ai_documents",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "owner": "owner_id",
               "chat": "chat_id",
               "kind": "kind",
@@ -1430,7 +1430,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "knowledge_documents",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "owner": "owner_id",
               "scope": "scope",
               "scopeId": "scope_id",
@@ -1487,7 +1487,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "memories",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "owner": "owner_id",
               "scope": "scope",
               "agent": "agent_id",
@@ -1547,7 +1547,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "agents",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "owner": "owner_id",
               "slug": "slug",
               "name": "name",
@@ -1602,7 +1602,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "connector_servers",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "name": "name",
               "url": "url",
               "transport": "transport",
@@ -1654,7 +1654,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "ai_scheduled_tasks",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "user": "user_id",
               "chat": "chat_id",
               "agent": "agent_id",
@@ -5379,7 +5379,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "automations",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "subjectType": "subject_type",
               "trigger": "trigger",
               "name": "name",
@@ -7252,7 +7252,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             "name": "timeline_entries",
             "columns": {
               "id": "id",
-              "tenant": "organization_id",
+              "tenant": "tenant_id",
               "event": "event_id",
               "type": "type",
               "actor": "actor_id",

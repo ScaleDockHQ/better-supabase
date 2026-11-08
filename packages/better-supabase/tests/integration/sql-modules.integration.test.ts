@@ -646,21 +646,16 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       op: string;
       changed: string[] | null;
       actor_id: string;
-      organization_id: string;
+      tenant_id: string;
     }>(
-      `select op, changed, actor_id, organization_id from better_supabase.audit_events
+      `select op, changed, actor_id, tenant_id from better_supabase.audit_events
        where table_name = $1 and record_id = $2 order by id`,
       [table, row!.id],
     );
 
     expect(log.rows).toEqual([
-      { op: "insert", changed: null, actor_id: user, organization_id: ACME },
-      {
-        op: "update",
-        changed: ["name"],
-        actor_id: user,
-        organization_id: ACME,
-      },
+      { op: "insert", changed: null, actor_id: user, tenant_id: ACME },
+      { op: "update", changed: ["name"], actor_id: user, tenant_id: ACME },
     ]);
     // The fixture's audit read policy stays, so a member of another tenant reads
     // no entry; the default render grants no read at all.
@@ -940,7 +935,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       );
 
       const invitationId = await pool.query<{ id: string }>(
-        "select id from better_supabase.invitations where organization_id = $1 and accepted_at is not null",
+        "select id from better_supabase.invitations where tenant_id = $1 and accepted_at is not null",
         [organization],
       );
 
@@ -4089,9 +4084,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         target_type: string;
         new_record: { api_key: string };
         changed: string[] | null;
-        organization_id: string;
+        tenant_id: string;
       }>(
-        `select event_type, category, target_type, new_record, changed, organization_id
+        `select event_type, category, target_type, new_record, changed, tenant_id
          from better_supabase.audit_events where table_name = $1 order by id`,
         [name],
       );
@@ -4105,7 +4100,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         target_type: "secret",
         new_record: { api_key: "[redacted]" },
         changed: ["api_key"],
-        organization_id: ACME,
+        tenant_id: ACME,
       });
 
       const event = (key: string) =>
@@ -4937,7 +4932,7 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
       expect(policy.rowCount).toBe(1);
 
       await pool.query(
-        `insert into better_supabase.audit_events (table_name, op, organization_id, occurred_at)
+        `insert into better_supabase.audit_events (table_name, op, tenant_id, occurred_at)
          values ($1, 'insert', $2, now() - interval '40 days'),
                 ($1, 'insert', $3, now() - interval '40 days')`,
         [`${name}_old`, ACME, other],
@@ -4954,12 +4949,12 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
 
       expect(purged.rows[0]!.n).toBe(1);
 
-      const left = await pool.query<{ organization_id: string }>(
-        "select organization_id from better_supabase.audit_events where table_name = $1",
+      const left = await pool.query<{ tenant_id: string }>(
+        "select tenant_id from better_supabase.audit_events where table_name = $1",
         [`${name}_old`],
       );
 
-      expect(left.rows).toEqual([{ organization_id: other }]);
+      expect(left.rows).toEqual([{ tenant_id: other }]);
 
       await pool.query(`drop function ${hook}(uuid)`);
       await pool.query(

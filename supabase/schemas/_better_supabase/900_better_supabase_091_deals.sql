@@ -1,6 +1,6 @@
 -- better-supabase module: deals
 -- @bsb-block deals@1 managed
--- @bsb-hash sha256:69c9fc725df6701e73d27ea02e0b4092612d19a895def7bc531eea0be485a3a2
+-- @bsb-hash sha256:09a083095e0dae1c8f686e44c0eeff557cf82577ae5f61c3e5d6cd299f7ae563
 -- Deals on pipelines: amounts in minor units, a company and contacts, a deal team, line items, forecast calls with attainment, close-date slips, a next step, locking and batched edits with per-change rejections.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -121,7 +121,7 @@ begin
   if tg_op = 'INSERT' then
     new."closed_at" := case when new."outcome" <> 'open' then now() end;
     if new."owner_id" is not null then
-      insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+      insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (new."tenant_id", new."owner_id", 'deal', new."id"::text, 'participating')
     on conflict do nothing;
     end if;
@@ -189,7 +189,7 @@ begin
     end if;
   end if;
   if new."owner_id" is not null and new."owner_id" is distinct from old."owner_id" then
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (new."tenant_id", new."owner_id", 'deal', new."id"::text, 'participating')
     on conflict do nothing;
   end if;
@@ -782,7 +782,7 @@ begin
   on conflict do nothing;
   get diagnostics v_count = row_count;
   for v_user in select (x.value ->> 'userId')::uuid from jsonb_array_elements(set_deal_members.members) x loop
-    insert into "better_supabase"."notification_subscriptions" ("organization_id", "user_id", "subject_type", "subject_id", "level")
+    insert into "better_supabase"."notification_subscriptions" ("tenant_id", "user_id", "subject_type", "subject_id", "level")
     values (v_tenant, v_user, 'deal', v_deal::text, 'participating')
     on conflict do nothing;
   end loop;

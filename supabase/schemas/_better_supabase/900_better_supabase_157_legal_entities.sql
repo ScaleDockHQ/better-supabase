@@ -1,6 +1,6 @@
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:acd359c53227f579d20ee2c6377a9ee5ea5fc848ec19c3bd26d562685a150add
+-- @bsb-hash sha256:2c8a3cae622d2e1b72f84a7463f40c43b669d78eac6fb355a7c02a58ed68da55
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -340,8 +340,8 @@ alter table "better_supabase"."inventory_locations" add column legal_entity_id u
 alter table "better_supabase"."inventory_locations" add constraint "bsb_inventory_locations_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
 create index "bsb_inventory_locations_legal_entity_idx" on "better_supabase"."inventory_locations" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
 alter table "better_supabase"."organization_settings" add column legal_entity_id uuid;
-alter table "better_supabase"."organization_settings" add constraint "bsb_organization_settings_legal_entity_fk" foreign key ("organization_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
-create index "bsb_organization_settings_legal_entity_idx" on "better_supabase"."organization_settings" ("organization_id", legal_entity_id) where legal_entity_id is not null;
+alter table "better_supabase"."organization_settings" add constraint "bsb_organization_settings_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
+create index "bsb_organization_settings_legal_entity_idx" on "better_supabase"."organization_settings" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
 
 -- Making an entity the default merges its numbers with those of documents that
 -- have no legal entity, so the switch needs them to be distinct.
@@ -959,7 +959,7 @@ begin
     end if;
   end if;
   select s."value" into v_value from "better_supabase"."organization_settings" s
-    where s."organization_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
+    where s."tenant_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
   if found then
     return jsonb_build_object('value', v_value, 'source', 'organization', 'legalEntityId', v_entity);
   end if;

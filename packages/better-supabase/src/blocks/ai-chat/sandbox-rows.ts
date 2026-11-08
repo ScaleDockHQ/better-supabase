@@ -25,7 +25,7 @@ export function sandboxOf(value: unknown): AiSandbox {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     userId: optionalText(row["user_id"]),
     chatId: optionalText(row["chat_id"]),
     harnessId: optionalText(row["harness_id"]),

@@ -1,6 +1,6 @@
 -- better-supabase module: qualifications
 -- @bsb-block qualifications@1 managed
--- @bsb-hash sha256:c024bb00f094877025fa0366c4cc78545bd4604b209f935b2ce126a59a2913ef
+-- @bsb-hash sha256:26ed7f63a1132fb61794a6d34bfbe69d82ad8f58965d8eadeb5ab3e1ef8b90c5
 -- Qualification types (certifications, licences, skills) with a validity in months and optional evidence, requirements naming who must hold them (a role, a team, a job title, an asset kind, a segment or one holder), holdings of members, companies and assets that expire, a gap report, the holders qualified on a date, expiry notifications, and holdings granted from course certificates.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -435,7 +435,7 @@ begin
   if grant_qualification.evidence_attachment_id is not null and not exists (
     select 1 from "better_supabase"."attachments" a
     where a."id" = grant_qualification.evidence_attachment_id
-      and a."organization_id" = v_type."tenant_id"
+      and a."tenant_id" = v_type."tenant_id"
   ) then
     raise exception 'the attachment isn''t a file in this organization' using errcode = '22023', hint = 'QUALIFICATION_INVALID';
   end if;

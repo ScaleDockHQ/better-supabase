@@ -55,7 +55,7 @@ const NAMES: BlockSqlNames = {
         maxRequests: "max_requests",
         period: "period",
         keyClaim: "key_claim",
-        organization: "organization_id",
+        organization: "tenant_id",
       },
     },
     counters: {

@@ -1,6 +1,6 @@
 -- better-supabase module: compliance
 -- @bsb-block compliance@4 managed
--- @bsb-hash sha256:d01133121dc9cede4f1b3bb4bfbe7337349ebcb4142a93a07ef33ca82ef95066
+-- @bsb-hash sha256:d0559fcf8189ab4e0f9ceabccada967571be045f756f64331e9f693450261701
 -- Compliance frameworks and their controls, evidence linked to controls (attachments or notes, with a validity date), recurring evidence tasks with assignees and an overdue state, a status rollup per framework, and policies published as frozen versions that members acknowledge through the acknowledgements block.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -382,7 +382,7 @@ begin
   if add_control_evidence.attachment_id is not null and not exists (
     select 1 from "better_supabase"."attachments" a
     where a."id" = add_control_evidence.attachment_id
-      and a."organization_id" = v_control."tenant_id"
+      and a."tenant_id" = v_control."tenant_id"
   ) then
     raise exception 'the attachment isn''t a file in this organization' using errcode = '22023', hint = 'CONTROL_INVALID';
   end if;

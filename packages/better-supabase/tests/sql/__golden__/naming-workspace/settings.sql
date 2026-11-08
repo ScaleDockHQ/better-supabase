@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_029_settings.sql
 -- better-supabase module: settings
 -- @bsb-block settings@1 managed
--- @bsb-hash sha256:e661ad859c825befbd4a944eba5d9b725fe31df1651f8b7ead34a184f7052c67
+-- @bsb-hash sha256:b49c06f41a48fefccb05c0b268e329d0045e54f92b51c56c748da42b846afb74
 -- Per-user, per-organization and platform-wide settings as key-value jsonb rows. Users read and write their own; organization settings check settings.read and settings.update; platform settings check a platform permission per key. Keys with a JSON Schema in options.schemas get a pg_jsonschema check.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -36,12 +36,12 @@ create policy bsb_user_settings_own_delete on "better_supabase"."user_settings"
   using (("user_id" = (select auth.uid())) and (select better_supabase.actor_may_write()));
 
 create table "better_supabase"."workspace_settings" (
-  "workspace_id" uuid not null,
+  "tenant_id" uuid not null,
   "key" text not null constraint bsb_workspace_settings_key_check check ("key" ~ '^[A-Za-z][A-Za-z0-9_.:-]{0,127}$'),
   "value" jsonb not null,
   "updated_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "updated_at" timestamptz not null default now(),
-  primary key ("workspace_id", "key")
+  primary key ("tenant_id", "key")
 );
 create index workspace_settings_updated_by_idx on "better_supabase"."workspace_settings" ("updated_by");
 alter table "better_supabase"."workspace_settings" enable row level security;
@@ -50,17 +50,17 @@ grant select, insert, update, delete on "better_supabase"."workspace_settings" t
 grant all on "better_supabase"."workspace_settings" to service_role;
 create policy bsb_workspace_settings_read on "better_supabase"."workspace_settings"
   for select to authenticated
-  using ("workspace_id" in (select better_supabase.tenant_ids_with('settings.read')));
+  using ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')));
 create policy bsb_workspace_settings_insert on "better_supabase"."workspace_settings"
   for insert to authenticated
-  with check ((coalesce(better_supabase.can('tenant', "workspace_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
+  with check ((coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false)) and (select better_supabase.actor_may_write()));
 create policy bsb_workspace_settings_update on "better_supabase"."workspace_settings"
   for update to authenticated
-  using (("workspace_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
-  with check (("workspace_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()))
+  with check (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 create policy bsb_workspace_settings_delete on "better_supabase"."workspace_settings"
   for delete to authenticated
-  using (("workspace_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
+  using (("tenant_id" in (select better_supabase.tenant_ids_with('settings.update'))) and (select better_supabase.actor_may_write()));
 
 -- Platform settings: one row per key for the whole product, such as fee
 -- rates or feature switches an admin console edits. Each key's permission
@@ -144,7 +144,7 @@ set search_path = ''
 as $$
   select coalesce(jsonb_object_agg(s."key", s."value"), '{}'::jsonb)
   from "better_supabase"."workspace_settings" s
-  where s."workspace_id" = get_workspace_settings.tenant
+  where s."tenant_id" = get_workspace_settings.tenant
 $$;
 
 create or replace function "better_supabase"."set_workspace_setting"(tenant uuid, key text, value jsonb)
@@ -153,9 +153,9 @@ language sql
 security invoker
 set search_path = ''
 as $$
-  insert into "better_supabase"."workspace_settings" ("workspace_id", "key", "value", "updated_by", "updated_at")
+  insert into "better_supabase"."workspace_settings" ("tenant_id", "key", "value", "updated_by", "updated_at")
   values (set_workspace_setting.tenant, set_workspace_setting.key, coalesce(set_workspace_setting.value -> 'value', 'null'::jsonb), auth.uid(), now())
-  on conflict ("workspace_id", "key") do update
+  on conflict ("tenant_id", "key") do update
     set "value" = excluded."value", "updated_by" = auth.uid(), "updated_at" = now()
   returning "value"
 $$;
@@ -168,7 +168,7 @@ set search_path = ''
 as $$
   with removed as (
     delete from "better_supabase"."workspace_settings" s
-    where s."workspace_id" = reset_workspace_setting.tenant and s."key" = reset_workspace_setting.key
+    where s."tenant_id" = reset_workspace_setting.tenant and s."key" = reset_workspace_setting.key
     returning 1
   )
   select exists (select 1 from removed)
@@ -185,7 +185,7 @@ set search_path = ''
 as $$
   select s."value"
   from "better_supabase"."workspace_settings" s
-  where s."workspace_id" = workspace_setting.tenant and s."key" = workspace_setting.key
+  where s."tenant_id" = workspace_setting.tenant and s."key" = workspace_setting.key
 $$;
 
 create or replace function "better_supabase"."get_platform_settings"()
@@ -255,30 +255,30 @@ grant execute on function "better_supabase"."workspace_setting"(uuid, text) to s
 create policy bsb_tenant_scope_select on "better_supabase"."workspace_settings" as restrictive
   for select to public
   using (
-    "workspace_id" in (select better_supabase.member_workspace_ids())
-    or ("workspace_id" in (select better_supabase.tenant_ids_with('settings.read')))
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.read')))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."workspace_settings" as restrictive
   for insert to public
   with check (
-    "workspace_id" in (select better_supabase.member_workspace_ids())
-    or (coalesce(better_supabase.can('tenant', "workspace_id", 'settings.update'), false))
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or (coalesce(better_supabase.can('tenant', "tenant_id", 'settings.update'), false))
   );
 create policy bsb_tenant_scope_update on "better_supabase"."workspace_settings" as restrictive
   for update to public
   using (
-    "workspace_id" in (select better_supabase.member_workspace_ids())
-    or ("workspace_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   )
   with check (
-    "workspace_id" in (select better_supabase.member_workspace_ids())
-    or ("workspace_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 create policy bsb_tenant_scope_delete on "better_supabase"."workspace_settings" as restrictive
   for delete to public
   using (
-    "workspace_id" in (select better_supabase.member_workspace_ids())
-    or ("workspace_id" in (select better_supabase.tenant_ids_with('settings.update')))
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select better_supabase.tenant_ids_with('settings.update')))
   );
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_029_settings.sql

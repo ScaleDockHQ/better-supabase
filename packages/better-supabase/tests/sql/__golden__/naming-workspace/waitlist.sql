@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_038_waitlist.sql
 -- better-supabase module: waitlist
 -- @bsb-block waitlist@1 managed
--- @bsb-hash sha256:0c027ae49980f3da2978b76ab18467ae8db8430052dee4ad3e9a84c69ff50f33
+-- @bsb-hash sha256:a0f68b2a744cd8ab34c75472d05bc6e40ccead32903050a700167e84a4a27497
 -- A waitlist with positions and approvals, and hashed invite codes with a use limit, an expiry and an optional organization and role. waitlist_admit() backs a before-user-created hook that only lets approved addresses or valid codes sign up.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -38,13 +38,13 @@ create table "better_supabase"."invite_codes" (
   "max_uses" integer constraint bsb_invite_codes_max_uses_check check ("max_uses" > 0),
   "uses" integer not null default 0 constraint bsb_invite_codes_uses_check check ("uses" >= 0),
   "expires_at" timestamptz,
-  "workspace_id" uuid,
-  "role" text constraint bsb_invite_codes_check check ("role" is null or "workspace_id" is not null),
+  "tenant_id" uuid,
+  "role" text constraint bsb_invite_codes_check check ("role" is null or "tenant_id" is not null),
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
   "revoked_at" timestamptz
 );
-create index invite_codes_tenant_idx on "better_supabase"."invite_codes" ("workspace_id");
+create index invite_codes_tenant_idx on "better_supabase"."invite_codes" ("tenant_id");
 create index invite_codes_created_by_idx on "better_supabase"."invite_codes" ("created_by");
 alter table "better_supabase"."invite_codes" enable row level security;
 revoke all on "better_supabase"."invite_codes" from public, anon, authenticated;
@@ -195,7 +195,7 @@ begin
     and not coalesce(better_supabase.can_assign(create_invite_code.tenant, create_invite_code.role), false) then
     raise exception 'You may not grant role %', create_invite_code.role using errcode = '42501', hint = 'WAITLIST_ROLE_FORBIDDEN';
   end if;
-  insert into "better_supabase"."invite_codes" ("code_hash", "prefix", "max_uses", "expires_at", "workspace_id", "role")
+  insert into "better_supabase"."invite_codes" ("code_hash", "prefix", "max_uses", "expires_at", "tenant_id", "role")
   values (
     encode(extensions.digest(upper(trim(create_invite_code.code)), 'sha256'), 'hex'),
     upper(left(trim(create_invite_code.code), 4)),
@@ -226,7 +226,7 @@ begin
   return (
     select coalesce(jsonb_agg(to_jsonb(x) - 'code_hash' order by x."created_at" desc), '[]'::jsonb)
     from "better_supabase"."invite_codes" x
-    where x."workspace_id" is not distinct from list_invite_codes.tenant
+    where x."tenant_id" is not distinct from list_invite_codes.tenant
   );
 end;
 $$;
@@ -244,7 +244,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select x."workspace_id" into v_tenant from "better_supabase"."invite_codes" x where x."id" = revoke_invite_code.id;
+  select x."tenant_id" into v_tenant from "better_supabase"."invite_codes" x where x."id" = revoke_invite_code.id;
   if not found then
     return false;
   end if;
@@ -317,10 +317,10 @@ begin
     raise exception 'You already used this invite code' using errcode = '23505', hint = 'WAITLIST_CODE_USED';
   end if;
   update "better_supabase"."invite_codes" x set "uses" = x."uses" + 1 where x."id" = v_code."id";
-  if v_code."workspace_id" is not null then
+  if v_code."tenant_id" is not null then
     v_role := coalesce(v_code."role", 'member');
     insert into "better_supabase"."memberships" ("workspace_id", "user_id", "role")
-    values (v_code."workspace_id", redeem_for.member, v_role)
+    values (v_code."tenant_id", redeem_for.member, v_role)
     on conflict do nothing;
     v_added := found;
     if v_added then
@@ -329,7 +329,7 @@ begin
       v_role := null;
     end if;
   end if;
-  return jsonb_build_object('organizationId', v_code."workspace_id", 'role', v_role);
+  return jsonb_build_object('organizationId', v_code."tenant_id", 'role', v_role);
 end;
 $$;
 

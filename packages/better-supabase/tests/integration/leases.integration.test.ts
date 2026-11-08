@@ -143,7 +143,7 @@ describe.skipIf(!live)("leases", () => {
       expect(ended.depositHeld).toEqual(money(0n, "EUR"));
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and type like 'lease.%' order by position",
+        "select type from better_supabase.outbox_events where tenant_id = $1 and type like 'lease.%' order by position",
         [tenant],
       );
 

@@ -38,7 +38,7 @@ const NAMES: BlockSqlNames = {
         type: "type",
         source: "source",
         subject: "subject",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         key: "key",
         payload: "payload",
         actor: "actor_id",

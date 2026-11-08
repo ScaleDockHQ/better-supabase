@@ -228,7 +228,7 @@ function runOf(value: unknown): AiTaskRun {
   return {
     id: textOf(row["id"]),
     taskId: textOf(row["task_id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     userId: textOf(row["user_id"]),
     status: runStateOf(row["status"], STATUSES, "failed"),
     scheduledFor: instantOf(row["scheduled_at"]),
@@ -245,7 +245,7 @@ function taskOf(value: unknown): AiTask {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     userId: textOf(row["user_id"]),
     chatId: optionalText(row["chat_id"]),
     agentId: optionalText(row["agent_id"]),

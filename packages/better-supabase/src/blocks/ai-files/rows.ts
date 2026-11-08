@@ -39,7 +39,7 @@ export function fileOf(value: unknown): AiFile {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     ownerId: textOf(row["owner_id"]),
     chatId: optionalText(row["chat_id"]),
     projectId: optionalText(row["project_id"]),
@@ -73,7 +73,7 @@ export function documentOf(value: unknown): AiDocument {
 
   return {
     id: textOf(row["id"]),
-    organizationId: textOf(row["organization_id"]),
+    organizationId: textOf(row["tenant_id"]),
     ownerId: textOf(row["owner_id"]),
     chatId: optionalText(row["chat_id"]),
     kind: oneOf(textOf(row["kind"]), DOCUMENT_KINDS, "text"),

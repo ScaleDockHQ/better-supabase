@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_035_data_lifecycle.sql
 -- better-supabase module: data-lifecycle
 -- @bsb-block data-lifecycle@9 managed
--- @bsb-hash sha256:26167315f911758d4cb94aa5578709d71e222f316212b71ae4d697c7a1a5e532
+-- @bsb-hash sha256:9a71f2f610570db6f35a762e1feca231f5606c41ab724421cdfac3950b8c2e4a
 -- Data exports per user or organization from every installed module's tables and the app's, written to a private bucket by the app's export job, and organization deletion with a grace period that disables the tenant before a purge job deletes its rows.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -12,7 +12,7 @@ create table "better_supabase"."data_exports" (
   "id" uuid primary key default gen_random_uuid(),
   "subject" text not null,
   "user_id" uuid references auth.users (id) on delete cascade,
-  "workspace_id" uuid,
+  "tenant_id" uuid,
   "status" text not null default 'pending' constraint bsb_data_exports_status_check check ("status" in ('pending', 'running', 'ready', 'failed')),
   "bucket" text not null default 'data-exports',
   "files" text[] not null default '{}',
@@ -26,15 +26,15 @@ alter table "better_supabase"."data_exports" add column "subject_type" text;
 alter table "better_supabase"."data_exports" add column "subject_id" text;
 alter table "better_supabase"."data_exports" add column "format" text;
 alter table "better_supabase"."data_exports" add constraint "bsb_data_exports_subject" check (case "subject"
-  when 'user' then "user_id" is not null and "workspace_id" is null and "subject_type" is null and "subject_id" is null
-  when 'organization' then "workspace_id" is not null and "user_id" is null and "subject_type" is null and "subject_id" is null
+  when 'user' then "user_id" is not null and "tenant_id" is null and "subject_type" is null and "subject_id" is null
+  when 'organization' then "tenant_id" is not null and "user_id" is null and "subject_type" is null and "subject_id" is null
   when 'record' then "subject_type" is not null and "subject_id" is not null and "user_id" is null
   else false
 end);
 alter table "better_supabase"."data_exports" add constraint "bsb_data_exports_format" check ("format" is null or "format" in ('ndjson', 'csv'));
 create unique index "data_exports_open_record_idx" on "better_supabase"."data_exports" ("subject_type", "subject_id", "requested_by") where "status" in ('pending', 'running') and "subject" = 'record';
 create unique index data_exports_open_user_idx on "better_supabase"."data_exports" ("user_id") where "status" in ('pending', 'running') and "subject" = 'user';
-create unique index data_exports_open_tenant_idx on "better_supabase"."data_exports" ("workspace_id") where "status" in ('pending', 'running') and "subject" = 'organization';
+create unique index data_exports_open_tenant_idx on "better_supabase"."data_exports" ("tenant_id") where "status" in ('pending', 'running') and "subject" = 'organization';
 create index data_exports_requested_by_idx on "better_supabase"."data_exports" ("requested_by");
 create index data_exports_user_idx on "better_supabase"."data_exports" ("user_id") where "user_id" is not null;
 alter table "better_supabase"."data_exports" enable row level security;
@@ -43,13 +43,13 @@ grant select on "better_supabase"."data_exports" to authenticated;
 grant all on "better_supabase"."data_exports" to service_role;
 create policy bsb_data_exports_read on "better_supabase"."data_exports"
   for select to authenticated
-  using ("requested_by" = (select auth.uid()) or "workspace_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
+  using ("requested_by" = (select auth.uid()) or "tenant_id" in (select better_supabase.tenant_ids_with('data_lifecycle.export')));
 
 -- Organizations waiting for their purge. Requesting disables the tenant
 -- through the access contract; cancelling enables it again unless it was
 -- disabled before.
 create table "better_supabase"."workspace_deletions" (
-  "workspace_id" uuid primary key,
+  "tenant_id" uuid primary key,
   "requested_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "requested_at" timestamptz not null default now(),
   "purge_at" timestamptz not null,
@@ -68,15 +68,15 @@ grant all on "better_supabase"."workspace_deletions" to service_role;
 -- retention_for says so, whatever its own older_than argument.
 create table "better_supabase"."retention_policies" (
   "id" uuid primary key default gen_random_uuid(),
-  "workspace_id" uuid,
+  "tenant_id" uuid,
   "plan" text,
   "kind" text not null constraint bsb_retention_policies_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "keep" interval not null constraint bsb_retention_policies_keep_check check ("keep" > interval '0'),
   "updated_at" timestamptz not null default now(),
-  constraint bsb_retention_policies_check check ("workspace_id" is null or "plan" is null),
-  unique nulls not distinct ("kind", "workspace_id", "plan")
+  constraint bsb_retention_policies_check check ("tenant_id" is null or "plan" is null),
+  unique nulls not distinct ("kind", "tenant_id", "plan")
 );
-create index retention_policies_tenant_idx on "better_supabase"."retention_policies" ("workspace_id") where "workspace_id" is not null;
+create index retention_policies_tenant_idx on "better_supabase"."retention_policies" ("tenant_id") where "tenant_id" is not null;
 alter table "better_supabase"."retention_policies" enable row level security;
 revoke all on "better_supabase"."retention_policies" from public, anon, authenticated;
 grant all on "better_supabase"."retention_policies" to service_role;
@@ -86,7 +86,7 @@ grant all on "better_supabase"."retention_policies" to service_role;
 -- every kind.
 create table "better_supabase"."legal_holds" (
   "id" uuid primary key default gen_random_uuid(),
-  "workspace_id" uuid,
+  "tenant_id" uuid,
   "kind" text constraint bsb_legal_holds_kind_check check ("kind" ~ '^[a-z][a-z0-9_]{0,62}$'),
   "reason" text not null constraint bsb_legal_holds_reason_check check (length("reason") >= 1 and length("reason") <= 1000),
   "placed_by" uuid references auth.users (id) on delete set null default auth.uid(),
@@ -94,7 +94,7 @@ create table "better_supabase"."legal_holds" (
   "released_by" uuid references auth.users (id) on delete set null,
   "released_at" timestamptz
 );
-create index legal_holds_active_idx on "better_supabase"."legal_holds" ("workspace_id", "kind") where "released_at" is null;
+create index legal_holds_active_idx on "better_supabase"."legal_holds" ("tenant_id", "kind") where "released_at" is null;
 create index legal_holds_placed_by_idx on "better_supabase"."legal_holds" ("placed_by") where "placed_by" is not null;
 create index legal_holds_released_by_idx on "better_supabase"."legal_holds" ("released_by") where "released_by" is not null;
 alter table "better_supabase"."legal_holds" enable row level security;
@@ -115,14 +115,14 @@ declare
 begin
   if retention_for.tenant is not null then
     select x."keep" into v_keep from "better_supabase"."retention_policies" x
-    where x."kind" = retention_for.kind and x."workspace_id"::text = retention_for.tenant;
+    where x."kind" = retention_for.kind and x."tenant_id"::text = retention_for.tenant;
     if v_keep is not null then
       return v_keep;
     end if;
     
   end if;
   select x."keep" into v_keep from "better_supabase"."retention_policies" x
-  where x."kind" = retention_for.kind and x."workspace_id" is null and x."plan" is null;
+  where x."kind" = retention_for.kind and x."tenant_id" is null and x."plan" is null;
   return v_keep;
 end;
 $$;
@@ -152,7 +152,7 @@ as $$
     select 1 from "better_supabase"."legal_holds" x
     where x."released_at" is null
       and (x."kind" is null or x."kind" = is_held.kind)
-      and (x."workspace_id" is null or x."workspace_id"::text = is_held.tenant)
+      and (x."tenant_id" is null or x."tenant_id"::text = is_held.tenant)
   )
 $$;
 
@@ -189,9 +189,9 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role sets retention policies' using errcode = '42501', hint = 'RETENTION_FORBIDDEN';
   end if;
-  insert into "better_supabase"."retention_policies" as x ("kind", "keep", "workspace_id", "plan")
+  insert into "better_supabase"."retention_policies" as x ("kind", "keep", "tenant_id", "plan")
   values (set_retention_policy.kind, set_retention_policy.keep, set_retention_policy.tenant, set_retention_policy.plan)
-  on conflict ("kind", "workspace_id", "plan") do update set
+  on conflict ("kind", "tenant_id", "plan") do update set
     "keep" = excluded."keep",
     "updated_at" = now()
   returning * into v_row;
@@ -211,7 +211,7 @@ begin
   end if;
   delete from "better_supabase"."retention_policies" x
   where x."kind" = remove_retention_policy.kind
-    and x."workspace_id" is not distinct from remove_retention_policy.tenant
+    and x."tenant_id" is not distinct from remove_retention_policy.tenant
     and x."plan" is not distinct from remove_retention_policy.plan;
   return found;
 end;
@@ -224,7 +224,7 @@ stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."kind", x."workspace_id" nulls first, x."plan" nulls first), '[]'::jsonb)
+  select coalesce(jsonb_agg(to_jsonb(x.*) order by x."kind", x."tenant_id" nulls first, x."plan" nulls first), '[]'::jsonb)
   from "better_supabase"."retention_policies" x
   where list_retention_policies.kind is null or x."kind" = list_retention_policies.kind
 $$;
@@ -241,7 +241,7 @@ begin
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'Only the service role places legal holds' using errcode = '42501', hint = 'LEGAL_HOLD_FORBIDDEN';
   end if;
-  insert into "better_supabase"."legal_holds" ("reason", "workspace_id", "kind", "placed_by")
+  insert into "better_supabase"."legal_holds" ("reason", "tenant_id", "kind", "placed_by")
   values (place_legal_hold.reason, place_legal_hold.tenant, place_legal_hold.kind, auth.uid())
   returning * into v_row;
   null;
@@ -310,7 +310,7 @@ grant execute on function "better_supabase"."list_legal_holds"(boolean) to servi
 -- after receipt; extended_at records the single extension of two months.
 create table "better_supabase"."data_subject_requests" (
   "id" uuid primary key default gen_random_uuid(),
-  "workspace_id" uuid not null,
+  "tenant_id" uuid not null,
   "kind" text not null constraint bsb_data_subject_requests_kind_check check ("kind" in ('access', 'erasure', 'rectification', 'portability')),
   "requester" text not null constraint bsb_data_subject_requests_requester_check check (length("requester") >= 1 and length("requester") <= 320),
   "subject_type" text,
@@ -331,7 +331,7 @@ create table "better_supabase"."data_subject_requests" (
   "closed_by" uuid,
   constraint bsb_data_subject_requests_check check (("subject_type" is null) = ("subject_id" is null))
 );
-create index data_subject_requests_open_idx on "better_supabase"."data_subject_requests" ("workspace_id", "due_at") where "closed_at" is null;
+create index data_subject_requests_open_idx on "better_supabase"."data_subject_requests" ("tenant_id", "due_at") where "closed_at" is null;
 alter table "better_supabase"."data_subject_requests" enable row level security;
 revoke all on "better_supabase"."data_subject_requests" from public, anon, authenticated;
 grant all on "better_supabase"."data_subject_requests" to service_role;
@@ -365,7 +365,7 @@ begin
   if (open_data_subject_request.subject_type is null) <> (open_data_subject_request.subject_id is null) then
     raise exception 'subject_type and subject_id go together' using errcode = '22023', hint = 'DSAR_INVALID';
   end if;
-  insert into "better_supabase"."data_subject_requests" ("workspace_id", "kind", "requester", "subject_type", "subject_id", "details", "received_by", "due_at")
+  insert into "better_supabase"."data_subject_requests" ("tenant_id", "kind", "requester", "subject_type", "subject_id", "details", "received_by", "due_at")
   values (open_data_subject_request.tenant, open_data_subject_request.kind, trim(open_data_subject_request.requester), open_data_subject_request.subject_type, open_data_subject_request.subject_id, open_data_subject_request.details, auth.uid(), now() + interval '30 days')
   returning * into v_row;
   null;
@@ -392,7 +392,7 @@ begin
   if v_row."id" is null then
     raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'data_lifecycle.export'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'data_lifecycle.export'), false)) then
     raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
   end if;
   if v_row."closed_at" is not null then
@@ -428,7 +428,7 @@ begin
   if v_row."id" is null then
     raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'data_lifecycle.export'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'data_lifecycle.export'), false)) then
     raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
   end if;
   if v_row."closed_at" is not null then
@@ -472,7 +472,7 @@ begin
   if v_row."id" is null then
     raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'data_lifecycle.export'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'data_lifecycle.export'), false)) then
     raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
   end if;
   if v_row."closed_at" is not null then
@@ -491,7 +491,7 @@ begin
     if fulfil_data_subject_request.resolution is null or length(trim(fulfil_data_subject_request.resolution)) = 0 then
       raise exception 'resolution is required' using errcode = '22023', hint = 'DSAR_INVALID';
     end if;
-    if v_row."kind" = 'erasure' and "better_supabase"."is_held"('data_subject_request', v_row."workspace_id"::text) then
+    if v_row."kind" = 'erasure' and "better_supabase"."is_held"('data_subject_request', v_row."tenant_id"::text) then
       raise exception 'a legal hold stops the erasure; refuse the request with its reason' using errcode = '55000', hint = 'DSAR_HELD';
     end if;
   end if;
@@ -522,7 +522,7 @@ begin
   if v_row."id" is null then
     raise exception 'request not found' using errcode = 'P0002', hint = 'DSAR_NOT_FOUND';
   end if;
-  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."workspace_id", 'data_lifecycle.export'), false)) then
+  if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', v_row."tenant_id", 'data_lifecycle.export'), false)) then
     raise exception 'You may not handle data subject requests here' using errcode = '42501', hint = 'DSAR_FORBIDDEN';
   end if;
   if v_row."closed_at" is not null then
@@ -557,7 +557,7 @@ begin
   return coalesce((
     select jsonb_agg(to_jsonb(x.*) || jsonb_build_object('overdue', x."closed_at" is null and x."due_at" < now()) order by x."due_at", x."id")
     from "better_supabase"."data_subject_requests" x
-    where x."workspace_id" = list_data_subject_requests.tenant
+    where x."tenant_id" = list_data_subject_requests.tenant
       and (list_data_subject_requests.status is null or x."status" = list_data_subject_requests.status)
       and (not list_data_subject_requests.open_only or x."closed_at" is null)
   ), '[]'::jsonb);
@@ -727,9 +727,9 @@ as $$
     ('user', 'better_supabase.memberships', '"better_supabase"."memberships"', 'user_id', true, '{}'::text[], true),
     ('user', 'better_supabase.platform_roles', '"better_supabase"."platform_roles"', 'user_id', true, '{}'::text[], true),
     ('organization', 'better_supabase.memberships', '"better_supabase"."memberships"', 'workspace_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.permission_overrides', '"better_supabase"."permission_overrides"', 'workspace_id', true, '{}'::text[], true),
-    ('organization', 'better_supabase.retention_policies', '"better_supabase"."retention_policies"', 'workspace_id', true, '{}'::text[], false),
-    ('organization', 'better_supabase.data_subject_requests', '"better_supabase"."data_subject_requests"', 'workspace_id', true, '{}'::text[], false)
+    ('organization', 'better_supabase.permission_overrides', '"better_supabase"."permission_overrides"', 'tenant_id', true, '{}'::text[], true),
+    ('organization', 'better_supabase.retention_policies', '"better_supabase"."retention_policies"', 'tenant_id', true, '{}'::text[], false),
+    ('organization', 'better_supabase.data_subject_requests', '"better_supabase"."data_subject_requests"', 'tenant_id', true, '{}'::text[], false)
   ) as t(subject, name, tbl, col, purge, omit, exported)
 $$;
 
@@ -766,7 +766,7 @@ begin
   end if;
   if not exists (
     select 1 from "better_supabase"."workspace_deletions" x
-    where x."workspace_id" = workspace_credential_refs.tenant and x."cancelled_at" is null
+    where x."tenant_id" = workspace_credential_refs.tenant and x."cancelled_at" is null
       and x."purged_at" is null and x."purge_at" <= now()
   ) then
     raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
@@ -774,7 +774,7 @@ begin
   if exists (
     select 1 from "better_supabase"."legal_holds" x
     where x."released_at" is null
-      and (x."workspace_id" is null or x."workspace_id" = workspace_credential_refs.tenant)
+      and (x."tenant_id" is null or x."tenant_id" = workspace_credential_refs.tenant)
   ) then
     raise exception 'A legal hold covers this organization, so it can''t be purged' using errcode = 'P0001', hint = 'ORGANIZATION_LEGAL_HOLD';
   end if;
@@ -822,7 +822,7 @@ as $$
       and x."status" = 'ready'
       and (x."expires_at" is null or x."expires_at" > now())
       and path = any (x."files")
-      and (x."requested_by" = auth.uid() or (x."workspace_id" is not null and coalesce(better_supabase.can('tenant', x."workspace_id", 'data_lifecycle.export'), false)))
+      and (x."requested_by" = auth.uid() or (x."tenant_id" is not null and coalesce(better_supabase.can('tenant', x."tenant_id", 'data_lifecycle.export'), false)))
   )
 $$;
 revoke execute on function "better_supabase"."data_export_object_allowed"(text) from public, anon;
@@ -854,9 +854,9 @@ begin
     if request_data_export.tenant is null or not coalesce(better_supabase.can('tenant', request_data_export.tenant, 'data_lifecycle.export'), false) then
       raise exception 'You may not export this organization''s data' using errcode = '42501', hint = 'DATA_EXPORT_FORBIDDEN';
     end if;
-    select * into v_row from "better_supabase"."data_exports" x where x."workspace_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
+    select * into v_row from "better_supabase"."data_exports" x where x."tenant_id" = request_data_export.tenant and x."subject" = 'organization' and x."status" in ('pending', 'running');
     if v_row."id" is null then
-      insert into "better_supabase"."data_exports" ("subject", "workspace_id") values ('organization', request_data_export.tenant) returning * into v_row;
+      insert into "better_supabase"."data_exports" ("subject", "tenant_id") values ('organization', request_data_export.tenant) returning * into v_row;
       null;
     end if;
   elsif request_data_export.subject = 'user' then
@@ -947,7 +947,7 @@ begin
   end if;
   v_parts := jsonb_build_object(v_name, jsonb_build_array(v_record));
   
-  insert into "better_supabase"."data_exports" ("subject", "workspace_id", "subject_type", "subject_id", "format")
+  insert into "better_supabase"."data_exports" ("subject", "tenant_id", "subject_type", "subject_id", "format")
   values ('record', v_tenant, request_subject_export.subject_type, request_subject_export.subject_id, request_subject_export.format)
   returning * into v_row;
   insert into "better_supabase"."data_export_contents" ("export_id", "parts") values (v_row."id", v_parts);
@@ -968,8 +968,8 @@ as $$
   select coalesce(jsonb_agg(to_jsonb(x.*) order by x."requested_at" desc, x."id"), '[]'::jsonb)
   from "better_supabase"."data_exports" x
   where case when list_data_exports.tenant is null
-    then (x."subject" = 'user' and x."user_id" = auth.uid()) or (x."subject" = 'record' and x."workspace_id" is null and x."requested_by" = auth.uid())
-    else x."workspace_id" = list_data_exports.tenant
+    then (x."subject" = 'user' and x."user_id" = auth.uid()) or (x."subject" = 'record' and x."tenant_id" is null and x."requested_by" = auth.uid())
+    else x."tenant_id" = list_data_exports.tenant
   end
 $$;
 
@@ -1063,7 +1063,7 @@ begin
      from (select t.ctid as _ctid, t.* from %s t where t.%I = $1::%s and ($2::tid is null or t.ctid > $2::tid) order by t.ctid limit $3) p',
     v_table.tbl, v_table.col, v_type
   ) into v_rows, v_after
-  using case when v_row."subject" = 'user' then v_row."user_id"::text else v_row."workspace_id"::text end,
+  using case when v_row."subject" = 'user' then v_row."user_id"::text else v_row."tenant_id"::text end,
     data_export_rows.after, greatest(1, least(data_export_rows.page_size, 10000)), coalesce(v_table.omit, '{}');
   return jsonb_build_object(
     'rows', v_rows,
@@ -1141,13 +1141,13 @@ begin
   if request_workspace_deletion.grace < interval '0' then
     raise exception 'grace must not be negative' using errcode = '22023', hint = 'ORGANIZATION_DELETION_GRACE';
   end if;
-  if exists (select 1 from "better_supabase"."workspace_deletions" x where x."workspace_id" = request_workspace_deletion.tenant and x."purged_at" is not null) then
+  if exists (select 1 from "better_supabase"."workspace_deletions" x where x."tenant_id" = request_workspace_deletion.tenant and x."purged_at" is not null) then
     raise exception 'The organization was already purged' using errcode = 'P0002', hint = 'ORGANIZATION_PURGED';
   end if;
   v_disabled := false;
-  insert into "better_supabase"."workspace_deletions" as x ("workspace_id", "requested_by", "purge_at", "previously_disabled")
+  insert into "better_supabase"."workspace_deletions" as x ("tenant_id", "requested_by", "purge_at", "previously_disabled")
   values (request_workspace_deletion.tenant, auth.uid(), now() + request_workspace_deletion.grace, coalesce(v_disabled, false))
-  on conflict ("workspace_id") do update set
+  on conflict ("tenant_id") do update set
     "requested_by" = excluded."requested_by",
     "requested_at" = now(),
     "purge_at" = excluded."purge_at",
@@ -1175,16 +1175,16 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."workspace_deletions" x
-  where x."workspace_id" = cancel_workspace_deletion.tenant and x."cancelled_at" is null and x."purged_at" is null
+  where x."tenant_id" = cancel_workspace_deletion.tenant and x."cancelled_at" is null and x."purged_at" is null
   for update;
-  if v_row."workspace_id" is null then
+  if v_row."tenant_id" is null then
     return null;
   end if;
   if not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."requested_by" = auth.uid(), false) or coalesce(better_supabase.member_can_while_deleting(auth.uid(), cancel_workspace_deletion.tenant, 'organization.delete'), false)) then
     raise exception 'You may not cancel this deletion' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   update "better_supabase"."workspace_deletions" x set "cancelled_at" = now()
-  where x."workspace_id" = v_row."workspace_id"
+  where x."tenant_id" = v_row."tenant_id"
   returning * into v_row;
   
   null;
@@ -1201,7 +1201,7 @@ security definer
 set search_path = ''
 as $$
   select to_jsonb(x.*) from "better_supabase"."workspace_deletions" x
-  where x."workspace_id" = workspace_deletion.tenant
+  where x."tenant_id" = workspace_deletion.tenant
     and x."cancelled_at" is null
     and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or exists (select 1 from "better_supabase"."memberships" mm where mm."workspace_id" = workspace_deletion.tenant and mm."user_id" = auth.uid()))
 $$;
@@ -1246,15 +1246,15 @@ begin
     raise exception 'Only the service role purges organizations' using errcode = '42501', hint = 'ORGANIZATION_DELETION_FORBIDDEN';
   end if;
   select * into v_row from "better_supabase"."workspace_deletions" x
-  where x."workspace_id" = purge_workspace.tenant and x."cancelled_at" is null and x."purged_at" is null
+  where x."tenant_id" = purge_workspace.tenant and x."cancelled_at" is null and x."purged_at" is null
   for update;
-  if v_row."workspace_id" is null or v_row."purge_at" > now() then
+  if v_row."tenant_id" is null or v_row."purge_at" > now() then
     raise exception 'No due deletion for this organization' using errcode = 'P0002', hint = 'ORGANIZATION_DELETION_NOT_DUE';
   end if;
   if exists (
     select 1 from "better_supabase"."legal_holds" x
     where x."released_at" is null
-      and (x."workspace_id" is null or x."workspace_id" = purge_workspace.tenant)
+      and (x."tenant_id" is null or x."tenant_id" = purge_workspace.tenant)
   ) then
     raise exception 'A legal hold covers this organization, so it can''t be purged' using errcode = 'P0001', hint = 'ORGANIZATION_LEGAL_HOLD';
   end if;
@@ -1302,10 +1302,10 @@ begin
     v_pending := v_left;
   end loop;
   perform set_config('better_supabase.purge_tenant', '', true);
-  update "better_supabase"."workspace_deletions" x set "purged_at" = now() where x."workspace_id" = v_row."workspace_id" returning * into v_row;
+  update "better_supabase"."workspace_deletions" x set "purged_at" = now() where x."tenant_id" = v_row."tenant_id" returning * into v_row;
   
   null;
-  return jsonb_build_object('organizationId', v_row."workspace_id"::text, 'deleted', v_deleted);
+  return jsonb_build_object('organizationId', v_row."tenant_id"::text, 'deleted', v_deleted);
 end;
 $$;
 

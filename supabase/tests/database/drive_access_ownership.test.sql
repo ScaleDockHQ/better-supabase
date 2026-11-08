@@ -147,7 +147,7 @@ select is(
 );
 
 -- The sharing policy turns links and guests off.
-insert into better_supabase.organization_settings (organization_id, key, value)
+insert into better_supabase.organization_settings (tenant_id, key, value)
 values ('00000000-0000-4000-8000-000000000001', 'drive.sharing', '{"guests": false, "links": "none"}');
 
 select is(

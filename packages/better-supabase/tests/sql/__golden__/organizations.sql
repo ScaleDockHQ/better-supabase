@@ -731,7 +731,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_021_organizations.sql
 -- better-supabase module: organizations
 -- @bsb-block organizations@1 managed
--- @bsb-hash sha256:15435c6d2cdba467e877ee76565195739142d71d41499603352b6dab1159c4c8
+-- @bsb-hash sha256:45cdc8273efd6900c59da2367757364d25a2a24cae34a611a7f4d24615b666e0
 -- create_organization(attrs) with slug rules and an after-create hook, a deferred owner check, an assignment ceiling, and member functions (role change, remove, leave, transfer ownership) on the access contract.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -762,7 +762,7 @@ create policy bsb_organizations_read on "better_supabase"."organizations"
 alter table "better_supabase"."memberships" add constraint "memberships_organization_fkey"
   foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade;
 alter table "better_supabase"."invitations" add constraint "invitations_organization_fkey"
-  foreign key ("organization_id") references "better_supabase"."organizations" ("id") on delete cascade;
+  foreign key ("tenant_id") references "better_supabase"."organizations" ("id") on delete cascade;
 
 -- Why a slug can't be used, or null: 'invalid' (length and pattern from
 -- blocks.organizations.options), 'reserved' or 'taken'. except_organization skips the
@@ -1467,7 +1467,7 @@ begin
   return query
   select i."id", i."email", i."role"::text, i."expires_at"
   from "better_supabase"."invitations" i
-  where i."organization_id" = organization and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null and i."expires_at" >= now()
+  where i."tenant_id" = organization and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null and i."expires_at" >= now()
   order by i."expires_at" desc;
 end;
 $$;

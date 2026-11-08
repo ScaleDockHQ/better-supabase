@@ -4,7 +4,7 @@
 -- ==== with every module: schema supabase/schemas/900_better_supabase_016_entitlements.sql
 -- better-supabase module: entitlements
 -- @bsb-block entitlements@1 managed
--- @bsb-hash sha256:ef38020fd5653db1c3cd6077cfc76753defe7ffe6d08aaffa18ab13ed255f14f
+-- @bsb-hash sha256:77842c9d7fd9e186d5d99b76dc18847799acc3df8e655c11bd988524fa12cc35
 -- Active Stripe entitlements per tenant from the Stripe Sync Engine, feature_claims() for the access token hook, and has_entitlement() and tenant_ids_with_entitlement() for RLS.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -137,7 +137,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  return (select t."stripe_customer_id" from "better_supabase"."billing_customers" t where t."organization_id" = tenant);
+  return (select t."stripe_customer_id" from "better_supabase"."billing_customers" t where t."tenant_id" = tenant);
 end
 $$;
 
@@ -149,7 +149,7 @@ security definer
 set search_path = ''
 as $$
 begin
-  return query select t."organization_id" from "better_supabase"."billing_customers" t where t."stripe_customer_id" = customer;
+  return query select t."tenant_id" from "better_supabase"."billing_customers" t where t."stripe_customer_id" = customer;
 end
 $$;
 

@@ -65,7 +65,7 @@ const MODULES: AnyBlocksConfig = {
 
 const SEED = `
 insert into auth.users (id, email) values ('${ADA}', 'ada@example.com');
-insert into better_supabase.attachments (id, organization_id, name, mime_type, size, uploaded_by)
+insert into better_supabase.attachments (id, tenant_id, name, mime_type, size, uploaded_by)
 values ('${FILE}', '${ORG}', 'Plan.PDF', 'application/pdf', 1, '${ADA}');
 `;
 

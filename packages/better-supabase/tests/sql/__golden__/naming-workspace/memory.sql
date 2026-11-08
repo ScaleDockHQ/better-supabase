@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_050_memory.sql
 -- better-supabase module: memory
 -- @bsb-block memory@5 managed
--- @bsb-hash sha256:3d5f4883795e2d7b55209163249f5a385fab2a22bc34e9ebe6007c2789277e6b
+-- @bsb-hash sha256:8f9daae822c5090a842d926c07fb7fb5a3f94c9538a206b18287ba4ee98c22c9
 -- Memory for AI assistants: core memory as files under /memories edited with view, create, str_replace, insert, delete and rename with version checks; archival facts with hybrid similarity search; message embeddings to recall earlier chats, skipped for temporary chats; and versioned documents under an opaque scope key for agent runtimes such as eve.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -13,7 +13,7 @@
 -- organization or a record.
 create table "better_supabase"."memories" (
   "id" uuid primary key default gen_random_uuid(),
-  "workspace_id" uuid not null,
+  "tenant_id" uuid not null,
   "owner_id" uuid references auth.users (id) on delete cascade,
   "scope" text not null default 'user' constraint bsb_memories_scope_check check ("scope" in ('user', 'agent', 'chat', 'project', 'organization', 'record')),
   "agent_id" uuid,
@@ -42,10 +42,10 @@ create table "better_supabase"."memories" (
   constraint bsb_memories_owner_check check ("scope" in ('organization', 'record') or "owner_id" is not null),
   constraint bsb_memories_subject_check check (("scope" = 'record') = ("subject_id" is not null) and ("subject_id" is null) = ("subject_type" is null))
 );
-create unique index memories_path_idx on "better_supabase"."memories" ("workspace_id", "owner_id", "scope", "agent_id", "chat_id", "project_id", "subject_type", "subject_id", "path") nulls not distinct
+create unique index memories_path_idx on "better_supabase"."memories" ("tenant_id", "owner_id", "scope", "agent_id", "chat_id", "project_id", "subject_type", "subject_id", "path") nulls not distinct
   where "path" is not null and "superseded_by" is null and "archived_at" is null;
-create index memories_owner_idx on "better_supabase"."memories" ("owner_id", "workspace_id") where "owner_id" is not null;
-create index memories_tenant_idx on "better_supabase"."memories" ("workspace_id", "scope");
+create index memories_owner_idx on "better_supabase"."memories" ("owner_id", "tenant_id") where "owner_id" is not null;
+create index memories_tenant_idx on "better_supabase"."memories" ("tenant_id", "scope");
 create index memories_chat_idx on "better_supabase"."memories" ("chat_id") where "chat_id" is not null;
 create index memories_project_idx on "better_supabase"."memories" ("project_id") where "project_id" is not null;
 create index memories_subject_idx on "better_supabase"."memories" ("subject_type", "subject_id") where "subject_id" is not null;
@@ -62,7 +62,7 @@ grant select on "better_supabase"."memories" to authenticated;
 grant all on "better_supabase"."memories" to service_role;
 create policy bsb_memories_read on "better_supabase"."memories"
   for select to authenticated
-  using (("owner_id" = (select auth.uid()) or ("owner_id" is null and "workspace_id" in (select better_supabase.tenant_ids_with('memory.read')))) and "archived_at" is null);
+  using (("owner_id" = (select auth.uid()) or ("owner_id" is null and "tenant_id" in (select better_supabase.tenant_ids_with('memory.read')))) and "archived_at" is null);
 
 -- One embedding per message, so an assistant can recall earlier chats.
 -- Temporary chats get none.
@@ -70,13 +70,13 @@ create table "better_supabase"."memory_message_embeddings" (
   "chat_id" uuid not null,
   "message_id" text not null,
   "user_id" uuid not null references auth.users (id) on delete cascade,
-  "workspace_id" uuid not null,
+  "tenant_id" uuid not null,
   "embedding" extensions.vector(1536) not null,
   "embedding_model" text,
   "created_at" timestamptz not null default now(),
   primary key ("chat_id", "message_id")
 );
-create index "memory_message_embeddings_user_idx" on "better_supabase"."memory_message_embeddings" ("user_id", "workspace_id");
+create index "memory_message_embeddings_user_idx" on "better_supabase"."memory_message_embeddings" ("user_id", "tenant_id");
 create index "memory_message_embeddings_embedding_idx" on "better_supabase"."memory_message_embeddings" using hnsw ("embedding" extensions.vector_cosine_ops);
 alter table "better_supabase"."memory_message_embeddings" enable row level security;
 revoke all on "better_supabase"."memory_message_embeddings" from public, anon, authenticated;
@@ -130,14 +130,14 @@ begin
     raise exception '% is not a path under /memories', memory_view.path using errcode = '22023', hint = 'MEMORY_PATH';
   end if;
   select * into v_row from "better_supabase"."memories" x
-  where x."workspace_id" = memory_view.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null and x."path" = memory_view.path;
+  where x."tenant_id" = memory_view.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null and x."path" = memory_view.path;
   if found then
     return jsonb_build_object('type', 'file', 'path', v_row."path", 'content', v_row."content", 'version', v_row."version", 'updated_at', v_row."updated_at");
   end if;
   select jsonb_agg(jsonb_build_object('path', x."path", 'size', length(x."content"), 'updated_at', x."updated_at") order by x."path")
   into v_entries
   from "better_supabase"."memories" x
-  where x."workspace_id" = memory_view.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null and x."path" like replace(replace(memory_view.path, '_', '\_'), '%', '\%') || '/%';
+  where x."tenant_id" = memory_view.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null and x."path" like replace(replace(memory_view.path, '_', '\_'), '%', '\%') || '/%';
   if v_entries is null and memory_view.path <> '/memories' then
     return null;
   end if;
@@ -199,7 +199,7 @@ begin
     raise exception 'memory content is limited to % characters', 100000 using errcode = '22023', hint = 'MEMORY_TOO_LARGE';
   end if;
   select * into v_row from "better_supabase"."memories" x
-  where x."workspace_id" = memory_create.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null and x."path" = memory_create.path
+  where x."tenant_id" = memory_create.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null and x."path" = memory_create.path
   for update;
   if found then
     if memory_create.expected_version is not null and memory_create.expected_version <> v_row."version" then
@@ -212,11 +212,11 @@ begin
     if coalesce(memory_create.expected_version, 0) <> 0 then
       raise exception '% not found', memory_create.path using errcode = 'P0002', hint = 'MEMORY_NOT_FOUND';
     end if;
-    insert into "better_supabase"."memories" ("workspace_id", "owner_id", "scope", "agent_id", "chat_id", "project_id", "subject_type", "subject_id", "kind", "path", "content")
+    insert into "better_supabase"."memories" ("tenant_id", "owner_id", "scope", "agent_id", "chat_id", "project_id", "subject_type", "subject_id", "kind", "path", "content")
     values (memory_create.tenant, v_owner, v_scope, v_agent, v_chat, v_project, v_subject_type, v_subject_id, 'core', memory_create.path, memory_create.content)
     returning * into v_row;
   end if;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."workspace_id", 'owner_id', v_row."owner_id", 'scope', v_row."scope", 'agent_id', v_row."agent_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'kind', v_row."kind", 'path', v_row."path", 'content', v_row."content", 'version', v_row."version", 'embedding_model', v_row."embedding_model", 'source_message_id', v_row."source_message_id", 'subject_type', v_row."subject_type", 'subject_id', v_row."subject_id", 'category', v_row."category", 'confidence', v_row."confidence", 'expires_at', v_row."expires_at", 'use_count', v_row."use_count", 'last_used_at', v_row."last_used_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'scope', v_row."scope", 'agent_id', v_row."agent_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'kind', v_row."kind", 'path', v_row."path", 'content', v_row."content", 'version', v_row."version", 'embedding_model', v_row."embedding_model", 'source_message_id', v_row."source_message_id", 'subject_type', v_row."subject_type", 'subject_id', v_row."subject_id", 'category', v_row."category", 'confidence', v_row."confidence", 'expires_at', v_row."expires_at", 'use_count', v_row."use_count", 'last_used_at', v_row."last_used_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."memory_create"(uuid, text, text, jsonb, integer) from public, anon;
@@ -272,7 +272,7 @@ begin
     raise exception '% is not a path under /memories', memory_str_replace.path using errcode = '22023', hint = 'MEMORY_PATH';
   end if;
   select * into v_row from "better_supabase"."memories" x
-  where x."workspace_id" = memory_str_replace.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null and x."path" = memory_str_replace.path
+  where x."tenant_id" = memory_str_replace.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null and x."path" = memory_str_replace.path
   for update;
   if not found then
     raise exception '% not found', memory_str_replace.path using errcode = 'P0002', hint = 'MEMORY_NOT_FOUND';
@@ -294,7 +294,7 @@ begin
     "version" = x."version" + 1, "embedding" = null, "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."workspace_id", 'owner_id', v_row."owner_id", 'scope', v_row."scope", 'agent_id', v_row."agent_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'kind', v_row."kind", 'path', v_row."path", 'content', v_row."content", 'version', v_row."version", 'embedding_model', v_row."embedding_model", 'source_message_id', v_row."source_message_id", 'subject_type', v_row."subject_type", 'subject_id', v_row."subject_id", 'category', v_row."category", 'confidence', v_row."confidence", 'expires_at', v_row."expires_at", 'use_count', v_row."use_count", 'last_used_at', v_row."last_used_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'scope', v_row."scope", 'agent_id', v_row."agent_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'kind', v_row."kind", 'path', v_row."path", 'content', v_row."content", 'version', v_row."version", 'embedding_model', v_row."embedding_model", 'source_message_id', v_row."source_message_id", 'subject_type', v_row."subject_type", 'subject_id', v_row."subject_id", 'category', v_row."category", 'confidence', v_row."confidence", 'expires_at', v_row."expires_at", 'use_count', v_row."use_count", 'last_used_at', v_row."last_used_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."memory_str_replace"(uuid, text, text, text, jsonb) from public, anon;
@@ -350,7 +350,7 @@ begin
     raise exception '% is not a path under /memories', memory_insert.path using errcode = '22023', hint = 'MEMORY_PATH';
   end if;
   select * into v_row from "better_supabase"."memories" x
-  where x."workspace_id" = memory_insert.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null and x."path" = memory_insert.path
+  where x."tenant_id" = memory_insert.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null and x."path" = memory_insert.path
   for update;
   if not found then
     raise exception '% not found', memory_insert.path using errcode = 'P0002', hint = 'MEMORY_NOT_FOUND';
@@ -366,7 +366,7 @@ begin
   update "better_supabase"."memories" x set "content" = v_content, "version" = x."version" + 1, "embedding" = null, "updated_at" = now()
   where x."id" = v_row."id"
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."workspace_id", 'owner_id', v_row."owner_id", 'scope', v_row."scope", 'agent_id', v_row."agent_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'kind', v_row."kind", 'path', v_row."path", 'content', v_row."content", 'version', v_row."version", 'embedding_model', v_row."embedding_model", 'source_message_id', v_row."source_message_id", 'subject_type', v_row."subject_type", 'subject_id', v_row."subject_id", 'category', v_row."category", 'confidence', v_row."confidence", 'expires_at', v_row."expires_at", 'use_count', v_row."use_count", 'last_used_at', v_row."last_used_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'scope', v_row."scope", 'agent_id', v_row."agent_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'kind', v_row."kind", 'path', v_row."path", 'content', v_row."content", 'version', v_row."version", 'embedding_model', v_row."embedding_model", 'source_message_id', v_row."source_message_id", 'subject_type', v_row."subject_type", 'subject_id', v_row."subject_id", 'category', v_row."category", 'confidence', v_row."confidence", 'expires_at', v_row."expires_at", 'use_count', v_row."use_count", 'last_used_at', v_row."last_used_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."memory_insert"(uuid, text, integer, text, jsonb) from public, anon;
@@ -421,7 +421,7 @@ begin
     raise exception '% is not a path under /memories', memory_delete.path using errcode = '22023', hint = 'MEMORY_PATH';
   end if;
   update "better_supabase"."memories" x set "archived_at" = now(), "updated_at" = now()
-  where x."workspace_id" = memory_delete.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+  where x."tenant_id" = memory_delete.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
     and (x."path" = memory_delete.path or x."path" like replace(replace(memory_delete.path, '_', '\_'), '%', '\%') || '/%');
   get diagnostics v_count = row_count;
   return v_count;
@@ -486,7 +486,7 @@ begin
   end if;
   if exists (
     select 1 from "better_supabase"."memories" x
-    where x."workspace_id" = memory_rename.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+    where x."tenant_id" = memory_rename.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
       and (x."path" = memory_rename.new_path or x."path" like replace(replace(memory_rename.new_path, '_', '\_'), '%', '\%') || '/%')
   ) then
     raise exception '% already exists', memory_rename.new_path using errcode = '23505', hint = 'MEMORY_EXISTS';
@@ -494,7 +494,7 @@ begin
   update "better_supabase"."memories" x set
     "path" = memory_rename.new_path || substr(x."path", length(memory_rename.old_path) + 1),
     "version" = x."version" + 1, "updated_at" = now()
-  where x."workspace_id" = memory_rename.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
+  where x."tenant_id" = memory_rename.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null
     and (x."path" = memory_rename.old_path or x."path" like v_prefix);
   get diagnostics v_count = row_count;
   if v_count = 0 then
@@ -545,10 +545,10 @@ begin
     or (v_owner is null and (v_scope not in ('organization', 'record') or v_private)) then
     raise exception 'ns % is not a memory namespace', memory_list.ns using errcode = '22023', hint = 'MEMORY_NAMESPACE';
   end if;
-  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'organization_id', x."workspace_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."path", x."created_at" desc), '[]') into v_rows
+  select coalesce(jsonb_agg(jsonb_build_object('id', x."id", 'tenant_id', x."tenant_id", 'owner_id', x."owner_id", 'scope', x."scope", 'agent_id', x."agent_id", 'chat_id', x."chat_id", 'project_id', x."project_id", 'kind', x."kind", 'path', x."path", 'content', x."content", 'version', x."version", 'embedding_model', x."embedding_model", 'source_message_id', x."source_message_id", 'subject_type', x."subject_type", 'subject_id', x."subject_id", 'category', x."category", 'confidence', x."confidence", 'expires_at', x."expires_at", 'use_count', x."use_count", 'last_used_at', x."last_used_at", 'created_at', x."created_at", 'updated_at', x."updated_at") order by x."path", x."created_at" desc), '[]') into v_rows
   from (
     select * from "better_supabase"."memories" y
-    where y."workspace_id" = memory_list.tenant and y."owner_id" is not distinct from v_owner and y."scope" = v_scope and y."agent_id" is not distinct from v_agent and y."chat_id" is not distinct from v_chat and y."project_id" is not distinct from v_project and y."subject_type" is not distinct from v_subject_type and y."subject_id" is not distinct from v_subject_id and y."superseded_by" is null and y."archived_at" is null and (y."expires_at" is null or y."expires_at" > now()) and y."kind" = memory_list.kind
+    where y."tenant_id" = memory_list.tenant and y."owner_id" is not distinct from v_owner and y."scope" = v_scope and y."agent_id" is not distinct from v_agent and y."chat_id" is not distinct from v_chat and y."project_id" is not distinct from v_project and y."subject_type" is not distinct from v_subject_type and y."subject_id" is not distinct from v_subject_id and y."superseded_by" is null and y."archived_at" is null and (y."expires_at" is null or y."expires_at" > now()) and y."kind" = memory_list.kind
     order by y."path", y."created_at" desc
     limit least(greatest(memory_list.max_rows, 1), 1000)
   ) x;
@@ -627,10 +627,10 @@ begin
   if memory_save.category is not null and memory_save.category !~ '^[a-z0-9][a-z0-9_-]*$' then
     raise exception 'category % is not a lowercase slug', memory_save.category using errcode = '22023', hint = 'MEMORY_CATEGORY';
   end if;
-  insert into "better_supabase"."memories" ("workspace_id", "owner_id", "scope", "agent_id", "chat_id", "project_id", "subject_type", "subject_id", "kind", "content", "embedding", "embedding_model", "source_message_id", "category", "confidence", "expires_at")
+  insert into "better_supabase"."memories" ("tenant_id", "owner_id", "scope", "agent_id", "chat_id", "project_id", "subject_type", "subject_id", "kind", "content", "embedding", "embedding_model", "source_message_id", "category", "confidence", "expires_at")
   values (memory_save.tenant, v_owner, v_scope, v_agent, v_chat, v_project, v_subject_type, v_subject_id, 'archival', memory_save.content, memory_save.embedding, memory_save.model, memory_save.source_message_id, memory_save.category, memory_save.confidence, memory_save.expires_at)
   returning * into v_row;
-  return jsonb_build_object('id', v_row."id", 'organization_id', v_row."workspace_id", 'owner_id', v_row."owner_id", 'scope', v_row."scope", 'agent_id', v_row."agent_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'kind', v_row."kind", 'path', v_row."path", 'content', v_row."content", 'version', v_row."version", 'embedding_model', v_row."embedding_model", 'source_message_id', v_row."source_message_id", 'subject_type', v_row."subject_type", 'subject_id', v_row."subject_id", 'category', v_row."category", 'confidence', v_row."confidence", 'expires_at', v_row."expires_at", 'use_count', v_row."use_count", 'last_used_at', v_row."last_used_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
+  return jsonb_build_object('id', v_row."id", 'tenant_id', v_row."tenant_id", 'owner_id', v_row."owner_id", 'scope', v_row."scope", 'agent_id', v_row."agent_id", 'chat_id', v_row."chat_id", 'project_id', v_row."project_id", 'kind', v_row."kind", 'path', v_row."path", 'content', v_row."content", 'version', v_row."version", 'embedding_model', v_row."embedding_model", 'source_message_id', v_row."source_message_id", 'subject_type', v_row."subject_type", 'subject_id', v_row."subject_id", 'category', v_row."category", 'confidence', v_row."confidence", 'expires_at', v_row."expires_at", 'use_count', v_row."use_count", 'last_used_at', v_row."last_used_at", 'created_at', v_row."created_at", 'updated_at', v_row."updated_at");
 end;
 $$;
 revoke execute on function "better_supabase"."memory_save"(uuid, text, jsonb, extensions.vector, text, text, text, real, timestamptz) from public, anon;
@@ -693,7 +693,7 @@ begin
   perform set_config('hnsw.iterative_scan', 'relaxed_order', true);
   with scoped as materialized (
     select x."id" as id from "better_supabase"."memories" x
-    where x."workspace_id" = memory_search.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null and (x."expires_at" is null or x."expires_at" > now()) and x."kind" = 'archival'
+    where x."tenant_id" = memory_search.tenant and x."owner_id" is not distinct from v_owner and x."scope" = v_scope and x."agent_id" is not distinct from v_agent and x."chat_id" is not distinct from v_chat and x."project_id" is not distinct from v_project and x."subject_type" is not distinct from v_subject_type and x."subject_id" is not distinct from v_subject_id and x."superseded_by" is null and x."archived_at" is null and (x."expires_at" is null or x."expires_at" > now()) and x."kind" = 'archival'
   ),
   vector_hits as materialized (
     select t."id" as id, t."embedding" operator(extensions.<=>) memory_search.query_embedding as distance
@@ -725,7 +725,7 @@ begin
     update "better_supabase"."memories" t set "use_count" = t."use_count" + 1, "last_used_at" = now()
     from fused f where t."id" = f.id
   )
-  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'organization_id', t."workspace_id", 'owner_id', t."owner_id", 'scope', t."scope", 'agent_id', t."agent_id", 'chat_id', t."chat_id", 'project_id', t."project_id", 'kind', t."kind", 'path', t."path", 'content', t."content", 'version', t."version", 'embedding_model', t."embedding_model", 'source_message_id', t."source_message_id", 'subject_type', t."subject_type", 'subject_id', t."subject_id", 'category', t."category", 'confidence', t."confidence", 'expires_at', t."expires_at", 'use_count', t."use_count", 'last_used_at', t."last_used_at", 'created_at', t."created_at", 'updated_at', t."updated_at") || jsonb_build_object('score', f.score, 'similarity', 1 - f.distance) order by f.score desc), '[]')
+  select coalesce(jsonb_agg(jsonb_build_object('id', t."id", 'tenant_id', t."tenant_id", 'owner_id', t."owner_id", 'scope', t."scope", 'agent_id', t."agent_id", 'chat_id', t."chat_id", 'project_id', t."project_id", 'kind', t."kind", 'path', t."path", 'content', t."content", 'version', t."version", 'embedding_model', t."embedding_model", 'source_message_id', t."source_message_id", 'subject_type', t."subject_type", 'subject_id', t."subject_id", 'category', t."category", 'confidence', t."confidence", 'expires_at', t."expires_at", 'use_count', t."use_count", 'last_used_at', t."last_used_at", 'created_at', t."created_at", 'updated_at', t."updated_at") || jsonb_build_object('score', f.score, 'similarity', 1 - f.distance) order by f.score desc), '[]')
   into v_rows
   from fused f join "better_supabase"."memories" t on t."id" = f.id;
   perform set_config('hnsw.iterative_scan', coalesce(nullif(v_scan, ''), 'off'), true);
@@ -752,7 +752,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."memories" x where x."id" = memory_forget.memory_id;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or (v_row."owner_id" is null and coalesce(better_supabase.can('tenant', v_row."workspace_id", 'memory.manage'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or (v_row."owner_id" is null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'memory.manage'), false))) then
     return false;
   end if;
   if memory_forget.superseded_by is null then
@@ -781,7 +781,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into v_row from "better_supabase"."memories" x where x."id" = memory_restore.memory_id and x."archived_at" is not null;
-  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or (v_row."owner_id" is null and coalesce(better_supabase.can('tenant', v_row."workspace_id", 'memory.manage'), false))) then
+  if not found or not (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(v_row."owner_id" = auth.uid(), false) or (v_row."owner_id" is null and coalesce(better_supabase.can('tenant', v_row."tenant_id", 'memory.manage'), false))) then
     return false;
   end if;
   update "better_supabase"."memories" x set "archived_at" = null, "updated_at" = now() where x."id" = v_row."id";
@@ -810,7 +810,7 @@ begin
   delete from "better_supabase"."memories" x
   where x."id" in (
     select y."id" from "better_supabase"."memories" y
-    where (purge_memories.tenant is null or y."workspace_id" = purge_memories.tenant)
+    where (purge_memories.tenant is null or y."tenant_id" = purge_memories.tenant)
       and (y."archived_at" < now() - make_interval(days => greatest(purge_memories.retention_days, 0)) or y."expires_at" < now())
     limit least(greatest(purge_memories.batch, 1), 10000)
   );
@@ -898,7 +898,7 @@ set search_path = ''
 as $$
 #variable_conflict use_column
 begin
-  insert into "better_supabase"."memory_message_embeddings" ("chat_id", "message_id", "user_id", "workspace_id", "embedding", "embedding_model")
+  insert into "better_supabase"."memory_message_embeddings" ("chat_id", "message_id", "user_id", "tenant_id", "embedding", "embedding_model")
   values (set_ai_message_embedding.chat_id, set_ai_message_embedding.message_id, set_ai_message_embedding.user_id, set_ai_message_embedding.tenant, set_ai_message_embedding.embedding, set_ai_message_embedding.model)
   on conflict ("chat_id", "message_id") do update set "embedding" = excluded."embedding", "embedding_model" = excluded."embedding_model";
   return true;
@@ -936,7 +936,7 @@ begin
   from (
     select x."chat_id" as chat_id, x."message_id" as message_id, x."embedding" operator(extensions.<=>) recall_ai_messages.query_embedding as distance
     from "better_supabase"."memory_message_embeddings" x
-    where x."user_id" = v_user and x."workspace_id" = recall_ai_messages.tenant
+    where x."user_id" = v_user and x."tenant_id" = recall_ai_messages.tenant
       and x."chat_id" is distinct from recall_ai_messages.exclude_chat
     order by x."embedding" operator(extensions.<=>) recall_ai_messages.query_embedding
     limit least(greatest(recall_ai_messages.k, 1), 50)
@@ -1051,35 +1051,35 @@ grant execute on function "better_supabase"."purge_memory_documents"(integer) to
 create policy bsb_tenant_scope_select on "better_supabase"."memories" as restrictive
   for select to public
   using (
-    "workspace_id" in (select better_supabase.member_workspace_ids())
-    or (("owner_id" = (select auth.uid()) or ("owner_id" is null and "workspace_id" in (select better_supabase.tenant_ids_with('memory.read')))) and "archived_at" is null)
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or (("owner_id" = (select auth.uid()) or ("owner_id" is null and "tenant_id" in (select better_supabase.tenant_ids_with('memory.read')))) and "archived_at" is null)
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."memories" as restrictive
   for insert to public
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."memories" as restrictive
   for update to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."memories" as restrictive
   for delete to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_select on "better_supabase"."memory_message_embeddings" as restrictive
   for select to public
   using (
-    "workspace_id" in (select better_supabase.member_workspace_ids())
+    "tenant_id" in (select better_supabase.member_workspace_ids())
     or ("user_id" = (select auth.uid()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."memory_message_embeddings" as restrictive
   for insert to public
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."memory_message_embeddings" as restrictive
   for update to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."memory_message_embeddings" as restrictive
   for delete to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_050_memory.sql
 -- better-supabase module: memory

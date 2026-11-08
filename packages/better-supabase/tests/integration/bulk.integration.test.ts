@@ -237,7 +237,7 @@ from generate_series(1, 9) n;`);
     expect(archivedBy).toEqual([{ archived_by: member.id }]);
 
     const events = await db.rows<{ payload: Record<string, unknown> }>(
-      `select payload from better_supabase.outbox_events where type = 'bulk_run.completed' and organization_id = '${org}'`,
+      `select payload from better_supabase.outbox_events where type = 'bulk_run.completed' and tenant_id = '${org}'`,
     );
 
     expect(events.map((event) => event.payload)).toEqual([

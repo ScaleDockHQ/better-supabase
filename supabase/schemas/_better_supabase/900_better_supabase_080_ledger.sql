@@ -1,6 +1,6 @@
 -- better-supabase module: ledger
 -- @bsb-block ledger@1 managed
--- @bsb-hash sha256:dcbcef12554f08102c18217060f1869978993f73a5ce94ab0711580ad7323a1e
+-- @bsb-hash sha256:f4827c4d178f1f90e1eea87d4f4008d8473a46590472a324b45cbdab318b2e32
 -- Double-entry accounts in a currency or a custom unit, balanced transactions, balances and holds. Credits, stock, leave balances and invoice payments post through it.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -167,7 +167,7 @@ begin
   if tg_op = 'DELETE' and current_setting('better_supabase.purge_tenant', true) = to_jsonb(old) ->> tg_argv[0] then
     if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') and exists (
       select 1 from "better_supabase"."organization_deletions" x
-      where x."organization_id"::text = to_jsonb(old) ->> tg_argv[0]
+      where x."tenant_id"::text = to_jsonb(old) ->> tg_argv[0]
         and x."cancelled_at" is null and x."purged_at" is null and x."purge_at" <= now()
     ) then
       return old;

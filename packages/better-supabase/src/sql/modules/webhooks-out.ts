@@ -65,7 +65,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant", credentials: ["credentialRef"] },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         name: "name",
         url: "url",
         enabled: "enabled",
@@ -111,7 +111,7 @@ const NAMES: BlockSqlNames = {
       columns: {
         id: "id",
         endpoint: "endpoint_id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         secret: "secret",
         vaultId: "vault_secret_id",
         expiresAt: "expires_at",
@@ -125,7 +125,7 @@ const NAMES: BlockSqlNames = {
       lifecycle: { tenant: "tenant" },
       columns: {
         id: "id",
-        tenant: "organization_id",
+        tenant: "tenant_id",
         endpoint: "endpoint_id",
         event: "event_id",
         run: "run_id",

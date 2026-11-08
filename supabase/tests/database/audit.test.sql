@@ -24,28 +24,28 @@ reset role;
 select is(
   (select count(*)::int from better_supabase.audit_events
     where event_type = 'organization_setting.updated'
-      and organization_id = '00000000-0000-4000-8000-000000000001'),
+      and tenant_id = '00000000-0000-4000-8000-000000000001'),
   1,
   'the setting change writes one audit entry'
 );
 select is(
   (select category from better_supabase.audit_events
     where event_type = 'organization_setting.updated'
-      and organization_id = '00000000-0000-4000-8000-000000000001'),
+      and tenant_id = '00000000-0000-4000-8000-000000000001'),
   'configuration',
   'a setting change is a configuration event'
 );
 select is(
   (select count(*)::int from better_supabase.audit_events
     where event_type = 'api_key.created'
-      and organization_id = '00000000-0000-4000-8000-000000000001'),
+      and tenant_id = '00000000-0000-4000-8000-000000000001'),
   1,
   'the new API key writes one audit entry'
 );
 select is(
   (select category from better_supabase.audit_events
     where event_type = 'api_key.created'
-      and organization_id = '00000000-0000-4000-8000-000000000001'),
+      and tenant_id = '00000000-0000-4000-8000-000000000001'),
   'security',
   'an API key is a security event'
 );

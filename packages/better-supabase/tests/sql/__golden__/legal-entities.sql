@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:b3ac191101f87d3dcd2dd6f22d5d58dedadcc62aecb580cca310a62f08b5c0e9
+-- @bsb-hash sha256:a499179529f3d969dd04b6dd28479417fd7f0ff47cf18e3cd7d24b8e0e026cb4
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -478,7 +478,7 @@ begin
     end if;
   end if;
   select s."value" into v_value from "better_supabase"."organization_settings" s
-    where s."organization_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
+    where s."tenant_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
   if found then
     return jsonb_build_object('value', v_value, 'source', 'organization', 'legalEntityId', v_entity);
   end if;
@@ -541,7 +541,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:12525a743e640567f446769353d6c8f1f7a06f3e1dc8a83bd8e68cc4e96b12d0
+-- @bsb-hash sha256:db377a7d2c01dceb6d723c79c2d91ed30eb1b231043b799cc7c400ccb5955742
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1058,7 +1058,7 @@ begin
     end if;
   end if;
   select s."value" into v_value from "better_supabase"."organization_settings" s
-    where s."organization_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
+    where s."tenant_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
   if found then
     return jsonb_build_object('value', v_value, 'source', 'organization', 'legalEntityId', v_entity);
   end if;
@@ -1271,7 +1271,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:e12e6e1dda973c21bfa79c4fa4002a65e0e2d13689aef3fbd92e30ad42dc62de
+-- @bsb-hash sha256:f0c9f3231d626868d1c593842b33997d3648edef264ef4a1fc40a38c0b07fd0f
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1753,7 +1753,7 @@ begin
     end if;
   end if;
   select s."value" into v_value from "better_supabase"."organization_settings" s
-    where s."organization_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
+    where s."tenant_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
   if found then
     return jsonb_build_object('value', v_value, 'source', 'organization', 'legalEntityId', v_entity);
   end if;
@@ -1816,7 +1816,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:720f9a82d1fd9acdcc4ed8ce5b13fb145c16f63f267ad36a4003e4feaf04aebd
+-- @bsb-hash sha256:2b5f466350d220d1e77ee92baecc5603c1e2b591ed716e29387b8d1f00885b08
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2293,7 +2293,7 @@ begin
     end if;
   end if;
   select s."value" into v_value from "better_supabase"."organization_settings" s
-    where s."organization_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
+    where s."tenant_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
   if found then
     return jsonb_build_object('value', v_value, 'source', 'organization', 'legalEntityId', v_entity);
   end if;
@@ -2464,7 +2464,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_157_legal_entities.sql
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:79b02d910c5b7930db110e5e0855fecc32f557bf420aa57f4f8b581d9a31174b
+-- @bsb-hash sha256:02c57bdae8fcd45913f446c2aca926ac89a167d46d084f778c9dc576e0c6be05
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2932,7 +2932,7 @@ begin
     end if;
   end if;
   select s."value" into v_value from "better_supabase"."organization_settings" s
-    where s."organization_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
+    where s."tenant_id" = resolve_setting.tenant and s."key" = resolve_setting.key;
   if found then
     return jsonb_build_object('value', v_value, 'source', 'organization', 'legalEntityId', v_entity);
   end if;

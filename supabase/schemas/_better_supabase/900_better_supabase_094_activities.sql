@@ -1,6 +1,6 @@
 -- better-supabase module: activities
 -- @bsb-block activities@4 managed
--- @bsb-hash sha256:8a34a62cb423a3bacc55e6f0244bc25cb3168cdae45987a3a7ea86cfb3c9ab3f
+-- @bsb-hash sha256:71c0909edb4a95a591a1670110f5a5dbf38cc9e7116f40f1d2a0aa77a7ef123a
 -- Calls, emails, meetings, notes and tasks logged on one or more registered records, with an owner, a due time and an outcome, a record's timeline, its next step and a member's open tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -688,7 +688,7 @@ begin
   if not exists (
     select 1 from "better_supabase"."ai_files" fx
     where fx."id" = attach_activity_recording.file
-      and fx."organization_id"::text = v_tenant::text
+      and fx."tenant_id"::text = v_tenant::text
       and fx."status" = 'ready'
       and (auth.role() = 'service_role' or fx."owner_id" = auth.uid() or coalesce(better_supabase.can('tenant', v_tenant, 'activities.manage'), false))
   ) then

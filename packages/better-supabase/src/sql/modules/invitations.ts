@@ -112,11 +112,7 @@ const NAMES: BlockSqlNames = {
       name: "invitations",
       app: {},
       lifecycle: { tenant: "tenant", omit: ["tokenHash"] },
-      columns: {
-        ...PLATFORM_COLUMNS,
-        tenant: "organization_id",
-        prefill: "prefill",
-      },
+      columns: { ...PLATFORM_COLUMNS, tenant: "tenant_id", prefill: "prefill" },
       optional: [
         "invitedBy",
         "createdAt",

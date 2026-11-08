@@ -1,6 +1,6 @@
 -- better-supabase module: permissions
 -- @bsb-block permissions@1 managed
--- @bsb-hash sha256:31d16171dbe41eacf0fcf1a9dcfb522f0dab1e32f15714f90e5ae7ff71564900
+-- @bsb-hash sha256:cb86042fea1d629d3c8ff9d816b3fdb3104499fbec697b2b72dd0ee44f8a6a26
 -- can(), tenant_ids_with() and is_platform(): one permission contract for policies and SQL modules, over a roles list, a role and permission catalog, an authorization provider or the app's own functions (blocks.permissions.model).
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -520,11 +520,11 @@ create table "better_supabase"."role_permissions" (
 );
 create index role_permissions_permission_idx on "better_supabase"."role_permissions" ("permission_id");
 create table "better_supabase"."permission_overrides" (
-  "organization_id" uuid not null,
+  "tenant_id" uuid not null,
   "role_id" uuid not null references "better_supabase"."roles" on delete cascade,
   "permission_id" uuid not null references "better_supabase"."permissions" on delete cascade,
   "granted" boolean not null,
-  primary key ("organization_id", "role_id", "permission_id")
+  primary key ("tenant_id", "role_id", "permission_id")
 );
 create index permission_overrides_role_idx on "better_supabase"."permission_overrides" ("role_id");
 create index permission_overrides_permission_idx on "better_supabase"."permission_overrides" ("permission_id");
@@ -552,7 +552,7 @@ begin
   execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."roles"'), 'access', null);
   execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."permissions"'), 'access', null);
   execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."role_permissions"'), 'access', null);
-  execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."permission_overrides"'), 'access', 'organization_id');
+  execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."permission_overrides"'), 'access', 'tenant_id');
   execute format('select better_supabase.audit(%s::regclass, category => %L, tenant_column => %L)', quote_literal('"better_supabase"."platform_roles"'), 'access', null);
 end;
 $$;
@@ -573,7 +573,7 @@ as $$
       where m."organization_id" = member_can.tenant and m."user_id" = member_can.member
         and exists (select 1 from "better_supabase"."permissions" p where p."key" = member_can.permission and coalesce(
       (select bool_and(o."granted") from "better_supabase"."permission_overrides" o
-        where o."organization_id" = m."organization_id"
+        where o."tenant_id" = m."organization_id"
           and o."role_id" = m."role"
           and o."permission_id" = p."id"),
       exists (select 1 from "better_supabase"."role_permissions" rp where rp."role_id" = m."role" and rp."permission_id" = p."id")
@@ -600,7 +600,7 @@ as $$
       where m."organization_id" = member_can_while_deleting.tenant and m."user_id" = member_can_while_deleting.member
         and exists (select 1 from "better_supabase"."permissions" p where p."key" = member_can_while_deleting.permission and coalesce(
       (select bool_and(o."granted") from "better_supabase"."permission_overrides" o
-        where o."organization_id" = m."organization_id"
+        where o."tenant_id" = m."organization_id"
           and o."role_id" = m."role"
           and o."permission_id" = p."id"),
       exists (select 1 from "better_supabase"."role_permissions" rp where rp."role_id" = m."role" and rp."permission_id" = p."id")
@@ -623,7 +623,7 @@ as $$
       where m."organization_id" = member_permissions.tenant and m."user_id" = member_permissions.member
         and coalesce(
       (select bool_and(o."granted") from "better_supabase"."permission_overrides" o
-        where o."organization_id" = m."organization_id"
+        where o."tenant_id" = m."organization_id"
           and o."role_id" = m."role"
           and o."permission_id" = p."id"),
       exists (select 1 from "better_supabase"."role_permissions" rp where rp."role_id" = m."role" and rp."permission_id" = p."id")
@@ -676,7 +676,7 @@ as $$
     and better_supabase.cap_allows(tenant_ids_with.permission)
     and exists (select 1 from "better_supabase"."permissions" p where p."key" = tenant_ids_with.permission and coalesce(
       (select bool_and(o."granted") from "better_supabase"."permission_overrides" o
-        where o."organization_id" = m."organization_id"
+        where o."tenant_id" = m."organization_id"
           and o."role_id" = m."role"
           and o."permission_id" = p."id"),
       exists (select 1 from "better_supabase"."role_permissions" rp where rp."role_id" = m."role" and rp."permission_id" = p."id")
@@ -712,7 +712,7 @@ as $$
         cross join lateral (select p."key" as key) k
         where coalesce(
       (select bool_and(o."granted") from "better_supabase"."permission_overrides" o
-        where o."organization_id" = m."organization_id"
+        where o."tenant_id" = m."organization_id"
           and o."role_id" = m."role"
           and o."permission_id" = p."id"),
       exists (select 1 from "better_supabase"."role_permissions" rp where rp."role_id" = m."role" and rp."permission_id" = p."id")
@@ -886,14 +886,14 @@ begin
         from "better_supabase"."permissions" p
         where coalesce(
           (select bool_and(ov."granted") from "better_supabase"."permission_overrides" ov
-            where ov."organization_id" = list_roles.tenant and ov."role_id" = r."id" and ov."permission_id" = p."id"),
+            where ov."tenant_id" = list_roles.tenant and ov."role_id" = r."id" and ov."permission_id" = p."id"),
           exists (select 1 from "better_supabase"."role_permissions" x where x."role_id" = r."id" and x."permission_id" = p."id")
         )
       ), '[]'::jsonb),
       'overrides', coalesce((
         select jsonb_agg(jsonb_build_object('permission', p."key", 'granted', ov."granted") order by p."key")
         from "better_supabase"."permission_overrides" ov join "better_supabase"."permissions" p on p."id" = ov."permission_id"
-        where ov."organization_id" = list_roles.tenant and ov."role_id" = r."id"
+        where ov."tenant_id" = list_roles.tenant and ov."role_id" = r."id"
       ), '[]'::jsonb)
     ) order by r."key")
     from "better_supabase"."roles" r
@@ -952,11 +952,11 @@ begin
   end if;
   if granted is null then
     delete from "better_supabase"."permission_overrides" ov
-    where ov."organization_id" = tenant and ov."role_id" = v_role and ov."permission_id" = v_permission;
+    where ov."tenant_id" = tenant and ov."role_id" = v_role and ov."permission_id" = v_permission;
   else
-    insert into "better_supabase"."permission_overrides" ("organization_id", "role_id", "permission_id", "granted")
+    insert into "better_supabase"."permission_overrides" ("tenant_id", "role_id", "permission_id", "granted")
     values (tenant, v_role, v_permission, granted)
-    on conflict ("organization_id", "role_id", "permission_id") do update set "granted" = excluded."granted";
+    on conflict ("tenant_id", "role_id", "permission_id") do update set "granted" = excluded."granted";
   end if;
   return (select jsonb_build_object(
       'id', r."id",
@@ -972,14 +972,14 @@ begin
         from "better_supabase"."permissions" p
         where coalesce(
           (select bool_and(ov."granted") from "better_supabase"."permission_overrides" ov
-            where ov."organization_id" = set_permission_override.tenant and ov."role_id" = r."id" and ov."permission_id" = p."id"),
+            where ov."tenant_id" = set_permission_override.tenant and ov."role_id" = r."id" and ov."permission_id" = p."id"),
           exists (select 1 from "better_supabase"."role_permissions" x where x."role_id" = r."id" and x."permission_id" = p."id")
         )
       ), '[]'::jsonb),
       'overrides', coalesce((
         select jsonb_agg(jsonb_build_object('permission', p."key", 'granted', ov."granted") order by p."key")
         from "better_supabase"."permission_overrides" ov join "better_supabase"."permissions" p on p."id" = ov."permission_id"
-        where ov."organization_id" = set_permission_override.tenant and ov."role_id" = r."id"
+        where ov."tenant_id" = set_permission_override.tenant and ov."role_id" = r."id"
       ), '[]'::jsonb)
     ) from "better_supabase"."roles" r where r."id" = v_role);
 end;

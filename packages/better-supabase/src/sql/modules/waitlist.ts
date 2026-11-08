@@ -72,7 +72,7 @@ const CODE_COLUMNS = {
   maxUses: "max_uses",
   uses: "uses",
   expiresAt: "expires_at",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   role: "role",
   createdBy: "created_by",
   createdAt: "created_at",

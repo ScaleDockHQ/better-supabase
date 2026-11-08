@@ -3671,7 +3671,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_069_catalog.sql
 -- better-supabase module: catalog
 -- @bsb-block catalog@6 managed
--- @bsb-hash sha256:8dd3a6e0c8728a6e95356b4d8aeac4676e250ec1c611ac6adb11edc644e0f396
+-- @bsb-hash sha256:54aa568b6332bccd922896c37dd4f6b806185ebf20e4352dc38e993c17588850
 -- Products with options, variants and prices in minor units, price lists, a category tree, collections, sales channels, translations per locale, product media and an optional public storefront.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5827,7 +5827,7 @@ begin
   if not exists (
     select 1 from "better_supabase"."attachments" f
     where f."id" = add_product_media.attachment
-      and f."organization_id" = v_tenant
+      and f."tenant_id" = v_tenant
       and (
         (f."subject_type" = 'product' and f."subject_id" = add_product_media.product::text)
         or (f."subject_type" = 'product_variant' and f."subject_id" in (select w."id"::text from "better_supabase"."product_variants" w where w."product_id" = add_product_media.product))

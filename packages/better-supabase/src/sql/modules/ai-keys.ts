@@ -24,7 +24,7 @@ import { moduleOperations } from "./permissions-model.ts";
 
 const KEYS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   provider: "provider",
   name: "name",
   credentialRef: "credential_ref",
@@ -37,7 +37,7 @@ const KEYS = {
 
 const BATCHES = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   user: "user_id",
   provider: "provider",
   reference: "reference",
@@ -59,7 +59,7 @@ const BATCHES = {
 const ITEMS = {
   batch: "batch_id",
   request: "request_id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   status: "status",
   output: "output",
   usage: "usage",

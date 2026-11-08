@@ -1,21 +1,21 @@
 -- ==== schema supabase/schemas/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations
 -- @bsb-block invitations@2 managed
--- @bsb-hash sha256:77e70ae9c247976e8b4713b2498d83298b6a2ecd12c71634d7f32d74e68ce9bc
+-- @bsb-hash sha256:4b993eecf988f90cff78bc86f46ad44c36d66b39acbe05268f3c7848b294fa15
 -- invite_member(tenant, email, role) returns a single-use token whose hash is stored; accept_invitation(token) checks the signed-in user's confirmed email and, again, the inviter's authority. Roles follow the access model; a null tenant invites to a platform role, stored in platform_invitations.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
 create table "better_supabase"."invitations" (
   "id" uuid primary key default gen_random_uuid(),
-  "workspace_id" uuid not null,
+  "tenant_id" uuid not null,
   "email" text not null,
   "role" text not null,
   "token_hash" text not null unique,
   "expires_at" timestamptz not null,
   "accepted_at" timestamptz
 );
-alter table "better_supabase"."invitations" alter column "workspace_id" set not null;
+alter table "better_supabase"."invitations" alter column "tenant_id" set not null;
 alter table "better_supabase"."invitations" alter column "role" drop default;
 alter table "better_supabase"."invitations" add column "invited_by" uuid references auth.users (id) on delete set null;
 alter table "better_supabase"."invitations" add column "created_at" timestamptz not null default now();
@@ -23,8 +23,8 @@ alter table "better_supabase"."invitations" add column "accepted_by" uuid refere
 alter table "better_supabase"."invitations" add column "declined_at" timestamptz;
 alter table "better_supabase"."invitations" add column "revoked_at" timestamptz;
 create unique index invitations_open_email_idx
-  on "better_supabase"."invitations" ("workspace_id", lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null;
-create index invitations_tenant_created_idx on "better_supabase"."invitations" ("workspace_id", "created_at");
+  on "better_supabase"."invitations" ("tenant_id", lower("email")) where "accepted_at" is null and "declined_at" is null and "revoked_at" is null;
+create index invitations_tenant_created_idx on "better_supabase"."invitations" ("tenant_id", "created_at");
 alter table "better_supabase"."invitations" add column "updated_at" timestamptz not null default now();
 create trigger bsb_updated_at before update on "better_supabase"."invitations"
   for each row
@@ -56,7 +56,7 @@ revoke execute on function "better_supabase"."invitation_tenant_ids"() from publ
 grant execute on function "better_supabase"."invitation_tenant_ids"() to authenticated, service_role;
 create policy bsb_invitations_read on "better_supabase"."invitations"
   for select to authenticated
-  using ("workspace_id" in (select "better_supabase"."invitation_tenant_ids"()));
+  using ("tenant_id" in (select "better_supabase"."invitation_tenant_ids"()));
 
 -- The keys an invitation_preview_extra(invitation uuid) hook returns for an
 -- invitation, such as a role's display name; {} without the hook. The
@@ -142,22 +142,22 @@ begin
     end if;
   end;
   delete from "better_supabase"."invitations" i
-  where i."workspace_id" = tenant
+  where i."tenant_id" = tenant
     and lower(i."email") = lower(btrim(invitee_email))
     and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null;
-  insert into "better_supabase"."invitations" ("workspace_id", "email", "role", "token_hash", "invited_by", "expires_at")
+  insert into "better_supabase"."invitations" ("tenant_id", "email", "role", "token_hash", "invited_by", "expires_at")
   values (tenant, lower(btrim(invitee_email)), invitee_role, encode(extensions.digest(token, 'sha256'), 'hex'), auth.uid(), now() + valid_for)
   returning * into created;
   null;
   return (jsonb_build_object(
     'id', created."id",
-    'tenant', created."workspace_id",
+    'tenant', created."tenant_id",
     'email', created."email",
     'role', created."role",
     'expires_at', created."expires_at",
     'created_at', created."created_at",
     'invited_by', created."invited_by",
-    'organization', jsonb_build_object('id', created."workspace_id"),
+    'organization', jsonb_build_object('id', created."tenant_id"),
     'prefill', '{}'::jsonb,
     'token', token
   ) || "better_supabase"."invitation_extra"(created."id"));
@@ -202,7 +202,7 @@ begin
   set "token_hash" = encode(extensions.digest(token, 'sha256'), 'hex'),
     "expires_at" = now() + valid_for
   where i."id" = invitation_id and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null
-    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), i."workspace_id", 'members.invite'), false))
+    and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), i."tenant_id", 'members.invite'), false))
   returning * into updated;
   if updated."id" is null then
     raise exception 'No open invitation %', invitation_id using errcode = 'P0002', hint = 'INVITATION_INVALID';
@@ -210,13 +210,13 @@ begin
   null;
   return (jsonb_build_object(
     'id', updated."id",
-    'tenant', updated."workspace_id",
+    'tenant', updated."tenant_id",
     'email', updated."email",
     'role', updated."role",
     'expires_at', updated."expires_at",
     'created_at', updated."created_at",
     'invited_by', updated."invited_by",
-    'organization', jsonb_build_object('id', updated."workspace_id"),
+    'organization', jsonb_build_object('id', updated."tenant_id"),
     'prefill', '{}'::jsonb,
     'token', token
   ) || "better_supabase"."invitation_extra"(updated."id"));
@@ -261,7 +261,7 @@ begin
   if current_invite."expires_at" < now() then
     raise exception 'The invitation has expired; resend it to renew it' using errcode = 'P0002', hint = 'INVITATION_EXPIRED';
   end if;
-  tenant := current_invite."workspace_id";
+  tenant := current_invite."tenant_id";
   if not service and not coalesce(better_supabase.member_can(auth.uid(), tenant, 'members.invite'), false) then
     raise exception 'Not allowed to invite members' using errcode = '42501', hint = 'INVITATION_FORBIDDEN';
   end if;
@@ -285,7 +285,7 @@ begin
   end if;
   if invitee_email is not null then
     delete from "better_supabase"."invitations" i
-    where i."workspace_id" = tenant
+    where i."tenant_id" = tenant
       and lower(i."email") = lower(btrim(invitee_email))
       and i."id" <> invitation_id
       and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null;
@@ -305,13 +305,13 @@ begin
   null;
   return (jsonb_build_object(
     'id', updated."id",
-    'tenant', updated."workspace_id",
+    'tenant', updated."tenant_id",
     'email', updated."email",
     'role', updated."role",
     'expires_at', updated."expires_at",
     'created_at', updated."created_at",
     'invited_by', updated."invited_by",
-    'organization', jsonb_build_object('id', updated."workspace_id"),
+    'organization', jsonb_build_object('id', updated."tenant_id"),
     'prefill', '{}'::jsonb,
     'token', null
   ) || "better_supabase"."invitation_extra"(updated."id")) - 'token';
@@ -332,8 +332,8 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  update "better_supabase"."invitations" i set "revoked_at" = now() where i."id" = invitation_id and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), i."workspace_id", 'members.invite'), false)) and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null
-  returning i."workspace_id"::text into tenant;
+  update "better_supabase"."invitations" i set "revoked_at" = now() where i."id" = invitation_id and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.member_can(auth.uid(), i."tenant_id", 'members.invite'), false)) and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null
+  returning i."tenant_id"::text into tenant;
   if found then
     null;
     return true;
@@ -358,7 +358,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."invitations" i set "declined_at" = now() where i."token_hash" = encode(extensions.digest(token, 'sha256'), 'hex') and i."expires_at" >= now() and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null
-  returning i."id", i."workspace_id"::text into declined_id, tenant;
+  returning i."id", i."tenant_id"::text into declined_id, tenant;
   if declined_id is not null then
     null;
     return true;
@@ -389,7 +389,7 @@ begin
     return false;
   end if;
   update "better_supabase"."invitations" i set "declined_at" = now() where i."id" = invitation_id and lower(i."email") = invitee_email and i."expires_at" >= now() and i."accepted_at" is null and i."declined_at" is null and i."revoked_at" is null
-  returning i."id", i."workspace_id"::text into declined_id, tenant;
+  returning i."id", i."tenant_id"::text into declined_id, tenant;
   if declined_id is not null then
     null;
     return true;
@@ -424,9 +424,9 @@ begin
   end,
     'email', i."email",
     'role', i."role",
-    'tenant', i."workspace_id",
+    'tenant', i."tenant_id",
     'expires_at', i."expires_at",
-    'organization', jsonb_build_object('id', i."workspace_id"),
+    'organization', jsonb_build_object('id', i."tenant_id"),
     'prefill', '{}'::jsonb
   ), i."id"
   into preview, invitation
@@ -493,23 +493,23 @@ begin
   if invite."invited_by" = me then
     raise exception 'You cannot accept your own invitation' using errcode = '42501', hint = 'INVITATION_SELF';
   end if;
-  if better_supabase.tenant_disabled(invite."workspace_id") or false then
+  if better_supabase.tenant_disabled(invite."tenant_id") or false then
     raise exception 'The invitation is invalid or has expired' using errcode = 'P0002', hint = 'INVITATION_INVALID';
   end if;
-  if exists (select 1 from "better_supabase"."memberships" m where m."workspace_id" = invite."workspace_id" and m."user_id" = me) then
+  if exists (select 1 from "better_supabase"."memberships" m where m."workspace_id" = invite."tenant_id" and m."user_id" = me) then
     raise exception 'You are already a member' using errcode = '23505', hint = 'INVITATION_ALREADY_MEMBER';
   end if;
     if invite."invited_by" is not null
-      and better_supabase.can_user(invite."invited_by", 'organization', invite."workspace_id", 'members.invite') is false then
+      and better_supabase.can_user(invite."invited_by", 'organization', invite."tenant_id", 'members.invite') is false then
       raise exception 'The person who invited you can no longer invite members' using errcode = '42501', hint = 'INVITATION_INVITER_REVOKED';
     end if;
     if invite."invited_by" is not null
-      and not better_supabase.can_assign_as(invite."invited_by", invite."workspace_id", invite."role"::text) then
+      and not better_supabase.can_assign_as(invite."invited_by", invite."tenant_id", invite."role"::text) then
       raise exception 'The person who invited you can no longer assign that role' using errcode = '42501', hint = 'INVITATION_INVITER_REVOKED';
     end if;
   perform set_config('better_supabase.accepting_invitation', invite."id"::text, true);
   insert into "better_supabase"."memberships" ("workspace_id", "user_id", "role")
-  values (invite."workspace_id", me, invite."role");
+  values (invite."tenant_id", me, invite."role");
   perform set_config('better_supabase.accepting_invitation', '', true);
   update "better_supabase"."invitations"
   set "accepted_at" = now(), "accepted_by" = me
@@ -524,7 +524,7 @@ begin
   end;
   null;
   null;
-  return invite."workspace_id";
+  return invite."tenant_id";
 end;
 $$;
 
@@ -571,23 +571,23 @@ begin
   if invite."invited_by" = me then
     raise exception 'You cannot accept your own invitation' using errcode = '42501', hint = 'INVITATION_SELF';
   end if;
-  if better_supabase.tenant_disabled(invite."workspace_id") or false then
+  if better_supabase.tenant_disabled(invite."tenant_id") or false then
     raise exception 'The invitation is invalid or has expired' using errcode = 'P0002', hint = 'INVITATION_INVALID';
   end if;
-  if exists (select 1 from "better_supabase"."memberships" m where m."workspace_id" = invite."workspace_id" and m."user_id" = me) then
+  if exists (select 1 from "better_supabase"."memberships" m where m."workspace_id" = invite."tenant_id" and m."user_id" = me) then
     raise exception 'You are already a member' using errcode = '23505', hint = 'INVITATION_ALREADY_MEMBER';
   end if;
     if invite."invited_by" is not null
-      and better_supabase.can_user(invite."invited_by", 'organization', invite."workspace_id", 'members.invite') is false then
+      and better_supabase.can_user(invite."invited_by", 'organization', invite."tenant_id", 'members.invite') is false then
       raise exception 'The person who invited you can no longer invite members' using errcode = '42501', hint = 'INVITATION_INVITER_REVOKED';
     end if;
     if invite."invited_by" is not null
-      and not better_supabase.can_assign_as(invite."invited_by", invite."workspace_id", invite."role"::text) then
+      and not better_supabase.can_assign_as(invite."invited_by", invite."tenant_id", invite."role"::text) then
       raise exception 'The person who invited you can no longer assign that role' using errcode = '42501', hint = 'INVITATION_INVITER_REVOKED';
     end if;
   perform set_config('better_supabase.accepting_invitation', invite."id"::text, true);
   insert into "better_supabase"."memberships" ("workspace_id", "user_id", "role")
-  values (invite."workspace_id", me, invite."role");
+  values (invite."tenant_id", me, invite."role");
   perform set_config('better_supabase.accepting_invitation', '', true);
   update "better_supabase"."invitations"
   set "accepted_at" = now(), "accepted_by" = me
@@ -602,7 +602,7 @@ begin
   end;
   null;
   null;
-  return invite."workspace_id";
+  return invite."tenant_id";
 end;
 $$;
 
@@ -631,13 +631,13 @@ begin
   from (
     select (jsonb_build_object(
     'id', i."id",
-    'tenant', i."workspace_id",
+    'tenant', i."tenant_id",
     'email', i."email",
     'role', i."role",
     'expires_at', i."expires_at",
     'created_at', i."created_at",
     'invited_by', i."invited_by",
-    'organization', jsonb_build_object('id', i."workspace_id"),
+    'organization', jsonb_build_object('id', i."tenant_id"),
     'prefill', '{}'::jsonb,
     'token', null
   ) || "better_supabase"."invitation_extra"(i."id")) - 'token' as invitation, i."id" as id, i."expires_at" as expires_at
@@ -680,19 +680,19 @@ grant execute on function "better_supabase"."accepting_invitation"() to authenti
 create policy bsb_tenant_scope_select on "better_supabase"."invitations" as restrictive
   for select to public
   using (
-    "workspace_id" in (select better_supabase.member_workspace_ids())
-    or ("workspace_id" in (select "better_supabase"."invitation_tenant_ids"()))
+    "tenant_id" in (select better_supabase.member_workspace_ids())
+    or ("tenant_id" in (select "better_supabase"."invitation_tenant_ids"()))
   );
 create policy bsb_tenant_scope_insert on "better_supabase"."invitations" as restrictive
   for insert to public
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_update on "better_supabase"."invitations" as restrictive
   for update to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()))
-  with check ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()))
+  with check ("tenant_id" in (select better_supabase.member_workspace_ids()));
 create policy bsb_tenant_scope_delete on "better_supabase"."invitations" as restrictive
   for delete to public
-  using ("workspace_id" in (select better_supabase.member_workspace_ids()));
+  using ("tenant_id" in (select better_supabase.member_workspace_ids()));
 
 -- ==== data supabase/better-supabase-data/900_better_supabase_005_invitations.sql
 -- better-supabase module: invitations

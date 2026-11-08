@@ -6,7 +6,7 @@ import { lockTable, raise, schemaPreamble, serviceGrant } from "../shared.ts";
 
 const DATASETS = {
   id: "id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   name: "name",
   description: "description",
   createdAt: "created_at",
@@ -26,7 +26,7 @@ const ITEMS = {
 const RUNS = {
   id: "id",
   dataset: "dataset_id",
-  tenant: "organization_id",
+  tenant: "tenant_id",
   promptName: "prompt_name",
   promptVersion: "prompt_version",
   model: "model",

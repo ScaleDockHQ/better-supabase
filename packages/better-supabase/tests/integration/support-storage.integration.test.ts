@@ -724,7 +724,7 @@ create policy bsb_it_revocable_insert on storage.objects for insert to authentic
 
           return Promise.resolve({
             id: "a1",
-            organization_id: ACME,
+            tenant_id: ACME,
             bucket: files.id,
             object_path: path,
             name: "attachment.txt",
@@ -864,7 +864,7 @@ describe.skipIf(!live)("attachments in a support session", () => {
 
   it("refuses the upload in a read-only session and leaves no record", async () => {
     const before = await pool.query(
-      "select count(*)::int as count from better_supabase.attachments where organization_id = $1",
+      "select count(*)::int as count from better_supabase.attachments where tenant_id = $1",
       [ACME],
     );
 
@@ -877,7 +877,7 @@ describe.skipIf(!live)("attachments in a support session", () => {
     expect(upload.error?.kind).toBe("forbidden");
 
     const after = await pool.query(
-      "select count(*)::int as count from better_supabase.attachments where organization_id = $1",
+      "select count(*)::int as count from better_supabase.attachments where tenant_id = $1",
       [ACME],
     );
 

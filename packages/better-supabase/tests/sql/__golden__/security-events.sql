@@ -501,7 +501,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_105_security_events.sql
 -- better-supabase module: security-events
 -- @bsb-block security-events@1 managed
--- @bsb-hash sha256:bb5948270dc70498f6c4e3890897cea99e80f62e98e162f01ce755cb113f9bcc
+-- @bsb-hash sha256:ca3e0bb2b630c19b3728824d1d0c68e146172e8e9c2fe0093c10a1a7273d057a
 -- OpenID Shared Signals streams: stream configuration and status per receiver, push delivery through a webhooks-out endpoint with format 'set' (RFC 8935), a poll queue (RFC 8936), SETs held while a stream is paused, and a receiver replay table. Only the service role calls it; createSsfTransmitter() and createSsfReceiver() in better-supabase/blocks/security-events mint and verify the SETs.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -586,7 +586,7 @@ begin
     if v_row."tenant" is null then
       raise exception 'a push stream needs a tenant when webhook endpoints have one' using errcode = '22023', hint = 'SSF_TENANT_REQUIRED';
     end if;
-    insert into "better_supabase"."webhook_endpoints" as we ("organization_id", "name", "url", "format", "credential_ref")
+    insert into "better_supabase"."webhook_endpoints" as we ("tenant_id", "name", "url", "format", "credential_ref")
     values (v_row."tenant"::uuid, 'Shared Signals stream ' || v_row."id", create_ssf_stream.endpoint_url, 'set', create_ssf_stream.credential_ref)
     returning we."id" into v_endpoint;
     update "better_supabase"."ssf_streams" s set "endpoint_id" = v_endpoint where s."id" = v_row."id"

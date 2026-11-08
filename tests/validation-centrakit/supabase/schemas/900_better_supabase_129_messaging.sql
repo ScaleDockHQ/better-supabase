@@ -1,6 +1,6 @@
 -- better-supabase module: messaging
 -- @bsb-block messaging@1 managed
--- @bsb-hash sha256:b986bbe5bcbf544dfe48757284fcd347c802dc6fc40c07d95d0642b34d673ddb
+-- @bsb-hash sha256:deac665d4b70c779725014d0630ce8550c75f7c3e3991f185a4b614af91fdd5d
 -- Conversations and messages shared by channels, record discussions and the inbox: channels, direct and group messages, one conversation per record, members with read markers and notification levels, threads, mentions, edits with history, pins, resolved threads, scheduled sends, files and reactions. Members, the tenant or the record's readers read a conversation; Realtime pings carry ids only.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1138,7 +1138,7 @@ begin
     if not exists (
       select 1 from "better_supabase"."attachments" a
       where a."id" = (send_message.attrs -> 'anchor' ->> 'attachmentId')::uuid
-        and a."organization_id" = v_conv."tenant_id"
+        and a."tenant_id" = v_conv."tenant_id"
         and a."status" <> 'infected'
         and ((a."subject_type" = v_conv."subject_type" and a."subject_id" = v_conv."subject_id")
           or (a."subject_type" = 'message' and exists (
@@ -1184,7 +1184,7 @@ begin
     update "better_supabase"."attachments" a
     set "subject_type" = 'message', "subject_id" = v_id::text
     where a."id" = any (send_message.attachments)
-      and a."organization_id" = v_conv."tenant_id"
+      and a."tenant_id" = v_conv."tenant_id"
       and a."subject_type" = 'conversation' and a."subject_id" = v_conv."id"::text
       and a."uploaded_by" = auth.uid()
       and a."status" <> 'infected';

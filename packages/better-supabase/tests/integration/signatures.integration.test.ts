@@ -280,7 +280,7 @@ describe.skipIf(!live)("signatures", () => {
       expect(declined.status).toBe("declined");
 
       const events = await s.rows<{ type: string }>(
-        "select type from better_supabase.outbox_events where organization_id = $1 and type like 'signature_request.%' order by position",
+        "select type from better_supabase.outbox_events where tenant_id = $1 and type like 'signature_request.%' order by position",
         [tenant],
       );
 
@@ -296,7 +296,7 @@ describe.skipIf(!live)("signatures", () => {
       ]);
 
       const completed = await s.rows<{ payload: { meaning: string | null } }>(
-        "select payload from better_supabase.outbox_events where organization_id = $1 and type = 'signature_request.completed'",
+        "select payload from better_supabase.outbox_events where tenant_id = $1 and type = 'signature_request.completed'",
         [tenant],
       );
 

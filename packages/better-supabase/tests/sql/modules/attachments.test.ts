@@ -30,7 +30,7 @@ describe("attachments module", () => {
   it("with offline, takes client ids, skips the scan and deletes objects from the queue", () => {
     const sql = sqlOf(["attachments"], { offline: true });
 
-    expect(sql).toMatch(/grant insert \("id", "organization_id"/);
+    expect(sql).toMatch(/grant insert \("id", "tenant_id"/);
     expect(sql).toContain(`"status" = 'clean'`);
     expect(sql).toContain("after insert on storage.objects");
     expect(sql).toContain('before delete on "better_supabase"."attachments"');
@@ -101,14 +101,14 @@ describe("attachments module", () => {
     });
 
     expect(sql).toContain(
-      `alter table "better_supabase"."attachments" alter column "organization_id" drop not null;`,
+      `alter table "better_supabase"."attachments" alter column "tenant_id" drop not null;`,
     );
-    expect(sql).toContain(`coalesce("organization_id"::text, '-')`);
+    expect(sql).toContain(`coalesce("tenant_id"::text, '-')`);
     expect(sql).toContain(
       `when 'note' then exists (select 1 from "public"."notes" s where s."id"::text = attachment_subject_readable.subject_id)`,
     );
     expect(sql).toContain(
-      `("organization_id" is null or coalesce(better_supabase.can(`,
+      `("tenant_id" is null or coalesce(better_supabase.can(`,
     );
     expect(sqlOf(["attachments"])).not.toContain("drop not null");
     expect(() =>
@@ -131,7 +131,7 @@ describe("attachments module", () => {
     });
 
     expect(sql).toContain(
-      `("subject_type" = 'contract' and ("organization_id" in (select better_supabase.tenant_ids_with('contracts.read'))))`,
+      `("subject_type" = 'contract' and ("tenant_id" in (select better_supabase.tenant_ids_with('contracts.read'))))`,
     );
     expect(sql).toContain(
       `case "subject_type" when 'contract' then 'contracts.edit' else 'attachments.upload' end`,
@@ -286,7 +286,7 @@ describe("attachments module", () => {
     });
 
     expect(sql).toContain(
-      `"organization_id"::text || '/' || coalesce("subject_type", '-') || '/' || "id"::text`,
+      `"tenant_id"::text || '/' || coalesce("subject_type", '-') || '/' || "id"::text`,
     );
     expect(sql).toContain("when 'receipt' then 'expenses'");
     expect(sql).toContain(`bucket_id in ('attachments', 'expenses')`);

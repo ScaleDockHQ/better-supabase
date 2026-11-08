@@ -463,7 +463,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_087_signatures.sql
 -- better-supabase module: signatures
 -- @bsb-block signatures@1 managed
--- @bsb-hash sha256:3b0e21ecf3654242e6e3b166ea71991b6307c31216e293eb21c3e22277f719ec
+-- @bsb-hash sha256:65a697bc9e34dd33c95c71348c2f858020a3fbd566f450b7cc11316d6f968605
 -- Simple electronic signatures on a frozen version of a record: drawn, typed or click signatures in parallel or in order, a hash that detects edits after signing, and an approval step a signer can decide.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -720,7 +720,7 @@ begin
   if sign_signature.image_attachment_id is not null and not exists (
     select 1 from "better_supabase"."attachments" a
     where a."id" = sign_signature.image_attachment_id
-      and a."organization_id" = v_req."tenant_id"
+      and a."tenant_id" = v_req."tenant_id"
   ) then
     raise exception 'the signature image isn''t an attachment in this organization' using errcode = '22023', hint = 'SIGNATURE_IMAGE_NOT_FOUND';
   end if;

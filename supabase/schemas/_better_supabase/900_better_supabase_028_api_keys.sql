@@ -1,6 +1,6 @@
 -- better-supabase module: api-keys
 -- @bsb-block api-keys@4 managed
--- @bsb-hash sha256:605a87164bdeaade04184903a93dd7e8a2fed2eefe19656e181a8b000308aefc
+-- @bsb-hash sha256:384927fba0ab0567d62ca85e6deb0c14cfdf27c00bc53f419da6a81bde668732
 -- Hashed API keys for tenants and users with scopes, expiry, rotation with a grace period, a per-key rate limit and throttled last-used tracking. verify_api_key() backs apiKeyResolver; has_scope() and api_key_tenant() go in policies.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -10,7 +10,7 @@
 -- without user_id), or as a user inside one tenant (both).
 create table "better_supabase"."api_keys" (
   "id" uuid primary key default gen_random_uuid(),
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "user_id" uuid references auth.users (id) on delete cascade,
   "name" text not null constraint bsb_api_keys_name_check check (length(trim("name")) > 0),
   "prefix" text not null constraint bsb_api_keys_prefix_check check ("prefix" ~ '^[a-z][a-z0-9]*$'),
@@ -26,12 +26,12 @@ create table "better_supabase"."api_keys" (
   "rotated_from" uuid references "better_supabase"."api_keys" ("id") on delete set null,
   "created_by" uuid references auth.users (id) on delete set null default auth.uid(),
   "created_at" timestamptz not null default now(),
-  constraint bsb_api_keys_check check ("organization_id" is not null or "user_id" is not null)
+  constraint bsb_api_keys_check check ("tenant_id" is not null or "user_id" is not null)
 );
 -- verify_api_key updates the counters on every request; free space on each
 -- page keeps those updates HOT (no index writes).
 alter table "better_supabase"."api_keys" set (fillfactor = 80);
-create index api_keys_tenant_idx on "better_supabase"."api_keys" ("organization_id");
+create index api_keys_tenant_idx on "better_supabase"."api_keys" ("tenant_id");
 create index api_keys_user_idx on "better_supabase"."api_keys" ("user_id");
 create index api_keys_rotated_from_idx on "better_supabase"."api_keys" ("rotated_from");
 create index api_keys_created_by_idx on "better_supabase"."api_keys" ("created_by");
@@ -92,22 +92,22 @@ begin
   if expires_at is not null and expires_at <= now() then
     raise exception 'expires_at is in the past' using errcode = '22023', hint = 'API_KEY_EXPIRED';
   end if;
-  insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "kind", "rate_limit", "expires_at")
+  insert into "better_supabase"."api_keys" ("tenant_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "kind", "rate_limit", "expires_at")
   values (tenant, owner, create_api_key.name, create_api_key.prefix, create_api_key.public_id, create_api_key.secret_hash, coalesce(create_api_key.scopes, '{}'), create_api_key.kind, create_api_key.rate_limit, create_api_key.expires_at)
   returning * into created;
-  perform "better_supabase".emit_event('api_key.created', jsonb_build_object('keyId', created."id", 'organizationId', created."organization_id"::text, 'userId', created."user_id", 'name', created."name", 'publicId', created."public_id"), 'api-keys/' || created."id"::text, (created."organization_id")::text, null, 'better-supabase/api-keys');
+  perform "better_supabase".emit_event('api_key.created', jsonb_build_object('keyId', created."id", 'organizationId', created."tenant_id"::text, 'userId', created."user_id", 'name', created."name", 'publicId', created."public_id"), 'api-keys/' || created."id"::text, (created."tenant_id")::text, null, 'better-supabase/api-keys');
   perform better_supabase.audit_event(
     event_type => 'api_key.created',
     category => 'security',
     target_type => 'api_key',
     record_id => created."id"::text,
     target_label => created."name",
-    tenant => (created."organization_id")::uuid,
-    metadata => jsonb_build_object('keyId', created."id", 'organizationId', created."organization_id"::text, 'userId', created."user_id", 'name', created."name", 'publicId', created."public_id")
+    tenant => (created."tenant_id")::uuid,
+    metadata => jsonb_build_object('keyId', created."id", 'organizationId', created."tenant_id"::text, 'userId', created."user_id", 'name', created."name", 'publicId', created."public_id")
   );
   return jsonb_build_object(
     'id', created."id",
-    'organization_id', created."organization_id",
+    'organization_id', created."tenant_id",
     'user_id', created."user_id",
     'name', created."name",
     'prefix', created."prefix",
@@ -145,7 +145,7 @@ begin
   if list_api_keys.tenant is null then
     return (select coalesce(jsonb_agg(jsonb_build_object(
     'id', k."id",
-    'organization_id', k."organization_id",
+    'organization_id', k."tenant_id",
     'user_id', k."user_id",
     'name', k."name",
     'prefix', k."prefix",
@@ -172,7 +172,7 @@ begin
   if coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin') or coalesce(better_supabase.can('tenant', list_api_keys.tenant, 'api_keys.manage'), false) then
     return (select coalesce(jsonb_agg(jsonb_build_object(
     'id', k."id",
-    'organization_id', k."organization_id",
+    'organization_id', k."tenant_id",
     'user_id', k."user_id",
     'name', k."name",
     'prefix', k."prefix",
@@ -194,11 +194,11 @@ begin
     end,
     'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = k."id" order by s."created_at" desc limit 1)
   ) order by k."created_at" desc), '[]'::jsonb)
-      from "better_supabase"."api_keys" k where k."organization_id" = list_api_keys.tenant);
+      from "better_supabase"."api_keys" k where k."tenant_id" = list_api_keys.tenant);
   end if;
   return (select coalesce(jsonb_agg(jsonb_build_object(
     'id', k."id",
-    'organization_id', k."organization_id",
+    'organization_id', k."tenant_id",
     'user_id', k."user_id",
     'name', k."name",
     'prefix', k."prefix",
@@ -220,7 +220,7 @@ begin
     end,
     'successor_id', (select s."id" from "better_supabase"."api_keys" s where s."rotated_from" = k."id" order by s."created_at" desc limit 1)
   ) order by k."created_at" desc), '[]'::jsonb)
-    from "better_supabase"."api_keys" k where k."organization_id" = list_api_keys.tenant and k."user_id" = auth.uid());
+    from "better_supabase"."api_keys" k where k."tenant_id" = list_api_keys.tenant and k."user_id" = auth.uid());
 end;
 $$;
 
@@ -237,20 +237,20 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into found from "better_supabase"."api_keys" k where k."id" = revoke_api_key.key;
-  if found."id" is null or not ((found."organization_id" is not null and coalesce(better_supabase.can('tenant', found."organization_id", 'api_keys.manage'), false)) or coalesce(found."user_id" = auth.uid(), false) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if found."id" is null or not ((found."tenant_id" is not null and coalesce(better_supabase.can('tenant', found."tenant_id", 'api_keys.manage'), false)) or coalesce(found."user_id" = auth.uid(), false) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'API key not found' using errcode = 'P0002', hint = 'API_KEY_NOT_FOUND';
   end if;
   update "better_supabase"."api_keys" k set "revoked_at" = now()
   where k."id" = found."id" and (k."revoked_at" is null or k."revoked_at" > now());
-  perform "better_supabase".emit_event('api_key.revoked', jsonb_build_object('keyId', found."id", 'organizationId', found."organization_id"::text, 'userId', found."user_id", 'name', found."name", 'publicId', found."public_id"), 'api-keys/' || found."id"::text, (found."organization_id")::text, null, 'better-supabase/api-keys');
+  perform "better_supabase".emit_event('api_key.revoked', jsonb_build_object('keyId', found."id", 'organizationId', found."tenant_id"::text, 'userId', found."user_id", 'name', found."name", 'publicId', found."public_id"), 'api-keys/' || found."id"::text, (found."tenant_id")::text, null, 'better-supabase/api-keys');
   perform better_supabase.audit_event(
     event_type => 'api_key.revoked',
     category => 'security',
     target_type => 'api_key',
     record_id => found."id"::text,
     target_label => found."name",
-    tenant => (found."organization_id")::uuid,
-    metadata => jsonb_build_object('keyId', found."id", 'organizationId', found."organization_id"::text, 'userId', found."user_id", 'name', found."name", 'publicId', found."public_id")
+    tenant => (found."tenant_id")::uuid,
+    metadata => jsonb_build_object('keyId', found."id", 'organizationId', found."tenant_id"::text, 'userId', found."user_id", 'name', found."name", 'publicId', found."public_id")
   );
   return true;
 end;
@@ -277,7 +277,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   select * into old from "better_supabase"."api_keys" k where k."id" = rotate_api_key.key for update;
-  if old."id" is null or not ((old."organization_id" is not null and coalesce(better_supabase.can('tenant', old."organization_id", 'api_keys.manage'), false)) or coalesce(old."user_id" = auth.uid(), false) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
+  if old."id" is null or not ((old."tenant_id" is not null and coalesce(better_supabase.can('tenant', old."tenant_id", 'api_keys.manage'), false)) or coalesce(old."user_id" = auth.uid(), false) or coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')) then
     raise exception 'API key not found' using errcode = 'P0002', hint = 'API_KEY_NOT_FOUND';
   end if;
   if old."revoked_at" is not null and old."revoked_at" <= now() then
@@ -289,23 +289,23 @@ begin
   if grace is null or grace < interval '0' then
     raise exception 'grace must be zero or more' using errcode = '22023', hint = 'API_KEY_GRACE';
   end if;
-  insert into "better_supabase"."api_keys" ("organization_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "kind", "rate_limit", "expires_at", "rotated_from")
-  values (old."organization_id", old."user_id", old."name", old."prefix", rotate_api_key.public_id, rotate_api_key.secret_hash, old."scopes", old."kind", old."rate_limit", old."expires_at", old."id")
+  insert into "better_supabase"."api_keys" ("tenant_id", "user_id", "name", "prefix", "public_id", "secret_hash", "scopes", "kind", "rate_limit", "expires_at", "rotated_from")
+  values (old."tenant_id", old."user_id", old."name", old."prefix", rotate_api_key.public_id, rotate_api_key.secret_hash, old."scopes", old."kind", old."rate_limit", old."expires_at", old."id")
   returning * into created;
   update "better_supabase"."api_keys" k set "revoked_at" = now() + grace where k."id" = old."id";
-  perform "better_supabase".emit_event('api_key.rotated', jsonb_build_object('keyId', created."id", 'organizationId', created."organization_id"::text, 'userId', created."user_id", 'name', created."name", 'publicId', created."public_id", 'previousKeyId', old."id"), 'api-keys/' || created."id"::text, (created."organization_id")::text, null, 'better-supabase/api-keys');
+  perform "better_supabase".emit_event('api_key.rotated', jsonb_build_object('keyId', created."id", 'organizationId', created."tenant_id"::text, 'userId', created."user_id", 'name', created."name", 'publicId', created."public_id", 'previousKeyId', old."id"), 'api-keys/' || created."id"::text, (created."tenant_id")::text, null, 'better-supabase/api-keys');
   perform better_supabase.audit_event(
     event_type => 'api_key.rotated',
     category => 'security',
     target_type => 'api_key',
     record_id => created."id"::text,
     target_label => created."name",
-    tenant => (created."organization_id")::uuid,
-    metadata => jsonb_build_object('keyId', created."id", 'organizationId', created."organization_id"::text, 'userId', created."user_id", 'name', created."name", 'publicId', created."public_id", 'previousKeyId', old."id")
+    tenant => (created."tenant_id")::uuid,
+    metadata => jsonb_build_object('keyId', created."id", 'organizationId', created."tenant_id"::text, 'userId', created."user_id", 'name', created."name", 'publicId', created."public_id", 'previousKeyId', old."id")
   );
   return jsonb_build_object(
     'id', created."id",
-    'organization_id', created."organization_id",
+    'organization_id', created."tenant_id",
     'user_id', created."user_id",
     'name', created."name",
     'prefix', created."prefix",
@@ -354,9 +354,9 @@ begin
       select 1 from auth.users u
       where u.id = found."user_id" and (u.banned_until > now() or u.deleted_at is not null)
     ))
-    or (found."organization_id" is not null and better_supabase.tenant_disabled(found."organization_id"))
-    or (found."user_id" is not null and found."organization_id" is not null
-      and better_supabase.organization_member_role(found."organization_id", found."user_id") is null)
+    or (found."tenant_id" is not null and better_supabase.tenant_disabled(found."tenant_id"))
+    or (found."user_id" is not null and found."tenant_id" is not null
+      and better_supabase.organization_member_role(found."tenant_id", found."user_id") is null)
   then
     return jsonb_build_object('status', 'invalid');
   end if;
@@ -379,7 +379,7 @@ begin
   end if;
   return jsonb_build_object('status', 'ok', 'key', jsonb_build_object(
     'id', found."id",
-    'organization_id', found."organization_id",
+    'organization_id', found."tenant_id",
     'user_id', found."user_id",
     'name', found."name",
     'prefix', found."prefix",

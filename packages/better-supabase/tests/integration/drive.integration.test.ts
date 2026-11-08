@@ -273,7 +273,7 @@ describe.skipIf(!live)("drive", () => {
       await s.service();
 
       const events = await s.rows<{ type: string }>(
-        "select distinct type collate \"C\" as type from better_supabase.outbox_events where organization_id = $1 and (type like 'drive.%' or type like 'drive_node.%') order by type",
+        "select distinct type collate \"C\" as type from better_supabase.outbox_events where tenant_id = $1 and (type like 'drive.%' or type like 'drive_node.%') order by type",
         [tenant],
       );
 
@@ -1277,7 +1277,7 @@ describe.skipIf(!live)("drive", () => {
       ).toBe(0);
 
       const events = await s.rows<{ type: string }>(
-        "select distinct type collate \"C\" as type from better_supabase.outbox_events where organization_id = $1 and (type like 'drive.%' or type like 'drive_node.%') order by type",
+        "select distinct type collate \"C\" as type from better_supabase.outbox_events where tenant_id = $1 and (type like 'drive.%' or type like 'drive_node.%') order by type",
         [tenant],
       );
 
@@ -1380,7 +1380,7 @@ describe.skipIf(!live)("drive", () => {
       ).toBe(0);
 
       const events = await s.rows<{ type: string }>(
-        "select distinct type collate \"C\" as type from better_supabase.outbox_events where organization_id = $1 and (type like 'drive.%' or type like 'drive_node.%') order by type",
+        "select distinct type collate \"C\" as type from better_supabase.outbox_events where tenant_id = $1 and (type like 'drive.%' or type like 'drive_node.%') order by type",
         [tenant],
       );
 

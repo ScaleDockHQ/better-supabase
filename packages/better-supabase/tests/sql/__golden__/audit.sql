@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:311a885c3a46bc8865bf20d8cdcac0623c9d216ec32fd3b9aacad061cdf98e87
+-- @bsb-hash sha256:21ac9a5e173740b983ab74d828568e0cae27b1703d00862ce3d82dda9bcf9344
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -84,7 +84,7 @@ create table "better_supabase"."audit_events" (
   "changed" text[],
   "actor_id" uuid,
   "actor_role" text,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "occurred_at" timestamptz not null default now()
 );
 alter table "better_supabase"."audit_events" add constraint "bsb_audit_op_check"
@@ -112,10 +112,10 @@ alter table "better_supabase"."audit_events" add column "request_id" text;
 alter table "better_supabase"."audit_events" add column "correlation_id" text;
 alter table "better_supabase"."audit_events" add column "scope" text;
 create index audit_events_record_idx on "better_supabase"."audit_events" ("table_name", "record_id", "occurred_at" desc);
-create index audit_events_organization_idx on "better_supabase"."audit_events" ("organization_id", "occurred_at" desc);
+create index audit_events_organization_idx on "better_supabase"."audit_events" ("tenant_id", "occurred_at" desc);
 create index audit_events_occurred_at_idx on "better_supabase"."audit_events" ("occurred_at");
 create index audit_events_correlation_idx on "better_supabase"."audit_events" ("correlation_id") where "correlation_id" is not null;
-create unique index audit_events_idempotency_idx on "better_supabase"."audit_events" ("idempotency_key", "organization_id") nulls not distinct where "idempotency_key" is not null;
+create unique index audit_events_idempotency_idx on "better_supabase"."audit_events" ("idempotency_key", "tenant_id") nulls not distinct where "idempotency_key" is not null;
 alter table "better_supabase"."audit_events" enable row level security;
 revoke all on "better_supabase"."audit_events" from public, anon, authenticated;
 grant select on "better_supabase"."audit_events" to service_role;
@@ -209,7 +209,7 @@ begin
   -- Redacted columns stay in changed, with their values masked.
   old_row := old_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where old_row ? k), '{}');
   new_row := new_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where new_row ? k), '{}');
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
   values (
     tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
@@ -324,7 +324,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -384,7 +384,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -446,7 +446,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -859,13 +859,13 @@ begin
     select l."id"::text into existing
     from "better_supabase"."audit_events" l
     where l."idempotency_key" = audit_event.idempotency_key
-      and l."organization_id" is not distinct from audit_event.tenant
+      and l."tenant_id" is not distinct from audit_event.tenant
     limit 1;
     if existing is not null then
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -1036,13 +1036,13 @@ begin
     select l."id"::text into existing
     from "better_supabase"."audit_events" l
     where l."idempotency_key" = audit_event_trusted.idempotency_key
-      and l."organization_id" is not distinct from audit_event_trusted.tenant
+      and l."tenant_id" is not distinct from audit_event_trusted.tenant
     limit 1;
     if existing is not null then
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -1210,7 +1210,7 @@ as $$
 declare
   v_tenant text := coalesce(tenant_column, (
     select a.attname::text from pg_catalog.pg_attribute a
-    where a.attrelid = target and a.attname = '"organization_id"' and not a.attisdropped
+    where a.attrelid = target and a.attname = '"tenant_id"' and not a.attisdropped
   ), '');
 begin
   if (select count(*) from pg_catalog.pg_attribute a
@@ -1483,9 +1483,9 @@ begin
     -- skip scan of that index, not a scan of the log.
     for v_tenant in
       with recursive t (v) as (
-        (select l."organization_id" from "better_supabase"."audit_events" l where l."organization_id" is not null order by l."organization_id" limit 1)
+        (select l."tenant_id" from "better_supabase"."audit_events" l where l."tenant_id" is not null order by l."tenant_id" limit 1)
         union all
-        select (select l."organization_id" from "better_supabase"."audit_events" l where l."organization_id" > t.v order by l."organization_id" limit 1)
+        select (select l."tenant_id" from "better_supabase"."audit_events" l where l."tenant_id" > t.v order by l."tenant_id" limit 1)
         from t where t.v is not null
       )
       select t.v from t where t.v is not null
@@ -1500,7 +1500,7 @@ begin
         delete from "better_supabase"."audit_events"
         where "id" in (
           select l."id" from "better_supabase"."audit_events" l
-          where l."organization_id" = v_tenant and l."occurred_at" < now() - v_older
+          where l."tenant_id" = v_tenant and l."occurred_at" < now() - v_older
           order by l."occurred_at"
           limit batch - purged
         )
@@ -1514,7 +1514,7 @@ begin
         delete from "better_supabase"."audit_events"
         where "id" in (
           select l."id" from "better_supabase"."audit_events" l
-          where l."organization_id" is null and l."occurred_at" < now() - older_than
+          where l."tenant_id" is null and l."occurred_at" < now() - older_than
           order by l."occurred_at"
           limit batch - purged
         )
@@ -1529,7 +1529,7 @@ begin
       where "id" in (
         select l."id" from "better_supabase"."audit_events" l
         where l."occurred_at" < now() - older_than
-          and (not for_tenant or l."organization_id" is not distinct from purge_audit_log.tenant)
+          and (not for_tenant or l."tenant_id" is not distinct from purge_audit_log.tenant)
         order by l."occurred_at"
         limit greatest(batch - purged, 0)
       )
@@ -1552,7 +1552,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select distinct l."organization_id" from "better_supabase"."audit_events" l
+  select distinct l."tenant_id" from "better_supabase"."audit_events" l
   where l."occurred_at" < now() - older_than
 $$;
 revoke execute on function better_supabase.audit_events_tenants(interval) from public, anon, authenticated;
@@ -1598,7 +1598,7 @@ declare
   result jsonb;
 begin
   if cardinality(for_tenants) > 0 then
-    v_where := v_where || $q$ and l."organization_id" = any ($1)$q$;
+    v_where := v_where || $q$ and l."tenant_id" = any ($1)$q$;
   end if;
   if cardinality(for_event_types) > 0 then
     v_where := v_where || $q$ and l."event_type" = any ($2)$q$;
@@ -1648,7 +1648,7 @@ begin
   -- "is null or" branches and can use the (tenant, occurred_at) index.
   execute $q$select coalesce(jsonb_agg(x.entry order by x.occurred_at $q$ || v_order || $q$, x.id $q$ || v_order || $q$), '[]')
   from (
-    select jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."organization_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata") as entry, l."occurred_at" as occurred_at, l."id" as id
+    select jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata") as entry, l."occurred_at" as occurred_at, l."id" as id
     from "better_supabase"."audit_events" l
     where $q$ || v_where || $q$
     order by l."occurred_at" $q$ || v_order || $q$, l."id" $q$ || v_order || $q$
@@ -1689,7 +1689,7 @@ declare
   result bigint;
 begin
   if cardinality(for_tenants) > 0 then
-    v_where := v_where || $q$ and l."organization_id" = any ($1)$q$;
+    v_where := v_where || $q$ and l."tenant_id" = any ($1)$q$;
   end if;
   if cardinality(for_event_types) > 0 then
     v_where := v_where || $q$ and l."event_type" = any ($2)$q$;
@@ -1763,7 +1763,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:91271fcbd198d8effd6207f4b76751b31466f2accaa66e65ddb75d6f144229d3
+-- @bsb-hash sha256:e472232cae002a6a7c3265e9f5331c7424e45ffd4ba712cd48770f9985e23359
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1846,7 +1846,7 @@ create table "better_supabase"."audit_events" (
   "changed" text[],
   "actor_id" uuid,
   "actor_role" text,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "occurred_at" timestamptz not null default now()
 );
 alter table "better_supabase"."audit_events" add constraint "bsb_audit_op_check"
@@ -1874,10 +1874,10 @@ alter table "better_supabase"."audit_events" add column "request_id" text;
 alter table "better_supabase"."audit_events" add column "correlation_id" text;
 alter table "better_supabase"."audit_events" add column "scope" text;
 create index audit_events_record_idx on "better_supabase"."audit_events" ("table_name", "record_id", "occurred_at" desc);
-create index audit_events_organization_idx on "better_supabase"."audit_events" ("organization_id", "occurred_at" desc);
+create index audit_events_organization_idx on "better_supabase"."audit_events" ("tenant_id", "occurred_at" desc);
 create index audit_events_occurred_at_idx on "better_supabase"."audit_events" ("occurred_at");
 create index audit_events_correlation_idx on "better_supabase"."audit_events" ("correlation_id") where "correlation_id" is not null;
-create unique index audit_events_idempotency_idx on "better_supabase"."audit_events" ("idempotency_key", "organization_id") nulls not distinct where "idempotency_key" is not null;
+create unique index audit_events_idempotency_idx on "better_supabase"."audit_events" ("idempotency_key", "tenant_id") nulls not distinct where "idempotency_key" is not null;
 alter table "better_supabase"."audit_events" enable row level security;
 revoke all on "better_supabase"."audit_events" from public, anon, authenticated;
 grant select on "better_supabase"."audit_events" to service_role;
@@ -1978,7 +1978,7 @@ begin
   -- Redacted columns stay in changed, with their values masked.
   old_row := old_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where old_row ? k), '{}');
   new_row := new_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where new_row ? k), '{}');
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
   values (
     tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
@@ -2096,7 +2096,7 @@ begin
       select t.row_tenant as tenant_key, (select o."name"::text from "better_supabase"."organizations" o where o."id" = t.row_tenant) as label
       from (select distinct row_tenant from kept) t
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -2160,7 +2160,7 @@ begin
       select t.row_tenant as tenant_key, (select o."name"::text from "better_supabase"."organizations" o where o."id" = t.row_tenant) as label
       from (select distinct row_tenant from kept) t
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -2226,7 +2226,7 @@ begin
       select t.row_tenant as tenant_key, (select o."name"::text from "better_supabase"."organizations" o where o."id" = t.row_tenant) as label
       from (select distinct row_tenant from kept) t
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -2640,13 +2640,13 @@ begin
     select l."id"::text into existing
     from "better_supabase"."audit_events" l
     where l."idempotency_key" = audit_event.idempotency_key
-      and l."organization_id" is not distinct from audit_event.tenant
+      and l."tenant_id" is not distinct from audit_event.tenant
     limit 1;
     if existing is not null then
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -2817,13 +2817,13 @@ begin
     select l."id"::text into existing
     from "better_supabase"."audit_events" l
     where l."idempotency_key" = audit_event_trusted.idempotency_key
-      and l."organization_id" is not distinct from audit_event_trusted.tenant
+      and l."tenant_id" is not distinct from audit_event_trusted.tenant
     limit 1;
     if existing is not null then
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -2991,7 +2991,7 @@ as $$
 declare
   v_tenant text := coalesce(tenant_column, (
     select a.attname::text from pg_catalog.pg_attribute a
-    where a.attrelid = target and a.attname = '"organization_id"' and not a.attisdropped
+    where a.attrelid = target and a.attname = '"tenant_id"' and not a.attisdropped
   ), '');
 begin
   if (select count(*) from pg_catalog.pg_attribute a
@@ -3264,9 +3264,9 @@ begin
     -- skip scan of that index, not a scan of the log.
     for v_tenant in
       with recursive t (v) as (
-        (select l."organization_id" from "better_supabase"."audit_events" l where l."organization_id" is not null order by l."organization_id" limit 1)
+        (select l."tenant_id" from "better_supabase"."audit_events" l where l."tenant_id" is not null order by l."tenant_id" limit 1)
         union all
-        select (select l."organization_id" from "better_supabase"."audit_events" l where l."organization_id" > t.v order by l."organization_id" limit 1)
+        select (select l."tenant_id" from "better_supabase"."audit_events" l where l."tenant_id" > t.v order by l."tenant_id" limit 1)
         from t where t.v is not null
       )
       select t.v from t where t.v is not null
@@ -3281,7 +3281,7 @@ begin
         delete from "better_supabase"."audit_events"
         where "id" in (
           select l."id" from "better_supabase"."audit_events" l
-          where l."organization_id" = v_tenant and l."occurred_at" < now() - v_older
+          where l."tenant_id" = v_tenant and l."occurred_at" < now() - v_older
           order by l."occurred_at"
           limit batch - purged
         )
@@ -3295,7 +3295,7 @@ begin
         delete from "better_supabase"."audit_events"
         where "id" in (
           select l."id" from "better_supabase"."audit_events" l
-          where l."organization_id" is null and (l."occurred_at" < now() - least(older_than, "better_supabase"."retention_floor"('audit'))
+          where l."tenant_id" is null and (l."occurred_at" < now() - least(older_than, "better_supabase"."retention_floor"('audit'))
       and l."occurred_at" < now() - coalesce("better_supabase"."retention_for"('audit', (null)::text), older_than)
       and not "better_supabase"."is_held"('audit', (null)::text))
           order by l."occurred_at"
@@ -3312,9 +3312,9 @@ begin
       where "id" in (
         select l."id" from "better_supabase"."audit_events" l
         where (l."occurred_at" < now() - least(older_than, "better_supabase"."retention_floor"('audit'))
-      and l."occurred_at" < now() - coalesce("better_supabase"."retention_for"('audit', (l."organization_id")::text), older_than)
-      and not "better_supabase"."is_held"('audit', (l."organization_id")::text))
-          and (not for_tenant or l."organization_id" is not distinct from purge_audit_log.tenant)
+      and l."occurred_at" < now() - coalesce("better_supabase"."retention_for"('audit', (l."tenant_id")::text), older_than)
+      and not "better_supabase"."is_held"('audit', (l."tenant_id")::text))
+          and (not for_tenant or l."tenant_id" is not distinct from purge_audit_log.tenant)
         order by l."occurred_at"
         limit greatest(batch - purged, 0)
       )
@@ -3337,7 +3337,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select distinct l."organization_id" from "better_supabase"."audit_events" l
+  select distinct l."tenant_id" from "better_supabase"."audit_events" l
   where l."occurred_at" < now() - older_than
 $$;
 revoke execute on function better_supabase.audit_events_tenants(interval) from public, anon, authenticated;
@@ -3383,7 +3383,7 @@ declare
   result jsonb;
 begin
   if cardinality(for_tenants) > 0 then
-    v_where := v_where || $q$ and l."organization_id" = any ($1)$q$;
+    v_where := v_where || $q$ and l."tenant_id" = any ($1)$q$;
   end if;
   if cardinality(for_event_types) > 0 then
     v_where := v_where || $q$ and l."event_type" = any ($2)$q$;
@@ -3433,7 +3433,7 @@ begin
   -- "is null or" branches and can use the (tenant, occurred_at) index.
   execute $q$select coalesce(jsonb_agg(x.entry order by x.occurred_at $q$ || v_order || $q$, x.id $q$ || v_order || $q$), '[]')
   from (
-    select jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."organization_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata") as entry, l."occurred_at" as occurred_at, l."id" as id
+    select jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata") as entry, l."occurred_at" as occurred_at, l."id" as id
     from "better_supabase"."audit_events" l
     where $q$ || v_where || $q$
     order by l."occurred_at" $q$ || v_order || $q$, l."id" $q$ || v_order || $q$
@@ -3474,7 +3474,7 @@ declare
   result bigint;
 begin
   if cardinality(for_tenants) > 0 then
-    v_where := v_where || $q$ and l."organization_id" = any ($1)$q$;
+    v_where := v_where || $q$ and l."tenant_id" = any ($1)$q$;
   end if;
   if cardinality(for_event_types) > 0 then
     v_where := v_where || $q$ and l."event_type" = any ($2)$q$;
@@ -3558,7 +3558,7 @@ begin
   
   where l."id"::text = any (audit_revert_source.entries)
     and (coalesce(nullif((select auth.jwt()) ->> 'role', ''), session_user::text) in ('service_role', 'postgres', 'supabase_admin')
-      or (l."organization_id" is not null and coalesce(better_supabase.member_can(auth.uid(), l."organization_id", 'audit.revert'), false)));
+      or (l."tenant_id" is not null and coalesce(better_supabase.member_can(auth.uid(), l."tenant_id", 'audit.revert'), false)));
   if jsonb_array_length(found_entries) <> cardinality(array(select distinct e from unnest(audit_revert_source.entries) e)) then
     raise exception 'an entry is missing or not yours to revert' using errcode = 'P0002', hint = 'AUDIT_ENTRY_NOT_FOUND';
   end if;
@@ -3709,7 +3709,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:ec199d91637256eb7aaeaf9de76c7178fed4fcf7ab73239c50db3d4293e53a96
+-- @bsb-hash sha256:9e2efd2253f754a00f8bf3e8dcfb0cbd9cbd25d40aa9948cfdf1a082f4e5e218
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3792,7 +3792,7 @@ create table "app_private"."audit_events" (
   "changed" text[],
   "actor_id" uuid,
   "actor_role" text,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "occurred_at" timestamptz not null default now()
 );
 alter table "app_private"."audit_events" add constraint "bsb_audit_op_check"
@@ -3820,10 +3820,10 @@ alter table "app_private"."audit_events" add column "request_id" text;
 alter table "app_private"."audit_events" add column "correlation_id" text;
 alter table "app_private"."audit_events" add column "scope" text;
 create index audit_events_record_idx on "app_private"."audit_events" ("table_name", "record_id", "occurred_at" desc);
-create index audit_events_organization_idx on "app_private"."audit_events" ("organization_id", "occurred_at" desc);
+create index audit_events_organization_idx on "app_private"."audit_events" ("tenant_id", "occurred_at" desc);
 create index audit_events_occurred_at_idx on "app_private"."audit_events" ("occurred_at");
 create index audit_events_correlation_idx on "app_private"."audit_events" ("correlation_id") where "correlation_id" is not null;
-create unique index audit_events_idempotency_idx on "app_private"."audit_events" ("idempotency_key", "organization_id") nulls not distinct where "idempotency_key" is not null;
+create unique index audit_events_idempotency_idx on "app_private"."audit_events" ("idempotency_key", "tenant_id") nulls not distinct where "idempotency_key" is not null;
 alter table "app_private"."audit_events" enable row level security;
 revoke all on "app_private"."audit_events" from public, anon, authenticated;
 grant select on "app_private"."audit_events" to service_role;
@@ -3917,7 +3917,7 @@ begin
   -- Redacted columns stay in changed, with their values masked.
   old_row := old_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where old_row ? k), '{}');
   new_row := new_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where new_row ? k), '{}');
-  insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
   values (
     tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
@@ -4032,7 +4032,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -4092,7 +4092,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -4154,7 +4154,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "app_private"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -4567,13 +4567,13 @@ begin
     select l."id"::text into existing
     from "app_private"."audit_events" l
     where l."idempotency_key" = audit_event.idempotency_key
-      and l."organization_id" is not distinct from audit_event.tenant
+      and l."tenant_id" is not distinct from audit_event.tenant
     limit 1;
     if existing is not null then
       return existing;
     end if;
   end if;
-  insert into "app_private"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "app_private"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -4744,13 +4744,13 @@ begin
     select l."id"::text into existing
     from "app_private"."audit_events" l
     where l."idempotency_key" = audit_event_trusted.idempotency_key
-      and l."organization_id" is not distinct from audit_event_trusted.tenant
+      and l."tenant_id" is not distinct from audit_event_trusted.tenant
     limit 1;
     if existing is not null then
       return existing;
     end if;
   end if;
-  insert into "app_private"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "app_private"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -4918,7 +4918,7 @@ as $$
 declare
   v_tenant text := coalesce(tenant_column, (
     select a.attname::text from pg_catalog.pg_attribute a
-    where a.attrelid = target and a.attname = '"organization_id"' and not a.attisdropped
+    where a.attrelid = target and a.attname = '"tenant_id"' and not a.attisdropped
   ), '');
 begin
   if (select count(*) from pg_catalog.pg_attribute a
@@ -5191,9 +5191,9 @@ begin
     -- skip scan of that index, not a scan of the log.
     for v_tenant in
       with recursive t (v) as (
-        (select l."organization_id" from "app_private"."audit_events" l where l."organization_id" is not null order by l."organization_id" limit 1)
+        (select l."tenant_id" from "app_private"."audit_events" l where l."tenant_id" is not null order by l."tenant_id" limit 1)
         union all
-        select (select l."organization_id" from "app_private"."audit_events" l where l."organization_id" > t.v order by l."organization_id" limit 1)
+        select (select l."tenant_id" from "app_private"."audit_events" l where l."tenant_id" > t.v order by l."tenant_id" limit 1)
         from t where t.v is not null
       )
       select t.v from t where t.v is not null
@@ -5208,7 +5208,7 @@ begin
         delete from "app_private"."audit_events"
         where "id" in (
           select l."id" from "app_private"."audit_events" l
-          where l."organization_id" = v_tenant and l."occurred_at" < now() - v_older
+          where l."tenant_id" = v_tenant and l."occurred_at" < now() - v_older
           order by l."occurred_at"
           limit batch - purged
         )
@@ -5222,7 +5222,7 @@ begin
         delete from "app_private"."audit_events"
         where "id" in (
           select l."id" from "app_private"."audit_events" l
-          where l."organization_id" is null and l."occurred_at" < now() - older_than
+          where l."tenant_id" is null and l."occurred_at" < now() - older_than
           order by l."occurred_at"
           limit batch - purged
         )
@@ -5237,7 +5237,7 @@ begin
       where "id" in (
         select l."id" from "app_private"."audit_events" l
         where l."occurred_at" < now() - older_than
-          and (not for_tenant or l."organization_id" is not distinct from purge_audit_log.tenant)
+          and (not for_tenant or l."tenant_id" is not distinct from purge_audit_log.tenant)
         order by l."occurred_at"
         limit greatest(batch - purged, 0)
       )
@@ -5260,7 +5260,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select distinct l."organization_id" from "app_private"."audit_events" l
+  select distinct l."tenant_id" from "app_private"."audit_events" l
   where l."occurred_at" < now() - older_than
 $$;
 revoke execute on function better_supabase.audit_events_tenants(interval) from public, anon, authenticated;
@@ -5306,7 +5306,7 @@ declare
   result jsonb;
 begin
   if cardinality(for_tenants) > 0 then
-    v_where := v_where || $q$ and l."organization_id" = any ($1)$q$;
+    v_where := v_where || $q$ and l."tenant_id" = any ($1)$q$;
   end if;
   if cardinality(for_event_types) > 0 then
     v_where := v_where || $q$ and l."event_type" = any ($2)$q$;
@@ -5356,7 +5356,7 @@ begin
   -- "is null or" branches and can use the (tenant, occurred_at) index.
   execute $q$select coalesce(jsonb_agg(x.entry order by x.occurred_at $q$ || v_order || $q$, x.id $q$ || v_order || $q$), '[]')
   from (
-    select jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."organization_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata") as entry, l."occurred_at" as occurred_at, l."id" as id
+    select jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata") as entry, l."occurred_at" as occurred_at, l."id" as id
     from "app_private"."audit_events" l
     where $q$ || v_where || $q$
     order by l."occurred_at" $q$ || v_order || $q$, l."id" $q$ || v_order || $q$
@@ -5397,7 +5397,7 @@ declare
   result bigint;
 begin
   if cardinality(for_tenants) > 0 then
-    v_where := v_where || $q$ and l."organization_id" = any ($1)$q$;
+    v_where := v_where || $q$ and l."tenant_id" = any ($1)$q$;
   end if;
   if cardinality(for_event_types) > 0 then
     v_where := v_where || $q$ and l."event_type" = any ($2)$q$;
@@ -5471,7 +5471,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:6f3c85988b1fcf2be712b2c7997ff70f9d2cb4f8bc6366542f781ba47074a90f
+-- @bsb-hash sha256:bf4e39040b76c2d8b9b51a54a89bfbfd745116719d8b4f9e4439f49c1dfcbb49
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5554,7 +5554,7 @@ create table "better_supabase"."audit_events" (
   "changed" text[],
   "actor_id" uuid,
   "actor_role" text,
-  "organization_id" uuid,
+  "tenant_id" uuid,
   "occurred_at" timestamptz not null default now()
 );
 alter table "better_supabase"."audit_events" add constraint "bsb_audit_op_check"
@@ -5582,10 +5582,10 @@ alter table "better_supabase"."audit_events" add column "request_id" text;
 alter table "better_supabase"."audit_events" add column "correlation_id" text;
 alter table "better_supabase"."audit_events" add column "scope" text;
 create index audit_events_record_idx on "better_supabase"."audit_events" ("table_name", "record_id", "occurred_at" desc);
-create index audit_events_organization_idx on "better_supabase"."audit_events" ("organization_id", "occurred_at" desc);
+create index audit_events_organization_idx on "better_supabase"."audit_events" ("tenant_id", "occurred_at" desc);
 create index audit_events_occurred_at_idx on "better_supabase"."audit_events" ("occurred_at");
 create index audit_events_correlation_idx on "better_supabase"."audit_events" ("correlation_id") where "correlation_id" is not null;
-create unique index audit_events_idempotency_idx on "better_supabase"."audit_events" ("idempotency_key", "organization_id") nulls not distinct where "idempotency_key" is not null;
+create unique index audit_events_idempotency_idx on "better_supabase"."audit_events" ("idempotency_key", "tenant_id") nulls not distinct where "idempotency_key" is not null;
 alter table "better_supabase"."audit_events" enable row level security;
 revoke all on "better_supabase"."audit_events" from public, anon, authenticated;
 grant select on "better_supabase"."audit_events" to service_role;
@@ -5679,7 +5679,7 @@ begin
   -- Redacted columns stay in changed, with their values masked.
   old_row := old_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where old_row ? k), '{}');
   new_row := new_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where new_row ? k), '{}');
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
   values (
     tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
@@ -5794,7 +5794,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -5854,7 +5854,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -5916,7 +5916,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -6329,13 +6329,13 @@ begin
     select l."id"::text into existing
     from "better_supabase"."audit_events" l
     where l."idempotency_key" = audit_event.idempotency_key
-      and l."organization_id" is not distinct from audit_event.tenant
+      and l."tenant_id" is not distinct from audit_event.tenant
     limit 1;
     if existing is not null then
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -6506,13 +6506,13 @@ begin
     select l."id"::text into existing
     from "better_supabase"."audit_events" l
     where l."idempotency_key" = audit_event_trusted.idempotency_key
-      and l."organization_id" is not distinct from audit_event_trusted.tenant
+      and l."tenant_id" is not distinct from audit_event_trusted.tenant
     limit 1;
     if existing is not null then
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key", "actor_kind", "actor_label", "tenant_label", "target_label", "summary", "request_id", "correlation_id", "scope")
   values (
     null,
     record_id,
@@ -6680,7 +6680,7 @@ as $$
 declare
   v_tenant text := coalesce(tenant_column, (
     select a.attname::text from pg_catalog.pg_attribute a
-    where a.attrelid = target and a.attname = '"organization_id"' and not a.attisdropped
+    where a.attrelid = target and a.attname = '"tenant_id"' and not a.attisdropped
   ), '');
 begin
   if (select count(*) from pg_catalog.pg_attribute a
@@ -6953,9 +6953,9 @@ begin
     -- skip scan of that index, not a scan of the log.
     for v_tenant in
       with recursive t (v) as (
-        (select l."organization_id" from "better_supabase"."audit_events" l where l."organization_id" is not null order by l."organization_id" limit 1)
+        (select l."tenant_id" from "better_supabase"."audit_events" l where l."tenant_id" is not null order by l."tenant_id" limit 1)
         union all
-        select (select l."organization_id" from "better_supabase"."audit_events" l where l."organization_id" > t.v order by l."organization_id" limit 1)
+        select (select l."tenant_id" from "better_supabase"."audit_events" l where l."tenant_id" > t.v order by l."tenant_id" limit 1)
         from t where t.v is not null
       )
       select t.v from t where t.v is not null
@@ -6970,7 +6970,7 @@ begin
         delete from "better_supabase"."audit_events"
         where "id" in (
           select l."id" from "better_supabase"."audit_events" l
-          where l."organization_id" = v_tenant and l."occurred_at" < now() - v_older
+          where l."tenant_id" = v_tenant and l."occurred_at" < now() - v_older
           order by l."occurred_at"
           limit batch - purged
         )
@@ -6984,7 +6984,7 @@ begin
         delete from "better_supabase"."audit_events"
         where "id" in (
           select l."id" from "better_supabase"."audit_events" l
-          where l."organization_id" is null and l."occurred_at" < now() - older_than
+          where l."tenant_id" is null and l."occurred_at" < now() - older_than
           order by l."occurred_at"
           limit batch - purged
         )
@@ -6999,7 +6999,7 @@ begin
       where "id" in (
         select l."id" from "better_supabase"."audit_events" l
         where l."occurred_at" < now() - older_than
-          and (not for_tenant or l."organization_id" is not distinct from purge_audit_log.tenant)
+          and (not for_tenant or l."tenant_id" is not distinct from purge_audit_log.tenant)
         order by l."occurred_at"
         limit greatest(batch - purged, 0)
       )
@@ -7022,7 +7022,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select distinct l."organization_id" from "better_supabase"."audit_events" l
+  select distinct l."tenant_id" from "better_supabase"."audit_events" l
   where l."occurred_at" < now() - older_than
 $$;
 revoke execute on function better_supabase.audit_events_tenants(interval) from public, anon, authenticated;
@@ -7068,7 +7068,7 @@ declare
   result jsonb;
 begin
   if cardinality(for_tenants) > 0 then
-    v_where := v_where || $q$ and l."organization_id" = any ($1)$q$;
+    v_where := v_where || $q$ and l."tenant_id" = any ($1)$q$;
   end if;
   if cardinality(for_event_types) > 0 then
     v_where := v_where || $q$ and l."event_type" = any ($2)$q$;
@@ -7118,7 +7118,7 @@ begin
   -- "is null or" branches and can use the (tenant, occurred_at) index.
   execute $q$select coalesce(jsonb_agg(x.entry order by x.occurred_at $q$ || v_order || $q$, x.id $q$ || v_order || $q$), '[]')
   from (
-    select jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."organization_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata") as entry, l."occurred_at" as occurred_at, l."id" as id
+    select jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'actorKind', l."actor_kind", 'actorLabel', l."actor_label", 'tenant', l."tenant_id", 'tenantLabel', l."tenant_label", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome") || jsonb_build_object('source', l."source", 'targetType', l."target_type", 'targetLabel', l."target_label", 'summary', l."summary", 'requestId', l."request_id", 'correlationId', l."correlation_id", 'scope', l."scope", 'metadata', l."metadata") as entry, l."occurred_at" as occurred_at, l."id" as id
     from "better_supabase"."audit_events" l
     where $q$ || v_where || $q$
     order by l."occurred_at" $q$ || v_order || $q$, l."id" $q$ || v_order || $q$
@@ -7159,7 +7159,7 @@ declare
   result bigint;
 begin
   if cardinality(for_tenants) > 0 then
-    v_where := v_where || $q$ and l."organization_id" = any ($1)$q$;
+    v_where := v_where || $q$ and l."tenant_id" = any ($1)$q$;
   end if;
   if cardinality(for_event_types) > 0 then
     v_where := v_where || $q$ and l."event_type" = any ($2)$q$;
@@ -7352,7 +7352,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_003_audit.sql
 -- better-supabase module: audit
 -- @bsb-block audit@13 managed
--- @bsb-hash sha256:2002b97b4bb2320f735a2b642ef33dccc11994cca1c0982740f023695a7f147b
+-- @bsb-hash sha256:65636a449d739f6c08bc4a541a83da0b99242a7c5d758e7b56d070b5e67c2adf
 -- Records inserts, updates and deletes with the actor and changed columns for tables you register, plus semantic events through audit_event(), with redaction, an append-only guard, a tenant read policy and per-tenant retention as options.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7433,7 +7433,7 @@ alter table "better_supabase"."audit_events" add column if not exists "new_recor
 alter table "better_supabase"."audit_events" add column if not exists "changed" text[];
 alter table "better_supabase"."audit_events" add column if not exists "actor_id" uuid;
 alter table "better_supabase"."audit_events" add column if not exists "actor_role" text;
-alter table "better_supabase"."audit_events" add column if not exists "organization_id" uuid;
+alter table "better_supabase"."audit_events" add column if not exists "tenant_id" uuid;
 alter table "better_supabase"."audit_events" add column if not exists "occurred_at" timestamptz not null default now();
 -- Set when an admin acted as the user (the act claim).
 alter table "better_supabase"."audit_events" add column if not exists "impersonated_by" uuid;
@@ -7457,10 +7457,10 @@ alter table "better_supabase"."audit_events" add column if not exists "request_i
 alter table "better_supabase"."audit_events" add column if not exists "correlation_id" text;
 alter table "better_supabase"."audit_events" add column if not exists "scope" text;
 create index if not exists audit_events_record_idx on "better_supabase"."audit_events" ("table_name", "record_id", "occurred_at" desc);
-create index if not exists audit_events_organization_idx on "better_supabase"."audit_events" ("organization_id", "occurred_at" desc);
+create index if not exists audit_events_organization_idx on "better_supabase"."audit_events" ("tenant_id", "occurred_at" desc);
 create index if not exists audit_events_occurred_at_idx on "better_supabase"."audit_events" ("occurred_at");
 create index if not exists audit_events_correlation_idx on "better_supabase"."audit_events" ("correlation_id") where "correlation_id" is not null;
-create unique index if not exists audit_events_idempotency_idx on "better_supabase"."audit_events" ("idempotency_key", "organization_id") nulls not distinct where "idempotency_key" is not null;
+create unique index if not exists audit_events_idempotency_idx on "better_supabase"."audit_events" ("idempotency_key", "tenant_id") nulls not distinct where "idempotency_key" is not null;
 alter table "better_supabase"."audit_events" enable row level security;
 grant select on "better_supabase"."audit_events" to service_role;
 
@@ -7553,7 +7553,7 @@ begin
   -- Redacted columns stay in changed, with their values masked.
   old_row := old_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where old_row ? k), '{}');
   new_row := new_row || coalesce((select jsonb_object_agg(k, '"[redacted]"'::jsonb) from unnest(entry.redact) k where new_row ? k), '{}');
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type")
   values (
     tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
@@ -7652,7 +7652,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -7696,7 +7696,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -7742,7 +7742,7 @@ begin
         k.new_row || coalesce((select jsonb_object_agg(r, '"[redacted]"'::jsonb) from unnest(entry.redact) r where k.new_row ? r), '{}') as new_row
       from kept k
     )
-    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type")
+    insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "old_record", "new_record", "changed", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type")
     select tg_table_schema || '.' || tg_table_name,
     (select string_agg(row_data ->> k.name, ',' order by k.ord) from unnest(entry.key_columns) with ordinality k(name, ord)),
     op,
@@ -8139,13 +8139,13 @@ begin
     select l."id"::text into existing
     from "better_supabase"."audit_events" l
     where l."idempotency_key" = audit_event.idempotency_key
-      and l."organization_id" is not distinct from audit_event.tenant
+      and l."tenant_id" is not distinct from audit_event.tenant
     limit 1;
     if existing is not null then
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key")
   values (
     null,
     record_id,
@@ -8300,13 +8300,13 @@ begin
     select l."id"::text into existing
     from "better_supabase"."audit_events" l
     where l."idempotency_key" = audit_event_trusted.idempotency_key
-      and l."organization_id" is not distinct from audit_event_trusted.tenant
+      and l."tenant_id" is not distinct from audit_event_trusted.tenant
     limit 1;
     if existing is not null then
       return existing;
     end if;
   end if;
-  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "organization_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key")
+  insert into "better_supabase"."audit_events" ("table_name", "record_id", "op", "actor_id", "actor_role", "tenant_id", "impersonated_by", "impersonation_reason", "support_session_id", "event_type", "category", "outcome", "source", "target_type", "metadata", "idempotency_key")
   values (
     null,
     record_id,
@@ -8429,7 +8429,7 @@ as $$
 declare
   v_tenant text := coalesce(tenant_column, (
     select a.attname::text from pg_catalog.pg_attribute a
-    where a.attrelid = target and a.attname = '"organization_id"' and not a.attisdropped
+    where a.attrelid = target and a.attname = '"tenant_id"' and not a.attisdropped
   ), '');
 begin
   if (select count(*) from pg_catalog.pg_attribute a
@@ -8702,9 +8702,9 @@ begin
     -- skip scan of that index, not a scan of the log.
     for v_tenant in
       with recursive t (v) as (
-        (select l."organization_id" from "better_supabase"."audit_events" l where l."organization_id" is not null order by l."organization_id" limit 1)
+        (select l."tenant_id" from "better_supabase"."audit_events" l where l."tenant_id" is not null order by l."tenant_id" limit 1)
         union all
-        select (select l."organization_id" from "better_supabase"."audit_events" l where l."organization_id" > t.v order by l."organization_id" limit 1)
+        select (select l."tenant_id" from "better_supabase"."audit_events" l where l."tenant_id" > t.v order by l."tenant_id" limit 1)
         from t where t.v is not null
       )
       select t.v from t where t.v is not null
@@ -8719,7 +8719,7 @@ begin
         delete from "better_supabase"."audit_events"
         where "id" in (
           select l."id" from "better_supabase"."audit_events" l
-          where l."organization_id" = v_tenant and l."occurred_at" < now() - v_older
+          where l."tenant_id" = v_tenant and l."occurred_at" < now() - v_older
           order by l."occurred_at"
           limit batch - purged
         )
@@ -8733,7 +8733,7 @@ begin
         delete from "better_supabase"."audit_events"
         where "id" in (
           select l."id" from "better_supabase"."audit_events" l
-          where l."organization_id" is null and l."occurred_at" < now() - older_than
+          where l."tenant_id" is null and l."occurred_at" < now() - older_than
           order by l."occurred_at"
           limit batch - purged
         )
@@ -8748,7 +8748,7 @@ begin
       where "id" in (
         select l."id" from "better_supabase"."audit_events" l
         where l."occurred_at" < now() - older_than
-          and (not for_tenant or l."organization_id" is not distinct from purge_audit_log.tenant)
+          and (not for_tenant or l."tenant_id" is not distinct from purge_audit_log.tenant)
         order by l."occurred_at"
         limit greatest(batch - purged, 0)
       )
@@ -8771,7 +8771,7 @@ stable
 security definer
 set search_path = ''
 as $$
-  select distinct l."organization_id" from "better_supabase"."audit_events" l
+  select distinct l."tenant_id" from "better_supabase"."audit_events" l
   where l."occurred_at" < now() - older_than
 $$;
 revoke execute on function better_supabase.audit_events_tenants(interval) from public, anon, authenticated;
@@ -8817,7 +8817,7 @@ declare
   result jsonb;
 begin
   if cardinality(for_tenants) > 0 then
-    v_where := v_where || $q$ and l."organization_id" = any ($1)$q$;
+    v_where := v_where || $q$ and l."tenant_id" = any ($1)$q$;
   end if;
   if cardinality(for_event_types) > 0 then
     v_where := v_where || $q$ and l."event_type" = any ($2)$q$;
@@ -8861,7 +8861,7 @@ begin
   -- "is null or" branches and can use the (tenant, occurred_at) index.
   execute $q$select coalesce(jsonb_agg(x.entry order by x.occurred_at $q$ || v_order || $q$, x.id $q$ || v_order || $q$), '[]')
   from (
-    select jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'tenant', l."organization_id", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome", 'source', l."source", 'targetType', l."target_type", 'metadata', l."metadata") as entry, l."occurred_at" as occurred_at, l."id"::text as id
+    select jsonb_build_object('id', l."id", 'table', l."table_name", 'record', l."record_id", 'op', l."op", 'old', l."old_record", 'new', l."new_record", 'changed', l."changed", 'actorId', l."actor_id", 'actorRole', l."actor_role", 'tenant', l."tenant_id", 'occurredAt', l."occurred_at", 'impersonatedBy', l."impersonated_by", 'impersonationReason', l."impersonation_reason", 'supportSession', l."support_session_id", 'eventType', l."event_type", 'category', l."category", 'outcome', l."outcome", 'source', l."source", 'targetType', l."target_type", 'metadata', l."metadata") as entry, l."occurred_at" as occurred_at, l."id"::text as id
     from "better_supabase"."audit_events" l
     where $q$ || v_where || $q$
     order by l."occurred_at" $q$ || v_order || $q$, l."id"::text $q$ || v_order || $q$
@@ -8901,7 +8901,7 @@ declare
   result bigint;
 begin
   if cardinality(for_tenants) > 0 then
-    v_where := v_where || $q$ and l."organization_id" = any ($1)$q$;
+    v_where := v_where || $q$ and l."tenant_id" = any ($1)$q$;
   end if;
   if cardinality(for_event_types) > 0 then
     v_where := v_where || $q$ and l."event_type" = any ($2)$q$;

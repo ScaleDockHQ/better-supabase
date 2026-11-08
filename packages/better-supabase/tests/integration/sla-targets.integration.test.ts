@@ -213,7 +213,7 @@ describe.skipIf(!live)("service levels and targets", () => {
       expect(await sla.check().orThrow()).toBe(1);
       expect(
         await s.value<number>(
-          "(select count(*)::int from better_supabase.outbox_events where type = 'sla.breached' and organization_id = $1)",
+          "(select count(*)::int from better_supabase.outbox_events where type = 'sla.breached' and tenant_id = $1)",
           [org],
         ),
       ).toBe(1);
