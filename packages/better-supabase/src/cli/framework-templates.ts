@@ -1,7 +1,10 @@
+import { posix } from "node:path";
+
 import type {
+  FrameworkBinding,
   FrameworkTemplateContext,
   FrameworkTemplateFile,
-} from "./frameworks.ts";
+} from "../plugins/index.ts";
 
 /** `lib/supabase/`, where `init` writes the shared definition. */
 const supabaseDir = (context: FrameworkTemplateContext): string =>
@@ -11,10 +14,20 @@ const supabaseDir = (context: FrameworkTemplateContext): string =>
 const sibling = (context: FrameworkTemplateContext): string =>
   context.tsExtensions ? "./index.ts" : "./index";
 
+/** The relative import of `lib/supabase/index` from `from`. */
+function relative(from: string, context: FrameworkTemplateContext): string {
+  const path = posix.relative(
+    posix.dirname(from),
+    `${supabaseDir(context)}/index`,
+  );
+
+  return `${path.startsWith(".") ? path : `./${path}`}${context.tsExtensions ? ".ts" : ""}`;
+}
+
 /**
  * `src/hooks.server.ts`: the SvelteKit `handle` hook (`sveltekit` docs page).
- * SvelteKit always keeps its hooks in `src`, and `$lib` is its own alias, so
- * neither depends on `srcDir`.
+ * SvelteKit always keeps its hooks in `src`, so the path doesn't follow
+ * `srcDir`, and the import reaches `lib/supabase` relative to it.
  */
 export function sveltekitTemplates(
   context: FrameworkTemplateContext,
@@ -25,7 +38,7 @@ export function sveltekitTemplates(
       contents: `import { createServer, withBetterSupabase } from 'better-supabase/server';
 import { toSvelteKit } from '${context.serverImport ?? "better-supabase/sveltekit"}';
 
-import { betterSupabase } from '$lib/supabase';
+import { betterSupabase } from '${relative("src/hooks.server.ts", context)}';
 
 const bsb = createServer(betterSupabase);
 
@@ -95,4 +108,29 @@ export const supabaseMiddleware = toReactRouter(
 `,
     },
   ];
+}
+
+/**
+ * The templates of the built-in bindings that write files. They live here, not
+ * in the binding, so the `plugins` runtime entry carries no file text (ADR
+ * 0582).
+ */
+export const BUILT_IN_TEMPLATES: Readonly<
+  Record<
+    string,
+    (context: FrameworkTemplateContext) => readonly FrameworkTemplateFile[]
+  >
+> = {
+  sveltekit: sveltekitTemplates,
+  "tanstack-start": tanstackStartTemplates,
+  "react-router": reactRouterTemplates,
+};
+
+/** `binding`, with the built-in template of its name when it declares none. */
+export function withTemplates(binding: FrameworkBinding): FrameworkBinding {
+  const templates = BUILT_IN_TEMPLATES[binding.name];
+
+  return binding.templates === undefined && templates !== undefined
+    ? { ...binding, templates }
+    : binding;
 }

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { withTemplates } from "../../src/cli/framework-templates.ts";
 import { emitHooks } from "../../src/cli/gen/hooks.ts";
 import { baseFiles } from "../../src/cli/templates.ts";
 import { resolveConfig } from "../../src/config/resolve.ts";
@@ -256,7 +257,11 @@ describe("the SvelteKit, TanStack Start and React Router bindings", () => {
     ],
   ])("%s writes %s from its server adapter", (name, path, adapter) => {
     const binding = frameworkRegistry().get(name)!;
-    const [file, ...rest] = plugins.frameworkFiles(binding, context);
+
+    const [file, ...rest] = plugins.frameworkFiles(
+      withTemplates(binding),
+      context,
+    );
 
     expect(rest).toEqual([]);
     expect(file?.path).toBe(path);
