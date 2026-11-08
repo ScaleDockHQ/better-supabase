@@ -5,7 +5,6 @@ import type { WorkflowRun } from "better-supabase/blocks/workflows";
 import { useAction } from "better-supabase/react";
 import { CheckIcon, CircleStopIcon, XIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -18,6 +17,7 @@ import {
 } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { useWorkflowRun } from "@/hooks/use-workflows";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import {

@@ -3,7 +3,6 @@
 import { useSessionChange } from "better-supabase/next/client";
 import { useExtracted } from "next-intl";
 import { useActionState, useId } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -23,6 +22,7 @@ import { Input } from "@/components/ui/input";
 import { sessionChanged } from "@/features/user/user-actions";
 import { useRouter } from "@/i18n/navigation";
 import { loadBrowserClient } from "@/lib/supabase/load-client";
+import { toast } from "@/lib/toast";
 
 /**
  * The reset link signs the user in (the browser client exchanges its code), so

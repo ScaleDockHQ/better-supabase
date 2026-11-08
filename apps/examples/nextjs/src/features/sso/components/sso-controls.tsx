@@ -6,7 +6,6 @@ import type { ReactNode } from "react";
 import { useAction, useActionForm } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -39,6 +38,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { SsoDomainRow } from "../sso-queries";

@@ -5,7 +5,6 @@ import { PlugIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { useTransition } from "react";
-import { toast } from "sonner";
 
 import {
   Alert,
@@ -50,6 +49,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useRouter } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type {

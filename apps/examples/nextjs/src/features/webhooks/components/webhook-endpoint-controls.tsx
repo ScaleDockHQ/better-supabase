@@ -6,7 +6,6 @@ import type { SubmitEvent } from "react";
 import { CopyIcon, PlusIcon, SendIcon, Trash2Icon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState, useTransition } from "react";
-import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -39,6 +38,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import {
@@ -122,9 +122,9 @@ export function CreateWebhookDialog() {
                 size="icon"
                 aria-label={t("Copy secret")}
                 onClick={() => {
-                  void navigator.clipboard
-                    .writeText(secret)
-                    .then(() => toast.success(t("Secret copied")));
+                  void navigator.clipboard.writeText(secret).then(() => {
+                    toast.success(t("Secret copied"));
+                  });
                 }}
               >
                 <CopyIcon />

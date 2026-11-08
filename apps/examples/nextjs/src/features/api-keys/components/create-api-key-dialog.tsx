@@ -6,7 +6,6 @@ import type { SubmitEvent } from "react";
 import { CopyIcon, PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -28,6 +27,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SubmitLabel } from "@/features/offline/components/submit-label";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /** The create form, then the new token, which is shown only this once. */
@@ -99,9 +99,9 @@ export function CreateApiKeyDialog({
                 size="icon"
                 aria-label={t("Copy key")}
                 onClick={() => {
-                  void navigator.clipboard
-                    .writeText(token)
-                    .then(() => toast.success(t("Key copied")));
+                  void navigator.clipboard.writeText(token).then(() => {
+                    toast.success(t("Key copied"));
+                  });
                 }}
               >
                 <CopyIcon />

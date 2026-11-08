@@ -12,7 +12,6 @@ import {
 } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -24,6 +23,7 @@ import {
 import { Skeleton } from "@/components/ui/skeleton";
 import { useConversation } from "@/hooks/use-inbox";
 import { useAuth } from "@/lib/hooks";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 import { cn } from "@/lib/utils";
 

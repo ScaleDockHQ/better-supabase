@@ -10,7 +10,6 @@ import {
 } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState, useTransition } from "react";
-import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -51,6 +50,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { usePathname, useRouter } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { FieldEntity, FieldRow, FieldType } from "../custom-fields-types";

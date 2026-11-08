@@ -3,7 +3,6 @@
 import { KeyRoundIcon, RefreshCwIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useState, useTransition } from "react";
-import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -17,6 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { rotateSigningKey } from "../signing-keys-actions";

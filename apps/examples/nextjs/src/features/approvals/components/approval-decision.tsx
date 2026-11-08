@@ -3,9 +3,9 @@
 import { useAction } from "better-supabase/react";
 import { CheckIcon, XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { decideApproval } from "../approvals-actions";

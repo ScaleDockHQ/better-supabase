@@ -4,7 +4,6 @@ import { useAction } from "better-supabase/react";
 import { DownloadIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -25,6 +24,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import {

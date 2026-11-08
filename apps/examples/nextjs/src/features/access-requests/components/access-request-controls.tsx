@@ -5,7 +5,6 @@ import type { DbError } from "better-supabase";
 import { useAction } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -33,6 +32,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { AccessRequestRow } from "../access-requests-queries";

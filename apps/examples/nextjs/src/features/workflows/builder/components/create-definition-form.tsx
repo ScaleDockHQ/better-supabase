@@ -3,11 +3,11 @@
 import { useAction } from "better-supabase/react";
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useRouter } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { createDefinition } from "../builder-actions";

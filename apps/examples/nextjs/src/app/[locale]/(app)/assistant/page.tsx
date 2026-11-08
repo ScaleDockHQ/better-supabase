@@ -26,6 +26,9 @@ const SAMPLE_SPEC: JsonRenderSpec = {
   },
 };
 
+// The heading and the sample card paint before the chats stream in.
+export const instant = true;
+
 export default function AssistantPage() {
   const t = useExtracted("assistant");
 

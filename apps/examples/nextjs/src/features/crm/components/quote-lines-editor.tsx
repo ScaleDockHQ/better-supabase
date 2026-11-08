@@ -7,7 +7,6 @@ import { useAction } from "better-supabase/react";
 import { PlusIcon, Trash2Icon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -19,6 +18,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { saveQuoteLines } from "../crm-actions";

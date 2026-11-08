@@ -4,7 +4,6 @@ import { useActionForm, useImage } from "better-supabase/react";
 import { UploadIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useMemo } from "react";
-import { toast } from "sonner";
 
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Button } from "@/components/ui/button";
@@ -18,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { avatars } from "@/lib/buckets";
 import { useSupabase } from "@/lib/hooks";
 import { initials } from "@/lib/initials";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { uploadAvatar } from "../user-actions";

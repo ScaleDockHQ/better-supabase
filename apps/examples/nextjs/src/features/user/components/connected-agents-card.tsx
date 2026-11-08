@@ -3,7 +3,6 @@
 import { useSessionChange } from "better-supabase/next/client";
 import { useExtracted, useFormatter } from "next-intl";
 import { useState, useTransition } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -14,6 +13,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { useSupabase } from "@/lib/hooks";
+import { toast } from "@/lib/toast";
 
 import type { AuthRead, Grant } from "../user-queries";
 

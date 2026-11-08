@@ -130,9 +130,9 @@ export function InviteMemberDialog({
                 size="icon"
                 aria-label={t("Copy link")}
                 onClick={() => {
-                  void navigator.clipboard
-                    .writeText(link)
-                    .then(() => toast.success(t("Link copied")));
+                  void navigator.clipboard.writeText(link).then(() => {
+                    toast.success(t("Link copied"));
+                  });
                 }}
               >
                 <CopyIcon />

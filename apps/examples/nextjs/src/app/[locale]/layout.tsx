@@ -13,6 +13,11 @@ import { cn } from "@/lib/utils";
 import "../globals.css";
 import { Providers } from "../providers";
 
+// Every route group keeps its app shell static: a default <Link> loads only
+// prerendered output, and anything that reads the session or a route token
+// renders behind its own <Suspense> boundary (Next.js 16.4, ADR 0481).
+export const ensureStatic = "shell";
+
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }
