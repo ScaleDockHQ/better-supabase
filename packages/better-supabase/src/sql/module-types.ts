@@ -403,6 +403,12 @@ export interface BlockSqlLayout {
    * `sameTenant.auto`.
    */
   readonly declaredColumns?: Readonly<Record<string, readonly string[]>>;
+  /**
+   * The columns the app's own triggers read or write, `schema.table` to names.
+   * `sameTenant.auto` emits nothing for a column an app trigger already guards
+   * (Lienlink's `jobs_organization_fixed`).
+   */
+  readonly appTriggerColumns?: Readonly<Record<string, readonly string[]>>;
   /** `config.readSets`, compiled: the functions the `read-sets` module writes. */
   readonly readSets?: readonly {
     readonly name: string;

@@ -54,6 +54,7 @@ function autoEntries(
     columns[table]?.includes(tenant) === true;
 
   const keys = layout.foreignKeys;
+  const guarded = layout.appTriggerColumns ?? {};
 
   // A key that pairs the column with the tenant column on both sides, such as
   // `(parent_id, tenant_id) references parent (id, tenant_id)`, already makes
@@ -82,6 +83,7 @@ function autoEntries(
       column === undefined ||
       referenced === undefined ||
       column === tenant ||
+      guarded[key.table]?.includes(column) === true ||
       covered.has(`${key.table}.${column}>${key.references}`) ||
       !hasTenant(key.table) ||
       !hasTenant(key.references)

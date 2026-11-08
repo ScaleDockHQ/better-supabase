@@ -363,3 +363,54 @@ describe("tenant role helpers under a provider", () => {
     expect(sql).not.toContain("authz.");
   });
 });
+
+describe("tenant module sameTenant over app triggers", () => {
+  const schema = `
+create table public.customers (id uuid primary key, organization_id uuid not null);
+create table public.jobs (
+  id uuid primary key,
+  organization_id uuid not null,
+  customer_id uuid references public.customers,
+  team_id uuid references public.customers
+);
+create function public.jobs_organization_fixed() returns trigger
+language plpgsql as $$
+begin
+  if new.customer_id is distinct from old.customer_id
+     and (select organization_id from public.customers where id = new.customer_id) <> new.organization_id then
+    raise exception 'customer must share the organization';
+  end if;
+  return new;
+end;
+$$;
+create trigger jobs_organization_fixed before update on public.jobs
+  for each row execute function public.jobs_organization_fixed();
+create trigger bsb_same_tenant_team_id before update on public.jobs
+  for each row execute function public.jobs_organization_fixed();
+`;
+
+  const render = (text: string) =>
+    moduleBody("memberships", {
+      modules: { memberships: { options: { sameTenant: { auto: true } } } },
+      ...sameTenantLayout([{ text }], ["public"]),
+    })!;
+
+  it("reads the columns of app triggers and ignores bsb_* triggers", () => {
+    expect(
+      sameTenantLayout([{ text: schema }], ["public"]).appTriggerColumns,
+    ).toStrictEqual({ "public.jobs": ["customer_id", "organization_id"] });
+  });
+
+  it("emits no second trigger for a column an app trigger guards", () => {
+    const sql = render(schema);
+
+    expect(sql).not.toContain('"bsb_same_tenant_customer_id"');
+    expect(sql).toContain('"bsb_same_tenant_team_id"');
+  });
+
+  it("emits the trigger without the app's", () => {
+    expect(
+      render(schema.slice(0, schema.indexOf("create function"))),
+    ).toContain('"bsb_same_tenant_customer_id"');
+  });
+});

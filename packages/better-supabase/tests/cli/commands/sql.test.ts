@@ -1148,7 +1148,8 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     );
 
     const upgrade = (await readdir(join(root, "supabase/migrations"))).find(
-      (name) => hasMigrationSuffix(name, "_better_supabase_block_upgrade.sql"),
+      (name) =>
+        hasMigrationSuffix(name, "_better_supabase_reviewed_upgrade.sql"),
     );
 
     const migration = await readFile(
@@ -1180,7 +1181,8 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(done.output).toContain("tasks: renamed after blocks.<name>.names");
 
     const upgrade = (await readdir(join(root, "supabase/migrations"))).find(
-      (name) => hasMigrationSuffix(name, "_better_supabase_block_upgrade.sql"),
+      (name) =>
+        hasMigrationSuffix(name, "_better_supabase_reviewed_upgrade.sql"),
     );
 
     expect(
@@ -1519,7 +1521,9 @@ create policy b on public.notes for select to authenticated using (true);
       expect(done.next).toEqual([
         { command: "supabase migration up", when: "applies the migration" },
       ]);
-      expect(done.output).not.toContain("_better_supabase_block_upgrade.sql");
+      expect(done.output).not.toContain(
+        "_better_supabase_reviewed_upgrade.sql",
+      );
       const all = await moduleMigrations();
       expect(all).toHaveLength(2);
 
