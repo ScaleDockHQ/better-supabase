@@ -230,10 +230,8 @@ export function createNext<
       const request = await requestScope();
       const verify = verifyOption(statsFor(request).stats);
 
-      // Scopes that resolve the same token share one verification; resolve
-      // then answers from the verified-token memo.
-      await base.snapshot(request, verify.onVerify);
-
+      // Scopes that resolve the same token share one verification through the
+      // verified-token memo, so resolve is the only pass.
       const resolution = await base.resolve(request, {
         refresh: false,
         ...verify,
@@ -249,13 +247,8 @@ export function createNext<
     incomingAt(box().generation);
 
   const getClaimsAt = cache(
-    async (_generation: number): Promise<SessionSnapshot<C> | null> => {
-      const committed = box().committed;
-
-      return committed
-        ? snapshotOf(committed.resolution.auth)
-        : base.snapshot(await requestScope());
-    },
+    async (generation: number): Promise<SessionSnapshot<C> | null> =>
+      snapshotOf((await incomingAt(generation)).resolution.auth),
   );
 
   const getClaims = (): Promise<SessionSnapshot<C> | null> =>
