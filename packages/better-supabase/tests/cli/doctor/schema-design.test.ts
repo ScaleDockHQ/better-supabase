@@ -499,6 +499,27 @@ describe("schema design rules", () => {
     ]);
   });
 
+  it("reports count() without a mode (BS227)", async () => {
+    const sources = [
+      {
+        path: "src/counts.ts",
+        text: [
+          "const a = await db.customers.count();",
+          "const b = await db.customers.count({ where: { open: true } });",
+          'const c = await db.customers.count({ mode: "planned" });',
+          'const d = await db.customers.count({ where: { open: true }, mode: "estimated" });',
+        ].join("\n"),
+      },
+    ];
+
+    const findings = await run(context(base, { sources }), "BS227");
+
+    expect(findings.map((finding) => finding.target)).toEqual([
+      "src/counts.ts:1:count-mode",
+      "src/counts.ts:2:count-mode",
+    ]);
+  });
+
   it("flags int8 sequences and numeric columns decoded as number (BS222)", async () => {
     const snap = snapshot((tables) => {
       const notes = table(tables, "notes");
