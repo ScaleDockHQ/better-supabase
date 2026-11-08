@@ -235,7 +235,7 @@ function seedFunctionWithoutLocale(context: DoctorContext): FindingInput[] {
 }
 
 /** Single-row inserts into one table before BS396 asks for a multi-row one. */
-export const SINGLE_ROW_INSERTS = 10;
+const SINGLE_ROW_INSERTS = 10;
 
 /**
  * The number of top-level tuples after `values`, or 0 when it isn't a values

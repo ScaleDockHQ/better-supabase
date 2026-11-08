@@ -10,7 +10,7 @@ import { catalogOf, policyObject, qualified, tableObject } from "./shared.ts";
 import { TENANT_TRIGGER_RULES } from "./tenant-triggers.ts";
 
 /** Row-level `bsb_*` triggers on one table before BS387 reports it. */
-export const TRIGGER_PILE_UP = 6;
+const TRIGGER_PILE_UP = 6;
 
 const SYSTEM_SCHEMAS: ReadonlySet<string> = new Set([
   "auth",
@@ -181,7 +181,7 @@ function searchedColumns(table: CatalogTable): readonly string[] | undefined {
 }
 
 /** The share of `statement_timeout` a batch's mean time may use. */
-export const IMPORT_TIMEOUT_SHARE = 0.5;
+const IMPORT_TIMEOUT_SHARE = 0.5;
 
 const DURATION = /^(\d+(?:\.\d+)?)\s*(ms|s|min|h|d)?$/;
 
@@ -194,7 +194,7 @@ const UNIT_MS: Readonly<Record<string, number>> = {
 };
 
 /** A Postgres duration setting in milliseconds; `undefined` for 0 (no limit). */
-export function durationMs(text: string): number | undefined {
+function durationMs(text: string): number | undefined {
   const match = DURATION.exec(text.trim());
 
   if (match === null) {
