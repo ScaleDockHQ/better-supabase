@@ -60,6 +60,30 @@ describe("runCodemod", () => {
     ).toEqual(Object.keys(CODEMODS));
   });
 
+  it("never rewrites a block file, even when a path names it", async () => {
+    const block = join(root, "supabase/schemas/900_better_supabase_x.sql");
+    const text = `-- @bsb-block x 1\nimport { buildJsonSchema } from "better-supabase/config";\n`;
+
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(block, text);
+
+    const result = await codemod(["naming", "supabase/schemas"]);
+
+    const direct = await runCodemod(
+      resolveConfig({}, root),
+      // SAFETY: every codemod subcommand declares the same args, so any one parses `argv`.
+      parseCommandArgs(codemodCommand("naming"), [
+        "naming",
+        "supabase/schemas/900_better_supabase_x.sql",
+      ]),
+    );
+
+    expect(result.code).toBe(0);
+    expect(direct.code).toBe(0);
+    expect(await readFile(block, "utf-8")).toBe(text);
+    expect(direct.output).toContain("A block file");
+  });
+
   it("asks for a known codemod", async () => {
     expect(await usageError(() => codemod([]))).toContain(
       "Name a codemod:\n  naming",

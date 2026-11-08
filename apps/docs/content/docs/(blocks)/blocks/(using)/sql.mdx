@@ -1865,9 +1865,15 @@ better-supabase upgrade
 
 It reads the version from each file's `@bsb-block` line (a file without one,
 written before the line existed, counts as version 1). It then writes the
-forward steps into `<timestamp>_better_supabase_block_upgrade.sql` in the
-`migrations` folder next to your `config.toml` and rewrites the module files. Create the schema migration afterwards, so the
-steps run first. `upgrade --check` exits with 1 when a module is behind, a
+forward steps into a migration in the `migrations` folder next to your
+`config.toml` and rewrites the module files. Under pg-delta that migration is
+`<timestamp>_better_supabase_reviewed_upgrade_<hash>.sql`, marked
+`-- destructive: reviewed`: it holds only what a schema diff can't express
+(renames, backfills, expression changes), and the module files hold every other
+statement, so `upgrade` never writes a schema migration. Under the other
+workflows it is `<timestamp>_better_supabase_block_upgrade_<hash>.sql`. Review
+the migration, then create the schema migration afterwards, so the steps run
+first. `upgrade --check` exits with 1 when a module is behind, a
 file is stale or a data statement is in no data migration, and `--dry-run` lists the steps without writing. The pgTAP
 files a module writes for your tables (the audit tests, say) carry no module
 version; `upgrade --check` keeps them current, and `upgrade` leaves them

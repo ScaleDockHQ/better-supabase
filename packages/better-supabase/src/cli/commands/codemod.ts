@@ -242,10 +242,33 @@ export async function runCodemod(
     });
   }
 
+  // `upgrade` owns the block files, so no codemod rewrites them, whatever path
+  // a rewrite or an argument names.
+  const planned: PlannedFile[] = [];
+
+  for (const edit of edits) {
+    const current = await readFile(edit.path, "utf-8").catch(() => undefined);
+
+    if (
+      current !== undefined &&
+      edit.path.endsWith(".sql") &&
+      writtenByBlocks({ path: edit.path, text: current })
+    ) {
+      review.push({
+        file: relative(config.root, edit.path),
+        line: 1,
+        message:
+          "A block file, which `better-supabase upgrade` rewrites. The codemod left it alone.",
+      });
+    } else {
+      planned.push(edit);
+    }
+  }
+
   const plan: FilePlan = {
     root: config.root,
     regenerate: `better-supabase codemod ${codemod.name}`,
-    files: edits,
+    files: planned,
   };
 
   const applied = await applyPlan(plan, args, paint);
