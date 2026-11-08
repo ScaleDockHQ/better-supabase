@@ -74,18 +74,18 @@ describe.skipIf(!live)(
           .orThrow();
 
         await s.client.query(
-          "select better_supabase.create_comment($1, 'work_item', $2, 'Still here')",
+          "select better_supabase.create_comment($1, 'task', $2, 'Still here')",
           [org, item.id],
         );
         await s.service();
 
-        const tasks = layout({ work_item: "task" });
+        const renamed = layout({ task: "ticket" });
 
         const plan = entityRenamePlan(
           MODULES,
           [...new Set(installed.map((file) => file.module))],
           installed.map((file) => file.contents).join("\n"),
-          tasks,
+          renamed,
         );
 
         expect(plan.refused).toEqual([]);
@@ -94,7 +94,7 @@ describe.skipIf(!live)(
           await s.client.query(step.sql);
         }
 
-        await install(s, tasks);
+        await install(s, renamed);
 
         const { rows } = await s.client.query<{
           title: string;
@@ -103,17 +103,17 @@ describe.skipIf(!live)(
         }>(
           `select t.title, c.subject_type as subject,
            to_regprocedure('better_supabase.create_task(uuid, jsonb)')::text as old
-         from better_supabase.tasks t
+         from better_supabase.tickets t
          join better_supabase.conversations c on c.subject_id = t.id::text`,
         );
 
         expect(rows).toEqual([
-          { title: "Renamed later", subject: "task", old: null },
+          { title: "Renamed later", subject: "ticket", old: null },
         ]);
         expect(
           (
             await s.client.query(
-              "select to_regclass('better_supabase.work_items') as old",
+              "select to_regclass('better_supabase.tasks') as old",
             )
           ).rows[0],
         ).toEqual({ old: null });

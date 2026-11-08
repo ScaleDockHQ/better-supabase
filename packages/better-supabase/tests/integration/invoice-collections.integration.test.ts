@@ -155,7 +155,7 @@ describe.skipIf(!live)("invoice collections", () => {
       await invoices
         .pauseDunning({
           invoiceId: second!.id,
-          until: Temporal.Now.plainDateISO().add({ days: 60 }),
+          until: Temporal.Now.plainDateISO("UTC").add({ days: 60 }),
           reason: "Disputed",
         })
         .orThrow();
@@ -164,7 +164,7 @@ describe.skipIf(!live)("invoice collections", () => {
       expect(hint(await invoices.runDunning())).not.toBe("ok");
 
       await s.service();
-      const asOf = Temporal.Now.plainDateISO().add({ days: 20 });
+      const asOf = Temporal.Now.plainDateISO("UTC").add({ days: 20 });
 
       expect(
         await invoices.runDunning({ organizationId: org, asOf }).orThrow(),

@@ -97,7 +97,7 @@ describe.skipIf(!live)("payment terms, credit blocks and dunning runs", () => {
       });
 
       const issued = await invoices.issue({ invoiceId: draft.id }).orThrow();
-      const today = Temporal.Now.plainDateISO();
+      const today = Temporal.Now.plainDateISO("UTC");
 
       expect(issued.paymentTerms?.discountDueOn?.toString()).toBe(
         issued.issuedOn?.add({ days: 10 }).toString(),
@@ -285,7 +285,7 @@ describe.skipIf(!live)("payment terms, credit blocks and dunning runs", () => {
 
       await s.service();
 
-      const asOf = Temporal.Now.plainDateISO().add({ days: 20 });
+      const asOf = Temporal.Now.plainDateISO("UTC").add({ days: 20 });
 
       expect(
         await invoices.runDunning({ organizationId: org, asOf }).orThrow(),

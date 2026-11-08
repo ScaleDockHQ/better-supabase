@@ -244,7 +244,7 @@ describe.skipIf(!live)("service levels and targets", () => {
       const transport = sqlTransport(s.sql);
       const targets = createGoals({ transport });
       const deals = createDeals({ transport });
-      const today = Temporal.Now.plainDateISO();
+      const today = Temporal.Now.plainDateISO("UTC");
 
       const quarter = {
         periodStart: today.subtract({ days: 30 }),

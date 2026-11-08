@@ -56,7 +56,7 @@ const config = resolveConfig(
       tickets: {
         block: "tasks",
         schema: SCRATCH,
-        entities: { work_item: "ticket" },
+        entities: { task: "ticket" },
         uses: { pipelines: "hiringPipelines" },
       },
     },

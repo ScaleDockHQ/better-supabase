@@ -46,7 +46,7 @@ describe.skipIf(!live)("forecasts", () => {
       const transport = sqlTransport(s.sql);
       const deals = createDeals({ transport });
       const forecasts = createForecasts({ transport });
-      const today = Temporal.Now.plainDateISO();
+      const today = Temporal.Now.plainDateISO("UTC");
 
       const period = {
         since: today.subtract({ days: 30 }),
