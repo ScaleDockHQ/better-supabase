@@ -73,7 +73,7 @@ export default defineConfig({
   gen: { file: "src/generated.ts" },
   database: {
     sql: { dir: "../../supabase/schemas", testsDir: "../../supabase/tests" },
-    seed: { output: "../../supabase/seeds/000_better_supabase.sql" },
+    seed: { file: "../../supabase/seeds/000_better_supabase.sql" },
   },
 });
 ```

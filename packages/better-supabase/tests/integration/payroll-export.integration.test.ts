@@ -18,7 +18,7 @@ const MODULES = [
   "organizations",
   "outbox",
   "audit",
-  "time-tracking",
+  "time-entries",
   "payroll-export",
 ];
 

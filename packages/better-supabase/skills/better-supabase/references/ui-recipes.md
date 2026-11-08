@@ -16499,7 +16499,7 @@ export async function HiringBoard({
 
 ## Timesheet
 
-A week of time entries per project with a running timer and totals. It loads its data on the server through the block's client; the [time-tracking block](https://bettersupabase.com/blocks/time-tracking) must be installed (`npx better-supabase add time-tracking`). Page: https://bettersupabase.com/recipes/timesheet.
+A week of time entries per project with a running timer and totals. It loads its data on the server through the block's client; the [time-entries block](https://bettersupabase.com/blocks/time-entries) must be installed (`npx better-supabase add time-entries`). Page: https://bettersupabase.com/recipes/timesheet.
 
 Web, with shadcn components:
 
@@ -16525,7 +16525,7 @@ export async function Timesheet({
     io(),
   ]);
 
-  if (!can(permissions, "time_tracking.track")) {
+  if (!can(permissions, "time_entries.track")) {
     forbidden();
   }
 

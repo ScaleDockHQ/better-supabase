@@ -180,11 +180,11 @@ describe("employees module", () => {
     ).not.toContain("create_employee");
   });
 
-  it("keys time entries to employees with time-tracking", () => {
+  it("keys time entries to employees with time-entries", () => {
     expect(body(["employees"])).not.toContain(
       "add column if not exists employee_id",
     );
-    const sql = body(["approvals", "time-tracking", "employees"]);
+    const sql = body(["approvals", "time-entries", "employees"]);
     expect(sql).toContain(
       'alter table "better_supabase"."time_entries" add column employee_id uuid references "better_supabase"."employees" ("id") on delete set null;',
     );
@@ -198,7 +198,7 @@ describe("employees module", () => {
 
     const plan = upgradePlan([
       { module: "approvals", version: 99 },
-      { module: "time-tracking", version: 99 },
+      { module: "time-entries", version: 99 },
       { module: "employees", version: 1 },
     ]).find((entry) => entry.module === "employees");
 

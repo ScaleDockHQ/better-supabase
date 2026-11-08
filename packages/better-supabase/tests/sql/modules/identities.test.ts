@@ -15,11 +15,9 @@ const sqlOf = (
     .join("\n");
 
 describe("identities module", () => {
-  it("is registered after time-tracking", () => {
+  it("is registered after time-entries", () => {
     const names = Object.keys(SQL_MODULES);
-    expect(names.indexOf("identities")).toBe(
-      names.indexOf("time-tracking") + 1,
-    );
+    expect(names.indexOf("identities")).toBe(names.indexOf("time-entries") + 1);
   });
 
   it("lets users read and delete their own links and write none", () => {

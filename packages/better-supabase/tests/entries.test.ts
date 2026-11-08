@@ -133,7 +133,7 @@ const PURE_BARRELS = [
   "blocks/orders",
   "blocks/promotions",
   "blocks/forms",
-  "blocks/time-tracking",
+  "blocks/time-entries",
   "blocks/templates",
   "blocks/option-sets",
   "blocks/pipelines",

@@ -537,19 +537,19 @@ function build(ctx: BlockSqlContext): string {
 -- Employees: the people an organization employs, with or without an
 -- account, their manager, team and status; private details and contracts
 -- behind employees.view_sensitive.
-${tablesSql(ctx, names)}${triggersSql(ctx, names)}${employeeFunctions(ctx, names)}${sensitiveFunctions(ctx, names)}${timeTrackingSql(ctx)}`;
+${tablesSql(ctx, names)}${triggersSql(ctx, names)}${employeeFunctions(ctx, names)}${sensitiveFunctions(ctx, names)}${timeEntriesSql(ctx)}`;
 }
 
 const timeByEmployee = (ctx: BlockSqlContext): boolean =>
-  ctx.installed("time-tracking") &&
-  ctx.of("time-tracking").option("owner") === "employee";
+  ctx.installed("time-entries") &&
+  ctx.of("time-entries").option("owner") === "employee";
 
-function timeTrackingSql(ctx: BlockSqlContext): string {
-  if (!ctx.installed("time-tracking")) {
+function timeEntriesSql(ctx: BlockSqlContext): string {
+  if (!ctx.installed("time-entries")) {
     return "";
   }
 
-  const time = ctx.of("time-tracking");
+  const time = ctx.of("time-entries");
 
   if (!timeByEmployee(ctx)) {
     return employeeKeySql(ctx, { owner: time, table: "entries" });
@@ -640,9 +640,9 @@ export const EMPLOYEES: BlockSqlDefinition = {
   scopes: ["tenant"],
   title: "Employees",
   description:
-    "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.",
+    "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.",
   requires: ["memberships", "permissions"],
-  integrates: ["outbox", "relations", "hiring", "time-tracking", "approvals"],
+  integrates: ["outbox", "relations", "hiring", "time-entries", "approvals"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 2,
@@ -650,14 +650,14 @@ export const EMPLOYEES: BlockSqlDefinition = {
     {
       from: 1,
       description:
-        "With time-tracking, time entries gain employee_id, backfilled and kept current by triggers.",
+        "With time-entries, time entries gain employee_id, backfilled and kept current by triggers.",
       sql: (ctx) =>
-        ctx.installed("time-tracking") && !timeByEmployee(ctx)
+        ctx.installed("time-entries") && !timeByEmployee(ctx)
           ? employeeKeyBackfillSql(ctx, {
-              owner: ctx.of("time-tracking"),
+              owner: ctx.of("time-entries"),
               table: "entries",
               quiet: [
-                ctx.of("time-tracking").naming.rename("bsb_time_entry_guard"),
+                ctx.of("time-entries").naming.rename("bsb_time_entry_guard"),
               ],
             })
           : "",

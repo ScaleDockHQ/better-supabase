@@ -59,7 +59,7 @@ describe("defineConfig", () => {
         tasks: { permissions: { read: "tasks.read" } },
         permissions: { roles: { member: ["tasks.read"] } },
       },
-      subjects: {
+      recordTypes: {
         task: { table: "public.tasks", permissions: { read: "tasks.read" } },
       },
     });
@@ -74,7 +74,7 @@ describe("defineConfig", () => {
       auth: { authorization: typed },
       blocks: { permissions: { roles: { member: ["tasks.read"] } } },
       // @ts-expect-error -- "tasks.delete" is not a key the provider declares.
-      subjects: {
+      recordTypes: {
         task: {
           table: "public.tasks",
           permissions: { write: { key: "tasks.delete" } },

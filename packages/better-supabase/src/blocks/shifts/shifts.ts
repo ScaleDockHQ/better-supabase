@@ -346,7 +346,7 @@ export interface Shifts<F extends object = Record<never, never>> {
     weekStart: Temporal.PlainDate;
   }): AsyncResult<readonly ShiftHours[]>;
   /**
-   * Time entries for assigned shifts that ended (time-tracking block); returns
+   * Time entries for assigned shifts that ended (time-entries block); returns
    * how many. Service role only.
    */
   toTimeEntries(

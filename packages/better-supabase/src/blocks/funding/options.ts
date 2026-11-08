@@ -10,7 +10,7 @@ export type FundingSqlOptions = {
    */
   readonly formats?: readonly string[];
   /**
-   * The time-tracking entries' extra column whose value is a product code.
+   * The time-entries entries' extra column whose value is a product code.
    * `register_funding_deliveries_from_time` then picks the award with that
    * product. Default: the record's one active award.
    */

@@ -3,7 +3,7 @@ title: Billable time
 description: Price tracked time with an hourly rate card per organization, member and record, preview what it would bill, and turn it into draft invoice lines in bigint minor units.
 ---
 
-`billable-time` connects [time tracking](/docs/blocks/time-tracking) to
+`billable-time` connects [time tracking](/docs/blocks/time-entries) to
 [invoices](/docs/blocks/invoices). You keep a rate card of hourly rates, see
 what the unbilled time on a project or customer would bill, and put it on a
 draft invoice in one call. Each billed entry remembers the invoice and the
@@ -18,7 +18,7 @@ import { createBillableTime } from "better-supabase/blocks/billable-time";
 import { money } from "better-supabase/commerce";
 ```
 
-The module requires `tenant`, `access`, `subjects`, `time-tracking` and
+The module requires `tenant`, `access`, `subjects`, `time-entries` and
 `invoices`. With `outbox` it records a `time_entry.invoiced` event, and with
 `audit` rate changes and invoicing are audited. Amounts are bigint minor
 units ([ADR 0037](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0037-money-on-the-wire.md)),
@@ -26,7 +26,7 @@ and the choices behind locking billed time are in
 [ADR 0074](https://github.com/ScaleDockHQ/better-supabase/blob/main/docs/decisions/0074-billable-time-rate-card.md).
 
 It reads entries the way time tracking stores them. When the entries table
-keeps a column per record type (`blocks.time-tracking.on.<type>.column`), an
+keeps a column per record type (`blocks.time-entries.on.<type>.column`), an
 entry's record comes from that column; when it keeps a start and a duration
 (`endedAt` mapped to `null`), an entry ends at its start plus `seconds` and a
 running timer is never billed.
@@ -80,7 +80,7 @@ specific rate wins: the member on the record, then the record, then the
 member, then the organization. A rate takes effect on `effectiveFrom`
 (default today) and stays until a newer rate on the same key takes over, so a
 raise doesn't change what older time bills. The day is read in the
-time-tracking block's `timeZone`. Setting a rate on the same key and day
+time-entries block's `timeZone`. Setting a rate on the same key and day
 replaces it. An entry that carries its own `rate` keeps that rate. Setting
 and deleting rates needs `billable_time.manage`.
 

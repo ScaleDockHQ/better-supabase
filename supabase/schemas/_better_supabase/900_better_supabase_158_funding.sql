@@ -1,6 +1,6 @@
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:45bd774aaff7b217312c9b34f14560c79eac42676ae7a92fae990f7b8aa2aa3b
+-- @bsb-hash sha256:46b11b5f2b365cd49acd491bb396036a9714311c7bb9cbaa8f8bd84c207aab57
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -799,7 +799,7 @@ revoke execute on function "better_supabase"."list_funding_deliveries"(uuid, jso
 grant execute on function "better_supabase"."list_funding_deliveries"(uuid, jsonb) to authenticated, service_role;
 
 -- Registers the approved time entries that started from since to until (days
--- in the time-tracking zone) as deliveries. An entry delivers on the active
+-- in the time-entries zone) as deliveries. An entry delivers on the active
 -- award of its record; an
 -- entry with no award, or with several, is returned as unmatched. Minutes and
 -- hours count the entry's duration; other units count one per entry. An entry

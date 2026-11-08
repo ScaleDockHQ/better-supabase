@@ -2,7 +2,7 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
 -- @bsb-hash sha256:caf6ba84eeb3d0ed1add74d3803eb41231af9db189c42bd3c1c315fd82fe1bc7
--- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
+-- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -787,7 +787,7 @@ on conflict (name) do update
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
 -- @bsb-hash sha256:ef2272acba3ae7d943d21e4570fc9cefa52547da3ab45aa745a4621113cc65aa
--- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
+-- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -1670,7 +1670,7 @@ on conflict (name) do update
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
 -- @bsb-hash sha256:ca4283f566fc755ae20d0593af670e7c02d1bf3113485078fcc1d2b03c24bf6a
--- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
+-- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -2460,7 +2460,7 @@ on conflict (name) do update
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
 -- @bsb-hash sha256:f4751f2dad3bb66dfb879fb4f59d86583c41abe673fe853ca2c0d4d99e10ab76
--- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
+-- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -3343,7 +3343,7 @@ on conflict (name) do update
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
 -- @bsb-hash sha256:d47a9adb74c9b8ff9e6bc131ba8d2a151dd3c03585b59dc36a878fd19ba1c905
--- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
+-- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 
@@ -4123,7 +4123,7 @@ on conflict (name) do update
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
 -- @bsb-hash sha256:2e484233ffb2a5a6082416b65d7d6aa43839812848070df41702161e321eba8d
--- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.
+-- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
 

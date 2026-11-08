@@ -547,7 +547,7 @@ export const SAAS_RECIPES: readonly RecipeSource[] = [
   {
     slug: "timesheet",
     title: "Timesheet",
-    blocks: ["time-tracking"],
+    blocks: ["time-entries"],
     kind: "screen",
     description:
       "A week of time entries per project with a running timer and totals.",

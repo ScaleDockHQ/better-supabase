@@ -19,7 +19,7 @@ import {
 import { leaveTypeKey } from "./leave-feed.ts";
 import { leaveByEmployee } from "./leave-owner.ts";
 import { OPERATIONS } from "./permissions-model.ts";
-import { byEmployee, entryEnded } from "./time-tracking-owner.ts";
+import { byEmployee, entryEnded } from "./time-entries-owner.ts";
 
 const WHERE = "blocks.payroll-export.options";
 
@@ -33,13 +33,13 @@ export const PAYROLL_LINE_KINDS = ["worked", "leave", "scheduled"] as const;
 export const PAYROLL_LINE_UNITS = ["hours", "days"] as const;
 
 /** The blocks a run can read lines from. */
-const PAYROLL_SOURCES = ["time-tracking", "leave", "shifts"] as const;
+const PAYROLL_SOURCES = ["time-entries", "leave", "shifts"] as const;
 
 /**
  * `options.sources` when the app names none. Shifts are opt-in: scheduled hours
  * overlap worked hours.
  */
-const DEFAULT_PAYROLL_SOURCES: readonly string[] = ["time-tracking", "leave"];
+const DEFAULT_PAYROLL_SOURCES: readonly string[] = ["time-entries", "leave"];
 
 const EVENTS: BlockSqlEvents<PayrollExportEvents> = {
   "payroll_run.created": {
@@ -174,7 +174,7 @@ function sourcesOf(ctx: BlockSqlContext): ReadonlySet<string> {
   return new Set(raw.map(String));
 }
 
-/** The hours of worked time per person, from `time-tracking`. */
+/** The hours of worked time per person, from `time-entries`. */
 function timeSource(
   ctx: BlockSqlContext,
   time: BlockSqlContext,
@@ -308,8 +308,8 @@ function build(ctx: BlockSqlContext): string {
     OPERATIONS["payroll-export.export"],
   );
 
-  const time = sources.has("time-tracking")
-    ? linked(ctx, "time-tracking")
+  const time = sources.has("time-entries")
+    ? linked(ctx, "time-entries")
     : undefined;
 
   const leave = sources.has("leave") ? linked(ctx, "leave") : undefined;
@@ -662,7 +662,7 @@ export const PAYROLL_EXPORT: BlockSqlDefinition = {
     "Payroll runs that collect the hours worked, the approved leave and optionally the scheduled shifts of a period into lines per person, locked by an export through a versioned PayrollExportFormat port.",
   requires: ["memberships", "permissions"],
   integrates: [
-    "time-tracking",
+    "time-entries",
     "leave",
     "shifts",
     "employees",

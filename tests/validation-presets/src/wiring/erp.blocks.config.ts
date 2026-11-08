@@ -201,7 +201,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "time-tracking": {
+  "time-entries": {
     schema: "better_supabase",
     options: {
       timeZone: "UTC",
@@ -475,11 +475,11 @@ export const permissions = {
     manage: "teams.manage",
     read: "teams.read",
   },
-  "time-tracking": {
-    read: "time_tracking.read",
-    track: "time_tracking.track",
-    approve: "time_tracking.approve",
-    manage: "time_tracking.manage",
+  "time-entries": {
+    read: "time_entries.read",
+    track: "time_entries.track",
+    approve: "time_entries.approve",
+    manage: "time_entries.manage",
   },
 } as const;
 
@@ -488,4 +488,4 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "accounting.close" | "accounting.manage" | "accounting.post" | "accounting.read" | "accounting.write" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "banking.import" | "banking.manage" | "banking.read" | "banking.reconcile" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.read_sensitive" | "document_templates.manage" | "document_templates.read" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "imports.manage" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.approve" | "invoices.collect" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.send" | "invoices.write" | "leave.approve" | "leave.manage" | "leave.read" | "leave.request" | "ledger.manage" | "ledger.post" | "ledger.read" | "legal_entities.manage" | "legal_entities.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.override_credit" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "payroll_export.export" | "payroll_export.read" | "periods.manage" | "periods.read" | "periods.write" | "quotes.manage" | "quotes.read" | "quotes.write" | "relations.manage" | "relations.read" | "rfqs.manage" | "rfqs.read" | "rfqs.write" | "saved_views.read" | "saved_views.share" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tax.manage" | "tax.read" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track";
+export type PermissionKey = "accounting.close" | "accounting.manage" | "accounting.post" | "accounting.read" | "accounting.write" | "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "assets.assign" | "assets.manage" | "assets.read" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "automations.manage" | "automations.publish" | "automations.read" | "automations.write" | "banking.import" | "banking.manage" | "banking.read" | "banking.reconcile" | "billing.manage" | "billing.read" | "catalog.manage" | "catalog.read" | "contacts.approve_supplier" | "contacts.manage" | "contacts.read" | "contacts.write" | "custom_fields.manage" | "custom_fields.read" | "custom_fields.read_sensitive" | "document_templates.manage" | "document_templates.read" | "employees.read" | "employees.read_sensitive" | "employees.write" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "expenses.approve" | "expenses.manage" | "expenses.read" | "expenses.submit" | "imports.manage" | "inventory.manage" | "inventory.purchase" | "inventory.read" | "inventory.reserve" | "invoices.approve" | "invoices.collect" | "invoices.manage" | "invoices.override_match" | "invoices.purchase" | "invoices.read" | "invoices.send" | "invoices.write" | "leave.approve" | "leave.manage" | "leave.read" | "leave.request" | "ledger.manage" | "ledger.post" | "ledger.read" | "legal_entities.manage" | "legal_entities.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "notifications.read" | "notifications.send" | "numbering.assign" | "onboarding.complete" | "onboarding.read" | "orders.manage" | "orders.override_credit" | "orders.prepare" | "orders.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "payroll_export.export" | "payroll_export.read" | "periods.manage" | "periods.read" | "periods.write" | "quotes.manage" | "quotes.read" | "quotes.write" | "relations.manage" | "relations.read" | "rfqs.manage" | "rfqs.read" | "rfqs.write" | "saved_views.read" | "saved_views.share" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tax.manage" | "tax.read" | "teams.manage" | "teams.read" | "time_entries.approve" | "time_entries.manage" | "time_entries.read" | "time_entries.track";

@@ -532,7 +532,7 @@ export const FUNDING: BlockSqlDefinition = {
     "Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.",
   requires: ["memberships", "permissions", "subjects", "contacts"],
   integrates: [
-    "time-tracking",
+    "time-entries",
     "bookings",
     "invoices",
     "numbering",

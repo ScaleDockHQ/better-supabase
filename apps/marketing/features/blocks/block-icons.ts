@@ -250,7 +250,7 @@ export const BLOCK_ICONS = {
   sla: TimerIcon,
   collections: LibraryIcon,
   // People
-  "time-tracking": TimerIcon,
+  "time-entries": TimerIcon,
   leave: TreePalmIcon,
   automations: ListFilterIcon,
   scores: TrendingUpIcon,

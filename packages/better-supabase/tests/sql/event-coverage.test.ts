@@ -45,7 +45,7 @@ const NOT_LITERAL = [
   "drive-files: drive_node.review_requested",
   "orders: order.prepared",
   "orders: order.served",
-  "time-tracking: timesheet.rejected",
+  "time-entries: timesheet.rejected",
   "pipelines: pipeline.stage_changed",
   "activities: activity.recorded",
   "activities: activity.transcribed",

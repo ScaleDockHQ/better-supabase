@@ -183,7 +183,7 @@ import type { taxBlock } from "../../src/blocks/tax/manifest.ts";
 import type { teamsBlock } from "../../src/blocks/teams/manifest.ts";
 import type { templatesBlock } from "../../src/blocks/templates/manifest.ts";
 import type { tillsBlock } from "../../src/blocks/tills/manifest.ts";
-import type { timeTrackingBlock } from "../../src/blocks/time-tracking/manifest.ts";
+import type { timeEntriesBlock } from "../../src/blocks/time-entries/manifest.ts";
 import type { timelineBlock } from "../../src/blocks/timeline/manifest.ts";
 import type { trashBlock } from "../../src/blocks/trash/manifest.ts";
 import type { undoBlock } from "../../src/blocks/undo/manifest.ts";
@@ -388,7 +388,7 @@ export type AllBlocks = {
   readonly teams: typeof teamsBlock;
   readonly templates: typeof templatesBlock;
   readonly tenant: typeof membershipsBlock;
-  readonly timeTracking: typeof timeTrackingBlock;
+  readonly timeEntries: typeof timeEntriesBlock;
   readonly trash: typeof trashBlock;
   readonly undo: typeof undoBlock;
   readonly updatedAt: typeof updatedAtBlock;

@@ -65,7 +65,7 @@ insert into public.tasks (id, organization_id) values ('${TASK}', '${TENANT}'), 
 `;
 
 const BLOCKS: AnyBlocksConfig = {
-  "time-tracking": {
+  "time-entries": {
     tables: { entries: "public.work_logs", timesheets: "public.timesheets" },
     columns: {
       entries: {

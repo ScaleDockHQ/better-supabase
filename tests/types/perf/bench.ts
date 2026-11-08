@@ -1005,7 +1005,7 @@ ${roles.join("\n")}
     },
     tasks: { permissions: { read: ${key(1)} } },
   },
-  subjects: {
+  recordTypes: {
 ${subjects.join("\n")}
   },
 });

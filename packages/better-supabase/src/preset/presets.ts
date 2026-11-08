@@ -172,7 +172,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       "state-machine",
       "rank",
       "reminders",
-      "time-tracking",
+      "time-entries",
     ],
   },
   helpdesk: {
@@ -301,7 +301,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     blocks: [
       ...SAAS_LINKED,
       "recruiting",
-      "time-tracking",
+      "time-entries",
       "approvals",
       "documents",
       "automations",
@@ -317,7 +317,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
       ...SAAS_LINKED,
       "contacts",
       "tasks",
-      "time-tracking",
+      "time-entries",
       "billable-time",
       "shifts",
       "expenses",
@@ -527,7 +527,7 @@ export const PRESETS: Readonly<Record<PresetName, NamedPreset>> = {
     blocks: [
       ...SAAS,
       "contacts",
-      "time-tracking",
+      "time-entries",
       "billable-time",
       "invoices",
       "ledger",

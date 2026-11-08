@@ -123,7 +123,7 @@ export function projectsOf(db: AppDb) {
     transport: rpcTransport(db.$client),
     parts: {
       tasks: defaultTasks(blocks.tasks),
-      "time-tracking": blocks.timeTracking,
+      "time-entries": blocks.timeEntries,
       "billable-time": blocks.billableTime,
       approvals: blocks.approvals,
       invoices: blocks.invoices,

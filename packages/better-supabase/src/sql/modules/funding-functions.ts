@@ -213,7 +213,7 @@ export function fundingFunctions(ctx: BlockSqlContext): string {
 
   const sourceCheck = (): string => {
     const check = (
-      module: "time-tracking" | "bookings",
+      module: "time-entries" | "bookings",
       logical: string,
       source: string,
     ): string => {
@@ -232,7 +232,7 @@ export function fundingFunctions(ctx: BlockSqlContext): string {
   end if;`;
     };
 
-    return `${check("time-tracking", "entries", "time_entry")}${check("bookings", "bookings", "booking")}`;
+    return `${check("time-entries", "entries", "time_entry")}${check("bookings", "bookings", "booking")}`;
   };
 
   const exceeded = `v_start := ${periodStart(ctx, "v_award", `v_row.${d("deliveredOn")}`)};

@@ -1755,6 +1755,78 @@
       "to": "api.specs.outputs.*.file",
       "kind": "configKey",
       "since": "0.54"
+    },
+    {
+      "from": "blocks/time-tracking",
+      "to": "blocks/time-entries",
+      "kind": "subpath",
+      "since": "0.54"
+    },
+    {
+      "from": "createTimeTracking",
+      "to": "createTimeEntries",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "timeTrackingBlock",
+      "to": "timeEntriesBlock",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "timeTrackingEvents",
+      "to": "timeEntriesEvents",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "timeTrackingMetrics",
+      "to": "timeEntriesMetrics",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "TIME_TRACKING_METRIC_EVENTS",
+      "to": "TIME_ENTRIES_METRIC_EVENTS",
+      "kind": "function",
+      "since": "0.54"
+    },
+    {
+      "from": "TimeTracking",
+      "to": "TimeEntries",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TimeTrackingEvents",
+      "to": "TimeEntriesEvents",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TimeTrackingMetrics",
+      "to": "TimeEntriesMetrics",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TimeTrackingMetricsOptions",
+      "to": "TimeEntriesMetricsOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "TimeTrackingOptions",
+      "to": "TimeEntriesOptions",
+      "kind": "type",
+      "since": "0.54"
+    },
+    {
+      "from": "blocks.time-tracking",
+      "to": "blocks.time-entries",
+      "kind": "configKey",
+      "since": "0.54"
     }
   ],
   "allowlist": {

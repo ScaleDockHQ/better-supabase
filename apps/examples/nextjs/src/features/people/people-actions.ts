@@ -169,7 +169,7 @@ export const logTime = bsb.action(
       v.check((input) => input.start < input.end, "End after the start"),
     ),
     requireTenant: true,
-    permission: "time_tracking.track",
+    permission: "time_entries.track",
   },
   async (input, { db, auth }) => {
     const day = Temporal.PlainDate.from(input.date);
@@ -182,7 +182,7 @@ export const logTime = bsb.action(
         })
         .toInstant();
 
-    const logged = await db.timeTracking.log({
+    const logged = await db.timeEntries.log({
       startedAt: at(input.start),
       endedAt: at(input.end),
       note: input.project,
@@ -206,10 +206,10 @@ export const startTimer = bsb.action(
       project: v.pipe(v.string(), v.trim(), v.minLength(1), v.maxLength(200)),
     }),
     requireTenant: true,
-    permission: "time_tracking.track",
+    permission: "time_entries.track",
   },
   async ({ project }, { db, auth }) => {
-    const started = await db.timeTracking.start({ note: project });
+    const started = await db.timeEntries.start({ note: project });
 
     if (!started.ok) {
       return started;
@@ -225,10 +225,10 @@ export const stopTimer = bsb.action(
   {
     input: v.object({}),
     requireTenant: true,
-    permission: "time_tracking.track",
+    permission: "time_entries.track",
   },
   async (_input, { db, auth }) => {
-    const stopped = await db.timeTracking.stop();
+    const stopped = await db.timeEntries.stop();
 
     if (!stopped.ok) {
       return stopped;
@@ -245,10 +245,10 @@ export const submitTimesheet = bsb.action(
   {
     input: v.object({ week: PlainDate }),
     requireTenant: true,
-    permission: "time_tracking.track",
+    permission: "time_entries.track",
   },
   async ({ week }, { db, auth }) => {
-    const submitted = await db.timeTracking.submit({
+    const submitted = await db.timeEntries.submit({
       week: Temporal.PlainDate.from(week),
     });
 

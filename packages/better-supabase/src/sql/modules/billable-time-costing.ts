@@ -6,7 +6,7 @@ import { fail, SERVICE_CALLER, userGrant } from "../shared.ts";
 import { subjectsOption } from "../subjects.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { projectType, taskType } from "./tasks.ts";
-import { entryEnded, entrySubjects } from "./time-tracking-owner.ts";
+import { entryEnded, entrySubjects } from "./time-entries-owner.ts";
 
 /** Whether billable time renders `project_costs`: tasks has projects. */
 export const costsProjects = (ctx: BlockSqlContext): boolean =>
@@ -27,7 +27,7 @@ export function projectCostsSql(
     return "";
   }
 
-  const time = ctx.of("time-tracking");
+  const time = ctx.of("time-entries");
   const tasks = ctx.of("tasks");
   const entries = time.table("entries");
   const e = (column: string): string => time.col("entries", column);
@@ -178,7 +178,7 @@ export function wipValuationSql(
     return "";
   }
 
-  const time = ctx.of("time-tracking");
+  const time = ctx.of("time-entries");
   const entries = time.table("entries");
   const e = (column: string): string => time.col("entries", column);
   const r = (column: string): string => ctx.col("rates", column);

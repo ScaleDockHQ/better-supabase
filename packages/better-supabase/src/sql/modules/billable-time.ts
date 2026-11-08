@@ -32,7 +32,7 @@ import {
   durationEntries,
   entryEnded,
   entrySubjects,
-} from "./time-tracking-owner.ts";
+} from "./time-entries-owner.ts";
 
 const GROUPINGS = ["subject", "member", "entry"] as const;
 
@@ -93,7 +93,7 @@ const NAMES: BlockSqlNames = {
 };
 
 function weekZone(ctx: BlockSqlContext): string {
-  const zone = ctx.of("time-tracking").option("timeZone");
+  const zone = ctx.of("time-entries").option("timeZone");
 
   return typeof zone === "string" && zone.length > 0 ? zone : "UTC";
 }
@@ -103,7 +103,7 @@ function tables(ctx: BlockSqlContext): string {
     return "";
   }
 
-  const time = ctx.of("time-tracking");
+  const time = ctx.of("time-entries");
   const invoices = ctx.of("invoices");
   const rates = ctx.table("rates");
   const billed = ctx.table("billed");
@@ -180,7 +180,7 @@ ${renderPolicy(makePolicy({ table: billed, name: index("billed", "read"), comman
 }
 
 function functions(ctx: BlockSqlContext): string {
-  const time = ctx.of("time-tracking");
+  const time = ctx.of("time-entries");
   const invoices = ctx.of("invoices");
   const members = ctx.of("memberships");
   const entries = time.table("entries");
@@ -696,7 +696,7 @@ function build(ctx: BlockSqlContext): string {
     return "";
   }
 
-  for (const needed of ["time-tracking", "invoices"]) {
+  for (const needed of ["time-entries", "invoices"]) {
     if (ctx.of(needed).mode === "custom") {
       throw new TypeError(
         `blocks.billable-time needs the ${needed} tables; ${needed} can't be in custom mode`,
@@ -775,7 +775,7 @@ export const BILLABLE_TIME: BlockSqlDefinition = {
     "memberships",
     "permissions",
     "subjects",
-    "time-tracking",
+    "time-entries",
     "invoices",
   ],
   integrates: ["outbox", "audit", "tasks", "accounting"],

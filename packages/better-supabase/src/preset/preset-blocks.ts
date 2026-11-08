@@ -96,7 +96,7 @@ export const ERP: readonly string[] = [
   "payroll-export",
   "approvals",
   "employees",
-  "time-tracking",
+  "time-entries",
   "leave",
   "expenses",
   "saved-views",

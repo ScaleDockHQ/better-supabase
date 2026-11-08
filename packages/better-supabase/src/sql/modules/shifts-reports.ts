@@ -14,18 +14,18 @@ import {
 } from "./shifts-shared.ts";
 
 /**
- * The time-tracking context shifts_to_time_entries writes to, or undefined when
- * time-tracking isn't installed or its entries table can't take a finished
- * entry with a subject.
+ * The time-entries context shifts_to_time_entries writes to, or undefined when
+ * time-entries isn't installed or its entries table can't take a finished entry
+ * with a subject.
  */
 export function timeEntriesTarget(
   ctx: BlockSqlContext,
 ): BlockSqlContext | undefined {
-  if (!ctx.installed("time-tracking")) {
+  if (!ctx.installed("time-entries")) {
     return undefined;
   }
 
-  const time = ctx.of("time-tracking");
+  const time = ctx.of("time-entries");
 
   return time.has("entries", "subjectType") &&
     time.has("entries", "subjectId") &&
@@ -257,7 +257,7 @@ ${timeEntries(ctx)}`;
 }
 
 /**
- * Shifts_to_time_entries, when time-tracking can take its entries: a time entry
+ * Shifts_to_time_entries, when time-entries can take its entries: a time entry
  * for every assigned shift that ended, linked to its assignment.
  */
 function timeEntries(ctx: BlockSqlContext): string {

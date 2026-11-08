@@ -534,7 +534,7 @@
   "tills": {
     "security-definer-functions": 62
   },
-  "time-tracking": {
+  "time-entries": {
     "security-definer-functions": 96,
     "row-triggers": 6
   },

@@ -210,7 +210,7 @@ describe("accounting postings", () => {
   });
 
   it("leaves billed time out of project costs when its revenue is on the dimension", () => {
-    const files = render([...ALL, "tasks", "time-tracking", "billable-time"]);
+    const files = render([...ALL, "tasks", "time-entries", "billable-time"]);
 
     expect(body(files["billable-time"] ?? "", "project_costs")).toContain(
       "->> 'project' = v_project",

@@ -6,20 +6,20 @@ import { defineBlock } from "../define-block.ts";
 import { invoicesBlock } from "../invoices/manifest.ts";
 import { meetingsBlock } from "../meetings/manifest.ts";
 import { tasksBlock } from "../tasks/manifest.ts";
-import { timeTrackingBlock } from "../time-tracking/manifest.ts";
+import { timeEntriesBlock } from "../time-entries/manifest.ts";
 import { createProjects } from "./projects.ts";
 
 /** The blocks `projects` is made of, by block name. */
 export const projectsParts: {
   readonly tasks: typeof tasksBlock;
-  readonly "time-tracking": typeof timeTrackingBlock;
+  readonly "time-entries": typeof timeEntriesBlock;
   readonly "billable-time": typeof billableTimeBlock;
   readonly approvals: typeof approvalsBlock;
   readonly invoices: typeof invoicesBlock;
   readonly meetings: typeof meetingsBlock;
 } = {
   tasks: tasksBlock,
-  "time-tracking": timeTrackingBlock,
+  "time-entries": timeEntriesBlock,
   "billable-time": billableTimeBlock,
   approvals: approvalsBlock,
   invoices: invoicesBlock,

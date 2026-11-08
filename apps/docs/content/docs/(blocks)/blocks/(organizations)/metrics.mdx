@@ -133,7 +133,7 @@ event, such as time logged for a past day, pass `time`, a function that
 returns the timestamp to bucket by, or undefined to keep the event's own.
 It may return several timestamps, for an event that moves a row from one
 day to another; the sink rolls up each of their days and skips the days
-between. [Time tracking](/docs/blocks/time-tracking#metrics) exports
+between. [Time tracking](/docs/blocks/time-entries#metrics) exports
 `timeEntryMetricTime` for its entries, and
 [orders](/docs/blocks/orders#metrics) exports `orderMetrics` with the events
 that feed it.

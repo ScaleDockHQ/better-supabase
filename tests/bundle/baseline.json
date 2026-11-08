@@ -192,7 +192,7 @@
   "./blocks/drive": 64202,
   "./blocks/signatures": 34360,
   "./blocks/forms": 39212,
-  "./blocks/time-tracking": 40426,
+  "./blocks/time-entries": 40426,
   "./blocks/templates": 37828,
   "./blocks/option-sets": 29770,
   "./blocks/pipelines": 37015,

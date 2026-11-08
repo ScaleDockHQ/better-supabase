@@ -22,7 +22,7 @@ describe("validateDesign", () => {
     expect(result.ok).toBe(true);
     expect(result.skipped.map((each) => each.module).toSorted()).toEqual([
       "queue",
-      "time-tracking",
+      "time-entries",
     ]);
   }, 60_000);
 

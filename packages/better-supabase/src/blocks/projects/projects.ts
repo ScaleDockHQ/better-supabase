@@ -8,7 +8,7 @@ import type {
 } from "../billable-time/index.ts";
 import type { BlockContext } from "../create-blocks.ts";
 import type { CompositeOptions } from "../define-block.ts";
-import type { Timesheet } from "../time-tracking/index.ts";
+import type { Timesheet } from "../time-entries/index.ts";
 import type { ProjectsParts } from "./manifest.ts";
 
 import { money, roundHalfEven } from "../../commerce/money.ts";
@@ -62,7 +62,7 @@ export interface RetainerDrawdown {
 /** The helpers `projects` adds over its parts. */
 export interface Projects {
   /**
-   * Approves the timesheet (`timeTracking.approve`), then invoices the time
+   * Approves the timesheet (`timeEntries.approve`), then invoices the time
    * `invoice` selects (`billableTime.invoice`). A refused approval invoices
    * nothing. A failed invoice returns its error and leaves the timesheet
    * approved, so retry it with `billableTime.invoice`.
@@ -74,9 +74,9 @@ export interface Projects {
   }): AsyncResult<ApprovedAndInvoiced>;
   /**
    * The hours every member tracked in the ISO week that holds `weekOf`
-   * (`timeTracking.list` for everyone), against `capacityHours` (40 by
-   * default). An entry that crosses the week's edge counts only the part inside
-   * it. Needs `time_tracking.read`.
+   * (`timeEntries.list` for everyone), against `capacityHours` (40 by default).
+   * An entry that crosses the week's edge counts only the part inside it. Needs
+   * `time_entries.read`.
    */
   utilization(input: {
     weekOf: Temporal.PlainDate;
@@ -87,7 +87,7 @@ export interface Projects {
   /**
    * The time tracked on a project and its billable value: hours times each
    * entry's rate, rounded half to even per entry. Running entries are not
-   * counted. Needs `time_tracking.read`.
+   * counted. Needs `time_entries.read`.
    */
   financials(input: { projectId: string }): AsyncResult<ProjectFinancials>;
   /**
@@ -165,13 +165,13 @@ function billableOf(
 
 /** Creates the `projects` helpers over the clients of its parts. */
 export function createProjects(options: ProjectsOptions): Projects {
-  const { "time-tracking": timeTracking, "billable-time": billableTime } =
+  const { "time-entries": timeEntries, "billable-time": billableTime } =
     options.parts;
 
   const client: Projects = {
     approveAndInvoice: ({ timesheetId, decidedBy, invoice }) =>
       Async.from(async () => {
-        const timesheet = await timeTracking.approve({
+        const timesheet = await timeEntries.approve({
           timesheetId,
           ...(decidedBy === undefined ? {} : { decidedBy }),
         });
@@ -197,7 +197,7 @@ export function createProjects(options: ProjectsOptions): Projects {
           .toZonedDateTime(timeZone)
           .toInstant();
 
-        const entries = await timeTracking.list({ everyone: true, from, to });
+        const entries = await timeEntries.list({ everyone: true, from, to });
 
         if (!entries.ok) {
           return entries;
@@ -248,11 +248,11 @@ export function createProjects(options: ProjectsOptions): Projects {
         });
       }),
     financials: ({ projectId }) =>
-      timeTracking
+      timeEntries
         .list({ everyone: true, subject: { type: "project", id: projectId } })
         .map(billableOf),
     retainerDrawdown: ({ projectId, retainer }) =>
-      timeTracking
+      timeEntries
         .list({ everyone: true, subject: { type: "project", id: projectId } })
         .map((entries) => {
           const billable = billableOf(entries).billable.find(

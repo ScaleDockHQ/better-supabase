@@ -3632,7 +3632,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       }
     },
     {
-      "name": "time-tracking",
+      "name": "time-entries",
       "title": "Time tracking",
       "category": "people",
       "requires": [
@@ -3646,7 +3646,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "employees",
         "approvals"
       ],
-      "manifest": "time-tracking",
+      "manifest": "time-entries",
       "scopes": [
         "tenant"
       ],
@@ -3720,10 +3720,10 @@ export const PRESET_CATALOG: PresetCatalog = {
           }
         },
         "keys": {
-          "read": "time_tracking.read",
-          "track": "time_tracking.track",
-          "approve": "time_tracking.approve",
-          "manage": "time_tracking.manage"
+          "read": "time_entries.read",
+          "track": "time_entries.track",
+          "approve": "time_entries.approve",
+          "manage": "time_entries.manage"
         }
       }
     },
@@ -4955,7 +4955,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "outbox",
         "relations",
         "hiring",
-        "time-tracking",
+        "time-entries",
         "approvals"
       ],
       "manifest": "employees",
@@ -5928,7 +5928,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "memberships",
         "permissions",
         "subjects",
-        "time-tracking",
+        "time-entries",
         "invoices"
       ],
       "integrates": [
@@ -8111,7 +8111,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "employees",
         "leave",
         "qualifications",
-        "time-tracking",
+        "time-entries",
         "assets",
         "approvals",
         "notifications",
@@ -9958,7 +9958,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "contacts"
       ],
       "integrates": [
-        "time-tracking",
+        "time-entries",
         "bookings",
         "invoices",
         "numbering",
@@ -10105,7 +10105,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "permissions"
       ],
       "integrates": [
-        "time-tracking",
+        "time-entries",
         "leave",
         "shifts",
         "employees",
@@ -12352,7 +12352,7 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "composes": [
         "tasks",
-        "time-tracking",
+        "time-entries",
         "billable-time",
         "approvals",
         "invoices",
@@ -12517,7 +12517,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         "bookings",
         "calendar",
         "reminders",
-        "time-tracking",
+        "time-entries",
         "funding",
         "shifts",
         "qualifications",
@@ -33384,14 +33384,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       "extension": "membershipsExtension"
     },
     {
-      "name": "time-tracking",
+      "name": "time-entries",
       "sql": [
-        "time-tracking"
+        "time-entries"
       ],
       "category": "people",
       "client": {
-        "export": "timeTrackingBlock",
-        "subpath": "better-supabase/blocks/time-tracking"
+        "export": "timeEntriesBlock",
+        "subpath": "better-supabase/blocks/time-entries"
       },
       "consumes": {},
       "provides": [],
@@ -33400,6 +33400,22 @@ export const PRESET_CATALOG: PresetCatalog = {
         "care"
       ],
       "entityTypes": [
+        {
+          "name": "TimeEntries",
+          "fields": true
+        },
+        {
+          "name": "TimeEntriesEvents"
+        },
+        {
+          "name": "TimeEntriesMetrics"
+        },
+        {
+          "name": "TimeEntriesMetricsOptions"
+        },
+        {
+          "name": "TimeEntriesOptions"
+        },
         {
           "name": "TimeEntry",
           "fields": true
@@ -33436,7 +33452,7 @@ export const PRESET_CATALOG: PresetCatalog = {
         }
       ],
       "events": {
-        "type": "TimeTrackingEvents",
+        "type": "TimeEntriesEvents",
         "types": [
           "time_entry.started",
           "time_entry.recorded",

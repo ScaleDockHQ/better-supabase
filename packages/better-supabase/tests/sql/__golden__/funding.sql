@@ -1097,7 +1097,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_158_funding.sql
 -- better-supabase module: funding
 -- @bsb-block funding@1 managed
--- @bsb-hash sha256:bbfd28e2b2894d52bffa8abfd73febac672ebaef9b2a3b3edba1ea8940cfdb70
+-- @bsb-hash sha256:1aff71e23df560e02114d4560713fd3d944146dc9a0510e858f63dc1b7add8b1
 -- Products a funder pays for, awards of units per period to a record from a funder in contacts, care delivered against an award from time entries, bookings or by hand, usage against the award per period, and claims per funder and period with the funder's response per line, rendered and sent through app-supplied formats and channels.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1836,7 +1836,7 @@ revoke execute on function "better_supabase"."list_funding_deliveries"(uuid, jso
 grant execute on function "better_supabase"."list_funding_deliveries"(uuid, jsonb) to authenticated, service_role;
 
 -- Registers the approved time entries that started from since to until (days
--- in the time-tracking zone) as deliveries. An entry delivers on the active
+-- in the time-entries zone) as deliveries. An entry delivers on the active
 -- award of its record; an
 -- entry with no award, or with several, is returned as unmatched. Minutes and
 -- hours count the entry's duration; other units count one per entry. An entry

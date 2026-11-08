@@ -73,11 +73,11 @@ export function claimFormats(ctx: BlockSqlContext): readonly string[] {
 }
 
 /**
- * Whether `register_funding_deliveries_from_time` renders: time-tracking is
+ * Whether `register_funding_deliveries_from_time` renders: time-entries is
  * installed and manages its tables.
  */
 export const fromTime = (ctx: BlockSqlContext): boolean =>
-  ctx.installed("time-tracking") && ctx.of("time-tracking").mode !== "custom";
+  ctx.installed("time-entries") && ctx.of("time-entries").mode !== "custom";
 
 /**
  * `options.timeCategory`: the extra column of the time entries table whose
@@ -98,10 +98,10 @@ export function timeCategory(ctx: BlockSqlContext): string | undefined {
   }
 
   if (!fromTime(ctx)) {
-    throw new TypeError(`${WHERE}.timeCategory needs the time-tracking block`);
+    throw new TypeError(`${WHERE}.timeCategory needs the time-entries block`);
   }
 
-  const extras = ctx.of("time-tracking").extraColumns("entries");
+  const extras = ctx.of("time-entries").extraColumns("entries");
 
   if (!extras.some((extra) => extra.name === column)) {
     throw new TypeError(

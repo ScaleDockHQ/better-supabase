@@ -19,6 +19,7 @@ const rows = [
   row("gen.output", "gen.file"),
   row("api.specs.outputs.*.output", "api.specs.outputs.*.file"),
   row("organization", "auth.tenant"),
+  row("blocks.time-tracking", "blocks.time-entries"),
 ];
 
 describe("renameConfigKeys", () => {
@@ -47,6 +48,28 @@ export default defineConfig({
     expect(next).toContain('{ format: "openapi", file: "o.json" }');
     expect(next).toContain("// subjects: { in a comment }");
     expect(next).toContain('/* output: "in a block comment" */');
+  });
+
+  it("renames a quoted block key", () => {
+    const { text } = renameConfigKeys(
+      `export default defineConfig({ blocks: { "time-tracking": {}, tasks: { "time-tracking": 1 } } });`,
+      rows,
+    );
+
+    expect(text).toBe(
+      `export default defineConfig({ blocks: { "time-entries": {}, tasks: { "time-tracking": 1 } } });`,
+    );
+  });
+
+  it("renames the keys of every defineConfig call, nested in other objects", () => {
+    const { text } = renameConfigKeys(
+      `const recipes = [{ name: "a", config: defineConfig({ subjects: {} }) }, { subjects: 1, config: defineConfig({ gen: { output: "x" } }) }];`,
+      rows,
+    );
+
+    expect(text).toBe(
+      `const recipes = [{ name: "a", config: defineConfig({ recordTypes: {} }) }, { subjects: 1, config: defineConfig({ gen: { file: "x" } }) }];`,
+    );
   });
 
   it("reports a key that moved to another parent and leaves it", () => {

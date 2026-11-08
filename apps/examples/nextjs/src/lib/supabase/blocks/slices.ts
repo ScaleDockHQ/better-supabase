@@ -1118,8 +1118,8 @@ export const membershipsConfig = {
   options: {},
 } as const satisfies GeneratedBlock;
 
-/** The `time-tracking` instance's config slice. */
-export const timeTrackingConfig = {
+/** The `time-entries` instance's config slice. */
+export const timeEntriesConfig = {
   schema: "better_supabase",
   api: "api",
   options: {

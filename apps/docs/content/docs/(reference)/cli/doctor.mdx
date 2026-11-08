@@ -75,7 +75,7 @@ applies when `$CI` is set:
 export default defineConfig({
   $ci: {
     tooling: {
-      doctor: { format: "sarif", output: "doctor.sarif", strict: true },
+      doctor: { format: "sarif", file: "doctor.sarif", strict: true },
     },
   },
 });

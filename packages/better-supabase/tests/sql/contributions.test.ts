@@ -30,7 +30,7 @@ const count = (text: string, part: string): number =>
 describe("block contributions", () => {
   it("adds a consumer's request type to approvals", () => {
     const approvals = sqlOf(
-      render({ approvals: {}, "time-tracking": {} }),
+      render({ approvals: {}, "time-entries": {} }),
       "approvals",
     );
 
@@ -145,9 +145,9 @@ describe("block contributions", () => {
     expect(() =>
       render({
         approvals: {},
-        "time-tracking": {},
+        "time-entries": {},
         overtime: {
-          block: "time-tracking",
+          block: "time-entries",
           entities: { time_entry: "shift" },
           uses: { approvals: "approvals" },
         },

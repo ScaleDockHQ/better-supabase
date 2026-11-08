@@ -25,7 +25,7 @@ refused, and with [qualifications](/docs/blocks/qualifications) a member
 without a required qualification is refused or warned. With
 [employees](/docs/blocks/employees) the hours report shows contract hours, with
 [assets](/docs/blocks/assets) a location is an asset, with
-[time-tracking](/docs/blocks/time-tracking) worked shifts become time entries,
+[time-entries](/docs/blocks/time-entries) worked shifts become time entries,
 and with [approvals](/docs/blocks/approvals) a swap decision can link an
 approval request. With [notifications](/docs/blocks/notifications) members hear
 about their shifts, with `outbox` the module records the events, and with
@@ -195,7 +195,7 @@ block keeps contracts.
 
 ## Time entries
 
-With time-tracking installed, run `toTimeEntries` with the service role, for
+With time-entries installed, run `toTimeEntries` with the service role, for
 example nightly from a [job](/docs/blocks/queue). It writes a time entry for
 every assigned shift that ended, from its start to its end less the break,
 with the subject `shift_assignment`. It writes each entry once, and skips

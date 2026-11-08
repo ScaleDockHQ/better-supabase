@@ -33,7 +33,7 @@ const MODULE_BLOCKS: Readonly<Record<string, readonly string[]>> = {
   "access-requests": ["subjects"],
   "billable-time": ["tasks"],
   contacts: ["qualifications"],
-  funding: ["time-tracking", "invoices"],
+  funding: ["time-entries", "invoices"],
   orders: ["catalog", "inventory"],
   shipments: ["inventory"],
   "legal-entities": ["invoices"],

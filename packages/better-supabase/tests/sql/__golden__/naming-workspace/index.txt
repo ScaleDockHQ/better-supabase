@@ -57,7 +57,7 @@ orders
 promotions
 forms
 signatures
-time-tracking
+time-entries
 service-accounts
 templates
 pipelines

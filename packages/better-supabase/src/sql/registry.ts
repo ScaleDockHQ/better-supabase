@@ -177,7 +177,7 @@ import { TAX } from "./modules/tax.ts";
 import { TEAMS } from "./modules/teams.ts";
 import { TEMPLATES } from "./modules/templates.ts";
 import { TILLS } from "./modules/tills.ts";
-import { TIME_TRACKING } from "./modules/time-tracking.ts";
+import { TIME_ENTRIES } from "./modules/time-entries.ts";
 import { ACTIVITY } from "./modules/timeline.ts";
 import { TRASH } from "./modules/trash.ts";
 import { UPDATED_AT } from "./modules/updated-at.ts";
@@ -378,7 +378,7 @@ export const SQL_MODULES: Readonly<Record<string, BlockSql>> =
       built(PROMOTIONS),
       built(FORMS),
       built(SIGNATURES),
-      built(TIME_TRACKING),
+      built(TIME_ENTRIES),
       built(IDENTITIES),
       built(SERVICE_PRINCIPALS),
       built(TEMPLATES),

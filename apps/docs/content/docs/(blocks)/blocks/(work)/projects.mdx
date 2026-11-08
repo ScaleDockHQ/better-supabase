@@ -24,7 +24,7 @@ import { projectsBlock } from "better-supabase/blocks/projects";
 Installing `projects` installs these blocks. Each stays an ordinary block in the config and keeps its own client.
 
 - [`tasks`](/docs/blocks/tasks)
-- [`time-tracking`](/docs/blocks/time-tracking)
+- [`time-entries`](/docs/blocks/time-entries)
 - [`billable-time`](/docs/blocks/billable-time)
 - [`approvals`](/docs/blocks/approvals)
 - [`invoices`](/docs/blocks/invoices)
@@ -38,7 +38,7 @@ Installing `projects` installs these blocks. Each stays an ordinary block in the
 await blocks.projects.approveAndInvoice({ timesheetId });
 ```
 
-`utilization`: The hours every member tracked in the ISO week that holds `weekOf`, against a capacity (40 hours by default). An entry that crosses the edge of the week counts only the part inside it, and a running entry is skipped. It needs `time_tracking.read`.
+`utilization`: The hours every member tracked in the ISO week that holds `weekOf`, against a capacity (40 hours by default). An entry that crosses the edge of the week counts only the part inside it, and a running entry is skipped. It needs `time_entries.read`.
 
 ```ts
 const week = await blocks.projects.utilization({

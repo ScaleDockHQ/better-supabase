@@ -434,7 +434,7 @@ export interface Funding<F extends object = Record<never, never>> {
   /**
    * Registers the approved time entries between `since` and `until` on the one
    * active award of their record, and returns the ones it couldn't match.
-   * Service role only; needs the time-tracking block.
+   * Service role only; needs the time-entries block.
    */
   registerFromTime(input: {
     organizationId: string;

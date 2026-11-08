@@ -9,9 +9,9 @@ import { createAssets } from "../../src/blocks/assets/index.ts";
 import { createBillableTime } from "../../src/blocks/billable-time/index.ts";
 import { createTasks } from "../../src/blocks/tasks/index.ts";
 import {
-  createTimeTracking,
+  createTimeEntries,
   sqlTransport,
-} from "../../src/blocks/time-tracking/index.ts";
+} from "../../src/blocks/time-entries/index.ts";
 import { money } from "../../src/commerce/money.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -34,7 +34,7 @@ const MODULES = [
   "tasks",
   "assets",
   "accounting",
-  "time-tracking",
+  "time-entries",
   "invoices",
   "billable-time",
 ];
@@ -226,7 +226,7 @@ describe.skipIf(!live)("fixed assets and project costing", () => {
       const transport = sqlTransport(s.sql);
       const books = createAccounting({ transport });
       const billing = createBillableTime({ transport, tenant });
-      const time = createTimeTracking({ transport, tenant });
+      const time = createTimeEntries({ transport, tenant });
       const tasks = createTasks({ transport });
 
       await s.as(owner);

@@ -528,7 +528,7 @@ export const SHIFTS: BlockSqlDefinition = {
     "employees",
     "leave",
     "qualifications",
-    "time-tracking",
+    "time-entries",
     "assets",
     "approvals",
     "notifications",

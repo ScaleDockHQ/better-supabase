@@ -210,7 +210,7 @@ export const weekUtilization = bsb.action(
   {
     input: v.object({ weekOf: v.pipe(v.string(), v.isoDate()) }),
     requireTenant: true,
-    permission: "time_tracking.read",
+    permission: "time_entries.read",
   },
   async ({ weekOf }, { db }) => {
     const result = await projectsOf(db).utilization({
@@ -245,7 +245,7 @@ export const projectBudget = bsb.action(
       currency: v.optional(v.pipe(v.string(), v.length(3)), "EUR"),
     }),
     requireTenant: true,
-    permission: "time_tracking.read",
+    permission: "time_entries.read",
   },
   async ({ projectId, retainerAmount, currency }, { db }) => {
     const projects = projectsOf(db);

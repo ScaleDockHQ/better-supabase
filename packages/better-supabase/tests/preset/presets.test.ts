@@ -18,7 +18,7 @@ describe("the default preset", () => {
 
 describe("the psa, ats and intranet presets", () => {
   it.each([
-    ["psa", ["billable-time", "time-tracking", "invoices", "shifts"]],
+    ["psa", ["billable-time", "time-entries", "invoices", "shifts"]],
     ["ats", ["hiring", "bookings", "signatures"]],
     ["intranet", ["announcements", "acknowledgements", "knowledge"]],
   ] as const)("%s resolves with its own blocks", (name, expected) => {

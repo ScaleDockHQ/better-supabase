@@ -136,7 +136,7 @@ export default defineConfig({
   $ci: {
     gen: { tasks: ["types", "sql", "spec"] },
     tooling: {
-      doctor: { format: "sarif", output: "doctor.sarif", strict: true },
+      doctor: { format: "sarif", file: "doctor.sarif", strict: true },
     },
   },
   $env: {

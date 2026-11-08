@@ -322,7 +322,7 @@ expose the module schema itself.
 | [Promotions](/docs/blocks/promotions)                               | `better-supabase/blocks/promotions`                                              | `promotions`                                          |
 | [Forms](/docs/blocks/forms)                                         | `better-supabase/blocks/forms`                                                   | `forms`                                               |
 | [Signatures](/docs/blocks/signatures)                               | `better-supabase/blocks/signatures`                                              | `signatures`                                          |
-| [Time tracking](/docs/blocks/time-tracking)                         | `better-supabase/blocks/time-tracking`                                           | `time-tracking`                                       |
+| [Time tracking](/docs/blocks/time-entries)                          | `better-supabase/blocks/time-entries`                                            | `time-entries`                                        |
 | [Templates](/docs/blocks/templates)                                 | `better-supabase/blocks/templates`                                               | `templates`                                           |
 | [Pipelines](/docs/blocks/pipelines)                                 | `better-supabase/blocks/pipelines`                                               | `pipelines`                                           |
 | [Contacts](/docs/blocks/contacts)                                   | `better-supabase/blocks/contacts`                                                | `contacts`                                            |
@@ -490,7 +490,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `promotions` | `memberships`, `permissions`, `catalog`, `orders` | `outbox` |
 | `forms` | `memberships`, `permissions`, `jsonb-schemas` | `custom-fields`, `share-links`, `rate-limit`, `outbox`, `audit` |
 | `signatures` | `memberships`, `permissions`, `versions` | `approvals`, `attachments`, `outbox`, `audit` |
-| `time-tracking` | `memberships`, `permissions`, `approvals` | `outbox`, `audit`, `employees` |
+| `time-entries` | `memberships`, `permissions`, `approvals` | `outbox`, `audit`, `employees` |
 | `identities` | none | `contacts` |
 | `service-accounts` | `memberships`, `permissions` | `audit` |
 | `templates` | `memberships`, `permissions`, `recurrence` | `outbox`, `audit`, `workflow-editor`, `jsonb-schemas`, `reminders` |
@@ -504,7 +504,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `sla` | `memberships`, `permissions`, `subjects` | `outbox`, `notifications`, `tasks` |
 | `goals` | `memberships`, `permissions` | `deals`, `tasks`, `invoices` |
 | `hiring` | `memberships`, `permissions`, `subjects`, `pipelines` | `outbox`, `automations`, `employees` |
-| `employees` | `memberships`, `permissions` | `outbox`, `relations`, `hiring`, `time-tracking`, `approvals` |
+| `employees` | `memberships`, `permissions` | `outbox`, `relations`, `hiring`, `time-entries`, `approvals` |
 | `collections` | `memberships`, `permissions`, `subjects` | `outbox`, `teams`, `bulk` |
 | `signing-keys` | none | `outbox`, `audit` |
 | `security-events` | none | `webhooks-out`, `outbox`, `audit` |
@@ -521,7 +521,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `enrollments` | `memberships`, `permissions` | `outbox`, `audit` |
 | `guests` | `memberships`, `permissions` | `outbox`, `audit`, `invoices`, `bookings`, `contacts`, `relations` |
 | `passes` | `memberships`, `permissions` | `outbox`, `audit`, `bookings`, `signing-keys`, `ledger` |
-| `billable-time` | `memberships`, `permissions`, `subjects`, `time-tracking`, `invoices` | `outbox`, `audit`, `tasks`, `accounting` |
+| `billable-time` | `memberships`, `permissions`, `subjects`, `time-entries`, `invoices` | `outbox`, `audit`, `tasks`, `accounting` |
 | `leases` | `memberships`, `permissions`, `subjects`, `assets`, `ledger` | `outbox`, `audit`, `accounting` |
 | `expenses` | `memberships`, `permissions`, `approvals`, `ledger` | `outbox`, `audit`, `attachments`, `employees`, `accounting` |
 | `donations` | `memberships`, `permissions`, `subjects`, `ledger`, `numbering` | `outbox`, `audit`, `accounting` |
@@ -547,7 +547,7 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `content` | `memberships`, `permissions`, `subjects` | `approvals`, `versions`, `attachments`, `outbox`, `audit` |
 | `qualifications` | `memberships`, `permissions`, `subjects` | `courses`, `employees`, `teams`, `contacts`, `assets`, `segments`, `attachments`, `notifications`, `outbox`, `audit` |
 | `risks` | `memberships`, `permissions`, `subjects`, `versions` | `compliance`, `tasks`, `relations`, `numbering`, `notifications`, `outbox`, `audit` |
-| `shifts` | `memberships`, `permissions`, `teams` | `employees`, `leave`, `qualifications`, `time-tracking`, `assets`, `approvals`, `notifications`, `outbox`, `audit` |
+| `shifts` | `memberships`, `permissions`, `teams` | `employees`, `leave`, `qualifications`, `time-entries`, `assets`, `approvals`, `notifications`, `outbox`, `audit` |
 | `accounting` | `memberships`, `permissions`, `tax` | `outbox`, `audit`, `data-lifecycle`, `banking`, `periods`, `imports`, `accounting` |
 | `acknowledgements` | `memberships`, `permissions`, `versions` | `subjects`, `teams`, `signatures`, `notifications`, `outbox`, `audit` |
 | `consents` | `memberships`, `permissions`, `subjects` | `contacts`, `relations`, `guests`, `signatures`, `forms`, `attachments`, `outbox`, `audit` |
@@ -560,8 +560,8 @@ events to the [outbox](/docs/blocks/outbox) when the outbox is installed.
 | `banking` | `memberships`, `permissions` | `accounting`, `invoices`, `expenses`, `attachments`, `outbox`, `audit` |
 | `meetings` | `memberships`, `permissions`, `subjects`, `tasks` | `reactions`, `documents`, `calendar`, `notifications`, `outbox`, `audit` |
 | `legal-entities` | `memberships`, `permissions`, `settings` | `attachments`, `invoices`, `quotes`, `orders`, `numbering`, `accounting`, `inventory`, `outbox`, `audit`, `custom-fields` |
-| `funding` | `memberships`, `permissions`, `subjects`, `contacts` | `time-tracking`, `bookings`, `invoices`, `numbering`, `notifications`, `outbox`, `audit` |
-| `payroll-export` | `memberships`, `permissions` | `time-tracking`, `leave`, `shifts`, `employees`, `outbox`, `audit` |
+| `funding` | `memberships`, `permissions`, `subjects`, `contacts` | `time-entries`, `bookings`, `invoices`, `numbering`, `notifications`, `outbox`, `audit` |
+| `payroll-export` | `memberships`, `permissions` | `time-entries`, `leave`, `shifts`, `employees`, `outbox`, `audit` |
 | `maintenance` | `memberships`, `permissions`, `subjects`, `dispatch`, `recurrence` | `assets`, `inventory`, `outbox`, `audit`, `qualifications` |
 | `dam` | `memberships`, `permissions`, `subjects` | `drive`, `outbox`, `audit`, `notifications` |
 | `tax` | `memberships`, `permissions` | `accounting`, `invoices`, `contacts`, `legal-entities`, `outbox`, `audit`, `imports` |

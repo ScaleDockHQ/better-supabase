@@ -40,7 +40,7 @@ const EXTRA_COLUMNS_TABLE: Readonly<Record<string, string>> = {
   promotions: "promotions",
   forms: "forms",
   signatures: "requests",
-  "time-tracking": "entries",
+  "time-entries": "entries",
   "service-accounts": "principals",
   templates: "templates",
   pipelines: "pipelines",

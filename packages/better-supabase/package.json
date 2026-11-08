@@ -996,10 +996,10 @@
       "types": "./dist/blocks/forms/index.d.ts",
       "default": "./dist/blocks/forms/index.js"
     },
-    "./blocks/time-tracking": {
-      "@better-supabase/source": "./src/blocks/time-tracking/index.ts",
-      "types": "./dist/blocks/time-tracking/index.d.ts",
-      "default": "./dist/blocks/time-tracking/index.js"
+    "./blocks/time-entries": {
+      "@better-supabase/source": "./src/blocks/time-entries/index.ts",
+      "types": "./dist/blocks/time-entries/index.d.ts",
+      "default": "./dist/blocks/time-entries/index.js"
     },
     "./blocks/templates": {
       "@better-supabase/source": "./src/blocks/templates/index.ts",
@@ -2240,9 +2240,9 @@
         "types": "./dist/blocks/forms/index.d.ts",
         "default": "./dist/blocks/forms/index.js"
       },
-      "./blocks/time-tracking": {
-        "types": "./dist/blocks/time-tracking/index.d.ts",
-        "default": "./dist/blocks/time-tracking/index.js"
+      "./blocks/time-entries": {
+        "types": "./dist/blocks/time-entries/index.d.ts",
+        "default": "./dist/blocks/time-entries/index.js"
       },
       "./blocks/templates": {
         "types": "./dist/blocks/templates/index.d.ts",

@@ -121,7 +121,7 @@ export const blockConfig = {
     schema: "better_supabase",
     options: {},
   },
-  "time-tracking": {
+  "time-entries": {
     schema: "better_supabase",
     options: {
       timeZone: "UTC",
@@ -231,11 +231,11 @@ export const permissions = {
     manage: "teams.manage",
     read: "teams.read",
   },
-  "time-tracking": {
-    read: "time_tracking.read",
-    track: "time_tracking.track",
-    approve: "time_tracking.approve",
-    manage: "time_tracking.manage",
+  "time-entries": {
+    read: "time_entries.read",
+    track: "time_entries.track",
+    approve: "time_entries.approve",
+    manage: "time_entries.manage",
   },
   timeline: {
     read: "timeline.read",
@@ -247,4 +247,4 @@ export const permissions = {
  * the `permission` of actions and routes.
  * @public
  */
-export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "time_tracking.approve" | "time_tracking.manage" | "time_tracking.read" | "time_tracking.track" | "timeline.read";
+export type PermissionKey = "api_keys.manage" | "api_keys.own" | "approvals.manage" | "approvals.read" | "approvals.request" | "attachments.manage" | "attachments.read" | "attachments.upload" | "audit.read" | "audit.revert" | "billing.manage" | "billing.read" | "enrollments.enroll" | "enrollments.manage" | "enrollments.read" | "members.invite" | "members.read" | "members.remove" | "members.update_role" | "messages.moderate" | "messages.read" | "messages.send" | "notifications.read" | "notifications.send" | "onboarding.complete" | "onboarding.read" | "organization.delete" | "organization.transfer_ownership" | "organization.update" | "reminders.manage" | "reminders.read" | "settings.manage" | "settings.read" | "settings.update" | "subjects.manage" | "tags.apply" | "tags.manage" | "tags.read" | "teams.manage" | "teams.read" | "time_entries.approve" | "time_entries.manage" | "time_entries.read" | "time_entries.track" | "timeline.read";

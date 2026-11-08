@@ -154,7 +154,7 @@ describe("projects.approveAndInvoice", () => {
     const projects = createProjects(
       parts({
         parts: {
-          "time-tracking": { approve: () => done({ id: "ts" }) },
+          "time-entries": { approve: () => done({ id: "ts" }) },
           "billable-time": { invoice },
         },
       }),
@@ -174,7 +174,7 @@ describe("projects.approveAndInvoice", () => {
     const projects = createProjects(
       parts({
         parts: {
-          "time-tracking": { approve: () => failure() },
+          "time-entries": { approve: () => failure() },
           "billable-time": { invoice },
         },
       }),

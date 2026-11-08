@@ -14,7 +14,7 @@ import { createTags } from "../../src/blocks/tags/index.ts";
 import { createTasks } from "../../src/blocks/tasks/index.ts";
 import { createTeams } from "../../src/blocks/teams/index.ts";
 import { createTemplates } from "../../src/blocks/templates/index.ts";
-import { createTimeTracking } from "../../src/blocks/time-tracking/index.ts";
+import { createTimeEntries } from "../../src/blocks/time-entries/index.ts";
 import { createTrash } from "../../src/blocks/trash/index.ts";
 import { createUndo } from "../../src/blocks/undo/index.ts";
 import { createUsage } from "../../src/blocks/usage/index.ts";
@@ -321,7 +321,7 @@ describe("block fields", () => {
 
     expect(link.fields).toEqual(value);
 
-    const time = createTimeTracking({
+    const time = createTimeEntries({
       transport: fake.transport,
       fields: Fields,
       tenant: "o",

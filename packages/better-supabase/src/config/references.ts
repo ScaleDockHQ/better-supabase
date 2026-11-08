@@ -114,7 +114,7 @@ type PermissionReferences<C> =
             >;
           };
         };
-        readonly subjects?: Readonly<
+        readonly recordTypes?: Readonly<
           Record<
             string,
             {

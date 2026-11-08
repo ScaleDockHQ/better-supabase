@@ -1944,7 +1944,7 @@
               "teams",
               "templates",
               "tills",
-              "time-tracking",
+              "time-entries",
               "timeline",
               "trash",
               "updated-at",
@@ -2140,7 +2140,7 @@
                   "teams",
                   "templates",
                   "tills",
-                  "time-tracking",
+                  "time-entries",
                   "timeline",
                   "trash",
                   "updated-at",
@@ -2665,8 +2665,8 @@
             "tills": {
               "$ref": "#/$defs/blocks/tills"
             },
-            "time-tracking": {
-              "$ref": "#/$defs/blocks/time-tracking"
+            "time-entries": {
+              "$ref": "#/$defs/blocks/time-entries"
             },
             "timeline": {
               "$ref": "#/$defs/blocks/timeline"
@@ -7610,7 +7610,7 @@
           }
         }
       },
-      "time-tracking": {
+      "time-entries": {
         "$ref": "#/$defs/moduleConfig",
         "type": "object",
         "properties": {

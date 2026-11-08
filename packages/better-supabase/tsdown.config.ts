@@ -192,7 +192,7 @@ const entries = [
   "blocks/drive/index",
   "blocks/signatures/index",
   "blocks/forms/index",
-  "blocks/time-tracking/index",
+  "blocks/time-entries/index",
   "blocks/templates/index",
   "blocks/option-sets/index",
   "blocks/pipelines/index",

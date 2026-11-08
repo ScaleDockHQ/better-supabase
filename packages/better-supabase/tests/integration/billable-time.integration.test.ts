@@ -8,9 +8,9 @@ import { createBillableTime } from "../../src/blocks/billable-time/index.ts";
 import { createContacts } from "../../src/blocks/contacts/index.ts";
 import { createInvoices } from "../../src/blocks/invoices/index.ts";
 import {
-  createTimeTracking,
+  createTimeEntries,
   sqlTransport,
-} from "../../src/blocks/time-tracking/index.ts";
+} from "../../src/blocks/time-entries/index.ts";
 import { money } from "../../src/commerce/money.ts";
 import { withBlockSubjects } from "../../src/config/block-subjects.ts";
 import { BlockSession, dbUrl, reachable } from "./block-session.ts";
@@ -24,7 +24,7 @@ const MODULES = [
   "relations",
   "contacts",
   "approvals",
-  "time-tracking",
+  "time-entries",
   "invoices",
   "billable-time",
 ];
@@ -53,7 +53,7 @@ describe.skipIf(!live)("billable-time", () => {
       const tenant = await s.organization(owner, { member: ada });
       const transport = sqlTransport(s.sql);
       const billing = createBillableTime({ transport, tenant });
-      const time = createTimeTracking({ transport, tenant });
+      const time = createTimeEntries({ transport, tenant });
       const invoices = createInvoices({ transport });
 
       await s.as(owner);
@@ -194,7 +194,7 @@ describe.skipIf(!live)("billable-time", () => {
           effectiveFrom: Temporal.PlainDate.from("2026-01-01"),
         })
         .orThrow();
-      await createTimeTracking({ transport, tenant })
+      await createTimeEntries({ transport, tenant })
         .log({
           startedAt: at("2026-10-06T09:00:00Z"),
           endedAt: at("2026-10-06T10:00:00Z"),

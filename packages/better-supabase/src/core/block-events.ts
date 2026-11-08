@@ -790,8 +790,8 @@ export interface TemplateApplicationEventData extends SubjectEventData {
 }
 
 /**
- * Time entry events from the time-tracking module. `subjectType` and
- * `subjectId` are null for time not tracked on a record.
+ * Time entry events from the time-entries module. `subjectType` and `subjectId`
+ * are null for time not tracked on a record.
  */
 export interface TimeEntryEventData {
   readonly organizationId: string;
@@ -814,7 +814,7 @@ export interface TimeEntryEventData {
   readonly rateCurrency?: string | null;
 }
 
-/** Timesheet events from the time-tracking module. */
+/** Timesheet events from the time-entries module. */
 export interface TimesheetEventData {
   readonly organizationId: string;
   /** The timesheet. */

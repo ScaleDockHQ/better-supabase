@@ -21,7 +21,7 @@ const ALL = [
   "funding",
 ];
 
-const TIME = [...BASE, "time-tracking"];
+const TIME = [...BASE, "time-entries"];
 
 const sqlOf = (
   modules: readonly string[] = BASE,
@@ -78,7 +78,7 @@ describe("funding module", () => {
     ).toThrow('"Not A Key" is not a format key');
   });
 
-  it("registers time entries only with time-tracking", () => {
+  it("registers time entries only with time-entries", () => {
     expect(sqlOf()).not.toContain("register_funding_deliveries_from_time");
     const sql = sqlOf(TIME);
     expect(sql).toContain("register_funding_deliveries_from_time");
@@ -89,7 +89,7 @@ describe("funding module", () => {
   it("matches a time entry to a product by the timeCategory column", () => {
     const layout: Layout = {
       modules: {
-        "time-tracking": { options: { extraColumns: { category: "text" } } },
+        "time-entries": { options: { extraColumns: { category: "text" } } },
         funding: { options: { timeCategory: "category" } },
       },
     };
@@ -104,13 +104,13 @@ describe("funding module", () => {
       sqlOf(BASE, {
         modules: { funding: { options: { timeCategory: "category" } } },
       }),
-    ).toThrow("needs the time-tracking block");
+    ).toThrow("needs the time-entries block");
   });
 
-  it("reads the time-tracking zone and the user's time zone", () => {
+  it("reads the time-entries zone and the user's time zone", () => {
     const sql = renderBlocks(TIME, {
       modules: {
-        "time-tracking": {
+        "time-entries": {
           tables: {
             entries: "public.time_entries",
             timesheets: "public.timesheets",

@@ -22,7 +22,7 @@ const MODULES: readonly (readonly [
   ["goals", "targets", "fields"],
   ["teams", "teams", "fields"],
   ["templates", "templates", "fields"],
-  ["time-tracking", "entries", "fields"],
+  ["time-entries", "entries", "fields"],
   ["trash", "items", "fields"],
   ["versions", "versions", "fields"],
   ["waitlist", "entries", "fields"],

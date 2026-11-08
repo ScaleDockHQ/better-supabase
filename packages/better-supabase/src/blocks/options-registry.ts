@@ -121,7 +121,7 @@ import type { TagsSqlOptions } from "./tags/options.ts";
 import type { TasksSqlOptions } from "./tasks/options.ts";
 import type { TeamsSqlOptions } from "./teams/options.ts";
 import type { TemplatesSqlOptions } from "./templates/options.ts";
-import type { TimeTrackingSqlOptions } from "./time-tracking/options.ts";
+import type { TimeEntriesSqlOptions } from "./time-entries/options.ts";
 import type { TrashSqlOptions } from "./trash/options.ts";
 import type { UpdatedAtSqlOptions } from "./updated-at/options.ts";
 import type { UsageSqlOptions } from "./usage/options.ts";
@@ -258,7 +258,7 @@ import { tagsSqlOptions } from "./tags/options.ts";
 import { tasksSqlOptions } from "./tasks/options.ts";
 import { teamsSqlOptions } from "./teams/options.ts";
 import { templatesSqlOptions } from "./templates/options.ts";
-import { timeTrackingSqlOptions } from "./time-tracking/options.ts";
+import { timeEntriesSqlOptions } from "./time-entries/options.ts";
 import { trashSqlOptions } from "./trash/options.ts";
 import { updatedAtSqlOptions } from "./updated-at/options.ts";
 import { usageSqlOptions } from "./usage/options.ts";
@@ -449,7 +449,7 @@ export interface BlockOptionsRegistry {
   readonly tasks: TasksSqlOptions;
   readonly teams: TeamsSqlOptions;
   readonly templates: TemplatesSqlOptions;
-  readonly "time-tracking": TimeTrackingSqlOptions;
+  readonly "time-entries": TimeEntriesSqlOptions;
   readonly timeline: None;
   readonly trash: TrashSqlOptions;
   readonly "updated-at": UpdatedAtSqlOptions;
@@ -641,7 +641,7 @@ export const BLOCK_OPTION_SCHEMAS: {
   tasks: tasksSqlOptions,
   teams: teamsSqlOptions,
   templates: templatesSqlOptions,
-  "time-tracking": timeTrackingSqlOptions,
+  "time-entries": timeEntriesSqlOptions,
   timeline: NO_OPTIONS,
   trash: trashSqlOptions,
   "updated-at": updatedAtSqlOptions,

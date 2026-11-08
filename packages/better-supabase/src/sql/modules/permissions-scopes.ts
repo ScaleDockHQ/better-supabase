@@ -154,7 +154,7 @@ export const MODULE_PERMISSION_SCOPES: {
   },
   signatures: { read: "tenant", request: "tenant", manage: "tenant" },
   templates: { read: "tenant", apply: "tenant", manage: "tenant" },
-  "time-tracking": {
+  "time-entries": {
     read: "tenant",
     track: "tenant",
     approve: "tenant",

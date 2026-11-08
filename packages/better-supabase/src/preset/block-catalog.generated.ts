@@ -2319,7 +2319,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "docs": "/docs/blocks/signatures"
     },
     {
-      "name": "time-tracking",
+      "name": "time-entries",
       "title": "Time tracking",
       "category": "People",
       "description": "Time entries with one running timer per member and no overlaps, on any record, billable with a rate. Weekly timesheets go through approvals, and a submitted or approved week is locked.",
@@ -2347,9 +2347,9 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "timesheet.reopened",
         "timesheet.submitted"
       ],
-      "subpath": "better-supabase/blocks/time-tracking",
+      "subpath": "better-supabase/blocks/time-entries",
       "react": null,
-      "docs": "/docs/blocks/time-tracking"
+      "docs": "/docs/blocks/time-entries"
     },
     {
       "name": "identities",
@@ -2807,7 +2807,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "name": "employees",
       "title": "Employees",
       "category": "People",
-      "description": "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.",
+      "description": "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.",
       "requires": [
         "memberships",
         "permissions"
@@ -2816,7 +2816,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "outbox",
         "relations",
         "hiring",
-        "time-tracking",
+        "time-entries",
         "approvals"
       ],
       "modes": [
@@ -3309,7 +3309,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "memberships",
         "permissions",
         "subjects",
-        "time-tracking",
+        "time-entries",
         "invoices"
       ],
       "integrates": [
@@ -4117,7 +4117,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "employees",
         "leave",
         "qualifications",
-        "time-tracking",
+        "time-entries",
         "assets",
         "approvals",
         "notifications",
@@ -4596,7 +4596,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "contacts"
       ],
       "integrates": [
-        "time-tracking",
+        "time-entries",
         "bookings",
         "invoices",
         "numbering",
@@ -4633,7 +4633,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "permissions"
       ],
       "integrates": [
-        "time-tracking",
+        "time-entries",
         "leave",
         "shifts",
         "employees",
@@ -5485,7 +5485,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "subjects",
         "rank",
         "approvals",
-        "time-tracking",
+        "time-entries",
         "enrollments",
         "messaging",
         "timeline",
@@ -5673,7 +5673,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "catalog",
         "inventory",
         "orders",
-        "time-tracking",
+        "time-entries",
         "contacts",
         "quotes",
         "invoices",
@@ -5732,7 +5732,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "inventory",
         "orders",
         "forms",
-        "time-tracking",
+        "time-entries",
         "pipelines",
         "contacts",
         "quotes",
@@ -5891,7 +5891,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "calendar",
         "approvals",
         "documents",
-        "time-tracking",
+        "time-entries",
         "pipelines",
         "hiring",
         "employees",
@@ -5937,7 +5937,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "versions",
         "approvals",
         "signatures",
-        "time-tracking",
+        "time-entries",
         "pipelines",
         "contacts",
         "tasks",
@@ -6400,7 +6400,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "drive-files",
         "forms",
         "signatures",
-        "time-tracking",
+        "time-entries",
         "pipelines",
         "contacts",
         "activities",
@@ -6519,7 +6519,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "approvals",
         "documents",
         "signatures",
-        "time-tracking",
+        "time-entries",
         "contacts",
         "invoices",
         "ledger",
@@ -7487,7 +7487,7 @@ export const BLOCK_CATALOG: BlockCatalog = {
         "promotions",
         "forms",
         "signatures",
-        "time-tracking",
+        "time-entries",
         "identities",
         "service-accounts",
         "templates",

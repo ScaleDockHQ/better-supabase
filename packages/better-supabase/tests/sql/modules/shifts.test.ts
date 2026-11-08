@@ -17,7 +17,7 @@ const ALL = [
   "leave",
   "assets",
   "approvals",
-  "time-tracking",
+  "time-entries",
   "qualifications",
   "shifts",
 ];

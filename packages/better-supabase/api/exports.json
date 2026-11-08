@@ -8155,22 +8155,27 @@
       "SubmitOptions"
     ]
   },
-  "./blocks/time-tracking": {
+  "./blocks/time-entries": {
     "values": [
-      "createTimeTracking",
+      "createTimeEntries",
       "dbTransport",
       "rpcTransport",
       "sqlTransport",
-      "TIME_TRACKING_METRIC_EVENTS",
+      "TIME_ENTRIES_METRIC_EVENTS",
+      "timeEntriesBlock",
+      "timeEntriesEvents",
+      "timeEntriesMetrics",
       "timeEntryMetricTime",
-      "timeTrackingBlock",
-      "timeTrackingEvents",
-      "timeTrackingMetrics",
       "toWeeklyGrid"
     ],
     "types": [
       "BlockTransport",
       "LogTimeInput",
+      "TimeEntries",
+      "TimeEntriesEvents",
+      "TimeEntriesMetrics",
+      "TimeEntriesMetricsOptions",
+      "TimeEntriesOptions",
       "TimeEntry",
       "TimeEntryFields",
       "TimeEntryListOptions",
@@ -8181,11 +8186,6 @@
       "TimesheetListOptions",
       "TimesheetStatus",
       "TimesheetTotals",
-      "TimeTracking",
-      "TimeTrackingEvents",
-      "TimeTrackingMetrics",
-      "TimeTrackingMetricsOptions",
-      "TimeTrackingOptions",
       "WeeklyGrid",
       "WeeklyGridDay",
       "WeeklyGridEntry",

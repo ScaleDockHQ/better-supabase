@@ -41,7 +41,7 @@ import type { SavedViewsEvents } from "better-supabase/blocks/saved-views";
 import type { SettingsEvents } from "better-supabase/blocks/settings";
 import type { SubjectsEvents } from "better-supabase/blocks/subjects";
 import type { TeamsEvents } from "better-supabase/blocks/teams";
-import type { TimeTrackingEvents } from "better-supabase/blocks/time-tracking";
+import type { TimeEntriesEvents } from "better-supabase/blocks/time-entries";
 import { saasBlock as saasBlockInstance } from "better-supabase/blocks/saas";
 import { procurementBlock as procurementBlockInstance } from "better-supabase/blocks/procurement";
 import { financeBlock as financeBlockInstance } from "better-supabase/blocks/finance";
@@ -87,7 +87,7 @@ import { savedViewsBlock as savedViewsBlockInstance } from "better-supabase/bloc
 import { settingsBlock as settingsBlockInstance } from "better-supabase/blocks/settings";
 import { subjectsBlock as subjectsBlockInstance } from "better-supabase/blocks/subjects";
 import { teamsBlock as teamsBlockInstance } from "better-supabase/blocks/teams";
-import { timeTrackingBlock as timeTrackingBlockInstance } from "better-supabase/blocks/time-tracking";
+import { timeEntriesBlock as timeEntriesBlockInstance } from "better-supabase/blocks/time-entries";
 
 /** Re-exported for server code; client code imports `blocks.config.ts`. */
 export { blockConfig };
@@ -146,14 +146,14 @@ export const blocks = {
   settings: settingsBlockInstance,
   subjects: subjectsBlockInstance,
   teams: teamsBlockInstance,
-  "time-tracking": timeTrackingBlockInstance,
+  "time-entries": timeEntriesBlockInstance,
 } as const;
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccountingEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & CatalogEvents & CustomFieldsEvents & LeaveEvents & LedgerEvents & AssetsEvents & EnrollmentsEvents & ExpensesEvents & RfqsEvents & PeriodsEvents & BankingEvents & LegalEntitiesEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & EmployeesEvents & ImportsEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & QuotesEvents & RelationsEvents & AutomationsEvents & SavedViewsEvents & SettingsEvents & SubjectsEvents & TeamsEvents & TimeTrackingEvents;
+export type BlockEvents = AccountingEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BillingEvents & CatalogEvents & CustomFieldsEvents & LeaveEvents & LedgerEvents & AssetsEvents & EnrollmentsEvents & ExpensesEvents & RfqsEvents & PeriodsEvents & BankingEvents & LegalEntitiesEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & EmployeesEvents & ImportsEvents & InventoryEvents & InvoicesEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & QuotesEvents & RelationsEvents & AutomationsEvents & SavedViewsEvents & SettingsEvents & SubjectsEvents & TeamsEvents & TimeEntriesEvents;
 
 /**
  * The installed blocks' event types under the configured names, for

@@ -32,7 +32,7 @@ describe("adopted columns of the opt-in modes", () => {
           contracts: null,
         },
       },
-      "time-tracking": {
+      "time-entries": {
         tables: {
           entries: "public.work_entries",
           timesheets: "public.week_sheets",
@@ -57,8 +57,8 @@ describe("adopted columns of the opt-in modes", () => {
         ...tables.employees,
         options: { name: "split", privateDetails: "flat" },
       },
-      "time-tracking": {
-        ...tables["time-tracking"],
+      "time-entries": {
+        ...tables["time-entries"],
         options: { approvals: false, owner: "employee" },
       },
     };

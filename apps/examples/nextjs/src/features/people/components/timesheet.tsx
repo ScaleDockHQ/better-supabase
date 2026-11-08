@@ -1,4 +1,4 @@
-import type { TimesheetStatus } from "better-supabase/blocks/time-tracking";
+import type { TimesheetStatus } from "better-supabase/blocks/time-entries";
 
 import { ChevronLeftIcon, ChevronRightIcon, ClockIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";
@@ -114,7 +114,7 @@ export async function Timesheet({
     io(),
   ]);
 
-  if (!can(permissions, "time_tracking.track")) {
+  if (!can(permissions, "time_entries.track")) {
     forbidden();
   }
 

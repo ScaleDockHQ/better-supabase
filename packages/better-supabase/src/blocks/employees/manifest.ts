@@ -21,7 +21,7 @@ export const employeesBlock: BlockOf<
   create: createEmployees,
   category: "people",
   description:
-    "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-tracking, time entries carry the employee_id of their member.",
+    "Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.",
   recipes: ["employee-directory"],
   actions: [
     {
