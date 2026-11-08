@@ -1,6 +1,6 @@
 -- better-supabase module: share-links
 -- @bsb-block share-links@1 managed
--- @bsb-hash sha256:90302d6d752352c462a1ece3e4ad81478d295f21ebb9f837a13b0df24ad054c7
+-- @bsb-hash sha256:91f7f65280c25c0c128323888bcaadf04815d7d3c452ec7431ebf0d54e154009
 -- Hashed share links, view counts and per-user state. The token is returned once. Resolving a link hashes the token the caller presents, so a stored plaintext token keeps working after it is hashed. A link can take a password, checked with bcrypt and rate-limited per link, and turn off downloads.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -412,7 +412,7 @@ begin
   from "better_supabase"."share_links" as l where l."id" = revoke_ai_chat_share.id and l."subject_type" = 'ai-chat';
   v_ok := "better_supabase"."revoke_share_link"(revoke_ai_chat_share.id);
   if v_ok and v_chat is not null then
-    select owner_id into v_owner from "better_supabase".ai_chats where id::text = v_chat;
+    select t.owner_id into v_owner from "better_supabase".ai_chats as t where t.id::text = v_chat;
     perform "better_supabase".emit_event('ai_chat.share_revoked', jsonb_build_object('chatId', v_chat, 'shareId', revoke_ai_chat_share.id, 'organizationId', v_tenant::text, 'ownerId', v_owner), 'ai-chats/' || v_chat, (v_tenant)::text, null, 'better-supabase/ai-chat');
   perform better_supabase.audit_event(
     event_type => 'ai_chat.share_revoked',

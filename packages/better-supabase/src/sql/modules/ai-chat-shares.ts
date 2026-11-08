@@ -140,7 +140,7 @@ begin
   from ${links} as l where l.${ctx.col("links", "id")} = revoke_ai_chat_share.id and l.${ctx.col("links", "subjectType")} = 'ai-chat';
   v_ok := ${ctx.fn("revoke_share_link")}(revoke_ai_chat_share.id);
   if v_ok and v_chat is not null then
-    select ${c.owner} into v_owner from ${c.table} where ${c.id}::text = v_chat;
+    select t.${c.owner} into v_owner from ${c.table} as t where t.${c.id}::text = v_chat;
     ${revoked}
   end if;
   return v_ok;
