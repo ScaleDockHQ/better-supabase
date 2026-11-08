@@ -382,3 +382,33 @@ checks: `app/`, `features/<domain>/<domain>-queries.ts` (`server-only`),
 `params` with `params.then()`. Commit the generated output under
 `tests/init-fixture/nextjs/src`; the check script already lists that path in
 `pendingRoots` and fails on findings as soon as the directory exists.
+
+## First-load JavaScript and the bundle analyzer
+
+`tests/next-build` holds every route's first load to `baseline.json` (raw bytes
+never rise, compressed bytes may move by 64). To see what a route ships and why,
+use the Turbopack analyzer from Next.js 16.4 (ADR 0481). `--output` writes the
+analysis without starting the UI and `--snapshot` names it:
+
+```bash
+cd apps/examples/nextjs
+pnpm exec next analyze --output --snapshot before
+pnpm exec next analyze export --snapshot before \
+  | node ../../../scripts/next-analyze-report.ts "/[locale]/customers" 25
+pnpm exec next analyze            # the interactive UI, with import chains
+```
+
+The report groups a route's synchronous client chunks by package. In the UI,
+open a module to see the import chain that includes it, and switch between the
+client and server views. `next analyze` builds on its own and writes under
+`.next/diagnostics/analyze`; run `rm -rf .next` before a real `next build`
+afterwards, or the prerender fails with a duplicate-React error.
+
+Rules the example follows (ADR 0480):
+
+- A route outside `(app)` never imports `@/lib/supabase/client`, `@/lib/hooks` or a
+  `@/hooks/*` file. Forms that call Auth await `loadBrowserClient()` on submit.
+- A menu, dialog or sheet that most visits never open loads on first intent
+  (`LazyOnIntent`) or on first open. Toasts go through `@/lib/toast`.
+- Browser code reads the global `Temporal` and never imports `temporal-polyfill`
+  (ADR 0482).

@@ -436,6 +436,9 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0394: Infer the notifications block and the settings schemas.
 - 0400: Count the remaining do blocks and let the webhook fan-out honour the provider's wildcards.
 - 0420: Pause data hooks and record pages offline, and stream child tables with their parent subject.
+- 0480: Keep the data client out of the sign-in routes and load heavy UI on first use.
+- 0481: Enforce a static shell for every route group and measure with the Turbopack analyzer.
+- 0482: Use the runtime's Temporal in the browser and load the polyfill only when it is missing.
 
 ## Pre-release pins
 
