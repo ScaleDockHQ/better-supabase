@@ -74,7 +74,10 @@ the same generator behind `supabase gen types typescript`, and writes:
    [`betterSupabase.blocks()`](/docs/blocks/create-blocks#block-instances-on-db):
    import it from server code only. With `gen.clientBlocks` set, `blocks.client.ts`
    holds `clientBlocks`, `defineBlocks` over just the listed instances, so the
-   browser bundle carries those clients and no others. The `reads` constant
+   browser bundle carries those clients and no others. With `gen.serverBlocks` set
+   (`{ shell: ["permissions", "organizations"] }`), `blocks.shell.ts` holds `shellBlocks` and
+   `shellInstances` the same way for the server, so a route that builds its server from the
+   set (`createNext(app.blocks(shellBlocks))`) bundles those blocks and no others. The `reads` constant
    lists, next to each table a read touches, the typed key of every view your schema
    files project over it (`job_attachments` over `attachments`), so a cached read
    served from the view is invalidated by a write to the table. None of this needs a
