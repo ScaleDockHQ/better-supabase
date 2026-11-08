@@ -272,6 +272,7 @@ describe("powersyncOutput shaping", () => {
   const run = (
     app: string,
     projections?: Parameters<typeof powersyncOutput>[0]["projections"],
+    extra: Partial<Parameters<typeof powersyncOutput>[0]> = {},
   ) =>
     powersyncOutput({
       files: [
@@ -289,7 +290,107 @@ describe("powersyncOutput shaping", () => {
       ],
       importFrom: "@powersync/common",
       ...(projections === undefined ? {} : { projections }),
+      ...extra,
     });
+
+  const jobs = {
+    table: "public.jobs",
+    id: "id",
+    tenant: "organization_id",
+    deletedAt: "deleted_at",
+  } as const;
+
+  it("scopes a view's attachments to the rows of the subject it keeps", () => {
+    const projections = projectionsOf([
+      {
+        text: `create view public.job_attachments as
+          select id, tenant_id as organization_id, subject_id as job_id from better_supabase.attachments where subject_type = 'job';`,
+      },
+    ]);
+
+    const synced = run("", projections, { subjects: new Map([["job", jobs]]) });
+
+    expect(synced.streams).toContain(
+      "AND subject_id IN (SELECT id::text FROM public.jobs WHERE organization_id IN active_orgs AND deleted_at IS NULL)",
+    );
+  });
+
+  it("leaves attachments alone when the subject is unknown or has no tenant", () => {
+    const projections = projectionsOf([
+      {
+        text: `create view public.job_attachments as
+          select id, tenant_id as organization_id from better_supabase.attachments where subject_type = 'job';`,
+      },
+    ]);
+
+    expect(run("", projections).streams).not.toContain("subject_id IN");
+
+    expect(
+      run("", projections, {
+        subjects: new Map([["job", { ...jobs, tenant: false }]]),
+      }).streams,
+    ).not.toContain("subject_id IN");
+  });
+
+  const parties = new Map([
+    ["id", "uuid"],
+    ["job_id", "uuid"],
+    ["name", "text"],
+  ]);
+
+  const child = {
+    table: "public.job_parties",
+    parent: "job",
+    column: "job_id",
+    columns: parties,
+  };
+
+  it("streams a child table with the rows of its parent subject", () => {
+    const synced = run("", undefined, {
+      subjects: new Map([["job", jobs]]),
+      children: [child],
+    });
+
+    expect(synced.children).toEqual(["job_parties"]);
+    expect(synced.published).toContain("public.job_parties");
+
+    expect(synced.streams).toContain(
+      '  job_parties:\n    auto_subscribe: true\n    with:\n      active_orgs: "SELECT organization_id FROM better_supabase.memberships WHERE user_id = auth.user_id()',
+    );
+
+    expect(synced.streams).toContain(
+      "SELECT * FROM public.job_parties WHERE job_id IN (SELECT id FROM public.jobs WHERE organization_id IN active_orgs AND deleted_at IS NULL)",
+    );
+
+    expect(synced.schema).toContain("export const job_parties = new Table({");
+  });
+
+  it("refuses a child whose parent isn't a subject, has no tenant or lacks columns", () => {
+    expect(() => run("", undefined, { children: [child] })).toThrow(
+      /no table tags as `@bsb subject`/,
+    );
+
+    expect(() =>
+      run("", undefined, {
+        subjects: new Map([["job", { ...jobs, tenant: false }]]),
+        children: [child],
+      }),
+    ).toThrow(/has no tenant column/);
+
+    expect(() =>
+      run("", undefined, {
+        subjects: new Map([["job", jobs]]),
+        children: [{ ...child, columns: new Map() }],
+      }),
+    ).toThrow(/has no job_id column/);
+
+    expect(() =>
+      run("", undefined, {
+        subjects: new Map([["job", jobs]]),
+        children: [{ ...child, columns: new Map([["job_id", "uuid"]]) }],
+      }),
+    ).toThrow(/no id column/);
+  });
 
   it("leaves the provider's version column out of the stream and the schema", () => {
     const synced = run(

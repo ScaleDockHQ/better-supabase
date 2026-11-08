@@ -2786,6 +2786,26 @@
             },
             "import": {
               "type": "string"
+            },
+            "children": {
+              "type": "array",
+              "items": {
+                "type": "object",
+                "properties": {
+                  "table": {
+                    "type": "string",
+                    "pattern": "^[a-z_][a-z0-9_]*\\.[a-z_][a-z0-9_]*$"
+                  },
+                  "parent": {
+                    "type": "string"
+                  },
+                  "column": {
+                    "type": "string"
+                  }
+                },
+                "required": ["table", "parent", "column"],
+                "additionalProperties": false
+              }
             }
           },
           "required": ["instances"],
