@@ -31,7 +31,7 @@ interface ClientManifest {
 }
 
 /**
- * The key of the nomodule polyfill bundle. Until 0.57 it was added to every
+ * The key of the nomodule polyfill bundle. Until 0.58 it was added to every
  * route (113 KB raw, 35 KB brotli each), so each route's baseline before the
  * change read 112594 raw bytes higher.
  */

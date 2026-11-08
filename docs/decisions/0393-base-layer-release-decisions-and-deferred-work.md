@@ -17,10 +17,10 @@ design pass, so a later change does not reopen them by accident.
 
 ### Decided
 
-- The release is better-supabase 0.57, a minor bump, not 1.0. Below 1.0, a minor
+- The release is better-supabase 0.58, a minor bump, not 1.0. Below 1.0, a minor
   version may carry breaking changes, and the renames ship without aliases under
   that rule. Every changeset on the branch is `minor` or `patch`; none is
-  `major`. The migration guide is `0.56-to-0.57`.
+  `major`. The migration guide is `0.57-to-0.58`.
 - The `rank` block keeps its name. It is the fractional-ordering block (base-62
   rank keys, ADR 0021). Ratings are reviews and scores (ADRs 0067 and 0076), so
   a `ratings` block would be a second home for them. ADRs 0387 and 0388 listed
