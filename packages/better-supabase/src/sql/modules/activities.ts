@@ -106,7 +106,7 @@ const NAMES: BlockSqlNames = {
     activity: {
       table: "engagements",
       singular: "activity",
-      formerly: "engagement",
+      keyed: true,
       primary: true,
       subject: {
         title: "title",

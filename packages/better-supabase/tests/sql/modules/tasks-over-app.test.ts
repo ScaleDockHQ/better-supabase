@@ -156,15 +156,15 @@ begin
     raise exception 'numbering %', v_item;
   end if;
   v_result := better_supabase.update_tasks(jsonb_build_array(
-    jsonb_build_object('workItemId', v_id, 'field', 'title', 'value', 'Ship it now'),
-    jsonb_build_object('workItemId', v_id, 'field', 'priority', 'value', 2)));
+    jsonb_build_object('taskId', v_id, 'field', 'title', 'value', 'Ship it now'),
+    jsonb_build_object('taskId', v_id, 'field', 'priority', 'value', 2)));
   if jsonb_array_length(v_result -> 'rejected') <> 0 then
     raise exception 'update %', v_result;
   end if;
   select s.id into v_done from better_supabase.pipeline_stages s
   where s.pipeline_id = (select pipeline_id from public.tickets where id = v_id) and s.key = 'done';
   v_result := better_supabase.update_tasks(jsonb_build_array(
-    jsonb_build_object('workItemId', v_id, 'field', 'stageId', 'value', v_done)));
+    jsonb_build_object('taskId', v_id, 'field', 'stageId', 'value', v_done)));
   if jsonb_array_length(v_result -> 'rejected') <> 0 then
     raise exception 'close %', v_result;
   end if;
@@ -246,7 +246,7 @@ const NUMBERED: AnyBlocksConfig = {
   numbering: {
     options: {
       entities: {
-        work_item: {
+        task: {
           period: "none",
           format: "T-{n}",
           table: "public.tickets",

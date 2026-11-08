@@ -243,8 +243,8 @@ describe("block fields", () => {
     expect(
       await items.update({
         changes: [
-          { workItemId: "w1", field: "title", value: "B" },
-          { workItemId: "w1", field: "size", value: "xl" },
+          { taskId: "w1", field: "title", value: "B" },
+          { taskId: "w1", field: "size", value: "xl" },
         ],
       }),
     ).toMatchObject({ ok: false, error: { kind: "validation" } });

@@ -1,20 +1,20 @@
 import type { EventSink } from "../../events/cloud-event.ts";
-import type { WorkItemRecurrence, Tasks } from "./tasks.ts";
+import type { TaskRecurrence, Tasks } from "./tasks.ts";
 
 import { expandRule } from "../../core/recurrence.ts";
 import { temporal } from "../../core/temporal-required.ts";
 import { eventTypeOf } from "../../events/cloud-event.ts";
 import { isRecord, optionalText } from "../shared.ts";
 
-/** How far ahead `nextWorkItemOccurrence` looks for the next occurrence. */
+/** How far ahead `nextTaskOccurrence` looks for the next occurrence. */
 const HORIZON_DAYS = 366 * 5;
 
 /**
  * The first occurrence of `rule` after `after`, or `undefined` when the rule
  * has ended (COUNT or UNTIL) or has none in the next five years.
  */
-export function nextWorkItemOccurrence(
-  rule: WorkItemRecurrence,
+export function nextTaskOccurrence(
+  rule: TaskRecurrence,
   after: Temporal.Instant,
 ): Temporal.Instant | undefined {
   const [next] = expandRule({
@@ -30,7 +30,7 @@ export function nextWorkItemOccurrence(
   return next?.toInstant();
 }
 
-export interface WorkItemRecurrenceSinkOptions {
+export interface TaskRecurrenceSinkOptions {
   /**
    * The closed event's type without `typePrefix`, after `blocks.tasks.names`
    * (`task.closed`). Default `task.closed`.
@@ -44,14 +44,14 @@ export interface WorkItemRecurrenceSinkOptions {
 
 /**
  * An outbox sink that creates the next item when a repeating one is completed:
- * `outbox.relay('tasks', taskRecurrenceSink(workItems))`. Build `workItems`
- * with a service transport. The next item is due at the rule's first occurrence
- * after the completed item's due date (or now), and `repeat` runs once per
- * item, so a redelivered event changes nothing.
+ * `outbox.relay('tasks', taskRecurrenceSink(tasks))`. Build `tasks` with a
+ * service transport. The next item is due at the rule's first occurrence after
+ * the completed item's due date (or now), and `repeat` runs once per item, so a
+ * redelivered event changes nothing.
  */
 export function taskRecurrenceSink(
-  workItems: Pick<Tasks, "get" | "repeat">,
-  options: WorkItemRecurrenceSinkOptions = {},
+  tasks: Pick<Tasks, "get" | "repeat">,
+  options: TaskRecurrenceSinkOptions = {},
 ): EventSink {
   const type = options.type ?? "task.closed";
   const now = options.now ?? (() => temporal().Now.instant());
@@ -73,7 +73,7 @@ export function taskRecurrenceSink(
           continue;
         }
 
-        const item = await workItems.get(id);
+        const item = await tasks.get(id);
 
         if (!item.ok) {
           throw new Error(
@@ -87,16 +87,13 @@ export function taskRecurrenceSink(
           continue;
         }
 
-        const next = nextWorkItemOccurrence(rule, item.data?.dueAt ?? now());
+        const next = nextTaskOccurrence(rule, item.data?.dueAt ?? now());
 
         if (next === undefined) {
           continue;
         }
 
-        const repeated = await workItems.repeat({
-          workItemId: id,
-          dueAt: next,
-        });
+        const repeated = await tasks.repeat({ taskId: id, dueAt: next });
 
         if (!repeated.ok) {
           throw new Error(

@@ -1201,6 +1201,16 @@ export const tasksConfig = {
       task_tree: "work_item_tree",
       update_tasks: "update_work_items",
     },
+    entities: [{
+      from: {
+        singular: "task",
+        plural: "tasks",
+      },
+      to: {
+        singular: "work_item",
+        plural: "work_items",
+      },
+    }],
     events: [{
       from: {
         singular: "task",
@@ -1210,6 +1220,7 @@ export const tasksConfig = {
         singular: "work_item",
         plural: "work_items",
       },
+      keyed: true,
     }],
   },
 } as const satisfies GeneratedBlock;
@@ -1244,8 +1255,8 @@ export const facilitiesConfig = {
     },
     entities: [{
       from: {
-        singular: "work_item",
-        plural: "work_items",
+        singular: "task",
+        plural: "tasks",
       },
       to: {
         singular: "maintenance_request",
@@ -1261,6 +1272,7 @@ export const facilitiesConfig = {
         singular: "maintenance_request",
         plural: "maintenance_requests",
       },
+      keyed: true,
     }],
   },
   block: "tasks",

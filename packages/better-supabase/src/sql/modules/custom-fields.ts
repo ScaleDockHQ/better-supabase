@@ -89,7 +89,7 @@ const NAMES: BlockSqlNames = {
     field_definition: {
       table: "definitions",
       singular: "field_definition",
-      formerly: "field",
+      keyed: true,
       primary: true,
     },
   },

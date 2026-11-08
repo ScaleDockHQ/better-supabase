@@ -1,11 +1,11 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { MyWorkItem } from "../../src/records/index.ts";
+import type { MyTask } from "../../src/records/index.ts";
 
 import { loadMyWork } from "../../src/records/index.ts";
 import { failed, resolved } from "../fixtures/ports.ts";
 
-const items: MyWorkItem[] = [
+const items: MyTask[] = [
   { kind: "approval", subject: { type: "invoice", id: "i1" }, ref: "r1" },
   { kind: "assigned", subject: { type: "work_item", id: "w1" }, ref: "w1" },
   { kind: "approval", subject: { type: "invoice", id: "i2" }, ref: "r2" },
@@ -13,7 +13,7 @@ const items: MyWorkItem[] = [
 
 describe("loadMyWork", () => {
   it("groups the items by kind with a count each", async () => {
-    const myWork = vi.fn(() => resolved<readonly MyWorkItem[]>(items));
+    const myWork = vi.fn(() => resolved<readonly MyTask[]>(items));
 
     const work = await loadMyWork({ myWork }, { pageSize: 10 }).orThrow();
 
@@ -32,7 +32,7 @@ describe("loadMyWork", () => {
 
   it("keeps only the kinds asked for", async () => {
     const work = await loadMyWork(
-      { myWork: () => resolved<readonly MyWorkItem[]>(items) },
+      { myWork: () => resolved<readonly MyTask[]>(items) },
       { kinds: ["assigned"] },
     ).orThrow();
 

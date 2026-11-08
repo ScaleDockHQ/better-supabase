@@ -1,9 +1,5 @@
 import type { EntitySchema } from "../entity-schema.ts";
-import type {
-  WorkItemChange,
-  WorkItemInput,
-  WorkItemListOptions,
-} from "./tasks.ts";
+import type { TaskChange, TaskInput, TaskListOptions } from "./tasks.ts";
 
 import { entitySchema } from "../entity-schema.ts";
 
@@ -17,9 +13,9 @@ const STATES = [
 ] as const;
 
 /** What `create` takes, with the bounds the SQL checks. */
-export const workItemInputSchema: EntitySchema<WorkItemInput> =
-  entitySchema<WorkItemInput>({
-    title: "WorkItemInput",
+export const taskInputSchema: EntitySchema<TaskInput> = entitySchema<TaskInput>(
+  {
+    title: "TaskInput",
     fields: {
       title: { kind: "string", minLength: 1, maxLength: 500 },
       body: { kind: "string", optional: true },
@@ -42,26 +38,27 @@ export const workItemInputSchema: EntitySchema<WorkItemInput> =
         description: "The extra columns to set.",
       },
     },
-  });
+  },
+);
 
 /**
  * One edit `update` takes. `field` is a built-in field or an extra column, so
  * any name passes; the SQL rejects an unknown one.
  */
-export const workItemChangeSchema: EntitySchema<WorkItemChange> =
-  entitySchema<WorkItemChange>({
-    title: "WorkItemChange",
+export const taskChangeSchema: EntitySchema<TaskChange> =
+  entitySchema<TaskChange>({
+    title: "TaskChange",
     fields: {
-      workItemId: { kind: "uuid" },
+      taskId: { kind: "uuid" },
       field: { kind: "string", minLength: 1 },
       value: { kind: "unknown", description: "`null` clears the field." },
     },
   });
 
 /** The options `list` takes. */
-export const workItemListFilterSchema: EntitySchema<WorkItemListOptions> =
-  entitySchema<WorkItemListOptions>({
-    title: "WorkItemListOptions",
+export const taskListFilterSchema: EntitySchema<TaskListOptions> =
+  entitySchema<TaskListOptions>({
+    title: "TaskListOptions",
     fields: {
       teamId: { kind: "uuid", optional: true },
       projectId: { kind: "uuid", optional: true },

@@ -1,9 +1,9 @@
 import { describe, expect, it, vi } from "vitest";
 
-import type { WorkItem, Tasks } from "../../../src/blocks/tasks/index.ts";
+import type { Task, Tasks } from "../../../src/blocks/tasks/index.ts";
 
 import {
-  nextWorkItemOccurrence,
+  nextTaskOccurrence,
   taskRecurrenceSink,
 } from "../../../src/blocks/tasks/index.ts";
 import { dbError } from "../../../src/core/errors.ts";
@@ -25,30 +25,28 @@ const closed = (data: Record<string, unknown>, type = "task.closed") => ({
   data,
 });
 
-function stub(item: Partial<WorkItem> | undefined) {
-  const get = vi.fn((_id: string): AsyncResult<WorkItem | undefined> =>
+function stub(item: Partial<Task> | undefined) {
+  const get = vi.fn((_id: string): AsyncResult<Task | undefined> =>
     AsyncResult.ok(
-      item === undefined ? undefined : ({ id: "w1", ...item } as WorkItem),
+      item === undefined ? undefined : ({ id: "w1", ...item } as Task),
     ),
   );
 
   const repeat = vi.fn(
-    (_input: {
-      workItemId: string;
-      dueAt: Temporal.Instant;
-    }): AsyncResult<WorkItem> => AsyncResult.ok({ id: "w2" } as WorkItem),
+    (_input: { taskId: string; dueAt: Temporal.Instant }): AsyncResult<Task> =>
+      AsyncResult.ok({ id: "w2" } as Task),
   );
 
   return { get, repeat } satisfies Pick<Tasks, "get" | "repeat">;
 }
 
-describe("nextWorkItemOccurrence", () => {
+describe("nextTaskOccurrence", () => {
   it("finds the next occurrence and stops when the rule ends", () => {
     expect(
-      nextWorkItemOccurrence(RULE, instant("2026-10-19T08:00:00Z"))?.toString(),
+      nextTaskOccurrence(RULE, instant("2026-10-19T08:00:00Z"))?.toString(),
     ).toBe("2026-10-26T09:00:00Z");
     expect(
-      nextWorkItemOccurrence(RULE, instant("2026-11-02T09:00:00Z")),
+      nextTaskOccurrence(RULE, instant("2026-11-02T09:00:00Z")),
     ).toBeUndefined();
   });
 });

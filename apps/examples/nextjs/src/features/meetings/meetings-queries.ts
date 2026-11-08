@@ -131,7 +131,7 @@ async function loadMinutes(
       down: decision.votes?.down ?? 0,
     })),
     actionItems: detail.actionItems.map((item) => ({
-      workItemId: item.workItemId,
+      workItemId: item.taskId,
       title: item.title,
       state: item.state,
     })),

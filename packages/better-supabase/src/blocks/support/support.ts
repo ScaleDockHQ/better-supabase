@@ -4,7 +4,7 @@ import type { AsyncResult } from "../../core/result.ts";
 import type { BlockContext } from "../create-blocks.ts";
 import type { CompositeOptions } from "../define-block.ts";
 import type { SlaClock } from "../sla/index.ts";
-import type { WorkItem, WorkItemInput } from "../tasks/index.ts";
+import type { Task, TaskInput } from "../tasks/index.ts";
 import type { SupportParts } from "./manifest.ts";
 
 import { withBlockHooks } from "../../core/block-hooks.ts";
@@ -12,7 +12,7 @@ import { AsyncResult as Async, ok } from "../../core/result.ts";
 
 /** What `support.openTicket` returns. */
 export interface OpenedTicket {
-  readonly ticket: WorkItem;
+  readonly ticket: Task;
   /** The SLA clocks started for the ticket. */
   readonly clocks: readonly SlaClock[];
 }
@@ -35,7 +35,7 @@ export interface Support {
    */
   openTicket(input: {
     organizationId: string;
-    ticket: WorkItemInput;
+    ticket: TaskInput;
     assigneeIds?: readonly string[] | undefined;
     priority?: string | undefined;
   }): AsyncResult<OpenedTicket>;
@@ -91,7 +91,7 @@ export function createSupport(options: SupportOptions): Support {
     escalate: ({ ticketId, assigneeIds, priority }) =>
       Async.from<EscalatedTicket>(async () => {
         const assigned = await tasks.assign({
-          workItemId: ticketId,
+          taskId: ticketId,
           userIds: assigneeIds,
         });
 

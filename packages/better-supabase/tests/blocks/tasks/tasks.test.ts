@@ -129,10 +129,10 @@ describe("tasks block", () => {
   it("sends changes, assigns, archives, removes and reads the tree", async () => {
     const t = transport({
       update_tasks: () => ({
-        accepted: [{ workItemId: "w1", field: "endAt" }],
+        accepted: [{ taskId: "w1", field: "endAt" }],
         rejected: [
           {
-            workItemId: "w1",
+            taskId: "w1",
             field: "dueAt",
             hint: "TASK_LOCKED",
             reason: "locked",
@@ -165,7 +165,7 @@ describe("tasks block", () => {
       .update({
         changes: [
           {
-            workItemId: "w1",
+            taskId: "w1",
             field: "endAt",
             value: Temporal.Instant.from("2026-10-23T09:00:00Z"),
           },
@@ -176,14 +176,14 @@ describe("tasks block", () => {
     expect(result.rejected[0]?.hint).toBe("TASK_LOCKED");
     expect(t.calls[0]?.[1]).toEqual({
       changes: [
-        { workItemId: "w1", field: "endAt", value: "2026-10-23T09:00:00Z" },
+        { taskId: "w1", field: "endAt", value: "2026-10-23T09:00:00Z" },
       ],
     });
     await items
       .update({
         changes: [
           {
-            workItemId: "w1",
+            taskId: "w1",
             field: "window",
             value: {
               startAt: Temporal.Instant.from("2026-10-22T09:00:00Z"),
@@ -197,7 +197,7 @@ describe("tasks block", () => {
     expect(t.calls[1]?.[1]).toEqual({
       changes: [
         {
-          workItemId: "w1",
+          taskId: "w1",
           field: "window",
           value: { startAt: "2026-10-22T09:00:00Z", endAt: null },
         },
@@ -206,7 +206,7 @@ describe("tasks block", () => {
     });
 
     const strict = await items.update({
-      changes: [{ workItemId: "w1", field: "dueAt", value: null }],
+      changes: [{ taskId: "w1", field: "dueAt", value: null }],
       strict: true,
     });
 
@@ -215,9 +215,9 @@ describe("tasks block", () => {
       hint: "TASK_LOCKED",
     });
     expect(
-      await items.assign({ workItemId: "w1", userIds: ["u1", "u2"] }).orThrow(),
+      await items.assign({ taskId: "w1", userIds: ["u1", "u2"] }).orThrow(),
     ).toBe(2);
-    expect(await items.archive({ workItemId: "w1" }).orThrow()).toBe(true);
+    expect(await items.archive({ taskId: "w1" }).orThrow()).toBe(true);
     expect(await items.remove("w1").orThrow()).toBe(true);
     expect((await items.tree("w1").orThrow())[0]).toMatchObject({
       depth: 0,
@@ -401,7 +401,7 @@ describe("tasks block, sparse rows and options", () => {
 
     const entry = {
       id: "c1",
-      workItemId: "w1",
+      taskId: "w1",
       title: "Draft",
       done: true,
       doneAt: "2026-10-22T09:00:00Z",
@@ -419,7 +419,7 @@ describe("tasks block, sparse rows and options", () => {
 
     const t = transport({
       create_task: () => full,
-      get_task: (args) => (args["work_item"] === "w1" ? full : null),
+      get_task: (args) => (args["task"] === "w1" ? full : null),
       list_task_checklist: () => [entry],
       save_task_checklist_item: () => ({
         ...entry,
@@ -464,7 +464,7 @@ describe("tasks block, sparse rows and options", () => {
 
     const saved = await items
       .saveChecklistItem({
-        workItemId: "w1",
+        taskId: "w1",
         input: { done: false },
         checklistItemId: "c1",
       })
@@ -472,12 +472,12 @@ describe("tasks block, sparse rows and options", () => {
 
     expect(saved.doneAt).toBeUndefined();
     expect(t.calls.at(-1)?.[1]).toEqual({
-      work_item: "w1",
+      task: "w1",
       checklist_item: "c1",
       attrs: { done: false },
     });
     await items
-      .saveChecklistItem({ workItemId: "w1", input: { title: "Send" } })
+      .saveChecklistItem({ taskId: "w1", input: { title: "Send" } })
       .orThrow();
     expect(t.calls.at(-1)?.[1]).toMatchObject({ checklist_item: null });
     expect(await items.removeChecklistItem("c1").orThrow()).toBe(true);
@@ -485,31 +485,31 @@ describe("tasks block, sparse rows and options", () => {
     expect(
       (
         await items
-          .setRecurrence({ workItemId: "w1", rule: { rrule: "FREQ=WEEKLY" } })
+          .setRecurrence({ taskId: "w1", rule: { rrule: "FREQ=WEEKLY" } })
           .orThrow()
       )?.dtstart,
     ).toEqual(Temporal.Instant.from(rule.dtstart));
     expect(t.calls.at(-1)?.[1]).toEqual({
-      work_item: "w1",
+      task: "w1",
       rrule: "FREQ=WEEKLY",
       tzid: "UTC",
     });
     expect(
-      await items.setRecurrence({ workItemId: "w1", rule: null }).orThrow(),
+      await items.setRecurrence({ taskId: "w1", rule: null }).orThrow(),
     ).toBeUndefined();
 
     const next = Temporal.Instant.from("2026-10-31T09:00:00Z");
     expect(
-      (await items.repeat({ workItemId: "w1", dueAt: next }).orThrow())
+      (await items.repeat({ taskId: "w1", dueAt: next }).orThrow())
         .recursFromId,
     ).toBe("w1");
     expect(t.calls.at(-1)?.[1]).toEqual({
-      work_item: "w1",
+      task: "w1",
       due_at: "2026-10-31T09:00:00Z",
     });
-    expect(
-      await items.watch({ workItemId: "w1", level: "all" }).orThrow(),
-    ).toBe(true);
+    expect(await items.watch({ taskId: "w1", level: "all" }).orThrow()).toBe(
+      true,
+    );
     expect(await items.watchers("w1").orThrow()).toEqual([
       { userId: "u2", level: "all" },
     ]);
@@ -620,7 +620,7 @@ describe("tasks.create with custom values", () => {
     const tasks = createTasks({ transport: t });
 
     await expect(
-      tasks.archive({ workItemIds: ["w1", "w2"], archived: false }).orThrow(),
+      tasks.archive({ taskIds: ["w1", "w2"], archived: false }).orThrow(),
     ).resolves.toEqual({ ids: ["w1"], skipped: ["w2"] });
 
     await expect(tasks.remove(["w1", "w2"]).orThrow()).resolves.toEqual({

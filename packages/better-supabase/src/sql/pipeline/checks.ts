@@ -11,7 +11,6 @@ import {
 import { renamedInstances, rendersOwnInstance } from "../instance-names.ts";
 import { moduleContext } from "../module-context.ts";
 import { SQL_MODULES } from "../registry.ts";
-import { tableBase } from "../table-renames.ts";
 
 /**
  * Throws when `blocks.memberships.names.organization` gives a renamed table or
@@ -79,10 +78,7 @@ export function checkEntityTables(
             logical,
             schema,
             name,
-            renamed:
-              ctx.resolved.entityNaming.rename(
-                tableBase(ctx.resolved, logical, spec.name),
-              ) !== spec.name,
+            renamed: ctx.resolved.entityNaming.rename(spec.name) !== spec.name,
             mapped: ctx.config.tables[logical] !== undefined,
           };
         });

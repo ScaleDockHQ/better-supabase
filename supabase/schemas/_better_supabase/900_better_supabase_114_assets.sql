@@ -1,6 +1,6 @@
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:2b9d545bc9fe28c6f6eba4fc162eb7721ccb5e3864042256bc128e2a7a0cfad1
+-- @bsb-hash sha256:96ab08ee83e4e8768ff0aa7a9064cb50b303a5a431dd9b56fd965ac48aa46d81
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -695,7 +695,7 @@ begin
     )
     select jsonb_agg(jsonb_build_object('id', up.id, 'kind', up.kind, 'name', up.name) order by up.depth desc) from up
   ), '[]'::jsonb) end,
-    'links', jsonb_build_object('bookingResources', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name") order by y."name") from "better_supabase"."booking_resources" y where y.asset_id = v_row."id"), '[]'::jsonb), 'workItems', coalesce((select jsonb_agg(jsonb_build_object('id', z.id, 'title', z.title) order by z.created_at desc) from (select y."id" as id, y."title" as title, y."created_at" as created_at from "better_supabase"."work_items" y where y.asset_id = v_row."id" and y."closed_at" is null order by y."created_at" desc limit 50) z), '[]'::jsonb)));
+    'links', jsonb_build_object('bookingResources', coalesce((select jsonb_agg(jsonb_build_object('id', y."id", 'name', y."name") order by y."name") from "better_supabase"."booking_resources" y where y.asset_id = v_row."id"), '[]'::jsonb), 'tasks', coalesce((select jsonb_agg(jsonb_build_object('id', z.id, 'title', z.title) order by z.created_at desc) from (select y."id" as id, y."title" as title, y."created_at" as created_at from "better_supabase"."work_items" y where y.asset_id = v_row."id" and y."closed_at" is null order by y."created_at" desc limit 50) z), '[]'::jsonb)));
 end;
 $$;
 revoke execute on function "better_supabase"."get_asset"(uuid) from public, anon;
@@ -847,7 +847,7 @@ revoke execute on function "better_supabase"."asset_locations_at"(uuid, double p
 grant execute on function "better_supabase"."asset_locations_at"(uuid, double precision, double precision) to authenticated, service_role;
 
 -- Names the asset a booking resource or a work item is about; a null
--- asset_id clears it. target_type is booking_resource or work_item.
+-- asset_id clears it. target_type is booking_resource or task.
 create or replace function "better_supabase"."set_asset_link"(target_type text, target_id uuid, asset_id uuid default null)
 returns jsonb
 language plpgsql
@@ -864,10 +864,10 @@ begin
   case set_asset_link.target_type
   when 'booking_resource' then
     select y."tenant_id" into v_tenant from "better_supabase"."booking_resources" y where y."id" = set_asset_link.target_id;
-  when 'task', 'work_item' then
+  when 'task' then
     select y."tenant_id" into v_tenant from "better_supabase"."work_items" y where y."id" = set_asset_link.target_id;
   else
-    raise exception 'target_type must be booking_resource or work_item' using errcode = '22023', hint = 'ASSETS_LINK_UNSUPPORTED';
+    raise exception 'target_type must be booking_resource or task' using errcode = '22023', hint = 'ASSETS_LINK_UNSUPPORTED';
   end case;
   if v_tenant is null then
     raise exception 'the record to link doesn''t exist' using errcode = 'P0002', hint = 'ASSETS_LINK_TARGET_NOT_FOUND';
@@ -883,7 +883,7 @@ begin
   if set_asset_link.target_type = 'booking_resource' then
     update "better_supabase"."booking_resources" y set asset_id = set_asset_link.asset_id where y."id" = set_asset_link.target_id;
   end if;
-  if set_asset_link.target_type in ('task', 'work_item') then
+  if set_asset_link.target_type in ('task') then
     update "better_supabase"."work_items" y set asset_id = set_asset_link.asset_id where y."id" = set_asset_link.target_id;
   end if;
   return jsonb_build_object('targetType', set_asset_link.target_type, 'targetId', set_asset_link.target_id, 'assetId', set_asset_link.asset_id);

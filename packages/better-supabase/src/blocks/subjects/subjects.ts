@@ -53,7 +53,7 @@ export interface RecordSummaryOptions {
 }
 
 /** One thing waiting on the caller, from `my_work`. */
-export interface MyWorkItem {
+export interface MyTask {
   readonly kind: MyWorkKind;
   /** The record it is about: the work item, or the approval's subject. */
   readonly subject: RecordRef;
@@ -152,7 +152,7 @@ export interface Subjects {
    * work items assigned to them, approvals they can decide, their reminders
    * sent this week, recent mentions and SLA clocks warned on their work.
    */
-  myWork(options?: MyWorkOptions): AsyncResult<readonly MyWorkItem[]>;
+  myWork(options?: MyWorkOptions): AsyncResult<readonly MyTask[]>;
   /**
    * The record's team, for types with `config.subjects.<type>.team`: add, end
    * and list memberships, and the records the caller is on the team of. `hooks`
@@ -222,7 +222,7 @@ function summaryOf(value: unknown): RecordSummary | undefined {
       };
 }
 
-function workOf(value: unknown): MyWorkItem | undefined {
+function workOf(value: unknown): MyTask | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -249,7 +249,7 @@ function workOf(value: unknown): MyWorkItem | undefined {
   };
 }
 
-const workList = (value: unknown): MyWorkItem[] =>
+const workList = (value: unknown): MyTask[] =>
   (Array.isArray(value) ? value : []).flatMap((row) => {
     const item = workOf(row);
 

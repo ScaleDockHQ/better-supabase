@@ -1,8 +1,7 @@
-import type { WorkItem, WorkItemState } from "better-supabase/blocks/tasks";
-
 import * as v from "valibot";
 
 import type { Search } from "@/i18n/navigation";
+import type { WorkItem, WorkItemState } from "@/lib/supabase/blocks.generated";
 
 export const WORK_ITEM_SUBJECT = "work_item";
 

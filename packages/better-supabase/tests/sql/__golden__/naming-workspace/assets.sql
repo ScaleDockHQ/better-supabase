@@ -1,7 +1,7 @@
 -- ==== schema supabase/schemas/900_better_supabase_114_assets.sql
 -- better-supabase module: assets
 -- @bsb-block assets@1 managed
--- @bsb-hash sha256:bc2ac5fd89ac439d3a204619f751a4a80a56b08e51636a63ee788eb01f246002
+-- @bsb-hash sha256:575ab08f51b1a19f0dd7fa597a20ec17ca220762a9f665ea62fed76c32ebfc8d
 -- A location hierarchy (site, building, unit) and an asset registry with tags, status, coordinates and assignment to members or records. Optional PostGIS stores points and areas as geography; bookings resources and work items can name an asset.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -618,7 +618,7 @@ begin
     )
     select jsonb_agg(jsonb_build_object('id', up.id, 'kind', up.kind, 'name', up.name) order by up.depth desc) from up
   ), '[]'::jsonb) end,
-    'links', jsonb_build_object('bookingResources', '[]'::jsonb, 'workItems', '[]'::jsonb));
+    'links', jsonb_build_object('bookingResources', '[]'::jsonb, 'tasks', '[]'::jsonb));
 end;
 $$;
 revoke execute on function "better_supabase"."get_asset"(uuid) from public, anon;
@@ -767,7 +767,7 @@ revoke execute on function "better_supabase"."asset_locations_at"(uuid, double p
 grant execute on function "better_supabase"."asset_locations_at"(uuid, double precision, double precision) to authenticated, service_role;
 
 -- Names the asset a booking resource or a work item is about; a null
--- asset_id clears it. target_type is booking_resource or work_item.
+-- asset_id clears it. target_type is booking_resource or task.
 create or replace function "better_supabase"."set_asset_link"(target_type text, target_id uuid, asset_id uuid default null)
 returns jsonb
 language plpgsql

@@ -45,14 +45,14 @@ import type {
   employeeInputSchema,
 } from "../../src/blocks/employees/schemas.ts";
 import type {
-  workItemChangeSchema,
-  workItemInputSchema,
-  workItemListFilterSchema,
+  taskChangeSchema,
+  taskInputSchema,
+  taskListFilterSchema,
 } from "../../src/blocks/tasks/schemas.ts";
 import type {
-  WorkItemChange,
-  WorkItemInput,
-  WorkItemListOptions,
+  TaskChange,
+  TaskInput,
+  TaskListOptions,
 } from "../../src/blocks/tasks/tasks.ts";
 
 import { entitySchema } from "../../src/blocks/entity-schema.ts";
@@ -68,14 +68,14 @@ interface Note {
 describe("entitySchema", () => {
   it("outputs the hand-written types", () => {
     expectTypeOf<
-      StandardSchemaV1.InferOutput<typeof workItemInputSchema>
-    >().toEqualTypeOf<WorkItemInput>();
+      StandardSchemaV1.InferOutput<typeof taskInputSchema>
+    >().toEqualTypeOf<TaskInput>();
     expectTypeOf<
-      StandardSchemaV1.InferOutput<typeof workItemChangeSchema>
-    >().toEqualTypeOf<WorkItemChange>();
+      StandardSchemaV1.InferOutput<typeof taskChangeSchema>
+    >().toEqualTypeOf<TaskChange>();
     expectTypeOf<
-      StandardSchemaV1.InferOutput<typeof workItemListFilterSchema>
-    >().toEqualTypeOf<WorkItemListOptions>();
+      StandardSchemaV1.InferOutput<typeof taskListFilterSchema>
+    >().toEqualTypeOf<TaskListOptions>();
   });
 
   it("outputs the other entity blocks' types", () => {

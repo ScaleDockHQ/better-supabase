@@ -1,7 +1,7 @@
 export {
   createSubjects,
   MY_WORK_LIMIT,
-  type MyWorkItem,
+  type MyTask,
   type MyWorkOptions,
   type ResolvedSubject,
   SUBJECT_TITLES_LIMIT,

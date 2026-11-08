@@ -21,12 +21,7 @@ import { moduleOperations } from "./permissions-model.ts";
 
 const NAMES: BlockSqlNames = {
   entities: {
-    goal: {
-      table: "targets",
-      singular: "goal",
-      formerly: "target",
-      primary: true,
-    },
+    goal: { table: "targets", singular: "goal", keyed: true, primary: true },
   },
   options: [],
   tables: {
@@ -82,8 +77,7 @@ function metrics(
     const items = ctx.of("tasks");
     const w = (column: string): string => `w.${items.col("items", column)}`;
     const a = (column: string): string => `a.${items.col("assignees", column)}`;
-    out["work_items.completed"] =
-      `(select count(*) from ${items.table("items")} w
+    out["tasks.completed"] = `(select count(*) from ${items.table("items")} w
       where ${w("tenant")} = x.${c("tenant")} and ${w("state")} = 'completed' and ${window(w("closedAt"))}${
         ctx.has("targets", "team")
           ? `

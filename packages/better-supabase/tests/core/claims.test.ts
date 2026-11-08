@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { claimPaths } from "../../src/config/index.ts";
-import { DEFAULT_CLAIMS, claimsOf } from "../../src/core/claims.ts";
+import { DEFAULT_CLAIMS, claimAt, claimsOf } from "../../src/core/claims.ts";
 
 describe("claimsOf", () => {
   it("returns the defaults without configured claims", () => {
@@ -34,5 +34,18 @@ describe("claimPaths", () => {
       permissions: "perms",
       permissionsTruncated: "perms_truncated",
     });
+  });
+});
+
+describe("claimAt", () => {
+  it("reads dotted paths beyond the segment cache", () => {
+    const claims = { a: { b: "x" } };
+
+    for (let index = 0; index < 300; index += 1) {
+      expect(claimAt(claims, `missing${String(index)}.b`)).toBeUndefined();
+    }
+
+    expect(claimAt(claims, "a.b")).toBe("x");
+    expect(claimAt(claims, "a.b")).toBe("x");
   });
 });

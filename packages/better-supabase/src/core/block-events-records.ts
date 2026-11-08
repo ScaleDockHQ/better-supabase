@@ -191,9 +191,9 @@ export interface DealEventData extends SubjectEventData {
 }
 
 /** Events from the tasks module. */
-export interface WorkItemEventData extends SubjectEventData {
+export interface TaskEventData extends SubjectEventData {
   readonly organizationId: string;
-  readonly workItemId: string;
+  readonly taskId: string;
   readonly title: string;
   /** For `task.updated`: the fields the batch changed. */
   readonly fields?: readonly string[];

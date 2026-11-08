@@ -91,7 +91,7 @@ const NAMES: BlockSqlNames = {
     incident_postmortem: {
       table: "postmortems",
       singular: "incident_postmortem",
-      formerly: "postmortem",
+      keyed: true,
     },
     status_page: { table: "pages", singular: "status_page" },
   },

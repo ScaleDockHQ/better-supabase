@@ -142,7 +142,7 @@ begin
   end if;
   select id into v_done from public.board_columns where board_id = v_board and outcome = 'success' limit 1;
   v_result := better_supabase.update_tasks(jsonb_build_array(
-    jsonb_build_object('workItemId', v_item, 'field', 'stageId', 'value', v_done)));
+    jsonb_build_object('taskId', v_item, 'field', 'stageId', 'value', v_done)));
   if jsonb_array_length(v_result -> 'rejected') <> 0 then
     raise exception 'move %', v_result;
   end if;

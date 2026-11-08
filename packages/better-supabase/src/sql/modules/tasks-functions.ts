@@ -16,10 +16,10 @@ import { asText } from "./over-app.ts";
 import {
   itemExtrasJson,
   linkAttachmentsSql,
-  workItemExtraFunctions,
+  taskExtraFunctions,
 } from "./tasks-extras.ts";
 
-export interface WorkItemNames {
+export interface TaskNames {
   readonly fn: (name: string) => string;
   readonly t: (table: string) => string;
   readonly c: (table: string, column: string) => string;
@@ -43,7 +43,7 @@ export interface WorkItemNames {
   readonly extras: readonly ExtraColumn[];
   /**
    * An entity name, event type or payload key after `blocks.tasks.names`:
-   * `work_item` to `task`, `projectId` to `initiativeId`.
+   * `task` to `ticket`, `projectId` to `initiativeId`.
    */
   readonly e: (name: string) => string;
   /** The subject type of a task (`task`, or its renamed singular). */
@@ -117,15 +117,12 @@ function fields(
   ];
 }
 
-export function workItemFunctions(
-  ctx: BlockSqlContext,
-  n: WorkItemNames,
-): string {
+export function taskFunctions(ctx: BlockSqlContext, n: TaskNames): string {
   const { fn, t, c, e } = n;
   const w = (column: string): string => c("items", column);
   const a = (column: string): string => c("assignees", column);
   const item = sqlString(n.type);
-  const itemId = sqlString(e("workItemId"));
+  const itemId = sqlString(e("taskId"));
   const has = (logical: string): boolean => ctx.has("items", logical);
 
   const state = (value: string, labels: readonly string[], negate = false) =>
@@ -191,8 +188,8 @@ export function workItemFunctions(
   const record = (type: string, alias: string, extra = ""): string =>
     ctx.record({
       type,
-      payload: `jsonb_build_object('organizationId', ${alias}.${w("tenant")}, 'workItemId', ${alias}.${w("id")}, 'subjectType', ${item}, 'subjectId', ${alias}.${w("id")}::text, 'title', ${alias}.${w("title")}${extra})`,
-      subject: `'work-items/' || ${alias}.${w("id")}::text`,
+      payload: `jsonb_build_object('organizationId', ${alias}.${w("tenant")}, 'taskId', ${alias}.${w("id")}, 'subjectType', ${item}, 'subjectId', ${alias}.${w("id")}::text, 'title', ${alias}.${w("title")}${extra})`,
+      subject: `'tasks/' || ${alias}.${w("id")}::text`,
       tenant: `${alias}.${w("tenant")}::text`,
       audit: false,
       ...(n.templates ? { live: `${alias}.${w("template")} is null` } : {}),
@@ -244,7 +241,7 @@ export function workItemFunctions(
   if cardinality(v_new) > 0 then
     ${ctx.notify(
       `jsonb_build_object(
-      'type', ${sqlString(e("work_item.assigned"))},
+      'type', ${sqlString(e("task.assigned"))},
       'tenant', v_row.${w("tenant")},
       'actor', auth.uid(),
       'subject_type', ${item},
@@ -509,7 +506,7 @@ begin
   ])}
   ${assignNumberSql(
     ctx,
-    e("work_item"),
+    e("task"),
     "create_task.tenant",
     { seq: "v_seq", identifier: "v_identifier" },
     {
@@ -628,8 +625,8 @@ end;
 $$;
 ${userGrant(`${fn("create_task")}(${ctx.idType}, jsonb, uuid[])`)}
 
--- Applies a batch of { workItemId, field, value } changes, each on its
--- own. Returns { accepted: [{ workItemId, field }], rejected: [{ workItemId,
+-- Applies a batch of { taskId, field, value } changes, each on its
+-- own. Returns { accepted: [{ taskId, field }], rejected: [{ taskId,
 -- field, hint, reason }] }. With atomic, the first change that fails raises
 -- its error and no change is kept. The window field ({ startAt, endAt })
 -- writes both ends in one update, so the end-after-start check sees both.
@@ -653,7 +650,7 @@ declare
   v_linked integer;
 begin
   if jsonb_typeof(coalesce(update_tasks.changes, '[]')) <> 'array' then
-    ${fail("TASK_CHANGES_INVALID", `changes must be a list of { ${e("workItemId")}, field, value }`, "22023")}
+    ${fail("TASK_CHANGES_INVALID", `changes must be a list of { ${e("taskId")}, field, value }`, "22023")}
   end if;
   for v_change in select value from jsonb_array_elements(update_tasks.changes) loop
     v_field := v_change ->> 'field';
@@ -697,7 +694,7 @@ ${userGrant(`${fn("update_tasks")}(jsonb, boolean)`)}
 -- Replaces an item's assignees. Each one watches the item, and those who
 -- weren't assigned before are notified. task.assigned is recorded only
 -- when the call adds someone, with addedIds.
-create or replace function ${fn("set_task_assignees")}(work_item uuid, users uuid[])
+create or replace function ${fn("set_task_assignees")}(task uuid, users uuid[])
 returns integer
 language plpgsql
 security definer
@@ -708,7 +705,7 @@ declare
   v_users uuid[] := array(select distinct x from unnest(coalesce(set_task_assignees.users, '{}')) x where x is not null);
   v_added uuid[];${notify === "" ? "" : "\n  v_new uuid[];\n  v_claims text;"}${watch === "" ? "" : "\n  v_user uuid;"}
 begin
-  select * into v_row from ${t("items")} x where x.${w("id")} = set_task_assignees.work_item and ${editable("x")};
+  select * into v_row from ${t("items")} x where x.${w("id")} = set_task_assignees.task and ${editable("x")};
   if v_row.${w("id")} is null then
     ${fail("TASK_NOT_FOUND", "no such work item you can edit", "P0002")}
   end if;${limit}${
@@ -739,7 +736,7 @@ end;
 $$;
 ${userGrant(`${fn("set_task_assignees")}(uuid, uuid[])`)}
 
-create or replace function ${fn("archive_task")}(work_item uuid, archived boolean)
+create or replace function ${fn("archive_task")}(task uuid, archived boolean)
 returns boolean
 language plpgsql
 security definer
@@ -749,7 +746,7 @@ declare
   v_row ${t("items")};
 begin
   update ${t("items")} x set ${w("archivedAt")} = case when archive_task.archived then coalesce(x.${w("archivedAt")}, now()) end
-  where x.${w("id")} = archive_task.work_item and ${editable("x")}
+  where x.${w("id")} = archive_task.task and ${editable("x")}
   returning * into v_row;
   if v_row.${w("id")} is null then
     return false;
@@ -795,8 +792,8 @@ end;
 $$;
 ${userGrant(`${fn("archive_tasks")}(uuid[], boolean)`)}
 
--- Deletes an item and its children. Needs work_items.manage, or its author.
-create or replace function ${fn("delete_task")}(work_item uuid)
+-- Deletes an item and its children. Needs tasks.manage, or its author.
+create or replace function ${fn("delete_task")}(task uuid)
 returns boolean
 language plpgsql
 security definer
@@ -806,7 +803,7 @@ declare
   v_row ${t("items")};
 begin
   delete from ${t("items")} x
-  where x.${w("id")} = delete_task.work_item
+  where x.${w("id")} = delete_task.task
     and (${n.service} or ${has("createdBy") && n.authorCanDelete ? `x.${w("createdBy")} = auth.uid() or` : ""} ${ctx.scope.can(`x.${w("tenant")}`, n.remove)})
   returning * into v_row;
   if v_row.${w("id")} is null then
@@ -909,7 +906,7 @@ as $$
   ) p
 $$;
 ${userGrant(`${fn("list_tasks")}(${ctx.idType}, jsonb, text, uuid, integer)`)}
-${cloneTask(ctx, n, fn, t, w, a, row)}${workItemExtraFunctions(ctx, n, row, record)}${projects}${iterations}`;
+${cloneTask(ctx, n, fn, t, w, a, row)}${taskExtraFunctions(ctx, n, row, record)}${projects}${iterations}`;
 }
 
 /**
@@ -918,7 +915,7 @@ ${cloneTask(ctx, n, fn, t, w, a, row)}${workItemExtraFunctions(ctx, n, row, reco
  */
 function cloneTask(
   ctx: BlockSqlContext,
-  n: WorkItemNames,
+  n: TaskNames,
   fn: (name: string) => string,
   t: (table: string) => string,
   w: (column: string) => string,

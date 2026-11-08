@@ -1,8 +1,8 @@
 import "server-only";
-import type { WorkItemListOptions } from "better-supabase/blocks/tasks";
-
 import { tenantOf } from "better-supabase/next";
 import { unstable_rethrow } from "next/navigation";
+
+import type { WorkItemListOptions } from "@/lib/supabase/blocks.generated";
 
 import { getMembers } from "@/features/organization/organization-queries";
 import { bsb } from "@/lib/supabase/server";

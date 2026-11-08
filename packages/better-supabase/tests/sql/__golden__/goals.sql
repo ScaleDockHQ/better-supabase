@@ -141,7 +141,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_100_goals.sql
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:57e823fdd7c285fec5c47219f71184e23f30ee8fdfce4293ce82407146322022
+-- @bsb-hash sha256:13ff18d42beee136b05570dfa647b57c0a990fbaf685e50f04c762024db9d166
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -223,7 +223,7 @@ revoke execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) from
 grant execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- The targets whose period contains on, with their actual value and
--- attainment. Built-in metrics: deals.won_amount, deals.won_count, work_items.completed, invoices.paid_amount. Others read actual.
+-- attainment. Built-in metrics: deals.won_amount, deals.won_count, tasks.completed, invoices.paid_amount. Others read actual.
 create or replace function "better_supabase"."goal_progress"(tenant uuid, on_date date, owner uuid)
 returns jsonb
 language sql
@@ -240,7 +240,7 @@ as $$
         and (x."owner_id" is null or d."owner_id" = x."owner_id") and d."currency" = x."currency")
         when 'deals.won_count' then (select count(*) from "better_supabase"."deals" d where d."tenant_id" = x."tenant_id" and d."outcome" = 'won' and d."closed_at"::date between x."period_start" and x."period_end"
         and (x."owner_id" is null or d."owner_id" = x."owner_id"))
-        when 'work_items.completed' then (select count(*) from "better_supabase"."tasks" w
+        when 'tasks.completed' then (select count(*) from "better_supabase"."tasks" w
       where w."tenant_id" = x."tenant_id" and w."state" = 'completed' and w."closed_at"::date between x."period_start" and x."period_end"
         and (x."team_id" is null or w."team_id" = x."team_id")
         and (x."owner_id" is null or exists (select 1 from "better_supabase"."task_assignees" a where a."task_id" = w."id" and a."user_id" = x."owner_id")))

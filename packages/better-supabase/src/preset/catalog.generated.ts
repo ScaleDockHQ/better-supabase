@@ -1941,7 +1941,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "field_definition": {
             "table": "definitions",
             "singular": "field_definition",
-            "formerly": "field",
+            "keyed": true,
             "primary": true
           }
         },
@@ -4030,7 +4030,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "activity": {
             "table": "engagements",
             "singular": "activity",
-            "formerly": "engagement",
+            "keyed": true,
             "primary": true,
             "subject": {
               "title": "title",
@@ -4320,7 +4320,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "task": {
             "table": "items",
             "singular": "task",
-            "formerly": "work_item",
+            "keyed": true,
             "primary": true,
             "subject": {
               "title": "title",
@@ -4807,7 +4807,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "goal": {
             "table": "targets",
             "singular": "goal",
-            "formerly": "target",
+            "keyed": true,
             "primary": true
           }
         },
@@ -5370,7 +5370,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "automation": {
             "table": "rules",
             "singular": "automation",
-            "formerly": "rule",
+            "keyed": true,
             "primary": true
           }
         },
@@ -6606,7 +6606,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "contract_obligation": {
             "table": "obligations",
             "singular": "contract_obligation",
-            "formerly": "obligation"
+            "keyed": true
           }
         },
         "tables": {
@@ -6712,7 +6712,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "compliance_policy": {
             "table": "policies",
             "singular": "compliance_policy",
-            "formerly": "policy",
+            "keyed": true,
             "subject": {
               "title": "title",
               "permissions": {
@@ -6836,7 +6836,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "incident_postmortem": {
             "table": "postmortems",
             "singular": "incident_postmortem",
-            "formerly": "postmortem"
+            "keyed": true
           },
           "status_page": {
             "table": "pages",
@@ -7243,7 +7243,7 @@ export const PRESET_CATALOG: PresetCatalog = {
           "timeline_entry": {
             "table": "activity",
             "singular": "timeline_entry",
-            "formerly": "activity_entry",
+            "keyed": true,
             "primary": true
           }
         },
@@ -15746,40 +15746,10 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entityTypes": [
         {
-          "name": "CustomFields"
-        },
-        {
-          "name": "CustomFieldsEvents"
-        },
-        {
-          "name": "CustomFieldsOptions"
-        },
-        {
-          "name": "CustomFieldType"
-        },
-        {
           "name": "FieldDefinition"
         },
         {
           "name": "FieldDefinitionDetail"
-        },
-        {
-          "name": "FieldEntityScope"
-        },
-        {
-          "name": "FieldPack"
-        },
-        {
-          "name": "FieldPackField"
-        },
-        {
-          "name": "FieldPackInstall"
-        },
-        {
-          "name": "FieldValue"
-        },
-        {
-          "name": "SetFieldInput"
         }
       ],
       "record": [
@@ -18900,18 +18870,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "ContractStatusChangedEventData"
-        },
-        {
-          "name": "ObligationEventData"
-        },
-        {
-          "name": "ObligationInput"
-        },
-        {
-          "name": "ObligationListOptions"
-        },
-        {
-          "name": "ObligationStatus"
         }
       ],
       "entitySchemas": {
@@ -19318,18 +19276,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "EvidenceTaskMissedEventData"
-        },
-        {
-          "name": "Policy"
-        },
-        {
-          "name": "PolicyInput"
-        },
-        {
-          "name": "PolicyListOptions"
-        },
-        {
-          "name": "PolicyPublishedEventData"
         }
       ],
       "entitySchemas": {
@@ -19812,24 +19758,6 @@ export const PRESET_CATALOG: PresetCatalog = {
         },
         {
           "name": "IncidentUpdateInput"
-        },
-        {
-          "name": "Postmortem"
-        },
-        {
-          "name": "PostmortemAction"
-        },
-        {
-          "name": "PostmortemActionInput"
-        },
-        {
-          "name": "PostmortemInput"
-        },
-        {
-          "name": "PostmortemPublishedEventData"
-        },
-        {
-          "name": "PostmortemStatus"
         },
         {
           "name": "PublicIncident"
@@ -28650,33 +28578,14 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entityTypes": [
         {
-          "name": "Engagement",
+          "name": "Activities",
           "fields": true
         },
         {
-          "name": "EngagementActionItem"
+          "name": "ActivitiesEvents"
         },
         {
-          "name": "EngagementAudience"
-        },
-        {
-          "name": "EngagementInput",
-          "fields": true
-        },
-        {
-          "name": "EngagementNotes"
-        },
-        {
-          "name": "EngagementNotesInput"
-        },
-        {
-          "name": "EngagementRecording"
-        },
-        {
-          "name": "EngagementRecordingStatus"
-        },
-        {
-          "name": "EngagementSubject"
+          "name": "ActivitiesOptions"
         }
       ],
       "entitySchemas": {
@@ -30516,11 +30425,6 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "composedBy": [
         "collaboration"
-      ],
-      "entityTypes": [
-        {
-          "name": "ActivityEntry"
-        }
       ]
     },
     {
@@ -32666,100 +32570,19 @@ export const PRESET_CATALOG: PresetCatalog = {
       "provides": [],
       "entityTypes": [
         {
-          "name": "Rule"
+          "name": "Automations"
         },
         {
-          "name": "RuleAction"
+          "name": "AutomationsAdmin"
         },
         {
-          "name": "RuleActionOutcome"
+          "name": "AutomationsEvents"
         },
         {
-          "name": "RuleApprovals"
+          "name": "AutomationsOptions"
         },
         {
-          "name": "RuleBuilderActions"
-        },
-        {
-          "name": "RuleBuilderController"
-        },
-        {
-          "name": "RuleBuilderControllerOptions"
-        },
-        {
-          "name": "RuleBuilderSnapshot"
-        },
-        {
-          "name": "RuleDispatcher"
-        },
-        {
-          "name": "RuleDispatcherOptions"
-        },
-        {
-          "name": "RuleEvaluationEntry"
-        },
-        {
-          "name": "RuleEventData"
-        },
-        {
-          "name": "RuleField"
-        },
-        {
-          "name": "RuleFieldCatalog"
-        },
-        {
-          "name": "RuleFieldDefinition"
-        },
-        {
-          "name": "RuleFieldSetter"
-        },
-        {
-          "name": "RuleFieldWrite"
-        },
-        {
-          "name": "RuleInput"
-        },
-        {
-          "name": "RuleListOptions"
-        },
-        {
-          "name": "RuleMatch"
-        },
-        {
-          "name": "RuleMatchedEventData"
-        },
-        {
-          "name": "RuleNotifier"
-        },
-        {
-          "name": "RuleRun"
-        },
-        {
-          "name": "RulesAdminOptions"
-        },
-        {
-          "name": "RuleSinkEvent"
-        },
-        {
-          "name": "RuleSinkOptions"
-        },
-        {
-          "name": "RuleSinkTarget"
-        },
-        {
-          "name": "RuleSubject"
-        },
-        {
-          "name": "RuleSubjectContext"
-        },
-        {
-          "name": "RuleVersion"
-        },
-        {
-          "name": "RuleWebhooks"
-        },
-        {
-          "name": "RuleWorkflows"
+          "name": "DefaultAutomation"
         }
       ],
       "events": {
@@ -33332,19 +33155,11 @@ export const PRESET_CATALOG: PresetCatalog = {
       ],
       "entityTypes": [
         {
-          "name": "Target",
+          "name": "Goals",
           "fields": true
         },
         {
-          "name": "TargetInput",
-          "fields": true
-        },
-        {
-          "name": "TargetMetric"
-        },
-        {
-          "name": "TargetProgress",
-          "fields": true
+          "name": "GoalsOptions"
         }
       ]
     },
@@ -33859,61 +33674,77 @@ export const PRESET_CATALOG: PresetCatalog = {
           "name": "Project"
         },
         {
-          "name": "WorkItem",
+          "name": "Task",
           "fields": true
         },
         {
-          "name": "WorkItemChange",
+          "name": "TaskChange",
           "fields": true
         },
         {
-          "name": "WorkItemChangeResult"
+          "name": "TaskChangeResult"
         },
         {
-          "name": "WorkItemChecklistOptimisticAction"
+          "name": "TaskChecklistOptimisticAction"
         },
         {
-          "name": "WorkItemField"
+          "name": "TaskField"
         },
         {
-          "name": "WorkItemInput",
+          "name": "TaskFromConversationClients"
+        },
+        {
+          "name": "TaskFromConversationOptions"
+        },
+        {
+          "name": "TaskInput",
           "fields": true
         },
         {
-          "name": "WorkItemListOptions"
+          "name": "TaskListOptions"
         },
         {
-          "name": "WorkItemNode"
+          "name": "TaskNode"
         },
         {
-          "name": "WorkItemRecurrence"
+          "name": "TaskRecurrence"
         },
         {
-          "name": "WorkItemRecurrenceSinkOptions"
+          "name": "TaskRecurrenceSinkOptions"
         },
         {
-          "name": "WorkItemSetResult"
+          "name": "Tasks",
+          "fields": true
         },
         {
-          "name": "WorkItemState"
+          "name": "TaskSetResult"
         },
         {
-          "name": "WorkItemUpdateOptions"
+          "name": "TasksEvents"
         },
         {
-          "name": "WorkItemWatcher"
+          "name": "TasksOptions"
         },
         {
-          "name": "WorkItemWatchLevel"
+          "name": "TaskState"
         },
         {
-          "name": "WorkItemWindow"
+          "name": "TaskUpdateOptions"
+        },
+        {
+          "name": "TaskWatcher"
+        },
+        {
+          "name": "TaskWatchLevel"
+        },
+        {
+          "name": "TaskWindow"
         }
       ],
       "entitySchemas": {
         "task": {
           "input": {
-            "title": "WorkItemInput",
+            "title": "TaskInput",
             "fields": {
               "title": {
                 "kind": "string",
@@ -33990,7 +33821,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             },
             "jsonSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "WorkItemInput",
+              "title": "TaskInput",
               "type": "object",
               "properties": {
                 "title": {
@@ -34069,9 +33900,9 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           },
           "change": {
-            "title": "WorkItemChange",
+            "title": "TaskChange",
             "fields": {
-              "workItemId": {
+              "taskId": {
                 "kind": "uuid"
               },
               "field": {
@@ -34085,10 +33916,10 @@ export const PRESET_CATALOG: PresetCatalog = {
             },
             "jsonSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "WorkItemChange",
+              "title": "TaskChange",
               "type": "object",
               "properties": {
-                "workItemId": {
+                "taskId": {
                   "type": "string",
                   "format": "uuid"
                 },
@@ -34101,7 +33932,7 @@ export const PRESET_CATALOG: PresetCatalog = {
                 }
               },
               "required": [
-                "workItemId",
+                "taskId",
                 "field",
                 "value"
               ],
@@ -34109,7 +33940,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             }
           },
           "listFilter": {
-            "title": "WorkItemListOptions",
+            "title": "TaskListOptions",
             "fields": {
               "teamId": {
                 "kind": "uuid",
@@ -34164,7 +33995,7 @@ export const PRESET_CATALOG: PresetCatalog = {
             },
             "jsonSchema": {
               "$schema": "https://json-schema.org/draft/2020-12/schema",
-              "title": "WorkItemListOptions",
+              "title": "TaskListOptions",
               "type": "object",
               "properties": {
                 "teamId": {

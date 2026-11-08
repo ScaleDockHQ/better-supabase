@@ -4,7 +4,7 @@ import type { ChecklistItem, Tasks } from "./tasks.ts";
 import { defineRecordBinding } from "../record-bindings.ts";
 
 /** A pending write to a work item's checklist, for `useOptimistic`. */
-export type WorkItemChecklistOptimisticAction =
+export type TaskChecklistOptimisticAction =
   | { readonly type: "save"; readonly item: ChecklistItem }
   | { readonly type: "remove"; readonly id: string };
 
@@ -15,9 +15,9 @@ const byRank = (left: ChecklistItem, right: ChecklistItem): number =>
  * The checklist with a pending write applied: `save` adds the item or replaces
  * the one with the same id, kept in rank order; `remove` takes it out.
  */
-export function workItemChecklistOptimistic(
+export function taskChecklistOptimistic(
   state: readonly ChecklistItem[],
-  action: WorkItemChecklistOptimisticAction,
+  action: TaskChecklistOptimisticAction,
 ): readonly ChecklistItem[] {
   switch (action.type) {
     case "save": {
@@ -48,10 +48,10 @@ export const taskChecklistBinding: RecordBinding<
   Tasks,
   readonly ChecklistItem[],
   never,
-  WorkItemChecklistOptimisticAction
+  TaskChecklistOptimisticAction
 > = defineRecordBinding({
   permissions: { read: "read", write: "write" },
   load: (client: Tasks, subject) => client.checklist(subject.id),
   events: ["task.updated"],
-  optimistic: workItemChecklistOptimistic,
+  optimistic: taskChecklistOptimistic,
 });

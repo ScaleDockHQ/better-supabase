@@ -109,10 +109,7 @@ type FormsFor<
   ? [...FormsOf<Head["from"][N], Head["to"][N]>, ...FormsFor<Tail, N>]
   : [];
 
-/**
- * Every form of every rename, plurals first so `work_items` wins over
- * `work_item`.
- */
+/** Every form of every rename, plurals first so `tasks` wins over `task`. */
 type FormsOfRenames<R extends NounRenames> = [
   ...FormsFor<R, "plural">,
   ...FormsFor<R, "singular">,
@@ -266,8 +263,7 @@ type RenamedValue<
 /**
  * `T` with every key renamed through `R`, nested up to six levels: rows, inputs
  * and filters. The values under `fields` and `metadata` keep their keys.
- * `RenamedType<WorkItem, R>` has `initiativeId` where `WorkItem` has
- * `projectId`.
+ * `RenamedType<Task, R>` has `initiativeId` where `Task` has `projectId`.
  */
 export type RenamedType<T, R extends NounRenames> = R extends readonly []
   ? T

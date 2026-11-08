@@ -33,7 +33,7 @@ import {
 import { strictChanges } from "../strict-changes.ts";
 
 /** The state a stage's category sets; `completed` and `canceled` are closed. */
-export type WorkItemState =
+export type TaskState =
   | "triage"
   | "backlog"
   | "unstarted"
@@ -41,7 +41,7 @@ export type WorkItemState =
   | "completed"
   | "canceled";
 
-const STATES: readonly WorkItemState[] = [
+const STATES: readonly TaskState[] = [
   "triage",
   "backlog",
   "unstarted",
@@ -53,7 +53,7 @@ const STATES: readonly WorkItemState[] = [
 export type CloseReason = "completed" | "not_planned" | "duplicate";
 
 /** A work item. `F` types the extra columns the `fields` schema describes. */
-export interface WorkItem<F extends object = Record<never, never>> {
+export interface Task<F extends object = Record<never, never>> {
   readonly id: string;
   readonly organizationId: string;
   readonly number: bigint;
@@ -76,7 +76,7 @@ export interface WorkItem<F extends object = Record<never, never>> {
   readonly pipelineId?: string;
   readonly stageId?: string;
   readonly stageEnteredAt?: Temporal.Instant;
-  readonly state: WorkItemState;
+  readonly state: TaskState;
   readonly closeReason?: CloseReason;
   readonly closedAt?: Temporal.Instant;
   /** A locked item keeps its dates, as a locked Gantt bar. */
@@ -86,7 +86,7 @@ export interface WorkItem<F extends object = Record<never, never>> {
   /** How many checklist items it has, and how many are done. */
   readonly checklist: { readonly total: number; readonly done: number };
   /** Its repeat rule, with the reminders block. */
-  readonly recurrence?: WorkItemRecurrence;
+  readonly recurrence?: TaskRecurrence;
   /** The item this one repeats. */
   readonly recursFromId?: string;
   /** The extra columns, keyed by database name. */
@@ -97,14 +97,14 @@ export interface WorkItem<F extends object = Record<never, never>> {
 }
 
 /** What the set forms of `archive` and `remove` did. */
-export interface WorkItemSetResult {
+export interface TaskSetResult {
   /** The items that were changed. */
   readonly ids: readonly string[];
   /** The ids that don't exist or that the caller can't change. */
   readonly skipped: readonly string[];
 }
 
-export interface WorkItemInput<F extends object = Record<never, never>> {
+export interface TaskInput<F extends object = Record<never, never>> {
   readonly title: string;
   readonly body?: string;
   readonly parentId?: string;
@@ -128,7 +128,7 @@ export interface WorkItemInput<F extends object = Record<never, never>> {
   readonly fields?: Partial<F>;
 }
 
-export type WorkItemField =
+export type TaskField =
   | "title"
   | "body"
   | "parentId"
@@ -151,12 +151,12 @@ export type WorkItemField =
  * the window never fails the end-after-start check halfway. A key left out
  * keeps its value, and `null` clears it.
  */
-export interface WorkItemWindow {
+export interface TaskWindow {
   readonly startAt?: Temporal.Instant | null;
   readonly endAt?: Temporal.Instant | null;
 }
 
-export interface WorkItemUpdateOptions {
+export interface TaskUpdateOptions {
   /**
    * Keep every change or none: the first change that fails rolls the batch back
    * and comes back as the error, instead of a `rejected` entry.
@@ -171,7 +171,7 @@ export interface WorkItemUpdateOptions {
 }
 
 /** A work item's repeat rule: an RFC 5545 RRULE from `dtstart` in `tzid`. */
-export interface WorkItemRecurrence {
+export interface TaskRecurrence {
   readonly rrule: string;
   readonly tzid: string;
   readonly dtstart: Temporal.Instant;
@@ -179,7 +179,7 @@ export interface WorkItemRecurrence {
 
 export interface ChecklistItem {
   readonly id: string;
-  readonly workItemId: string;
+  readonly taskId: string;
   readonly title: string;
   readonly done: boolean;
   readonly doneAt?: Temporal.Instant;
@@ -196,30 +196,30 @@ export interface ChecklistItemInput {
 }
 
 /** `all` watches, `participating` follows, `ignore` mutes. */
-export type WorkItemWatchLevel = "all" | "participating" | "ignore";
+export type TaskWatchLevel = "all" | "participating" | "ignore";
 
-export interface WorkItemWatcher {
+export interface TaskWatcher {
   readonly userId: string;
-  readonly level: Exclude<WorkItemWatchLevel, "ignore">;
+  readonly level: Exclude<TaskWatchLevel, "ignore">;
 }
 
 /**
  * One cell edit or drag: a built-in field or an extra column. `null` clears the
  * field.
  */
-export interface WorkItemChange<F extends object = Record<never, never>> {
-  readonly workItemId: string;
-  readonly field: WorkItemField | (keyof F & string);
+export interface TaskChange<F extends object = Record<never, never>> {
+  readonly taskId: string;
+  readonly field: TaskField | (keyof F & string);
   readonly value: unknown;
 }
 
-export interface WorkItemChangeResult {
+export interface TaskChangeResult {
   readonly accepted: readonly {
-    readonly workItemId: string;
+    readonly taskId: string;
     readonly field: string;
   }[];
   readonly rejected: readonly {
-    readonly workItemId: string;
+    readonly taskId: string;
     readonly field: string;
     readonly hint?: string;
     readonly reason: string;
@@ -227,12 +227,12 @@ export interface WorkItemChangeResult {
 }
 
 /** A node of `tree`, for a Gantt chart or a nested list. */
-export interface WorkItemNode {
+export interface TaskNode {
   readonly id: string;
   readonly parentId?: string;
   readonly identifier: string;
   readonly title: string;
-  readonly state: WorkItemState;
+  readonly state: TaskState;
   readonly startAt?: Temporal.Instant;
   readonly endAt?: Temporal.Instant;
   readonly dueAt?: Temporal.Instant;
@@ -241,13 +241,13 @@ export interface WorkItemNode {
   readonly progress: number;
 }
 
-export interface WorkItemListOptions {
+export interface TaskListOptions {
   readonly teamId?: string;
   readonly projectId?: string;
   readonly iterationId?: string;
   readonly parentId?: string;
   readonly assigneeId?: string;
-  readonly states?: readonly WorkItemState[];
+  readonly states?: readonly TaskState[];
   /** Only items that aren't completed or canceled. */
   readonly open?: boolean;
   /** Matches the title, or the start of the identifier. */
@@ -289,10 +289,10 @@ export interface Tasks<F extends object = Record<never, never>> {
    */
   create(input: {
     organizationId: string;
-    input: WorkItemInput<F>;
+    input: TaskInput<F>;
     assigneeIds?: readonly string[] | undefined;
     custom?: Readonly<Record<string, string>> | undefined;
-  }): AsyncResult<WorkItem<F>>;
+  }): AsyncResult<Task<F>>;
   /**
    * Copies a task and its assignees, checklist and child tasks. `overrides`
    * replace the fields the caller edited. A template becomes a live task unless
@@ -301,24 +301,24 @@ export interface Tasks<F extends object = Record<never, never>> {
   clone(input: {
     sourceId: string;
     overrides?: Readonly<Record<string, unknown>> | undefined;
-  }): AsyncResult<WorkItem<F>>;
+  }): AsyncResult<Task<F>>;
   /** Extra column changes are validated with the `fields` schema first. */
   update(
-    input: { changes: readonly WorkItemChange<F>[] } & WorkItemUpdateOptions,
-  ): AsyncResult<WorkItemChangeResult>;
+    input: { changes: readonly TaskChange<F>[] } & TaskUpdateOptions,
+  ): AsyncResult<TaskChangeResult>;
   /**
    * Moves the item to `stageId` and returns the refusal as the error. It is
    * `update` with one `stageId` change and `strict`, so the `update` hooks see
    * the move.
    */
-  move(input: { workItemId: string; stageId: string }): AsyncResult<true>;
+  move(input: { taskId: string; stageId: string }): AsyncResult<true>;
   /** Replaces the assignees; new ones are notified and every one watches. */
   assign(input: {
-    workItemId: string;
+    taskId: string;
     userIds: readonly string[];
   }): AsyncResult<number>;
   archive(input: {
-    workItemId: string;
+    taskId: string;
     archived?: boolean | undefined;
   }): AsyncResult<boolean>;
   /**
@@ -326,19 +326,19 @@ export interface Tasks<F extends object = Record<never, never>> {
    * that don't exist or that you can't edit come back in `skipped`.
    */
   archive(input: {
-    workItemIds: readonly string[];
+    taskIds: readonly string[];
     archived?: boolean | undefined;
-  }): AsyncResult<WorkItemSetResult>;
-  remove(workItemId: string): AsyncResult<boolean>;
+  }): AsyncResult<TaskSetResult>;
+  remove(taskId: string): AsyncResult<boolean>;
   /** Removes many items in one statement; `skipped` lists the refused ids. */
-  remove(workItemIds: readonly string[]): AsyncResult<WorkItemSetResult>;
-  tree(rootId: string): AsyncResult<WorkItemNode[]>;
+  remove(taskIds: readonly string[]): AsyncResult<TaskSetResult>;
+  tree(rootId: string): AsyncResult<TaskNode[]>;
   /** One item you can read, or `undefined`. */
-  get(workItemId: string): AsyncResult<WorkItem<F> | undefined>;
-  checklist(workItemId: string): AsyncResult<ChecklistItem[]>;
+  get(taskId: string): AsyncResult<Task<F> | undefined>;
+  checklist(taskId: string): AsyncResult<ChecklistItem[]>;
   /** Adds a checklist item, or changes the one `checklistItemId` names. */
   saveChecklistItem(input: {
-    workItemId: string;
+    taskId: string;
     input: ChecklistItemInput;
     checklistItemId?: string | undefined;
   }): AsyncResult<ChecklistItem>;
@@ -348,23 +348,23 @@ export interface Tasks<F extends object = Record<never, never>> {
    * `taskRecurrenceSink` creates the next item when one is completed.
    */
   setRecurrence(input: {
-    workItemId: string;
+    taskId: string;
     rule: { readonly rrule: string; readonly tzid?: string } | null;
-  }): AsyncResult<WorkItemRecurrence | undefined>;
+  }): AsyncResult<TaskRecurrence | undefined>;
   /** Creates the next item of a repeating one. Service only, idempotent. */
   repeat(input: {
-    workItemId: string;
+    taskId: string;
     dueAt: Temporal.Instant;
-  }): AsyncResult<WorkItem<F>>;
+  }): AsyncResult<Task<F>>;
   /** Watches, follows or mutes an item (`null` clears). Needs notifications. */
   watch(input: {
-    workItemId: string;
-    level: WorkItemWatchLevel | null;
+    taskId: string;
+    level: TaskWatchLevel | null;
   }): AsyncResult<boolean>;
-  watchers(workItemId: string): AsyncResult<WorkItemWatcher[]>;
+  watchers(taskId: string): AsyncResult<TaskWatcher[]>;
   list(
-    input: { organizationId: string } & WorkItemListOptions,
-  ): AsyncResult<WorkItem<F>[]>;
+    input: { organizationId: string } & TaskListOptions,
+  ): AsyncResult<Task<F>[]>;
   saveProject(input: {
     organizationId: string;
     project: Partial<
@@ -390,24 +390,21 @@ export interface Tasks<F extends object = Record<never, never>> {
    * checks that the item is completed afterwards. A stage of another category
    * comes back as an `invalid_input` error (the item has moved by then).
    */
-  complete(input: { workItemId: string; stageId: string }): AsyncResult<true>;
+  complete(input: { taskId: string; stageId: string }): AsyncResult<true>;
   /** `complete` for a stage of the `canceled` category. */
-  cancel(input: { workItemId: string; stageId: string }): AsyncResult<true>;
+  cancel(input: { taskId: string; stageId: string }): AsyncResult<true>;
   /**
    * Adds `userId` to the item's assignees and keeps the others; `assign`
    * replaces them. The client has no signed-in user, so the caller passes its
    * id (`ctx.user.id` in an action). Returns the assignee count, and does
    * nothing when the user is already assigned.
    */
-  assignToMe(input: {
-    workItemId: string;
-    userId: string;
-  }): AsyncResult<number>;
+  assignToMe(input: { taskId: string; userId: string }): AsyncResult<number>;
   /**
    * Moves a closed item back to `stageId`, a stage of an open category, and
    * checks that it is open afterwards.
    */
-  reopen(input: { workItemId: string; stageId: string }): AsyncResult<true>;
+  reopen(input: { taskId: string; stageId: string }): AsyncResult<true>;
 }
 
 export interface TasksOptions<
@@ -432,7 +429,7 @@ export interface TasksOptions<
 }
 
 /** The fields `update` writes without the `fields` schema. */
-const BUILT_IN: ReadonlySet<string> = new Set<WorkItemField>([
+const BUILT_IN: ReadonlySet<string> = new Set<TaskField>([
   "title",
   "body",
   "parentId",
@@ -451,7 +448,7 @@ const BUILT_IN: ReadonlySet<string> = new Set<WorkItemField>([
 ]);
 
 /** The states of an item that is not closed. */
-const OPEN_STATES: readonly WorkItemState[] = [
+const OPEN_STATES: readonly TaskState[] = [
   "triage",
   "backlog",
   "unstarted",
@@ -505,7 +502,7 @@ function compact<T extends object>(value: Loose<T>): T {
 const idsOf = (value: unknown): string[] =>
   Array.isArray(value) ? value.map((each) => textOf(each)) : [];
 
-const setResultOf = (value: unknown): WorkItemSetResult => {
+const setResultOf = (value: unknown): TaskSetResult => {
   const row = isRecord(value) ? value : {};
 
   return { ids: idsOf(row["ids"]), skipped: idsOf(row["skipped"]) };
@@ -528,11 +525,11 @@ const date = (value: unknown): Temporal.PlainDate | undefined =>
     ? temporal().PlainDate.from(value.slice(0, 10))
     : undefined;
 
-function itemOf(value: unknown): WorkItem {
+function itemOf(value: unknown): Task {
   const row = recordOf(value, "work item");
   const reason = optionalText(row["close_reason"]);
 
-  return compact<WorkItem>({
+  return compact<Task>({
     id: textOf(row["id"]),
     organizationId: textOf(row["tenant_id"]),
     number: BigInt(textOf(row["number"])),
@@ -579,13 +576,13 @@ function itemOf(value: unknown): WorkItem {
   });
 }
 
-function checklistSummaryOf(value: unknown): WorkItem["checklist"] {
+function checklistSummaryOf(value: unknown): Task["checklist"] {
   const row = isRecord(value) ? value : {};
 
   return { total: num(row["total"]) ?? 0, done: num(row["done"]) ?? 0 };
 }
 
-function recurrenceOf(value: unknown): WorkItemRecurrence | undefined {
+function recurrenceOf(value: unknown): TaskRecurrence | undefined {
   if (!isRecord(value)) {
     return undefined;
   }
@@ -602,7 +599,7 @@ function checklistItemOf(value: unknown): ChecklistItem {
 
   return compact<ChecklistItem>({
     id: textOf(row["id"]),
-    workItemId: textOf(row["workItemId"]),
+    taskId: textOf(row["taskId"]),
     title: textOf(row["title"]),
     done: row["done"] === true,
     doneAt: optionalInstant(row["doneAt"]),
@@ -612,7 +609,7 @@ function checklistItemOf(value: unknown): ChecklistItem {
   });
 }
 
-function watcherOf(value: unknown): WorkItemWatcher {
+function watcherOf(value: unknown): TaskWatcher {
   const row = recordOf(value, "watcher");
 
   return {
@@ -625,10 +622,10 @@ function watcherOf(value: unknown): WorkItemWatcher {
   };
 }
 
-function nodeOf(value: unknown): WorkItemNode {
+function nodeOf(value: unknown): TaskNode {
   const row = recordOf(value, "work item node");
 
-  return compact<WorkItemNode>({
+  return compact<TaskNode>({
     id: textOf(row["id"]),
     parentId: optionalText(row["parentId"]),
     identifier: textOf(row["identifier"]),
@@ -715,13 +712,13 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
 
   /** Moves the item, then checks the state the stage's category gave it. */
   const settle = (
-    { workItemId, stageId }: { workItemId: string; stageId: string },
-    expected: readonly WorkItemState[],
+    { taskId, stageId }: { taskId: string; stageId: string },
+    expected: readonly TaskState[],
     label: string,
   ): AsyncResult<true> =>
     hooked
-      .move({ workItemId, stageId })
-      .andThen(() => hooked.get(workItemId))
+      .move({ taskId, stageId })
+      .andThen(() => hooked.get(taskId))
       .andThen((item) =>
         Promise.resolve(
           item !== undefined && expected.includes(item.state)
@@ -729,7 +726,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
             : err(
                 dbError(
                   "invalid_input",
-                  `Stage ${stageId} does not make work item ${workItemId} ${label}`,
+                  `Stage ${stageId} does not make work item ${taskId} ${label}`,
                 ),
               ),
         ),
@@ -814,7 +811,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
           "update_tasks",
           {
             changes: checked.map((change) => ({
-              workItemId: change.workItemId,
+              taskId: change.taskId,
               field: change.field,
               value:
                 change.field === "window" && isRecord(change.value)
@@ -828,12 +825,12 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
 
             return {
               accepted: recordsOf(row["accepted"], "accepted").map((item) => ({
-                workItemId: textOf(item["workItemId"]),
+                taskId: textOf(item["taskId"]),
                 field: textOf(item["field"]),
               })),
               rejected: recordsOf(row["rejected"], "rejected").map((item) =>
-                compact<WorkItemChangeResult["rejected"][number]>({
-                  workItemId: textOf(item["workItemId"]),
+                compact<TaskChangeResult["rejected"][number]>({
+                  taskId: textOf(item["taskId"]),
                   field: textOf(item["field"]),
                   hint: optionalText(item["hint"]),
                   reason: textOf(item["reason"]),
@@ -843,43 +840,43 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
           },
         ).andThen((result) => strictChanges(result, updateOptions.strict)),
       ),
-    move: ({ workItemId, stageId }) =>
+    move: ({ taskId, stageId }) =>
       hooked
         .update({
-          changes: [{ workItemId, field: "stageId", value: stageId }],
+          changes: [{ taskId, field: "stageId", value: stageId }],
           strict: true,
         })
         .map(() => true as const),
-    assign: ({ workItemId, userIds }) =>
+    assign: ({ taskId, userIds }) =>
       call(
         "set_task_assignees",
-        { work_item: workItemId, users: [...userIds] },
+        { task: taskId, users: [...userIds] },
         (value) => num(value) ?? 0,
       ),
     // SAFETY: the implementation handles both overloads of `archive`.
     archive: ((
       input:
-        | { workItemId: string; archived?: boolean | undefined }
-        | { workItemIds: readonly string[]; archived?: boolean | undefined },
+        | { taskId: string; archived?: boolean | undefined }
+        | { taskIds: readonly string[]; archived?: boolean | undefined },
     ) => {
       const archived = input.archived ?? true;
 
-      return "workItemIds" in input
+      return "taskIds" in input
         ? call(
             "archive_tasks",
-            { ids: [...input.workItemIds], archived },
+            { ids: [...input.taskIds], archived },
             setResultOf,
           )
         : call(
             "archive_task",
-            { work_item: input.workItemId, archived },
+            { task: input.taskId, archived },
             (value) => value === true,
           );
     }) as Tasks<F>["archive"],
     // SAFETY: the implementation handles both overloads of `remove`.
     remove: ((target: string | readonly string[]) =>
       typeof target === "string"
-        ? call("delete_task", { work_item: target }, (value) => value === true)
+        ? call("delete_task", { task: target }, (value) => value === true)
         : call(
             "delete_tasks",
             { ids: [...target] },
@@ -889,24 +886,20 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
       call("task_tree", { root: rootId }, (value) =>
         recordsOf(value, "task_tree").map(nodeOf),
       ),
-    get: (workItemId) =>
-      call("get_task", { work_item: workItemId }, (value) =>
+    get: (taskId) =>
+      call("get_task", { task: taskId }, (value) =>
         value === null || value === undefined ? undefined : itemOf(value),
       ).andThen((item) =>
         item === undefined ? AsyncResult.ok(undefined) : fields.row(item),
       ),
-    checklist: (workItemId) =>
-      call("list_task_checklist", { work_item: workItemId }, (value) =>
+    checklist: (taskId) =>
+      call("list_task_checklist", { task: taskId }, (value) =>
         recordsOf(value, "list_task_checklist").map(checklistItemOf),
       ),
-    saveChecklistItem: ({ workItemId, input, checklistItemId }) =>
+    saveChecklistItem: ({ taskId, input, checklistItemId }) =>
       call(
         "save_task_checklist_item",
-        {
-          work_item: workItemId,
-          checklist_item: checklistItemId ?? null,
-          attrs: input,
-        },
+        { task: taskId, checklist_item: checklistItemId ?? null, attrs: input },
         checklistItemOf,
       ),
     removeChecklistItem: (checklistItemId) =>
@@ -915,30 +908,22 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         { checklist_item: checklistItemId },
         (value) => value === true,
       ),
-    setRecurrence: ({ workItemId, rule }) =>
+    setRecurrence: ({ taskId, rule }) =>
       call(
         "set_task_recurrence",
-        {
-          work_item: workItemId,
-          rrule: rule?.rrule ?? null,
-          tzid: rule?.tzid ?? "UTC",
-        },
+        { task: taskId, rrule: rule?.rrule ?? null, tzid: rule?.tzid ?? "UTC" },
         recurrenceOf,
       ),
-    repeat: ({ workItemId, dueAt }) =>
+    repeat: ({ taskId, dueAt }) =>
       call(
         "repeat_task",
-        { work_item: workItemId, due_at: dueAt.toString() },
+        { task: taskId, due_at: dueAt.toString() },
         itemOf,
       ).andThen(fields.row),
-    watch: ({ workItemId, level }) =>
-      call(
-        "watch_task",
-        { work_item: workItemId, level },
-        (value) => value === true,
-      ),
-    watchers: (workItemId) =>
-      call("list_task_watchers", { work_item: workItemId }, (value) =>
+    watch: ({ taskId, level }) =>
+      call("watch_task", { task: taskId, level }, (value) => value === true),
+    watchers: (taskId) =>
+      call("list_task_watchers", { task: taskId }, (value) =>
         recordsOf(value, "list_task_watchers").map(watcherOf),
       ),
     list: ({ organizationId, ...list }) => {
@@ -989,11 +974,11 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
     complete: (input) => settle(input, ["completed"], "completed"),
     cancel: (input) => settle(input, ["canceled"], "canceled"),
     reopen: (input) => settle(input, OPEN_STATES, "open"),
-    assignToMe: ({ workItemId, userId }) =>
-      hooked.get(workItemId).andThen((item) => {
+    assignToMe: ({ taskId, userId }) =>
+      hooked.get(taskId).andThen((item) => {
         if (item === undefined) {
           return Promise.resolve(
-            err(dbError("not_found", `Work item ${workItemId} not found`)),
+            err(dbError("not_found", `Work item ${taskId} not found`)),
           );
         }
 
@@ -1002,7 +987,7 @@ export function createTasks<S extends StandardSchemaV1 | undefined = undefined>(
         }
 
         return hooked.assign({
-          workItemId,
+          taskId,
           userIds: [...item.assigneeIds, userId],
         });
       }),

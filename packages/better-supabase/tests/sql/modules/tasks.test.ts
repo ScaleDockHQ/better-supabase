@@ -74,7 +74,7 @@ describe("tasks module", () => {
     ).toContain("cardinality(v_users) > 1");
     expect(body("tasks")).not.toContain("TASK_ASSIGNEES_LIMIT");
     expect(body("tasks", {}, ["notifications"])).toContain(
-      "'type', 'work_item.assigned'",
+      "'type', 'task.assigned'",
     );
     expect(
       body(
@@ -83,7 +83,7 @@ describe("tasks module", () => {
           modules: {
             numbering: {
               options: {
-                entities: { work_item: { period: "none", format: "ENG-{n}" } },
+                entities: { task: { period: "none", format: "ENG-{n}" } },
               },
             },
           },
@@ -99,7 +99,7 @@ describe("tasks module", () => {
             numbering: {
               options: {
                 entities: {
-                  work_item: {
+                  task: {
                     period: "format",
                     format: "ENG-{n}",
                     formatFrom: { column: "public.organizations.task_format" },

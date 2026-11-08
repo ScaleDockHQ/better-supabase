@@ -118,7 +118,7 @@ export interface MeetingDecision {
 /** A task opened from a meeting. */
 export interface MeetingActionItem {
   /** The work item the `tasks` block owns. */
-  readonly workItemId: string;
+  readonly taskId: string;
   readonly title: string;
   readonly state: string;
   readonly dueAt?: Temporal.Instant;
@@ -424,7 +424,7 @@ function actionItemOf(
   value: Readonly<Record<string, unknown>>,
 ): MeetingActionItem {
   return {
-    workItemId: textOf(value["workItemId"]),
+    taskId: textOf(value["taskId"]),
     title: textOf(value["title"]),
     state: textOf(value["state"]),
     ...optional("dueAt", optionalInstant(value["dueAt"])),

@@ -1166,7 +1166,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     await sql(["sync"], { blocks: ["tasks"] });
 
     const config: ResolveInput = {
-      blocks: { tasks: { names: { task: "task" } } },
+      blocks: { tasks: { names: { task: "ticket" } } },
     };
 
     const check = await sql(["upgrade", "--check"], config);
@@ -1186,7 +1186,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
     expect(
       await readFile(join(root, "supabase/migrations", upgrade!), "utf-8"),
     ).toContain(
-      'alter trigger "bsb_work_item_guard" on "better_supabase"."tasks" rename to "bsb_task_guard"',
+      'alter trigger "bsb_task_guard" on "better_supabase"."tickets" rename to "bsb_ticket_guard"',
     );
     expect((await sql(["upgrade", "--check"], config)).code).toBe(0);
   });

@@ -398,7 +398,7 @@ export type AllBlocks = {
   readonly waitlist: typeof waitlistBlock;
   readonly incomingWebhooks: typeof incomingWebhooksBlock;
   readonly webhooks: typeof webhooksBlock;
-  readonly workItems: typeof tasksBlock;
+  readonly tasks: typeof tasksBlock;
   readonly workflowBuilder: typeof workflowEditorBlock;
   readonly workflowSdkWorld: typeof workflowSdkBlock;
   readonly workflows: typeof workflowsBlock;

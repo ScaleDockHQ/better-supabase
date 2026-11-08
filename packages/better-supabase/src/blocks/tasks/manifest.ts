@@ -8,9 +8,9 @@ import { tasksSqlOptions } from "./options.ts";
 import { taskChecklistBinding } from "./record-binding.ts";
 import { taskRecurrenceSink } from "./recurrence.ts";
 import {
-  workItemChangeSchema,
-  workItemInputSchema,
-  workItemListFilterSchema,
+  taskChangeSchema,
+  taskInputSchema,
+  taskListFilterSchema,
 } from "./schemas.ts";
 import { createTasks } from "./tasks.ts";
 
@@ -44,9 +44,9 @@ export const tasksBlock: BlockOf<
   handlers: { "tasks.from_conversation": taskFromConversationFactory },
   schemas: {
     task: {
-      input: workItemInputSchema,
-      change: workItemChangeSchema,
-      listFilter: workItemListFilterSchema,
+      input: taskInputSchema,
+      change: taskChangeSchema,
+      listFilter: taskListFilterSchema,
     },
   },
 });

@@ -170,6 +170,7 @@ export const blockConfig = {
         get_task: "get_ticket",
         list_task_checklist: "list_ticket_checklist",
         list_tasks: "list_tickets",
+        save_project: "save_issue",
         save_task_checklist_item: "save_ticket_checklist_item",
         set_task_assignees: "set_ticket_assignees",
         task_tree: "ticket_tree",
@@ -177,8 +178,8 @@ export const blockConfig = {
       },
       entities: [{
         from: {
-          singular: "work_item",
-          plural: "work_items",
+          singular: "task",
+          plural: "tasks",
         },
         to: {
           singular: "ticket",
@@ -202,6 +203,16 @@ export const blockConfig = {
         to: {
           singular: "ticket",
           plural: "tickets",
+        },
+        keyed: true,
+      }, {
+        from: {
+          singular: "project",
+          plural: "projects",
+        },
+        to: {
+          singular: "issue",
+          plural: "issues",
         },
       }],
     },

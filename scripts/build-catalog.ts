@@ -452,7 +452,7 @@ function exportedTypes(): ReadonlyMap<string, readonly string[]> {
 
 /**
  * The types a block's subpath exports whose names carry one of its own
- * entities, such as `WorkItem` and `Project`, and whether each takes the extra
+ * entities, such as `Task` and `Project`, and whether each takes the extra
  * fields as `F`. `gen` writes a renamed alias for each.
  */
 function entityTypesOf(
@@ -464,11 +464,7 @@ function entityTypesOf(
     Object.values(SQL_MODULES[name]?.names?.entities ?? {})
       .filter((entity) => entity.global !== true)
       .map((entity) => ({
-        // The TypeScript types keep the noun a 0.47 rename left behind.
-        from:
-          entity.formerly === undefined
-            ? entityNoun(entity.singular, entity.plural)
-            : entityNoun(entity.formerly),
+        from: entityNoun(entity.singular, entity.plural),
         to: entityNoun("bsb_sentinel"),
         cases: ["pascal" as const],
       })),

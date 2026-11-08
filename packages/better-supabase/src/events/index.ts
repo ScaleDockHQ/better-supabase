@@ -358,7 +358,7 @@ export type {
   JobEventData,
   QuoteEventData,
   SlaEventData,
-  WorkItemEventData,
+  TaskEventData,
   EngagementEventData,
   EngagementAmendedEventData,
   EngagementErrorMarkedEventData,

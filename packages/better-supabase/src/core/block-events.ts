@@ -1026,7 +1026,7 @@ export type {
   PipelineStageEventData,
   QuoteEventData,
   SlaEventData,
-  WorkItemEventData,
+  TaskEventData,
 } from "./block-events-records.ts";
 
 /** `guardrail.blocked`, written to the outbox by the ai-guardrails module. */

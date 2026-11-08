@@ -184,9 +184,6 @@ describe("blocks.<name>.entities in the SQL", () => {
           singular: entity.singular,
           plural: entity.plural ?? pluralOf(entity.singular),
         },
-        ...(entity.formerly === undefined
-          ? []
-          : [{ singular: entity.formerly, plural: pluralOf(entity.formerly) }]),
       ]);
 
       // Parameter names keep the default nouns (`document`, `document_id`).

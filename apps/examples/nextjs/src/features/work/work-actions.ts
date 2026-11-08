@@ -1,6 +1,5 @@
 "use server";
 
-import type { WorkItemChange } from "better-supabase/blocks/tasks";
 import type { ListQueryInput } from "better-supabase/list";
 
 import { ok } from "better-supabase";
@@ -8,6 +7,7 @@ import { refresh } from "next/cache";
 import * as v from "valibot";
 
 import type { AppDb } from "@/lib/supabase";
+import type { WorkItemChange } from "@/lib/supabase/blocks.generated";
 
 import { refreshCaller } from "@/lib/refresh-caller";
 import { bsb } from "@/lib/supabase/server";

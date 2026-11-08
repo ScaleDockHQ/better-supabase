@@ -1,6 +1,6 @@
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:3475954ef66a4ef4d55ab46c92a975b9d798e8ab0db40c1fc82f7858ecc7e27f
+-- @bsb-hash sha256:b33d087b00833a04be4a3297db1a9a85d6848554b58b693c4c9b6943536d6006
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -984,7 +984,7 @@ begin
   v_task := "better_supabase"."create_work_item"(v_row."tenant_id", add_meeting_action_item.task, coalesce(add_meeting_action_item.assignees, '{}'));
   insert into "better_supabase"."meeting_action_items" ("task_id", "tenant_id", "meeting_id", "agenda_item_id", "decision_id")
   values ((v_task ->> 'id')::uuid, v_row."tenant_id", v_row."id", add_meeting_action_item.agenda_item_id, add_meeting_action_item.decision_id);
-  perform "better_supabase".emit_event('meeting_action_item.created', jsonb_build_object('organizationId', v_row."tenant_id", 'meetingId', v_row."id", 'workItemId', (v_task ->> 'id')::uuid, 'title', v_task ->> 'title'), 'meetings/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/meetings');
+  perform "better_supabase".emit_event('meeting_action_item.created', jsonb_build_object('organizationId', v_row."tenant_id", 'meetingId', v_row."id", 'taskId', (v_task ->> 'id')::uuid, 'title', v_task ->> 'title'), 'meetings/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/meetings');
   return v_task || jsonb_build_object('meetingId', v_row."id", 'agendaItemId', add_meeting_action_item.agenda_item_id, 'decisionId', add_meeting_action_item.decision_id);
 end;
 $$;
@@ -1024,7 +1024,7 @@ begin
       from "better_supabase"."meeting_decisions" y where y."tenant_id" = v_row."tenant_id" and y."meeting_id" = v_row."id"
     ), '[]'::jsonb),
     'actionItems', coalesce((
-      select jsonb_agg(jsonb_build_object('workItemId', z."id", 'title', z."title", 'state', z."state", 'dueAt', z."due_at",
+      select jsonb_agg(jsonb_build_object('taskId', z."id", 'title', z."title", 'state', z."state", 'dueAt', z."due_at",
         'agendaItemId', y."agenda_item_id", 'decisionId', y."decision_id") order by y."created_at")
       from "better_supabase"."meeting_action_items" y join "better_supabase"."work_items" z on z."id" = y."task_id"
       where y."tenant_id" = v_row."tenant_id" and y."meeting_id" = v_row."id"

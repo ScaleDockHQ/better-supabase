@@ -74,7 +74,7 @@ const NAMES: BlockSqlNames = {
     contract_obligation: {
       table: "obligations",
       singular: "contract_obligation",
-      formerly: "obligation",
+      keyed: true,
     },
   },
   events: EVENTS,

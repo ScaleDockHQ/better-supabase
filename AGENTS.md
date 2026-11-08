@@ -422,6 +422,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0371: Type jsonb columns from the Standard Schema setup.
 - 0372: Let a provider choose the wildcard grants permission_matches honours.
 - 0373: Keep the owned-column default flip deferred.
+- 0374: The naming engine separates the block key from the entity plural.
 
 ## Pre-release pins
 

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:aebdcbb49f9e9d17c4850c602c137876e39d8e57d9bba4c27b870915b1e5289f
+-- @bsb-hash sha256:2be80224c801229429a7af1e119e7c4ff06ecd72865e8e2013e7999bd508dbd2
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -139,7 +139,7 @@ create policy bsb_task_checklist_items_read on "better_supabase"."task_checklist
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create or replace function better_supabase.bsb_work_item_guard()
+create or replace function better_supabase.bsb_task_guard()
 returns trigger
 language plpgsql
 security definer
@@ -190,9 +190,9 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bsb_work_item_guard() from public, anon, authenticated;
-create trigger bsb_work_item_guard before insert or update on "better_supabase"."tasks"
-for each row execute function better_supabase.bsb_work_item_guard();
+revoke execute on function better_supabase.bsb_task_guard() from public, anon, authenticated;
+create trigger bsb_task_guard before insert or update on "better_supabase"."tasks"
+for each row execute function better_supabase.bsb_task_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
@@ -228,15 +228,15 @@ begin
         using create_task.tenant, create_task.attrs;
     end if;
   end;
-  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
-    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'task' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'task' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
     if better_supabase.import_run() is null then
       raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
     end if;
     v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
     perform set_config('better_supabase.fixed_number', '', true);
   else
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':work_item', 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':task', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."tasks" x where x."tenant_id" = create_task.tenant;
   v_identifier := 'TASK-' || v_seq::text;
   end if;
@@ -275,8 +275,8 @@ $$;
 revoke execute on function "better_supabase"."create_task"(uuid, jsonb, uuid[]) from public, anon;
 grant execute on function "better_supabase"."create_task"(uuid, jsonb, uuid[]) to authenticated, service_role;
 
--- Applies a batch of { workItemId, field, value } changes, each on its
--- own. Returns { accepted: [{ workItemId, field }], rejected: [{ workItemId,
+-- Applies a batch of { taskId, field, value } changes, each on its
+-- own. Returns { accepted: [{ taskId, field }], rejected: [{ taskId,
 -- field, hint, reason }] }. With atomic, the first change that fails raises
 -- its error and no change is kept. The window field ({ startAt, endAt })
 -- writes both ends in one update, so the end-after-start check sees both.
@@ -303,12 +303,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if jsonb_typeof(coalesce(update_tasks.changes, '[]')) <> 'array' then
-    raise exception 'changes must be a list of { workItemId, field, value }' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
+    raise exception 'changes must be a list of { taskId, field, value }' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
   end if;
   for v_change in select value from jsonb_array_elements(update_tasks.changes) loop
     v_field := v_change ->> 'field';
     begin
-      v_item := (v_change ->> 'workItemId')::uuid;
+      v_item := (v_change ->> 'taskId')::uuid;
       if not exists (select 1 from "better_supabase"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
       end if;
@@ -365,7 +365,7 @@ begin
       else
         raise exception 'that field can''t be written' using errcode = '22023', hint = 'TASK_FIELD_UNKNOWN';
       end case;
-      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('workItemId', v_item, 'field', v_field));
+      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('taskId', v_item, 'field', v_field));
       v_touched := array_append(v_touched, v_item);
       declare
     v_hook regprocedure := to_regprocedure('"public"."after_task_update"(uuid, text)');
@@ -380,7 +380,7 @@ begin
         raise;
       end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
-      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
+      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('taskId', v_change ->> 'taskId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
   end loop;
   for v_row in select * from "better_supabase"."tasks" x where x."id" = any (v_touched) loop
@@ -395,7 +395,7 @@ grant execute on function "better_supabase"."update_tasks"(jsonb, boolean) to au
 -- Replaces an item's assignees. Each one watches the item, and those who
 -- weren't assigned before are notified. task.assigned is recorded only
 -- when the call adds someone, with addedIds.
-create or replace function "better_supabase"."set_task_assignees"(work_item uuid, users uuid[])
+create or replace function "better_supabase"."set_task_assignees"(task uuid, users uuid[])
 returns integer
 language plpgsql
 security definer
@@ -409,7 +409,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
+  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_assignees.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -428,7 +428,7 @@ $$;
 revoke execute on function "better_supabase"."set_task_assignees"(uuid, uuid[]) from public, anon;
 grant execute on function "better_supabase"."set_task_assignees"(uuid, uuid[]) to authenticated, service_role;
 
-create or replace function "better_supabase"."archive_task"(work_item uuid, archived boolean)
+create or replace function "better_supabase"."archive_task"(task uuid, archived boolean)
 returns boolean
 language plpgsql
 security definer
@@ -441,7 +441,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
+  where x."id" = archive_task.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
   if v_row."id" is null then
     return false;
@@ -492,8 +492,8 @@ $$;
 revoke execute on function "better_supabase"."archive_tasks"(uuid[], boolean) from public, anon;
 grant execute on function "better_supabase"."archive_tasks"(uuid[], boolean) to authenticated, service_role;
 
--- Deletes an item and its children. Needs work_items.manage, or its author.
-create or replace function "better_supabase"."delete_task"(work_item uuid)
+-- Deletes an item and its children. Needs tasks.manage, or its author.
+create or replace function "better_supabase"."delete_task"(task uuid)
 returns boolean
 language plpgsql
 security definer
@@ -506,7 +506,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   delete from "better_supabase"."tasks" x
-  where x."id" = delete_task.work_item
+  where x."id" = delete_task.task
     and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
   returning * into v_row;
   if v_row."id" is null then
@@ -686,7 +686,7 @@ grant execute on function "better_supabase"."clone_task"(uuid, jsonb) to authent
 
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
-create or replace function "better_supabase"."save_task_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
+create or replace function "better_supabase"."save_task_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -701,7 +701,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."tasks" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = save_task_checklist_item.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -733,7 +733,7 @@ begin
     raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'TASK_CHECKLIST_ITEM_INVALID';
   end;
   null;
-  return (select jsonb_build_object('id', y."id", 'workItemId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."task_checklist_items" y where y."id" = v_id);
+  return (select jsonb_build_object('id', y."id", 'taskId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."task_checklist_items" y where y."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."save_task_checklist_item"(uuid, uuid, jsonb) from public, anon;
@@ -765,28 +765,28 @@ revoke execute on function "better_supabase"."delete_task_checklist_item"(uuid) 
 grant execute on function "better_supabase"."delete_task_checklist_item"(uuid) to authenticated, service_role;
 
 -- An item's checklist, in rank order.
-create or replace function "better_supabase"."list_task_checklist"(work_item uuid)
+create or replace function "better_supabase"."list_task_checklist"(task uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'workItemId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
-  from "better_supabase"."task_checklist_items" y where y."task_id" = list_task_checklist.work_item
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'taskId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
+  from "better_supabase"."task_checklist_items" y where y."task_id" = list_task_checklist.task
 $$;
 revoke execute on function "better_supabase"."list_task_checklist"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_task_checklist"(uuid) to authenticated, service_role;
 
 -- One item the caller can read, or null.
-create or replace function "better_supabase"."get_task"(work_item uuid)
+create or replace function "better_supabase"."get_task"(task uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) from "better_supabase"."tasks" x where x."id" = get_task.work_item
+  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) from "better_supabase"."tasks" x where x."id" = get_task.task
 $$;
 revoke execute on function "better_supabase"."get_task"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_task"(uuid) to authenticated, service_role;
@@ -999,7 +999,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:ce9487722501b2f00b051febb847102cadc2e18a50a69a05130ecdb96944e028
+-- @bsb-hash sha256:231d6e883051854072ce55ad0ad1dbed2ca1b11ffd89b85e78040648c04dce72
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1137,7 +1137,7 @@ create policy bsb_task_checklist_items_read on "better_supabase"."task_checklist
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create or replace function better_supabase.bsb_work_item_guard()
+create or replace function better_supabase.bsb_task_guard()
 returns trigger
 language plpgsql
 security definer
@@ -1177,20 +1177,20 @@ begin
       if new."state" = 'completed' and new."progress" is not null then
         new."progress" := 100;
       end if;
-      perform "better_supabase".emit_event('task.closed', jsonb_build_object('organizationId', new."tenant_id", 'workItemId', new."id", 'subjectType', 'task', 'subjectId', new."id"::text, 'title', new."title", 'state', new."state", 'closeReason', new."close_reason"), 'work-items/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/tasks');
+      perform "better_supabase".emit_event('task.closed', jsonb_build_object('organizationId', new."tenant_id", 'taskId', new."id", 'subjectType', 'task', 'subjectId', new."id"::text, 'title', new."title", 'state', new."state", 'closeReason', new."close_reason"), 'tasks/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/tasks');
     elsif not (new."state" in ('completed', 'canceled')) and old."state" in ('completed', 'canceled') then
       new."closed_at" := null;
       new."close_reason" := null;
-      perform "better_supabase".emit_event('task.reopened', jsonb_build_object('organizationId', new."tenant_id", 'workItemId', new."id", 'subjectType', 'task', 'subjectId', new."id"::text, 'title', new."title"), 'work-items/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/tasks');
+      perform "better_supabase".emit_event('task.reopened', jsonb_build_object('organizationId', new."tenant_id", 'taskId', new."id", 'subjectType', 'task', 'subjectId', new."id"::text, 'title', new."title"), 'tasks/' || new."id"::text, (new."tenant_id"::text)::text, null, 'better-supabase/tasks');
     end if;
   end if;
   new."updated_at" := now();
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bsb_work_item_guard() from public, anon, authenticated;
-create trigger bsb_work_item_guard before insert or update on "better_supabase"."tasks"
-for each row execute function better_supabase.bsb_work_item_guard();
+revoke execute on function better_supabase.bsb_task_guard() from public, anon, authenticated;
+create trigger bsb_task_guard before insert or update on "better_supabase"."tasks"
+for each row execute function better_supabase.bsb_task_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
@@ -1226,15 +1226,15 @@ begin
         using create_task.tenant, create_task.attrs;
     end if;
   end;
-  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
-    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'task' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'task' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
     if better_supabase.import_run() is null then
       raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
     end if;
     v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
     perform set_config('better_supabase.fixed_number', '', true);
   else
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':work_item', 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':task', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."tasks" x where x."tenant_id" = create_task.tenant;
   v_identifier := 'TASK-' || v_seq::text;
   end if;
@@ -1269,7 +1269,7 @@ begin
         raise exception 'attach only your own files in this organization that aren''t on another subject' using errcode = '22023', hint = 'TASK_ATTACHMENTS_INVALID';
       end if;
     end if;
-  perform "better_supabase".emit_event('task.created', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  perform "better_supabase".emit_event('task.created', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   declare
     v_hook regprocedure := to_regprocedure('"public"."after_task_create"(uuid)');
   begin
@@ -1284,8 +1284,8 @@ $$;
 revoke execute on function "better_supabase"."create_task"(uuid, jsonb, uuid[]) from public, anon;
 grant execute on function "better_supabase"."create_task"(uuid, jsonb, uuid[]) to authenticated, service_role;
 
--- Applies a batch of { workItemId, field, value } changes, each on its
--- own. Returns { accepted: [{ workItemId, field }], rejected: [{ workItemId,
+-- Applies a batch of { taskId, field, value } changes, each on its
+-- own. Returns { accepted: [{ taskId, field }], rejected: [{ taskId,
 -- field, hint, reason }] }. With atomic, the first change that fails raises
 -- its error and no change is kept. The window field ({ startAt, endAt })
 -- writes both ends in one update, so the end-after-start check sees both.
@@ -1312,12 +1312,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if jsonb_typeof(coalesce(update_tasks.changes, '[]')) <> 'array' then
-    raise exception 'changes must be a list of { workItemId, field, value }' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
+    raise exception 'changes must be a list of { taskId, field, value }' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
   end if;
   for v_change in select value from jsonb_array_elements(update_tasks.changes) loop
     v_field := v_change ->> 'field';
     begin
-      v_item := (v_change ->> 'workItemId')::uuid;
+      v_item := (v_change ->> 'taskId')::uuid;
       if not exists (select 1 from "better_supabase"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
       end if;
@@ -1385,7 +1385,7 @@ begin
       else
         raise exception 'that field can''t be written' using errcode = '22023', hint = 'TASK_FIELD_UNKNOWN';
       end case;
-      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('workItemId', v_item, 'field', v_field));
+      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('taskId', v_item, 'field', v_field));
       v_touched := array_append(v_touched, v_item);
       declare
     v_hook regprocedure := to_regprocedure('"public"."after_task_update"(uuid, text)');
@@ -1400,11 +1400,11 @@ begin
         raise;
       end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
-      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
+      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('taskId', v_change ->> 'taskId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
   end loop;
   for v_row in select * from "better_supabase"."tasks" x where x."id" = any (v_touched) loop
-    perform "better_supabase".emit_event('task.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> 'workItemId')::uuid = v_row."id")), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+    perform "better_supabase".emit_event('task.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', (select jsonb_agg(distinct a ->> 'field') from jsonb_array_elements(v_accepted) a where (a ->> 'taskId')::uuid = v_row."id")), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   end loop;
   return jsonb_build_object('accepted', v_accepted, 'rejected', v_rejected);
 end;
@@ -1415,7 +1415,7 @@ grant execute on function "better_supabase"."update_tasks"(jsonb, boolean) to au
 -- Replaces an item's assignees. Each one watches the item, and those who
 -- weren't assigned before are notified. task.assigned is recorded only
 -- when the call adds someone, with addedIds.
-create or replace function "better_supabase"."set_task_assignees"(work_item uuid, users uuid[])
+create or replace function "better_supabase"."set_task_assignees"(task uuid, users uuid[])
 returns integer
 language plpgsql
 security definer
@@ -1432,7 +1432,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
+  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_assignees.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -1454,7 +1454,7 @@ begin
       v_claims := current_setting('request.jwt.claims', true);
       perform set_config('request.jwt.claims', '{"role": "service_role"}', true);
       perform "better_supabase"."notify"(jsonb_build_object(
-      'type', 'work_item.assigned',
+      'type', 'task.assigned',
       'tenant', v_row."tenant_id",
       'actor', auth.uid(),
       'subject_type', 'task',
@@ -1465,13 +1465,13 @@ begin
       'recipients', to_jsonb(v_new),
       'watchers', false,
       'key', 'task.assigned:' || v_row."id"::text || ':' || md5(array_to_string(v_new, ',')),
-      'data', jsonb_build_object('workItemId', v_row."id")
+      'data', jsonb_build_object('taskId', v_row."id")
     ));
       perform set_config('request.jwt.claims', coalesce(v_claims, ''), true);
     end if;
   end if;
   if cardinality(v_added) > 0 then
-    perform "better_supabase".emit_event('task.assigned', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'assigneeIds', to_jsonb(v_users), 'addedIds', to_jsonb(v_added)), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+    perform "better_supabase".emit_event('task.assigned', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'assigneeIds', to_jsonb(v_users), 'addedIds', to_jsonb(v_added)), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   end if;
   return cardinality(v_users);
 end;
@@ -1479,7 +1479,7 @@ $$;
 revoke execute on function "better_supabase"."set_task_assignees"(uuid, uuid[]) from public, anon;
 grant execute on function "better_supabase"."set_task_assignees"(uuid, uuid[]) to authenticated, service_role;
 
-create or replace function "better_supabase"."archive_task"(work_item uuid, archived boolean)
+create or replace function "better_supabase"."archive_task"(task uuid, archived boolean)
 returns boolean
 language plpgsql
 security definer
@@ -1492,13 +1492,13 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
+  where x."id" = archive_task.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
   if v_row."id" is null then
     return false;
   end if;
   if archive_task.archived then
-    perform "better_supabase".emit_event('task.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+    perform "better_supabase".emit_event('task.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   end if;
   return true;
 end;
@@ -1532,7 +1532,7 @@ begin
   loop
     v_ids := array_append(v_ids, v_row."id");
     if archive_tasks.archived then
-      perform "better_supabase".emit_event('task.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+      perform "better_supabase".emit_event('task.archived', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
     end if;
   end loop;
   return jsonb_build_object(
@@ -1543,8 +1543,8 @@ $$;
 revoke execute on function "better_supabase"."archive_tasks"(uuid[], boolean) from public, anon;
 grant execute on function "better_supabase"."archive_tasks"(uuid[], boolean) to authenticated, service_role;
 
--- Deletes an item and its children. Needs work_items.manage, or its author.
-create or replace function "better_supabase"."delete_task"(work_item uuid)
+-- Deletes an item and its children. Needs tasks.manage, or its author.
+create or replace function "better_supabase"."delete_task"(task uuid)
 returns boolean
 language plpgsql
 security definer
@@ -1557,13 +1557,13 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   delete from "better_supabase"."tasks" x
-  where x."id" = delete_task.work_item
+  where x."id" = delete_task.task
     and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
   returning * into v_row;
   if v_row."id" is null then
     return false;
   end if;
-  perform "better_supabase".emit_event('task.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  perform "better_supabase".emit_event('task.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   return true;
 end;
 $$;
@@ -1595,7 +1595,7 @@ begin
     select * from removed
   loop
     v_ids := array_append(v_ids, v_row."id");
-    perform "better_supabase".emit_event('task.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+    perform "better_supabase".emit_event('task.deleted', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title"), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   end loop;
   return jsonb_build_object(
     'ids', to_jsonb(v_ids),
@@ -1741,7 +1741,7 @@ grant execute on function "better_supabase"."clone_task"(uuid, jsonb) to authent
 
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
-create or replace function "better_supabase"."save_task_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
+create or replace function "better_supabase"."save_task_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -1756,7 +1756,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."tasks" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = save_task_checklist_item.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -1787,8 +1787,8 @@ begin
   exception when check_violation or not_null_violation or invalid_text_representation then
     raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'TASK_CHECKLIST_ITEM_INVALID';
   end;
-  perform "better_supabase".emit_event('task.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
-  return (select jsonb_build_object('id', y."id", 'workItemId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."task_checklist_items" y where y."id" = v_id);
+  perform "better_supabase".emit_event('task.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  return (select jsonb_build_object('id', y."id", 'taskId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."task_checklist_items" y where y."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."save_task_checklist_item"(uuid, uuid, jsonb) from public, anon;
@@ -1812,7 +1812,7 @@ begin
     return false;
   end if;
   delete from "better_supabase"."task_checklist_items" y where y."id" = delete_task_checklist_item.checklist_item;
-  perform "better_supabase".emit_event('task.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  perform "better_supabase".emit_event('task.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('checklist')), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   return true;
 end;
 $$;
@@ -1820,28 +1820,28 @@ revoke execute on function "better_supabase"."delete_task_checklist_item"(uuid) 
 grant execute on function "better_supabase"."delete_task_checklist_item"(uuid) to authenticated, service_role;
 
 -- An item's checklist, in rank order.
-create or replace function "better_supabase"."list_task_checklist"(work_item uuid)
+create or replace function "better_supabase"."list_task_checklist"(task uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'workItemId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
-  from "better_supabase"."task_checklist_items" y where y."task_id" = list_task_checklist.work_item
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'taskId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
+  from "better_supabase"."task_checklist_items" y where y."task_id" = list_task_checklist.task
 $$;
 revoke execute on function "better_supabase"."list_task_checklist"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_task_checklist"(uuid) to authenticated, service_role;
 
 -- One item the caller can read, or null.
-create or replace function "better_supabase"."get_task"(work_item uuid)
+create or replace function "better_supabase"."get_task"(task uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) from "better_supabase"."tasks" x where x."id" = get_task.work_item
+  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) from "better_supabase"."tasks" x where x."id" = get_task.task
 $$;
 revoke execute on function "better_supabase"."get_task"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_task"(uuid) to authenticated, service_role;
@@ -1849,7 +1849,7 @@ grant execute on function "better_supabase"."get_task"(uuid) to authenticated, s
 -- Makes an item repeat: rrule is an RFC 5545 RRULE starting at the item's
 -- due date (now without one) in tzid. A null rrule stops it. Completing the
 -- item then creates the next one through repeat_task.
-create or replace function "better_supabase"."set_task_recurrence"(work_item uuid, rrule text, tzid text default 'UTC')
+create or replace function "better_supabase"."set_task_recurrence"(task uuid, rrule text, tzid text default 'UTC')
 returns jsonb
 language plpgsql
 security definer
@@ -1861,7 +1861,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_recurrence.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_recurrence.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -1879,7 +1879,7 @@ begin
     on conflict ("tenant_id", "subject_type", "subject_id")
     do update set "dtstart" = excluded."dtstart", "tzid" = excluded."tzid", "rrule" = excluded."rrule";
   end if;
-  perform "better_supabase".emit_event('task.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'workItemId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('recurrence')), 'work-items/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
+  perform "better_supabase".emit_event('task.updated', jsonb_build_object('organizationId', v_row."tenant_id", 'taskId', v_row."id", 'subjectType', 'task', 'subjectId', v_row."id"::text, 'title', v_row."title", 'fields', jsonb_build_array('recurrence')), 'tasks/' || v_row."id"::text, (v_row."tenant_id"::text)::text, null, 'better-supabase/tasks');
   return (select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id"), 'recurrence', (select jsonb_build_object('rrule', rr."rrule", 'tzid', rr."tzid", 'dtstart', rr."dtstart") from "better_supabase"."recurrence_rules" rr where rr."tenant_id" = x."tenant_id" and rr."subject_type" = 'task' and rr."subject_id" = x."id"::text)) -> 'recurrence' from "better_supabase"."tasks" x where x."id" = v_row."id");
 end;
 $$;
@@ -1889,7 +1889,7 @@ grant execute on function "better_supabase"."set_task_recurrence"(uuid, text, te
 -- Creates the next item of a repeating item, due at due_at: a copy with its
 -- dates shifted, its assignees and an unchecked checklist. The rule moves to
 -- the copy. Runs once per item; a second call returns the same copy.
-create or replace function "better_supabase"."repeat_task"(work_item uuid, due_at timestamptz)
+create or replace function "better_supabase"."repeat_task"(task uuid, due_at timestamptz)
 returns jsonb
 language plpgsql
 security definer
@@ -1901,7 +1901,7 @@ declare
   v_id uuid;
   v_shift interval;
 begin
-  select * into v_src from "better_supabase"."tasks" x where x."id" = repeat_task.work_item for update;
+  select * into v_src from "better_supabase"."tasks" x where x."id" = repeat_task.task for update;
   if v_src."id" is null then
     raise exception 'work item not found' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -1930,7 +1930,7 @@ grant execute on function "better_supabase"."repeat_task"(uuid, timestamptz) to 
 
 -- Watches (all), follows (participating) or ignores an item the caller can
 -- read; a null level removes the choice.
-create or replace function "better_supabase"."watch_task"(work_item uuid, level text)
+create or replace function "better_supabase"."watch_task"(task uuid, level text)
 returns boolean
 language plpgsql
 security definer
@@ -1939,7 +1939,7 @@ as $$
 declare
   v_row "better_supabase"."tasks";
 begin
-  select * into v_row from "better_supabase"."tasks" x where x."id" = watch_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false));
+  select * into v_row from "better_supabase"."tasks" x where x."id" = watch_task.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can read' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -1951,7 +1951,7 @@ revoke execute on function "better_supabase"."watch_task"(uuid, text) from publi
 grant execute on function "better_supabase"."watch_task"(uuid, text) to authenticated, service_role;
 
 -- Who watches (all) or follows (participating) an item: [{ userId, level }].
-create or replace function "better_supabase"."list_task_watchers"(work_item uuid)
+create or replace function "better_supabase"."list_task_watchers"(task uuid)
 returns jsonb
 language sql
 stable
@@ -1962,7 +1962,7 @@ as $$
   from "better_supabase"."tasks" x
   join "better_supabase"."notification_subscriptions" s on s."subject_type" = 'task' and s."subject_id" = x."id"::text
     and s."tenant_id" = x."tenant_id"
-  where x."id" = list_task_watchers.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)) and s."level" in ('all', 'participating')
+  where x."id" = list_task_watchers.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.read'), false)) and s."level" in ('all', 'participating')
 $$;
 revoke execute on function "better_supabase"."list_task_watchers"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_task_watchers"(uuid) to authenticated, service_role;
@@ -2193,7 +2193,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:aa492d08f7660f7f7cb95ececfbb41e5d700af37ee638db6b6bfaf1d0c52fb50
+-- @bsb-hash sha256:06c41a3ae72f281abc3bb6c8f671c17ad72dab9278594fca45615f17a8dfb00c
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2336,7 +2336,7 @@ create policy bsb_task_checklist_items_read on "app_private"."task_checklist_ite
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create or replace function better_supabase.bsb_work_item_guard()
+create or replace function better_supabase.bsb_task_guard()
 returns trigger
 language plpgsql
 security definer
@@ -2387,9 +2387,9 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bsb_work_item_guard() from public, anon, authenticated;
-create trigger bsb_work_item_guard before insert or update on "app_private"."tasks"
-for each row execute function better_supabase.bsb_work_item_guard();
+revoke execute on function better_supabase.bsb_task_guard() from public, anon, authenticated;
+create trigger bsb_task_guard before insert or update on "app_private"."tasks"
+for each row execute function better_supabase.bsb_task_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
@@ -2425,15 +2425,15 @@ begin
         using create_task.tenant, create_task.attrs;
     end if;
   end;
-  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
-    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'task' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'task' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
     if better_supabase.import_run() is null then
       raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
     end if;
     v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
     perform set_config('better_supabase.fixed_number', '', true);
   else
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':work_item', 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':task', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from "app_private"."tasks" x where x."tenant_id" = create_task.tenant;
   v_identifier := 'TASK-' || v_seq::text;
   end if;
@@ -2472,8 +2472,8 @@ $$;
 revoke execute on function "app_private"."create_task"(uuid, jsonb, uuid[]) from public, anon;
 grant execute on function "app_private"."create_task"(uuid, jsonb, uuid[]) to authenticated, service_role;
 
--- Applies a batch of { workItemId, field, value } changes, each on its
--- own. Returns { accepted: [{ workItemId, field }], rejected: [{ workItemId,
+-- Applies a batch of { taskId, field, value } changes, each on its
+-- own. Returns { accepted: [{ taskId, field }], rejected: [{ taskId,
 -- field, hint, reason }] }. With atomic, the first change that fails raises
 -- its error and no change is kept. The window field ({ startAt, endAt })
 -- writes both ends in one update, so the end-after-start check sees both.
@@ -2500,12 +2500,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if jsonb_typeof(coalesce(update_tasks.changes, '[]')) <> 'array' then
-    raise exception 'changes must be a list of { workItemId, field, value }' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
+    raise exception 'changes must be a list of { taskId, field, value }' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
   end if;
   for v_change in select value from jsonb_array_elements(update_tasks.changes) loop
     v_field := v_change ->> 'field';
     begin
-      v_item := (v_change ->> 'workItemId')::uuid;
+      v_item := (v_change ->> 'taskId')::uuid;
       if not exists (select 1 from "app_private"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
       end if;
@@ -2562,7 +2562,7 @@ begin
       else
         raise exception 'that field can''t be written' using errcode = '22023', hint = 'TASK_FIELD_UNKNOWN';
       end case;
-      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('workItemId', v_item, 'field', v_field));
+      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('taskId', v_item, 'field', v_field));
       v_touched := array_append(v_touched, v_item);
       declare
     v_hook regprocedure := to_regprocedure('"public"."after_task_update"(uuid, text)');
@@ -2577,7 +2577,7 @@ begin
         raise;
       end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
-      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
+      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('taskId', v_change ->> 'taskId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
   end loop;
   for v_row in select * from "app_private"."tasks" x where x."id" = any (v_touched) loop
@@ -2592,7 +2592,7 @@ grant execute on function "app_private"."update_tasks"(jsonb, boolean) to authen
 -- Replaces an item's assignees. Each one watches the item, and those who
 -- weren't assigned before are notified. task.assigned is recorded only
 -- when the call adds someone, with addedIds.
-create or replace function "app_private"."set_task_assignees"(work_item uuid, users uuid[])
+create or replace function "app_private"."set_task_assignees"(task uuid, users uuid[])
 returns integer
 language plpgsql
 security definer
@@ -2606,7 +2606,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."tasks" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
+  select * into v_row from "app_private"."tasks" x where x."id" = set_task_assignees.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -2625,7 +2625,7 @@ $$;
 revoke execute on function "app_private"."set_task_assignees"(uuid, uuid[]) from public, anon;
 grant execute on function "app_private"."set_task_assignees"(uuid, uuid[]) to authenticated, service_role;
 
-create or replace function "app_private"."archive_task"(work_item uuid, archived boolean)
+create or replace function "app_private"."archive_task"(task uuid, archived boolean)
 returns boolean
 language plpgsql
 security definer
@@ -2638,7 +2638,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "app_private"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
+  where x."id" = archive_task.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
   if v_row."id" is null then
     return false;
@@ -2689,8 +2689,8 @@ $$;
 revoke execute on function "app_private"."archive_tasks"(uuid[], boolean) from public, anon;
 grant execute on function "app_private"."archive_tasks"(uuid[], boolean) to authenticated, service_role;
 
--- Deletes an item and its children. Needs work_items.manage, or its author.
-create or replace function "app_private"."delete_task"(work_item uuid)
+-- Deletes an item and its children. Needs tasks.manage, or its author.
+create or replace function "app_private"."delete_task"(task uuid)
 returns boolean
 language plpgsql
 security definer
@@ -2703,7 +2703,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   delete from "app_private"."tasks" x
-  where x."id" = delete_task.work_item
+  where x."id" = delete_task.task
     and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
   returning * into v_row;
   if v_row."id" is null then
@@ -2883,7 +2883,7 @@ grant execute on function "app_private"."clone_task"(uuid, jsonb) to authenticat
 
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
-create or replace function "app_private"."save_task_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
+create or replace function "app_private"."save_task_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -2898,7 +2898,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "app_private"."tasks" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  select * into v_row from "app_private"."tasks" x where x."id" = save_task_checklist_item.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -2930,7 +2930,7 @@ begin
     raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'TASK_CHECKLIST_ITEM_INVALID';
   end;
   null;
-  return (select jsonb_build_object('id', y."id", 'workItemId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "app_private"."task_checklist_items" y where y."id" = v_id);
+  return (select jsonb_build_object('id', y."id", 'taskId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "app_private"."task_checklist_items" y where y."id" = v_id);
 end;
 $$;
 revoke execute on function "app_private"."save_task_checklist_item"(uuid, uuid, jsonb) from public, anon;
@@ -2962,28 +2962,28 @@ revoke execute on function "app_private"."delete_task_checklist_item"(uuid) from
 grant execute on function "app_private"."delete_task_checklist_item"(uuid) to authenticated, service_role;
 
 -- An item's checklist, in rank order.
-create or replace function "app_private"."list_task_checklist"(work_item uuid)
+create or replace function "app_private"."list_task_checklist"(task uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'workItemId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
-  from "app_private"."task_checklist_items" y where y."task_id" = list_task_checklist.work_item
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'taskId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
+  from "app_private"."task_checklist_items" y where y."task_id" = list_task_checklist.task
 $$;
 revoke execute on function "app_private"."list_task_checklist"(uuid) from public, anon;
 grant execute on function "app_private"."list_task_checklist"(uuid) to authenticated, service_role;
 
 -- One item the caller can read, or null.
-create or replace function "app_private"."get_task"(work_item uuid)
+create or replace function "app_private"."get_task"(task uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "app_private"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "app_private"."task_checklist_items" rk where rk."task_id" = x."id")) from "app_private"."tasks" x where x."id" = get_task.work_item
+  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "app_private"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "app_private"."task_checklist_items" rk where rk."task_id" = x."id")) from "app_private"."tasks" x where x."id" = get_task.task
 $$;
 revoke execute on function "app_private"."get_task"(uuid) from public, anon;
 grant execute on function "app_private"."get_task"(uuid) to authenticated, service_role;
@@ -3196,7 +3196,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:6f9d6a77cf8f6f5cc0d3070d0989e5127ead3955572b507389c5c9d4cafe404b
+-- @bsb-hash sha256:01738b0f7894577278930f654fbc54a748290ed88433bf0723fac938b921868a
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3334,7 +3334,7 @@ create policy bsb_task_checklist_items_read on "better_supabase"."task_checklist
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create or replace function better_supabase.bsb_work_item_guard()
+create or replace function better_supabase.bsb_task_guard()
 returns trigger
 language plpgsql
 security definer
@@ -3385,9 +3385,9 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bsb_work_item_guard() from public, anon, authenticated;
-create trigger bsb_work_item_guard before insert or update on "better_supabase"."tasks"
-for each row execute function better_supabase.bsb_work_item_guard();
+revoke execute on function better_supabase.bsb_task_guard() from public, anon, authenticated;
+create trigger bsb_task_guard before insert or update on "better_supabase"."tasks"
+for each row execute function better_supabase.bsb_task_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
@@ -3423,15 +3423,15 @@ begin
         using create_task.tenant, create_task.attrs;
     end if;
   end;
-  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
-    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'task' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'task' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
     if better_supabase.import_run() is null then
       raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
     end if;
     v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
     perform set_config('better_supabase.fixed_number', '', true);
   else
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':work_item', 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':task', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."tasks" x where x."tenant_id" = create_task.tenant;
   v_identifier := 'TASK-' || v_seq::text;
   end if;
@@ -3470,8 +3470,8 @@ $$;
 revoke execute on function "better_supabase"."create_task"(uuid, jsonb, uuid[]) from public, anon;
 grant execute on function "better_supabase"."create_task"(uuid, jsonb, uuid[]) to authenticated, service_role;
 
--- Applies a batch of { workItemId, field, value } changes, each on its
--- own. Returns { accepted: [{ workItemId, field }], rejected: [{ workItemId,
+-- Applies a batch of { taskId, field, value } changes, each on its
+-- own. Returns { accepted: [{ taskId, field }], rejected: [{ taskId,
 -- field, hint, reason }] }. With atomic, the first change that fails raises
 -- its error and no change is kept. The window field ({ startAt, endAt })
 -- writes both ends in one update, so the end-after-start check sees both.
@@ -3498,12 +3498,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if jsonb_typeof(coalesce(update_tasks.changes, '[]')) <> 'array' then
-    raise exception 'changes must be a list of { workItemId, field, value }' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
+    raise exception 'changes must be a list of { taskId, field, value }' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
   end if;
   for v_change in select value from jsonb_array_elements(update_tasks.changes) loop
     v_field := v_change ->> 'field';
     begin
-      v_item := (v_change ->> 'workItemId')::uuid;
+      v_item := (v_change ->> 'taskId')::uuid;
       if not exists (select 1 from "better_supabase"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
       end if;
@@ -3560,7 +3560,7 @@ begin
       else
         raise exception 'that field can''t be written' using errcode = '22023', hint = 'TASK_FIELD_UNKNOWN';
       end case;
-      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('workItemId', v_item, 'field', v_field));
+      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('taskId', v_item, 'field', v_field));
       v_touched := array_append(v_touched, v_item);
       declare
     v_hook regprocedure := to_regprocedure('"public"."after_task_update"(uuid, text)');
@@ -3575,7 +3575,7 @@ begin
         raise;
       end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
-      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
+      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('taskId', v_change ->> 'taskId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
   end loop;
   for v_row in select * from "better_supabase"."tasks" x where x."id" = any (v_touched) loop
@@ -3590,7 +3590,7 @@ grant execute on function "better_supabase"."update_tasks"(jsonb, boolean) to au
 -- Replaces an item's assignees. Each one watches the item, and those who
 -- weren't assigned before are notified. task.assigned is recorded only
 -- when the call adds someone, with addedIds.
-create or replace function "better_supabase"."set_task_assignees"(work_item uuid, users uuid[])
+create or replace function "better_supabase"."set_task_assignees"(task uuid, users uuid[])
 returns integer
 language plpgsql
 security definer
@@ -3604,7 +3604,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
+  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_assignees.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -3623,7 +3623,7 @@ $$;
 revoke execute on function "better_supabase"."set_task_assignees"(uuid, uuid[]) from public, anon;
 grant execute on function "better_supabase"."set_task_assignees"(uuid, uuid[]) to authenticated, service_role;
 
-create or replace function "better_supabase"."archive_task"(work_item uuid, archived boolean)
+create or replace function "better_supabase"."archive_task"(task uuid, archived boolean)
 returns boolean
 language plpgsql
 security definer
@@ -3636,7 +3636,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
+  where x."id" = archive_task.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
   if v_row."id" is null then
     return false;
@@ -3687,8 +3687,8 @@ $$;
 revoke execute on function "better_supabase"."archive_tasks"(uuid[], boolean) from public, anon;
 grant execute on function "better_supabase"."archive_tasks"(uuid[], boolean) to authenticated, service_role;
 
--- Deletes an item and its children. Needs work_items.manage, or its author.
-create or replace function "better_supabase"."delete_task"(work_item uuid)
+-- Deletes an item and its children. Needs tasks.manage, or its author.
+create or replace function "better_supabase"."delete_task"(task uuid)
 returns boolean
 language plpgsql
 security definer
@@ -3701,7 +3701,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   delete from "better_supabase"."tasks" x
-  where x."id" = delete_task.work_item
+  where x."id" = delete_task.task
     and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
   returning * into v_row;
   if v_row."id" is null then
@@ -3881,7 +3881,7 @@ grant execute on function "better_supabase"."clone_task"(uuid, jsonb) to authent
 
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
-create or replace function "better_supabase"."save_task_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
+create or replace function "better_supabase"."save_task_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -3896,7 +3896,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."tasks" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = save_task_checklist_item.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -3928,7 +3928,7 @@ begin
     raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'TASK_CHECKLIST_ITEM_INVALID';
   end;
   null;
-  return (select jsonb_build_object('id', y."id", 'workItemId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."task_checklist_items" y where y."id" = v_id);
+  return (select jsonb_build_object('id', y."id", 'taskId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."task_checklist_items" y where y."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."save_task_checklist_item"(uuid, uuid, jsonb) from public, anon;
@@ -3960,28 +3960,28 @@ revoke execute on function "better_supabase"."delete_task_checklist_item"(uuid) 
 grant execute on function "better_supabase"."delete_task_checklist_item"(uuid) to authenticated, service_role;
 
 -- An item's checklist, in rank order.
-create or replace function "better_supabase"."list_task_checklist"(work_item uuid)
+create or replace function "better_supabase"."list_task_checklist"(task uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'workItemId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
-  from "better_supabase"."task_checklist_items" y where y."task_id" = list_task_checklist.work_item
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'taskId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
+  from "better_supabase"."task_checklist_items" y where y."task_id" = list_task_checklist.task
 $$;
 revoke execute on function "better_supabase"."list_task_checklist"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_task_checklist"(uuid) to authenticated, service_role;
 
 -- One item the caller can read, or null.
-create or replace function "better_supabase"."get_task"(work_item uuid)
+create or replace function "better_supabase"."get_task"(task uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) from "better_supabase"."tasks" x where x."id" = get_task.work_item
+  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) from "better_supabase"."tasks" x where x."id" = get_task.task
 $$;
 revoke execute on function "better_supabase"."get_task"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_task"(uuid) to authenticated, service_role;
@@ -4199,7 +4199,7 @@ as $$ select "better_supabase"."update_tasks"($1, $2) $$;
 revoke execute on function "api"."update_tasks"(jsonb, boolean) from public, anon;
 grant execute on function "api"."update_tasks"(jsonb, boolean) to authenticated, service_role;
 
-create or replace function "api"."set_task_assignees"(work_item uuid, users uuid[])
+create or replace function "api"."set_task_assignees"(task uuid, users uuid[])
 returns integer
 language sql
 security invoker
@@ -4208,7 +4208,7 @@ as $$ select "better_supabase"."set_task_assignees"($1, $2) $$;
 revoke execute on function "api"."set_task_assignees"(uuid, uuid[]) from public, anon;
 grant execute on function "api"."set_task_assignees"(uuid, uuid[]) to authenticated, service_role;
 
-create or replace function "api"."archive_task"(work_item uuid, archived boolean)
+create or replace function "api"."archive_task"(task uuid, archived boolean)
 returns boolean
 language sql
 security invoker
@@ -4226,7 +4226,7 @@ as $$ select "better_supabase"."archive_tasks"($1, $2) $$;
 revoke execute on function "api"."archive_tasks"(uuid[], boolean) from public, anon;
 grant execute on function "api"."archive_tasks"(uuid[], boolean) to authenticated, service_role;
 
-create or replace function "api"."delete_task"(work_item uuid)
+create or replace function "api"."delete_task"(task uuid)
 returns boolean
 language sql
 security invoker
@@ -4273,7 +4273,7 @@ as $$ select "better_supabase"."clone_task"($1, $2) $$;
 revoke execute on function "api"."clone_task"(uuid, jsonb) from public, anon;
 grant execute on function "api"."clone_task"(uuid, jsonb) to authenticated, service_role;
 
-create or replace function "api"."save_task_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
+create or replace function "api"."save_task_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
 returns jsonb
 language sql
 security invoker
@@ -4291,7 +4291,7 @@ as $$ select "better_supabase"."delete_task_checklist_item"($1) $$;
 revoke execute on function "api"."delete_task_checklist_item"(uuid) from public, anon;
 grant execute on function "api"."delete_task_checklist_item"(uuid) to authenticated, service_role;
 
-create or replace function "api"."list_task_checklist"(work_item uuid)
+create or replace function "api"."list_task_checklist"(task uuid)
 returns jsonb
 language sql
 stable
@@ -4301,7 +4301,7 @@ as $$ select "better_supabase"."list_task_checklist"($1) $$;
 revoke execute on function "api"."list_task_checklist"(uuid) from public, anon;
 grant execute on function "api"."list_task_checklist"(uuid) to authenticated, service_role;
 
-create or replace function "api"."get_task"(work_item uuid)
+create or replace function "api"."get_task"(task uuid)
 returns jsonb
 language sql
 stable
@@ -4346,7 +4346,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:7db5c95bc0f613231d6d84ea3f7955fef1ee93ad4a094085b3f72dc4735c4968
+-- @bsb-hash sha256:85c0b6acf2df5d23d8da6bec551b881ccbf1954fd4dbd93e3a4aa302f1f49387
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4471,7 +4471,7 @@ create policy bsb_task_checklist_items_select on "better_supabase"."task_checkli
   for select to authenticated
   using ("tenant_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create or replace function better_supabase.bsb_work_item_guard()
+create or replace function better_supabase.bsb_task_guard()
 returns trigger
 language plpgsql
 security definer
@@ -4522,9 +4522,9 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bsb_work_item_guard() from public, anon, authenticated;
-create trigger bsb_work_item_guard before insert or update on "better_supabase"."tasks"
-for each row execute function better_supabase.bsb_work_item_guard();
+revoke execute on function better_supabase.bsb_task_guard() from public, anon, authenticated;
+create trigger bsb_task_guard before insert or update on "better_supabase"."tasks"
+for each row execute function better_supabase.bsb_task_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
@@ -4560,15 +4560,15 @@ begin
         using create_task.tenant, create_task.attrs;
     end if;
   end;
-  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
-    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'task' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'task' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
     if better_supabase.import_run() is null then
       raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
     end if;
     v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
     perform set_config('better_supabase.fixed_number', '', true);
   else
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':work_item', 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':task', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."tasks" x where x."tenant_id" = create_task.tenant;
   v_identifier := 'TASK-' || v_seq::text;
   end if;
@@ -4607,8 +4607,8 @@ $$;
 revoke execute on function "better_supabase"."create_task"(uuid, jsonb, uuid[]) from public, anon;
 grant execute on function "better_supabase"."create_task"(uuid, jsonb, uuid[]) to authenticated, service_role;
 
--- Applies a batch of { workItemId, field, value } changes, each on its
--- own. Returns { accepted: [{ workItemId, field }], rejected: [{ workItemId,
+-- Applies a batch of { taskId, field, value } changes, each on its
+-- own. Returns { accepted: [{ taskId, field }], rejected: [{ taskId,
 -- field, hint, reason }] }. With atomic, the first change that fails raises
 -- its error and no change is kept. The window field ({ startAt, endAt })
 -- writes both ends in one update, so the end-after-start check sees both.
@@ -4635,12 +4635,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if jsonb_typeof(coalesce(update_tasks.changes, '[]')) <> 'array' then
-    raise exception 'changes must be a list of { workItemId, field, value }' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
+    raise exception 'changes must be a list of { taskId, field, value }' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
   end if;
   for v_change in select value from jsonb_array_elements(update_tasks.changes) loop
     v_field := v_change ->> 'field';
     begin
-      v_item := (v_change ->> 'workItemId')::uuid;
+      v_item := (v_change ->> 'taskId')::uuid;
       if not exists (select 1 from "better_supabase"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
       end if;
@@ -4697,7 +4697,7 @@ begin
       else
         raise exception 'that field can''t be written' using errcode = '22023', hint = 'TASK_FIELD_UNKNOWN';
       end case;
-      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('workItemId', v_item, 'field', v_field));
+      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('taskId', v_item, 'field', v_field));
       v_touched := array_append(v_touched, v_item);
       declare
     v_hook regprocedure := to_regprocedure('"public"."after_task_update"(uuid, text)');
@@ -4712,7 +4712,7 @@ begin
         raise;
       end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
-      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
+      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('taskId', v_change ->> 'taskId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
   end loop;
   for v_row in select * from "better_supabase"."tasks" x where x."id" = any (v_touched) loop
@@ -4727,7 +4727,7 @@ grant execute on function "better_supabase"."update_tasks"(jsonb, boolean) to au
 -- Replaces an item's assignees. Each one watches the item, and those who
 -- weren't assigned before are notified. task.assigned is recorded only
 -- when the call adds someone, with addedIds.
-create or replace function "better_supabase"."set_task_assignees"(work_item uuid, users uuid[])
+create or replace function "better_supabase"."set_task_assignees"(task uuid, users uuid[])
 returns integer
 language plpgsql
 security definer
@@ -4741,7 +4741,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
+  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_assignees.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -4760,7 +4760,7 @@ $$;
 revoke execute on function "better_supabase"."set_task_assignees"(uuid, uuid[]) from public, anon;
 grant execute on function "better_supabase"."set_task_assignees"(uuid, uuid[]) to authenticated, service_role;
 
-create or replace function "better_supabase"."archive_task"(work_item uuid, archived boolean)
+create or replace function "better_supabase"."archive_task"(task uuid, archived boolean)
 returns boolean
 language plpgsql
 security definer
@@ -4773,7 +4773,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
+  where x."id" = archive_task.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false))
   returning * into v_row;
   if v_row."id" is null then
     return false;
@@ -4824,8 +4824,8 @@ $$;
 revoke execute on function "better_supabase"."archive_tasks"(uuid[], boolean) from public, anon;
 grant execute on function "better_supabase"."archive_tasks"(uuid[], boolean) to authenticated, service_role;
 
--- Deletes an item and its children. Needs work_items.manage, or its author.
-create or replace function "better_supabase"."delete_task"(work_item uuid)
+-- Deletes an item and its children. Needs tasks.manage, or its author.
+create or replace function "better_supabase"."delete_task"(task uuid)
 returns boolean
 language plpgsql
 security definer
@@ -4838,7 +4838,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   delete from "better_supabase"."tasks" x
-  where x."id" = delete_task.work_item
+  where x."id" = delete_task.task
     and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.manage'), false))
   returning * into v_row;
   if v_row."id" is null then
@@ -5018,7 +5018,7 @@ grant execute on function "better_supabase"."clone_task"(uuid, jsonb) to authent
 
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
-create or replace function "better_supabase"."save_task_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
+create or replace function "better_supabase"."save_task_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -5033,7 +5033,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."tasks" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = save_task_checklist_item.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."tenant_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -5065,7 +5065,7 @@ begin
     raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'TASK_CHECKLIST_ITEM_INVALID';
   end;
   null;
-  return (select jsonb_build_object('id', y."id", 'workItemId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."task_checklist_items" y where y."id" = v_id);
+  return (select jsonb_build_object('id', y."id", 'taskId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."task_checklist_items" y where y."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."save_task_checklist_item"(uuid, uuid, jsonb) from public, anon;
@@ -5097,28 +5097,28 @@ revoke execute on function "better_supabase"."delete_task_checklist_item"(uuid) 
 grant execute on function "better_supabase"."delete_task_checklist_item"(uuid) to authenticated, service_role;
 
 -- An item's checklist, in rank order.
-create or replace function "better_supabase"."list_task_checklist"(work_item uuid)
+create or replace function "better_supabase"."list_task_checklist"(task uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'workItemId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
-  from "better_supabase"."task_checklist_items" y where y."task_id" = list_task_checklist.work_item
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'taskId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
+  from "better_supabase"."task_checklist_items" y where y."task_id" = list_task_checklist.task
 $$;
 revoke execute on function "better_supabase"."list_task_checklist"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_task_checklist"(uuid) to authenticated, service_role;
 
 -- One item the caller can read, or null.
-create or replace function "better_supabase"."get_task"(work_item uuid)
+create or replace function "better_supabase"."get_task"(task uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) from "better_supabase"."tasks" x where x."id" = get_task.work_item
+  select to_jsonb(x) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) from "better_supabase"."tasks" x where x."id" = get_task.task
 $$;
 revoke execute on function "better_supabase"."get_task"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_task"(uuid) to authenticated, service_role;
@@ -5331,7 +5331,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_091_tasks.sql
 -- better-supabase module: tasks
 -- @bsb-block tasks@5 managed
--- @bsb-hash sha256:969615da515c7a4e4de4417def1cf3cc632de377f95716314210808d05758283
+-- @bsb-hash sha256:3831123bac55c4112b205f92b7cb30b669745efd1bc7799953a4d05d121b53f8
 -- Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5469,7 +5469,7 @@ create policy bsb_task_checklist_items_read on "better_supabase"."task_checklist
   for select to authenticated
   using ("org_id" in (select better_supabase.tenant_ids_with('tasks.read')));
 
-create or replace function better_supabase.bsb_work_item_guard()
+create or replace function better_supabase.bsb_task_guard()
 returns trigger
 language plpgsql
 security definer
@@ -5520,9 +5520,9 @@ begin
   return new;
 end;
 $$;
-revoke execute on function better_supabase.bsb_work_item_guard() from public, anon, authenticated;
-create trigger bsb_work_item_guard before insert or update on "better_supabase"."tasks"
-for each row execute function better_supabase.bsb_work_item_guard();
+revoke execute on function better_supabase.bsb_task_guard() from public, anon, authenticated;
+create trigger bsb_task_guard before insert or update on "better_supabase"."tasks"
+for each row execute function better_supabase.bsb_task_guard();
 
 -- Creates a work item. attrs: title (required), body, parentId, teamId,
 -- projectId, iterationId, priority (0 none to 4 low, as Linear), estimate,
@@ -5558,15 +5558,15 @@ begin
         using create_task.tenant, create_task.attrs;
     end if;
   end;
-  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
-    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'work_item' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
+  if (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'task' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end) is not null then
+    v_identifier := (case when split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 1) = 'task' then nullif(split_part(coalesce(current_setting('better_supabase.fixed_number', true), ''), chr(31), 2), '') end);
     if better_supabase.import_run() is null then
       raise exception 'a fixed number is only accepted during an import' using errcode = '42501', hint = 'NUMBER_FIXED_FORBIDDEN';
     end if;
     v_seq := coalesce(substring(v_identifier from '([0-9]+)$')::bigint, 0);
     perform set_config('better_supabase.fixed_number', '', true);
   else
-    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':work_item', 0));
+    perform pg_catalog.pg_advisory_xact_lock(pg_catalog.hashtextextended(create_task.tenant::text || ':task', 0));
   select coalesce(max(x."number"), 0) + 1 into v_seq from "better_supabase"."tasks" x where x."org_id" = create_task.tenant;
   v_identifier := 'TASK-' || v_seq::text;
   end if;
@@ -5605,8 +5605,8 @@ $$;
 revoke execute on function "better_supabase"."create_task"(uuid, jsonb, uuid[]) from public, anon;
 grant execute on function "better_supabase"."create_task"(uuid, jsonb, uuid[]) to authenticated, service_role;
 
--- Applies a batch of { workItemId, field, value } changes, each on its
--- own. Returns { accepted: [{ workItemId, field }], rejected: [{ workItemId,
+-- Applies a batch of { taskId, field, value } changes, each on its
+-- own. Returns { accepted: [{ taskId, field }], rejected: [{ taskId,
 -- field, hint, reason }] }. With atomic, the first change that fails raises
 -- its error and no change is kept. The window field ({ startAt, endAt })
 -- writes both ends in one update, so the end-after-start check sees both.
@@ -5633,12 +5633,12 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   if jsonb_typeof(coalesce(update_tasks.changes, '[]')) <> 'array' then
-    raise exception 'changes must be a list of { workItemId, field, value }' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
+    raise exception 'changes must be a list of { taskId, field, value }' using errcode = '22023', hint = 'TASK_CHANGES_INVALID';
   end if;
   for v_change in select value from jsonb_array_elements(update_tasks.changes) loop
     v_field := v_change ->> 'field';
     begin
-      v_item := (v_change ->> 'workItemId')::uuid;
+      v_item := (v_change ->> 'taskId')::uuid;
       if not exists (select 1 from "better_supabase"."tasks" x where x."id" = v_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false)) and x."archived_at" is null) then
         raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
       end if;
@@ -5695,7 +5695,7 @@ begin
       else
         raise exception 'that field can''t be written' using errcode = '22023', hint = 'TASK_FIELD_UNKNOWN';
       end case;
-      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('workItemId', v_item, 'field', v_field));
+      v_accepted := v_accepted || jsonb_build_array(jsonb_build_object('taskId', v_item, 'field', v_field));
       v_touched := array_append(v_touched, v_item);
       declare
     v_hook regprocedure := to_regprocedure('"public"."after_task_update"(uuid, text)');
@@ -5710,7 +5710,7 @@ begin
         raise;
       end if;
       get stacked diagnostics v_hint = pg_exception_hint, v_reason = message_text;
-      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('workItemId', v_change ->> 'workItemId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
+      v_rejected := v_rejected || jsonb_build_array(jsonb_build_object('taskId', v_change ->> 'taskId', 'field', v_field, 'hint', nullif(v_hint, ''), 'reason', v_reason));
     end;
   end loop;
   for v_row in select * from "better_supabase"."tasks" x where x."id" = any (v_touched) loop
@@ -5725,7 +5725,7 @@ grant execute on function "better_supabase"."update_tasks"(jsonb, boolean) to au
 -- Replaces an item's assignees. Each one watches the item, and those who
 -- weren't assigned before are notified. task.assigned is recorded only
 -- when the call adds someone, with addedIds.
-create or replace function "better_supabase"."set_task_assignees"(work_item uuid, users uuid[])
+create or replace function "better_supabase"."set_task_assignees"(task uuid, users uuid[])
 returns integer
 language plpgsql
 security definer
@@ -5739,7 +5739,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_assignees.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false));
+  select * into v_row from "better_supabase"."tasks" x where x."id" = set_task_assignees.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false));
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -5758,7 +5758,7 @@ $$;
 revoke execute on function "better_supabase"."set_task_assignees"(uuid, uuid[]) from public, anon;
 grant execute on function "better_supabase"."set_task_assignees"(uuid, uuid[]) to authenticated, service_role;
 
-create or replace function "better_supabase"."archive_task"(work_item uuid, archived boolean)
+create or replace function "better_supabase"."archive_task"(task uuid, archived boolean)
 returns boolean
 language plpgsql
 security definer
@@ -5771,7 +5771,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   update "better_supabase"."tasks" x set "archived_at" = case when archive_task.archived then coalesce(x."archived_at", now()) end
-  where x."id" = archive_task.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false))
+  where x."id" = archive_task.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false))
   returning * into v_row;
   if v_row."id" is null then
     return false;
@@ -5822,8 +5822,8 @@ $$;
 revoke execute on function "better_supabase"."archive_tasks"(uuid[], boolean) from public, anon;
 grant execute on function "better_supabase"."archive_tasks"(uuid[], boolean) to authenticated, service_role;
 
--- Deletes an item and its children. Needs work_items.manage, or its author.
-create or replace function "better_supabase"."delete_task"(work_item uuid)
+-- Deletes an item and its children. Needs tasks.manage, or its author.
+create or replace function "better_supabase"."delete_task"(task uuid)
 returns boolean
 language plpgsql
 security definer
@@ -5836,7 +5836,7 @@ begin
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
   delete from "better_supabase"."tasks" x
-  where x."id" = delete_task.work_item
+  where x."id" = delete_task.task
     and ((auth.role() = 'service_role') or x."created_by" = auth.uid() or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.manage'), false))
   returning * into v_row;
   if v_row."id" is null then
@@ -6016,7 +6016,7 @@ grant execute on function "better_supabase"."clone_task"(uuid, jsonb) to authent
 
 -- Adds a checklist item (checklist_item null) or changes one: title, done,
 -- rank. A new item without a rank goes last.
-create or replace function "better_supabase"."save_task_checklist_item"(work_item uuid, checklist_item uuid, attrs jsonb)
+create or replace function "better_supabase"."save_task_checklist_item"(task uuid, checklist_item uuid, attrs jsonb)
 returns jsonb
 language plpgsql
 security definer
@@ -6031,7 +6031,7 @@ begin
   if not (better_supabase.actor_may_write()) then
     raise exception 'This session is read-only' using errcode = '42501', hint = 'ACTOR_READ_ONLY';
   end if;
-  select * into v_row from "better_supabase"."tasks" x where x."id" = save_task_checklist_item.work_item and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false)) and x."archived_at" is null;
+  select * into v_row from "better_supabase"."tasks" x where x."id" = save_task_checklist_item.task and ((auth.role() = 'service_role') or coalesce(better_supabase.can('tenant', x."org_id", 'tasks.write'), false)) and x."archived_at" is null;
   if v_row."id" is null then
     raise exception 'no such work item you can edit' using errcode = 'P0002', hint = 'TASK_NOT_FOUND';
   end if;
@@ -6063,7 +6063,7 @@ begin
     raise exception 'a checklist item needs a title of 1 to 500 characters and a valid rank' using errcode = '22023', hint = 'TASK_CHECKLIST_ITEM_INVALID';
   end;
   null;
-  return (select jsonb_build_object('id', y."id", 'workItemId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."task_checklist_items" y where y."id" = v_id);
+  return (select jsonb_build_object('id', y."id", 'taskId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") from "better_supabase"."task_checklist_items" y where y."id" = v_id);
 end;
 $$;
 revoke execute on function "better_supabase"."save_task_checklist_item"(uuid, uuid, jsonb) from public, anon;
@@ -6095,28 +6095,28 @@ revoke execute on function "better_supabase"."delete_task_checklist_item"(uuid) 
 grant execute on function "better_supabase"."delete_task_checklist_item"(uuid) to authenticated, service_role;
 
 -- An item's checklist, in rank order.
-create or replace function "better_supabase"."list_task_checklist"(work_item uuid)
+create or replace function "better_supabase"."list_task_checklist"(task uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'workItemId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
-  from "better_supabase"."task_checklist_items" y where y."task_id" = list_task_checklist.work_item
+  select coalesce(jsonb_agg(jsonb_build_object('id', y."id", 'taskId', y."task_id", 'title', y."title", 'done', y."done", 'doneAt', y."done_at", 'doneBy', y."done_by", 'rank', y."rank", 'createdAt', y."created_at") order by y."rank" collate "C", y."id"), '[]'::jsonb)
+  from "better_supabase"."task_checklist_items" y where y."task_id" = list_task_checklist.task
 $$;
 revoke execute on function "better_supabase"."list_task_checklist"(uuid) from public, anon;
 grant execute on function "better_supabase"."list_task_checklist"(uuid) to authenticated, service_role;
 
 -- One item the caller can read, or null.
-create or replace function "better_supabase"."get_task"(work_item uuid)
+create or replace function "better_supabase"."get_task"(task uuid)
 returns jsonb
 language sql
 stable
 security invoker
 set search_path = ''
 as $$
-  select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) from "better_supabase"."tasks" x where x."id" = get_task.work_item
+  select (to_jsonb(x) || jsonb_build_object('tenant_id', x."org_id")) || jsonb_build_object('number', x."number"::text) || jsonb_build_object('assignees', coalesce((select jsonb_agg(ra."user_id" order by ra."created_at", ra."user_id") from "better_supabase"."task_assignees" ra where ra."task_id" = x."id"), '[]'::jsonb)) || jsonb_build_object('checklist', (select jsonb_build_object('total', count(*), 'done', count(*) filter (where rk."done")) from "better_supabase"."task_checklist_items" rk where rk."task_id" = x."id")) from "better_supabase"."tasks" x where x."id" = get_task.task
 $$;
 revoke execute on function "better_supabase"."get_task"(uuid) from public, anon;
 grant execute on function "better_supabase"."get_task"(uuid) to authenticated, service_role;

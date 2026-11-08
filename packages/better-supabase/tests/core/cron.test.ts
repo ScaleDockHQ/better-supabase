@@ -114,3 +114,11 @@ describe("nextCronRun", () => {
     }).not.toThrow();
   });
 });
+
+describe("cron names", () => {
+  it("rejects a three letter word that is no month or weekday", () => {
+    expect(() => {
+      assertCron("0 9 * abc *");
+    }).toThrow(/"abc" is not a cron field/u);
+  });
+});

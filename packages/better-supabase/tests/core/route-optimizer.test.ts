@@ -150,6 +150,21 @@ describe("route optimizer", () => {
     expect((await optimizeStops(invents, REQUEST)).source).toBe("fallback");
   });
 
+  it("posts through the global fetch without a fetch option", async () => {
+    const fetcher = vi
+      .spyOn(globalThis, "fetch")
+      .mockResolvedValue(Response.json({ order: ["mid", "near", "far"] }));
+
+    const answer = await optimizeStops(
+      fetchRouteOptimizer({ url: "https://routes.example/optimize" }),
+      REQUEST,
+    );
+
+    expect(answer.source).toBe("optimizer");
+    expect(fetcher).toHaveBeenCalledOnce();
+    fetcher.mockRestore();
+  });
+
   it("posts the request to a service and reads the order back", async () => {
     const fetcher = vi.fn(() =>
       Promise.resolve(

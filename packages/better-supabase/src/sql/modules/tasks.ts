@@ -7,7 +7,7 @@ import type {
 } from "../context.ts";
 import type { BlockContributes } from "../contributions.ts";
 import type { BlockSqlDefinition } from "../module-types.ts";
-import type { WorkItemNames } from "./tasks-functions.ts";
+import type { TaskNames } from "./tasks-functions.ts";
 
 import { sqlString, sqlIdent } from "../../core/template.ts";
 import { policy as makePolicy, renderPolicy } from "../policy.ts";
@@ -24,8 +24,8 @@ import { appUniqueIndex, lockModuleTable } from "./over-app.ts";
 import { moduleOperations } from "./permissions-model.ts";
 import { myWorkTenant } from "./subjects.ts";
 import { backfillProjectDimensions } from "./tasks-data.ts";
-import { checklistTable, workItemExtrasContract } from "./tasks-extras.ts";
-import { workItemFunctions } from "./tasks-functions.ts";
+import { checklistTable, taskExtrasContract } from "./tasks-extras.ts";
+import { taskFunctions } from "./tasks-functions.ts";
 
 /** The subject type of a project, after `blocks.tasks.entities`. */
 export function projectType(tasks: BlockSqlContext): string {
@@ -59,26 +59,26 @@ export function taskType(tasks: BlockSqlContext): string {
 
 const ITEM = [
   "organizationId",
-  "workItemId",
+  "taskId",
   "subjectType",
   "subjectId",
   "title",
 ] as const;
 
 const EVENTS: BlockSqlEvents<TasksEvents> = {
-  "task.created": { subject: "work-items", payload: [...ITEM] },
-  "task.updated": { subject: "work-items", payload: [...ITEM, "fields"] },
+  "task.created": { subject: "tasks", payload: [...ITEM] },
+  "task.updated": { subject: "tasks", payload: [...ITEM, "fields"] },
   "task.assigned": {
-    subject: "work-items",
+    subject: "tasks",
     payload: [...ITEM, "assigneeIds", "addedIds"],
   },
   "task.closed": {
-    subject: "work-items",
+    subject: "tasks",
     payload: [...ITEM, "state", "closeReason"],
   },
-  "task.reopened": { subject: "work-items", payload: [...ITEM] },
-  "task.archived": { subject: "work-items", payload: [...ITEM] },
-  "task.deleted": { subject: "work-items", payload: [...ITEM] },
+  "task.reopened": { subject: "tasks", payload: [...ITEM] },
+  "task.archived": { subject: "tasks", payload: [...ITEM] },
+  "task.deleted": { subject: "tasks", payload: [...ITEM] },
 };
 
 const NAMES: BlockSqlNames = {
@@ -103,7 +103,7 @@ const NAMES: BlockSqlNames = {
     task: {
       table: "items",
       singular: "task",
-      formerly: "work_item",
+      keyed: true,
       primary: true,
       subject: {
         title: "title",
@@ -319,7 +319,7 @@ ${templateGuardSql({
 ${triggerGrant(`${ctx.fn("task_template_guard")}()`)}`;
 }
 
-function tables(ctx: BlockSqlContext, n: WorkItemNames): string {
+function tables(ctx: BlockSqlContext, n: TaskNames): string {
   if (!ctx.manages) {
     return "";
   }
@@ -435,15 +435,15 @@ ${checklistTable(ctx, n)}`;
  * state stamps closed_at and a close reason and records task.closed, and
  * reopening clears both.
  */
-function guard(ctx: BlockSqlContext, n: WorkItemNames): string {
+function guard(ctx: BlockSqlContext, n: TaskNames): string {
   const { t, c } = n;
   const w = (column: string): string => c("items", column);
-  const guardName = ctx.naming.rename("bsb_work_item_guard");
+  const guardName = ctx.naming.rename("bsb_task_guard");
 
   const payload = (extra: string): string =>
-    `jsonb_build_object('organizationId', new.${w("tenant")}, 'workItemId', new.${w("id")}, 'subjectType', ${sqlString(n.type)}, 'subjectId', new.${w("id")}::text, 'title', new.${w("title")}${extra})`;
+    `jsonb_build_object('organizationId', new.${w("tenant")}, 'taskId', new.${w("id")}, 'subjectType', ${sqlString(n.type)}, 'subjectId', new.${w("id")}::text, 'title', new.${w("title")}${extra})`;
 
-  const subject = `'work-items/' || new.${w("id")}::text`;
+  const subject = `'tasks/' || new.${w("id")}::text`;
   const tenant = `new.${w("tenant")}::text`;
 
   const state = (value: string, labels: readonly string[], negate = false) =>
@@ -546,7 +546,7 @@ function build(ctx: BlockSqlContext): string {
     );
   }
 
-  const n: WorkItemNames = {
+  const n: TaskNames = {
     fn: (name) => ctx.fn(name),
     t: (table) => ctx.table(table),
     c: (table, column) => ctx.col(table, column),
@@ -576,7 +576,7 @@ function build(ctx: BlockSqlContext): string {
   return `${schemaPreamble(ctx)}
 -- Work items on pipelines: issues and tasks with an identifier, a parent,
 -- assignees, a priority, dates, projects and iterations.
-${tables(ctx, n)}${guard(ctx, n)}${workItemFunctions(ctx, n)}`;
+${tables(ctx, n)}${guard(ctx, n)}${taskFunctions(ctx, n)}`;
 }
 
 function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
@@ -621,7 +621,7 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
           },
         ]
       : []),
-    ...workItemExtrasContract(ctx),
+    ...taskExtrasContract(ctx),
   ];
 }
 
@@ -635,7 +635,7 @@ const WORK_ITEM_STATES = [
   "canceled",
 ] as const;
 
-const workItemPipeline = (
+const taskPipeline = (
   own: BlockSqlContext,
 ): Readonly<Record<string, unknown>> => ({
   stage: own.colName("items", "stage"),
@@ -736,7 +736,7 @@ const CONTRIBUTES: BlockContributes = {
         type: taskType(own),
         table: `${schema}.${name}`,
         tenant: own.colName("items", "tenant"),
-        entry: workItemPipeline(own),
+        entry: taskPipeline(own),
       },
     ];
   },
@@ -766,7 +766,7 @@ export const WORK_ITEMS: BlockSqlDefinition = {
   description:
     "Issues and tasks on pipelines: identifiers, parents without cycles, several assignees, priority 0 to 4, estimates, start, end and due dates, locking, projects, iterations, batched edits and a progress tree.",
   requires: ["memberships", "permissions", "subjects", "pipelines"],
-  // The pipelines module binds the work_items table, so the table comes first.
+  // The pipelines module binds the tasks table, so the table comes first.
   before: "pipelines",
   integrates: [
     "outbox",

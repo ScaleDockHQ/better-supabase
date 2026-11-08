@@ -18,7 +18,7 @@ const NAMES: BlockSqlNames = {
     timeline_entry: {
       table: "activity",
       singular: "timeline_entry",
-      formerly: "activity_entry",
+      keyed: true,
       primary: true,
     },
   },

@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:17b0b3c008ed94b73f320c5b4a4acf7c4698fb468c02252a6a07a95ca72a19f5
+-- @bsb-hash sha256:f8477274872c47201e11bb5eb0745bdad5318dbbe350024c12da29fd3a73a269
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -941,7 +941,7 @@ begin
       from "better_supabase"."meeting_decisions" y where y."tenant_id" = v_row."tenant_id" and y."meeting_id" = v_row."id"
     ), '[]'::jsonb),
     'actionItems', coalesce((
-      select jsonb_agg(jsonb_build_object('workItemId', z."id", 'title', z."title", 'state', z."state", 'dueAt', z."due_at",
+      select jsonb_agg(jsonb_build_object('taskId', z."id", 'title', z."title", 'state', z."state", 'dueAt', z."due_at",
         'agendaItemId', y."agenda_item_id", 'decisionId', y."decision_id") order by y."created_at")
       from "better_supabase"."meeting_action_items" y join "better_supabase"."tasks" z on z."id" = y."task_id"
       where y."tenant_id" = v_row."tenant_id" and y."meeting_id" = v_row."id"
@@ -1102,7 +1102,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:bd0d4b0b31db39905a819de75f0fd149e1c4d6c1eac1570763c2a99430b07766
+-- @bsb-hash sha256:9b85970d12ad95a95482f847d2dbe687c7fbaa47bc1694e4afa1bd62580f59d1
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2080,7 +2080,7 @@ begin
   v_task := "better_supabase"."create_task"(v_row."tenant_id", add_meeting_action_item.task, coalesce(add_meeting_action_item.assignees, '{}'));
   insert into "better_supabase"."meeting_action_items" ("task_id", "tenant_id", "meeting_id", "agenda_item_id", "decision_id")
   values ((v_task ->> 'id')::uuid, v_row."tenant_id", v_row."id", add_meeting_action_item.agenda_item_id, add_meeting_action_item.decision_id);
-  perform "better_supabase".emit_event('meeting_action_item.created', jsonb_build_object('organizationId', v_row."tenant_id", 'meetingId', v_row."id", 'workItemId', (v_task ->> 'id')::uuid, 'title', v_task ->> 'title'), 'meetings/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/meetings');
+  perform "better_supabase".emit_event('meeting_action_item.created', jsonb_build_object('organizationId', v_row."tenant_id", 'meetingId', v_row."id", 'taskId', (v_task ->> 'id')::uuid, 'title', v_task ->> 'title'), 'meetings/' || v_row."id"::text, (v_row."tenant_id")::text, null, 'better-supabase/meetings');
   return v_task || jsonb_build_object('meetingId', v_row."id", 'agendaItemId', add_meeting_action_item.agenda_item_id, 'decisionId', add_meeting_action_item.decision_id);
 end;
 $$;
@@ -2120,7 +2120,7 @@ begin
       from "better_supabase"."meeting_decisions" y where y."tenant_id" = v_row."tenant_id" and y."meeting_id" = v_row."id"
     ), '[]'::jsonb),
     'actionItems', coalesce((
-      select jsonb_agg(jsonb_build_object('workItemId', z."id", 'title', z."title", 'state', z."state", 'dueAt', z."due_at",
+      select jsonb_agg(jsonb_build_object('taskId', z."id", 'title', z."title", 'state', z."state", 'dueAt', z."due_at",
         'agendaItemId', y."agenda_item_id", 'decisionId', y."decision_id") order by y."created_at")
       from "better_supabase"."meeting_action_items" y join "better_supabase"."tasks" z on z."id" = y."task_id"
       where y."tenant_id" = v_row."tenant_id" and y."meeting_id" = v_row."id"
@@ -2331,7 +2331,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:d8e5c075ec89d2948190a267ce826c250f14f6c4cce03ec91e121a1c9f4c34d9
+-- @bsb-hash sha256:35c1cc7455be98fc6d52a3d6a3daeb8fbd1af5eaa5a3cf5eb8ea2dc2206d59a2
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3276,7 +3276,7 @@ begin
       from "app_private"."meeting_decisions" y where y."tenant_id" = v_row."tenant_id" and y."meeting_id" = v_row."id"
     ), '[]'::jsonb),
     'actionItems', coalesce((
-      select jsonb_agg(jsonb_build_object('workItemId', z."id", 'title', z."title", 'state', z."state", 'dueAt', z."due_at",
+      select jsonb_agg(jsonb_build_object('taskId', z."id", 'title', z."title", 'state', z."state", 'dueAt', z."due_at",
         'agendaItemId', y."agenda_item_id", 'decisionId', y."decision_id") order by y."created_at")
       from "app_private"."meeting_action_items" y join "better_supabase"."tasks" z on z."id" = y."task_id"
       where y."tenant_id" = v_row."tenant_id" and y."meeting_id" = v_row."id"
@@ -3437,7 +3437,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:3c04a6afc269323aad985cfab5bfd075c9c136258ca7ecb5cf9dbc23d84c8fb7
+-- @bsb-hash sha256:bd278f54957584340d1587dc7c3e5b776044d3b39d53f49dc68460d39e890c2a
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4377,7 +4377,7 @@ begin
       from "better_supabase"."meeting_decisions" y where y."tenant_id" = v_row."tenant_id" and y."meeting_id" = v_row."id"
     ), '[]'::jsonb),
     'actionItems', coalesce((
-      select jsonb_agg(jsonb_build_object('workItemId', z."id", 'title', z."title", 'state', z."state", 'dueAt', z."due_at",
+      select jsonb_agg(jsonb_build_object('taskId', z."id", 'title', z."title", 'state', z."state", 'dueAt', z."due_at",
         'agendaItemId', y."agenda_item_id", 'decisionId', y."decision_id") order by y."created_at")
       from "better_supabase"."meeting_action_items" y join "better_supabase"."tasks" z on z."id" = y."task_id"
       where y."tenant_id" = v_row."tenant_id" and y."meeting_id" = v_row."id"
@@ -4696,7 +4696,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:539c357af03ebb1ee00e4b155ff147c4a1915fa00ea680a4470fe27d06d34fe0
+-- @bsb-hash sha256:7778d34995989a38fe644feee54a60a9d51efa4e9bc95d213436095c514d79db
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5616,7 +5616,7 @@ begin
       from "better_supabase"."meeting_decisions" y where y."tenant_id" = v_row."tenant_id" and y."meeting_id" = v_row."id"
     ), '[]'::jsonb),
     'actionItems', coalesce((
-      select jsonb_agg(jsonb_build_object('workItemId', z."id", 'title', z."title", 'state', z."state", 'dueAt', z."due_at",
+      select jsonb_agg(jsonb_build_object('taskId', z."id", 'title', z."title", 'state', z."state", 'dueAt', z."due_at",
         'agendaItemId', y."agenda_item_id", 'decisionId', y."decision_id") order by y."created_at")
       from "better_supabase"."meeting_action_items" y join "better_supabase"."tasks" z on z."id" = y."task_id"
       where y."tenant_id" = v_row."tenant_id" and y."meeting_id" = v_row."id"
@@ -5777,7 +5777,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_156_meetings.sql
 -- better-supabase module: meetings
 -- @bsb-block meetings@1 managed
--- @bsb-hash sha256:2e10b44617a906d1ce07a052997a14d78a5e30133ebe2abe4ed9f037b6da623f
+-- @bsb-hash sha256:b2b300f9bef06ecbcb404faa32b23d29a23aaa4ea50f7e3e0b95362881a1944c
 -- Meetings with an agenda, attendees and roles, minutes per agenda item, decisions the attendees vote on, and action items that become tasks.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -6717,7 +6717,7 @@ begin
       from "better_supabase"."meeting_decisions" y where y."org_id" = v_row."org_id" and y."meeting_id" = v_row."id"
     ), '[]'::jsonb),
     'actionItems', coalesce((
-      select jsonb_agg(jsonb_build_object('workItemId', z."id", 'title', z."title", 'state', z."state", 'dueAt', z."due_at",
+      select jsonb_agg(jsonb_build_object('taskId', z."id", 'title', z."title", 'state', z."state", 'dueAt', z."due_at",
         'agendaItemId', y."agenda_item_id", 'decisionId', y."decision_id") order by y."created_at")
       from "better_supabase"."meeting_action_items" y join "better_supabase"."tasks" z on z."id" = y."task_id"
       where y."org_id" = v_row."org_id" and y."meeting_id" = v_row."id"

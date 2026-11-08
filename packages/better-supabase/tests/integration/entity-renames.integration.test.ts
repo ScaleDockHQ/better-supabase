@@ -99,7 +99,7 @@ const config = resolveConfig(
       subjects: { schema: SCRATCH },
       pipelines: { schema: SCRATCH },
       outbox: { schema: SCRATCH },
-      tasks: { schema: SCRATCH, names: { task: "task" } },
+      tasks: { schema: SCRATCH },
       attachments: { schema: SCRATCH, options: { requireScan: false } },
     },
   },
@@ -109,15 +109,7 @@ const config = resolveConfig(
 const generated = blockConfigEntries(config);
 
 /** The names `gen` writes for tasks, as `blocks.generated.ts` declares them. */
-const NAMES = {
-  tenant: "workspace",
-  entities: [
-    {
-      from: { singular: "work_item", plural: "work_items" },
-      to: { singular: "task", plural: "tasks" },
-    },
-  ],
-} as const;
+const NAMES = { tenant: "workspace" } as const;
 
 const blocks = defineBlocks(generated, {
   tasks: renameBlock(tasksBlock, NAMES),

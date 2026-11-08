@@ -11,15 +11,15 @@ import { dealInputSchema } from "../../src/blocks/deals/schemas.ts";
 import { renameBlock } from "../../src/blocks/rename-block.ts";
 import { tasksBlock } from "../../src/blocks/tasks/manifest.ts";
 import {
-  workItemChangeSchema,
-  workItemInputSchema,
-  workItemListFilterSchema,
+  taskChangeSchema,
+  taskInputSchema,
+  taskListFilterSchema,
 } from "../../src/blocks/tasks/schemas.ts";
 
 const names = {
   entities: [
     {
-      from: { singular: "work_item", plural: "work_items" },
+      from: { singular: "task", plural: "tasks" },
       to: { singular: "task", plural: "tasks" },
     },
   ],
@@ -52,13 +52,13 @@ describe("entity schemas", () => {
   });
 
   it("validates a work item input with the bounds the SQL checks", async () => {
-    const valid = await workItemInputSchema["~standard"].validate({
+    const valid = await taskInputSchema["~standard"].validate({
       title: "Ship it",
       priority: 2,
       extra: true,
     });
 
-    const invalid = await workItemInputSchema["~standard"].validate({
+    const invalid = await taskInputSchema["~standard"].validate({
       title: "",
       priority: 7,
     });
@@ -71,12 +71,12 @@ describe("entity schemas", () => {
   });
 
   it("converts to JSON Schema", () => {
-    const schema = workItemListFilterSchema["~standard"].jsonSchema.input({
+    const schema = taskListFilterSchema["~standard"].jsonSchema.input({
       target: "draft-2020-12",
     });
 
     expect(schema).toMatchObject({
-      title: "WorkItemListOptions",
+      title: "TaskListOptions",
       properties: {
         states: { type: "array", items: { enum: expect.any(Array) } },
         limit: { type: "integer", minimum: 1 },
@@ -85,7 +85,7 @@ describe("entity schemas", () => {
   });
 
   it("puts the schemas on the block's manifest", () => {
-    expect(tasksBlock.schemas["task"]?.change).toBe(workItemChangeSchema);
+    expect(tasksBlock.schemas["task"]?.change).toBe(taskChangeSchema);
   });
 
   it("validates the collaboration blocks' inputs", async () => {

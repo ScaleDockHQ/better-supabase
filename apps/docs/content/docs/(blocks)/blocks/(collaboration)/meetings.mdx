@@ -193,7 +193,7 @@ goes on the linked tasks and documents.
 | -------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------ |
 | `meeting.created`, `meeting.updated`, `meeting.started`, `meeting.concluded`, `meeting.cancelled`, `meeting.deleted` | `organizationId`, `id`, `kind`, `title`, `status`      |
 | `meeting_decision.recorded`, `meeting_decision.decided`                                                              | `organizationId`, `id`, `meetingId`, `title`, `status` |
-| `meeting_action_item.created`                                                                                        | `organizationId`, `meetingId`, `workItemId`, `title`   |
+| `meeting_action_item.created`                                                                                        | `organizationId`, `meetingId`, `taskId`, `title`       |
 
 The hooks are `before_meeting_create`, `after_meeting_create`,
 `before_meeting_hold`, `after_meeting_hold` and `after_meeting_decision`.

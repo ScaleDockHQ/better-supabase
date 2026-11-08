@@ -80,7 +80,7 @@ const NAMES: BlockSqlNames = {
     compliance_policy: {
       table: "policies",
       singular: "compliance_policy",
-      formerly: "policy",
+      keyed: true,
       subject: {
         title: "title",
         permissions: { read: "read", write: "manage" },

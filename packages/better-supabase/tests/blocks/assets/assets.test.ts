@@ -287,7 +287,7 @@ describe("createAssets", () => {
         locationPath: [{ id: "l1", kind: "building", name: "B1" }],
         links: {
           bookingResources: [{ id: "r1", name: "Room" }],
-          workItems: [{ id: "w1", title: "Fix" }],
+          tasks: [{ id: "w1", title: "Fix" }],
         },
       },
     });
@@ -344,7 +344,7 @@ describe("createAssets", () => {
       locationPath: [{ id: "l1", kind: "building", name: "B1" }],
       links: {
         bookingResources: [{ id: "r1", name: "Room" }],
-        workItems: [{ id: "w1", title: "Fix" }],
+        tasks: [{ id: "w1", title: "Fix" }],
       },
     });
 
@@ -420,7 +420,7 @@ describe("createAssets", () => {
     const assets = createAssets({ transport: fake.transport, tenant: "org-1" });
 
     expect(await assets.asset("a1").orThrow()).toMatchObject({
-      links: { bookingResources: [], workItems: [] },
+      links: { bookingResources: [], tasks: [] },
     });
   });
 
@@ -550,9 +550,9 @@ describe("createAssets", () => {
 
     expect(
       await assets
-        .link({ target: { type: "work_item", id: "w1" }, assetId: "a1" })
+        .link({ target: { type: "task", id: "w1" }, assetId: "a1" })
         .orThrow(),
-    ).toEqual({ type: "work_item", id: "w1", assetId: "a1" });
+    ).toEqual({ type: "task", id: "w1", assetId: "a1" });
     await assets
       .link({ target: { type: "booking_resource", id: "r1" }, assetId: null })
       .orThrow();
@@ -586,7 +586,7 @@ describe("createAssets", () => {
       ],
       [
         "set_asset_link",
-        { target_type: "work_item", target_id: "w1", asset_id: "a1" },
+        { target_type: "task", target_id: "w1", asset_id: "a1" },
       ],
       [
         "set_asset_link",

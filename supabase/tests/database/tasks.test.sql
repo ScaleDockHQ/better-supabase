@@ -73,13 +73,13 @@ select api.set_work_item_assignees(current_setting('test.item')::uuid, array['00
 reset role;
 select is(
   (select count(*)::int from better_supabase.outbox_events
-    where type = 'task.assigned' and payload ->> 'workItemId' = current_setting('test.item')),
+    where type = 'work_item.assigned' and payload ->> 'workItemId' = current_setting('test.item')),
   2,
   'task.assigned is recorded only when a call adds someone'
 );
 select is(
   (select payload -> 'addedIds' from better_supabase.outbox_events
-    where type = 'task.assigned' and payload ->> 'workItemId' = current_setting('test.item')
+    where type = 'work_item.assigned' and payload ->> 'workItemId' = current_setting('test.item')
     order by position desc limit 1),
   '["00000000-0000-4000-8000-0000000000a2"]'::jsonb,
   'with the people that call added'

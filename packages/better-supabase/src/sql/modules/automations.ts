@@ -26,7 +26,7 @@ const NAMES: BlockSqlNames = {
     automation: {
       table: "rules",
       singular: "automation",
-      formerly: "rule",
+      keyed: true,
       primary: true,
     },
   },

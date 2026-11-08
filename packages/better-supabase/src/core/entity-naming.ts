@@ -1,4 +1,4 @@
-/** A noun in its singular and plural snake_case forms, e.g. `work_item`. */
+/** A noun in its singular and plural snake_case forms, e.g. `task`. */
 export interface EntityNoun {
   readonly singular: string;
   readonly plural: string;
@@ -19,6 +19,13 @@ export interface EntityRename {
    * `organization` inside any identifier, as it always has.
    */
   readonly bounded?: boolean;
+  /**
+   * The plural is also the name of the block (`tasks`), so `<plural>.` is a
+   * permission or automation key of the block and keeps its name when the
+   * entity is renamed: `task` to `ticket` renames `list_tasks` and
+   * `task.created`, not `tasks.read`.
+   */
+  readonly keyed?: boolean;
 }
 
 /** Renames for a set of nouns, applied in one pass so no rename feeds another. */
@@ -149,7 +156,11 @@ function alternatives(
 
       const lower = kind !== "pascal";
       const before = bounded && lower ? "(?<![A-Za-z0-9])" : "";
-      const after = bounded ? "(?![a-z0-9])" : "";
+
+      const keyed =
+        rename.keyed === true && number === "plural" ? "(?!\\.)" : "";
+
+      const after = bounded ? `(?![a-z0-9])${keyed}` : "";
       found.set(match, {
         match,
         replace: { [kind]: replace },

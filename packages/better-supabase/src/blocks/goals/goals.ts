@@ -31,7 +31,7 @@ import {
 export type TargetMetric =
   | "deals.won_amount"
   | "deals.won_count"
-  | "work_items.completed"
+  | "tasks.completed"
   | "invoices.paid_amount"
   | (string & {});
 

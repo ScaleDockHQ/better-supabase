@@ -218,6 +218,7 @@ describe("blocks.generated.ts", () => {
         get_task: "get_ticket",
         list_task_checklist: "list_ticket_checklist",
         list_tasks: "list_tickets",
+        save_project: "save_initiative",
         save_task_checklist_item: "save_ticket_checklist_item",
         set_task_assignees: "set_ticket_assignees",
         task_tree: "ticket_tree",
@@ -225,7 +226,7 @@ describe("blocks.generated.ts", () => {
       },
       entities: [
         {
-          from: { singular: "work_item", plural: "work_items" },
+          from: { singular: "task", plural: "tasks" },
           to: { singular: "ticket", plural: "tickets" },
         },
         {
@@ -237,6 +238,11 @@ describe("blocks.generated.ts", () => {
         {
           from: { singular: "task", plural: "tasks" },
           to: { singular: "ticket", plural: "tickets" },
+          keyed: true,
+        },
+        {
+          from: { singular: "project", plural: "projects" },
+          to: { singular: "initiative", plural: "initiatives" },
         },
       ],
     });
@@ -248,7 +254,7 @@ describe("blocks.generated.ts", () => {
         blocks: {
           memberships: {},
           permissions: {},
-          tasks: { names: { task: "task" } },
+          tasks: { names: { task: "ticket" } },
         },
       },
       "/project",
@@ -258,6 +264,7 @@ describe("blocks.generated.ts", () => {
 
     expect(contents).toContain(
       `import {
+  type EventRenamesOf,
   type Events,
   renameBlock,
   type RenamedEvents,
@@ -265,16 +272,16 @@ describe("blocks.generated.ts", () => {
 } from "better-supabase/blocks";`,
     );
     expect(contents).toContain(
-      '  tasksBlock as defaultTasksBlock,\n} from "better-supabase/blocks/tasks";',
+      '  tasksBlock,\n} from "better-supabase/blocks/tasks";',
     );
     expect(contents).toContain(
-      'export const tasksBlock = renameBlock(defaultTasksBlock, blockConfig["tasks"].names);',
+      'export const ticketsBlock = renameBlock(tasksBlock, blockConfig["tasks"].names);',
     );
     expect(contents).toContain(
-      "export type Task<F extends object = Record<never, never>> = RenamedType<WorkItem<F>, TasksRenames>;",
+      "export type Ticket<F extends object = Record<never, never>> = RenamedType<Task<F>, TasksRenames>;",
     );
     expect(contents).toContain(
-      "export type TasksEvents = RenamedEvents<DefaultTasksEvents, TasksRenames>;",
+      "export type TicketsEvents = RenamedEvents<TasksEvents, TasksRenamesEvents>;",
     );
     expect(contents).toContain("  type Project as DefaultProject,");
     expect(contents).toContain(
@@ -342,18 +349,18 @@ describe("blocks.generated.ts", () => {
 
     const contents = emitBlockConfig(config)?.contents ?? "";
     expect(contents).toContain(
-      'export const tasksBlock = renameBlock(defaultTasksBlock, blockConfig["tasks"].names);',
+      'export const todosBlock = renameBlock(defaultTasksBlock, blockConfig["tasks"].names);',
     );
     expect(contents).toContain(
       'export const ticketsBlock = renameBlock(defaultTasksBlock, blockConfig["tickets"].names);',
     );
     expect(contents).toContain(
-      "export type Ticket<F extends object = Record<never, never>> = RenamedType<DefaultWorkItem<F>, TicketsRenames>;",
+      "export type Ticket<F extends object = Record<never, never>> = RenamedType<DefaultTask<F>, TicketsRenames>;",
     );
     expect(contents).toContain(
       "export type TicketsEvents = RenamedEvents<DefaultTasksEvents, TicketsRenamesEvents>;",
     );
-    expect(contents).toMatch(/BlockEvents = .*TasksEvents & TicketsEvents/);
+    expect(contents).toMatch(/BlockEvents = .*TodosEvents & TicketsEvents/);
   });
 
   it("leaves out the block's own entry when only another name installs it", () => {
@@ -375,7 +382,7 @@ describe("blocks.generated.ts", () => {
           memberships: {},
           permissions: { roles: { owner: ["*"], editor: ["tasks.write"] } },
           notifications: {},
-          tasks: { names: { task: "task" } },
+          tasks: {},
           settings: {
             options: { schemas: { user: { theme: { type: "string" } } } },
           },
@@ -400,7 +407,7 @@ describe("blocks.generated.ts", () => {
       "export const blockEvents: Events<BlockEvents> = {",
     );
     expect(contents).toContain('    "task.created",');
-    expect(contents).not.toContain('"work_item.created"');
+    expect(contents).not.toContain('"ticket.created"');
     expect(contents).toMatch(/export type BlockEvents = [^;]*TasksEvents/u);
     expect(contents).toContain("export const topics = {");
     expect(contents).toMatch(/notifications:\$\{String\(v\.userId\)\}/u);

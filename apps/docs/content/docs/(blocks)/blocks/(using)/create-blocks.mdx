@@ -318,19 +318,19 @@ tenant columns (`workspace_id`) back under the names the clients read
 A renamed entity also renames the TypeScript side. For each block whose
 entities the config renames, `gen` writes the block and its types under the
 new names, so you import `tasksBlock` and `Task` instead of `tasksBlock`
-and `WorkItem`:
+and `Task`:
 
 ```ts title="src/lib/supabase/blocks.generated.ts"
 export const tasksBlock = renameBlock(tasksBlock, blockConfig["tasks"].names);
 export type Task<F extends object = Record<never, never>> = RenamedType<
-  WorkItem<F>,
+  Task<F>,
   WorkItemsRenames
 >;
 export type TasksEvents = RenamedEvents<TasksEvents, WorkItemsRenames>;
 ```
 
 `renameBlock` renames the client's methods (`createWorkItem` to `createTask`),
-the keys of their arguments and results (`workItemId` to `taskId`) and the
+the keys of their arguments and results (`taskId` to `taskId`) and the
 block's event types (`task.created` to `task.created`). The block keeps
 its name, SQL and ports, and hooks see the renamed client. The tenant rename
 stays in SQL: payloads and client types keep `organizationId`. See

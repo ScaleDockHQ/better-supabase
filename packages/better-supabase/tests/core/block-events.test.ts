@@ -34,6 +34,18 @@ describe("blockEmitter", () => {
     expect(seen[1]).not.toHaveProperty("tenant");
   });
 
+  it("adds the request context when the options carry one", () => {
+    const events = new EventHub();
+    const seen: BlockEvent[] = [];
+    events.on("block", (event) => {
+      seen.push(event);
+    });
+    const context = { tenant: "t1" };
+    const emit = blockEmitter<NotificationsEvents>({ events, context });
+    emit("notification.created", data, "notifications/n1");
+    expect(seen[0]?.context).toBe(context);
+  });
+
   it("does nothing without an event hub", () => {
     expect(() => {
       blockEmitter<NotificationsEvents>({})(

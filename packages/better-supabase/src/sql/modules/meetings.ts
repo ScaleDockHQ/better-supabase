@@ -47,7 +47,7 @@ const EVENTS: BlockSqlEvents<MeetingsEvents> = {
   "meeting_decision.decided": decision,
   "meeting_action_item.created": {
     subject: "meetings",
-    payload: ["organizationId", "meetingId", "workItemId", "title"],
+    payload: ["organizationId", "meetingId", "taskId", "title"],
   },
 };
 

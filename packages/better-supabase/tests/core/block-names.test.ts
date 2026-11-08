@@ -79,8 +79,8 @@ describe("blockNames", () => {
 const TASKS = {
   entities: [
     {
-      from: { singular: "work_item", plural: "work_items" },
-      to: { singular: "task", plural: "tasks" },
+      from: { singular: "task", plural: "tasks" },
+      to: { singular: "ticket", plural: "tickets" },
     },
     {
       from: { singular: "project", plural: "projects" },
@@ -114,10 +114,10 @@ describe("blockNames with renamed entities", () => {
 
   it("calls the renamed function with the nested keys renamed", async () => {
     const { seen } = await request(
-      "update_work_items",
+      "update_tasks",
       {
-        work_item: "w1",
-        changes: [{ workItemId: "w1", field: "projectId", value: "p1" }],
+        task: "w1",
+        changes: [{ taskId: "w1", field: "projectId", value: "p1" }],
         attrs: { projectId: "p1", fields: { project_code: "x" } },
       },
       null,
@@ -125,29 +125,29 @@ describe("blockNames with renamed entities", () => {
 
     expect(seen).toEqual({
       schema: "better_supabase",
-      fn: "update_tasks",
+      fn: "update_tickets",
       args: {
-        work_item: "w1",
-        changes: [{ taskId: "w1", field: "initiativeId", value: "p1" }],
+        task: "w1",
+        changes: [{ ticketId: "w1", field: "initiativeId", value: "p1" }],
         attrs: { initiativeId: "p1", fields: { project_code: "x" } },
       },
     });
   });
 
   it("returns result keys under the default names", async () => {
-    const { result } = await request("list_work_items", {}, [
+    const { result } = await request("list_tasks", {}, [
       {
         initiative_id: "p1",
-        accepted: [{ taskId: "w1", field: "initiativeId" }],
-        metadata: { taskId: "kept" },
+        accepted: [{ ticketId: "w1", field: "initiativeId" }],
+        metadata: { ticketId: "kept" },
       },
     ]);
 
     expect(result).toEqual([
       {
         project_id: "p1",
-        accepted: [{ workItemId: "w1", field: "projectId" }],
-        metadata: { taskId: "kept" },
+        accepted: [{ taskId: "w1", field: "projectId" }],
+        metadata: { ticketId: "kept" },
       },
     ]);
   });

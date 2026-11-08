@@ -252,7 +252,7 @@ export type GeneratorField = FieldSpec;
 
 /** One of a block's input schemas, in the block's default names. */
 export interface GeneratorInputSchema {
-  /** The type it validates (`WorkItemInput`). */
+  /** The type it validates (`TaskInput`). */
   readonly title: string;
   readonly fields: Readonly<Record<string, GeneratorField>>;
   /** The same schema as JSON Schema (draft 2020-12), in its wire form. */
@@ -264,11 +264,11 @@ export interface GeneratorInputSchema {
  * block declares none.
  */
 export interface GeneratorEntitySchemas {
-  /** What creating one takes (`WorkItemInput`). */
+  /** What creating one takes (`TaskInput`). */
   readonly input?: GeneratorInputSchema;
-  /** What updating one takes (`WorkItemChange`). */
+  /** What updating one takes (`TaskChange`). */
   readonly change?: GeneratorInputSchema;
-  /** What listing them takes (`WorkItemListOptions`). */
+  /** What listing them takes (`TaskListOptions`). */
   readonly listFilter?: GeneratorInputSchema;
 }
 
@@ -281,7 +281,7 @@ export interface GeneratorNoun {
 export interface GeneratorBlockEntity {
   /** The entity's key in the block's manifest: its default singular noun. */
   readonly key: string;
-  /** The block's own noun (`work_item`). */
+  /** The block's own noun (`task`). */
   readonly from: GeneratorNoun;
   /** The noun `blocks.<name>.names` gives it (`task`). */
   readonly to: GeneratorNoun;

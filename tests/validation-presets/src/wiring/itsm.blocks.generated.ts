@@ -14,24 +14,27 @@ import {
   type ChecklistItemInput as DefaultChecklistItemInput,
   type Iteration as DefaultIteration,
   type Project,
-  type WorkItem,
-  type WorkItemChange,
-  type WorkItemChangeResult,
-  type WorkItemChecklistOptimisticAction,
-  type WorkItemField,
-  type WorkItemInput,
-  type WorkItemListOptions,
-  type WorkItemNode,
-  type WorkItemRecurrence,
-  type WorkItemRecurrenceSinkOptions,
-  type WorkItemSetResult,
-  type WorkItemState,
-  type WorkItemUpdateOptions,
-  type WorkItemWatcher,
-  type WorkItemWatchLevel,
-  type WorkItemWindow,
-  type TasksEvents as DefaultTasksEvents,
-  tasksBlock as defaultTasksBlock,
+  type Task,
+  type TaskChange,
+  type TaskChangeResult,
+  type TaskChecklistOptimisticAction,
+  type TaskField,
+  type TaskFromConversationClients,
+  type TaskFromConversationOptions,
+  type TaskInput,
+  type TaskListOptions,
+  type TaskNode,
+  type TaskRecurrence,
+  type TaskRecurrenceSinkOptions,
+  type Tasks,
+  type TaskSetResult,
+  type TasksEvents,
+  type TaskState,
+  type TaskUpdateOptions,
+  type TaskWatcher,
+  type TaskWatchLevel,
+  type TaskWindow,
+  tasksBlock,
 } from "better-supabase/blocks/tasks";
 import type { ApiKeysEvents } from "better-supabase/blocks/api-keys";
 import type { ApprovalsEvents } from "better-supabase/blocks/approvals";
@@ -84,7 +87,7 @@ type TasksRenamesEvents = EventRenamesOf<(typeof blockConfig)["tasks"]["names"]>
  * The `tasks` block under the names `blocks.tasks.entities` gives it.
  * @public
  */
-export const tasksBlock = renameBlock(defaultTasksBlock, blockConfig["tasks"].names);
+export const ticketsBlock = renameBlock(tasksBlock, blockConfig["tasks"].names);
 
 /** @public */
 export type ChecklistItem = RenamedType<DefaultChecklistItem, TasksRenames>;
@@ -99,55 +102,64 @@ export type Iteration = RenamedType<DefaultIteration, TasksRenames>;
 export type Issue = RenamedType<Project, TasksRenames>;
 
 /** @public */
-export type Ticket<F extends object = Record<never, never>> = RenamedType<WorkItem<F>, TasksRenames>;
+export type Ticket<F extends object = Record<never, never>> = RenamedType<Task<F>, TasksRenames>;
 
 /** @public */
-export type TicketChange<F extends object = Record<never, never>> = RenamedType<WorkItemChange<F>, TasksRenames>;
+export type TicketChange<F extends object = Record<never, never>> = RenamedType<TaskChange<F>, TasksRenames>;
 
 /** @public */
-export type TicketChangeResult = RenamedType<WorkItemChangeResult, TasksRenames>;
+export type TicketChangeResult = RenamedType<TaskChangeResult, TasksRenames>;
 
 /** @public */
-export type TicketChecklistOptimisticAction = RenamedType<WorkItemChecklistOptimisticAction, TasksRenames>;
+export type TicketChecklistOptimisticAction = RenamedType<TaskChecklistOptimisticAction, TasksRenames>;
 
 /** @public */
-export type TicketField = RenamedType<WorkItemField, TasksRenames>;
+export type TicketField = RenamedType<TaskField, TasksRenames>;
 
 /** @public */
-export type TicketInput<F extends object = Record<never, never>> = RenamedType<WorkItemInput<F>, TasksRenames>;
+export type TicketFromConversationClients = RenamedType<TaskFromConversationClients, TasksRenames>;
 
 /** @public */
-export type TicketListOptions = RenamedType<WorkItemListOptions, TasksRenames>;
+export type TicketFromConversationOptions = RenamedType<TaskFromConversationOptions, TasksRenames>;
 
 /** @public */
-export type TicketNode = RenamedType<WorkItemNode, TasksRenames>;
+export type TicketInput<F extends object = Record<never, never>> = RenamedType<TaskInput<F>, TasksRenames>;
 
 /** @public */
-export type TicketRecurrence = RenamedType<WorkItemRecurrence, TasksRenames>;
+export type TicketListOptions = RenamedType<TaskListOptions, TasksRenames>;
 
 /** @public */
-export type TicketRecurrenceSinkOptions = RenamedType<WorkItemRecurrenceSinkOptions, TasksRenames>;
+export type TicketNode = RenamedType<TaskNode, TasksRenames>;
 
 /** @public */
-export type TicketSetResult = RenamedType<WorkItemSetResult, TasksRenames>;
+export type TicketRecurrence = RenamedType<TaskRecurrence, TasksRenames>;
 
 /** @public */
-export type TicketState = RenamedType<WorkItemState, TasksRenames>;
+export type TicketRecurrenceSinkOptions = RenamedType<TaskRecurrenceSinkOptions, TasksRenames>;
 
 /** @public */
-export type TicketUpdateOptions = RenamedType<WorkItemUpdateOptions, TasksRenames>;
+export type Tickets<F extends object = Record<never, never>> = RenamedType<Tasks<F>, TasksRenames>;
 
 /** @public */
-export type TicketWatcher = RenamedType<WorkItemWatcher, TasksRenames>;
+export type TicketSetResult = RenamedType<TaskSetResult, TasksRenames>;
 
 /** @public */
-export type TicketWatchLevel = RenamedType<WorkItemWatchLevel, TasksRenames>;
+export type TicketsEvents = RenamedEvents<TasksEvents, TasksRenamesEvents>;
 
 /** @public */
-export type TicketWindow = RenamedType<WorkItemWindow, TasksRenames>;
+export type TicketState = RenamedType<TaskState, TasksRenames>;
 
 /** @public */
-export type TasksEvents = RenamedEvents<DefaultTasksEvents, TasksRenamesEvents>;
+export type TicketUpdateOptions = RenamedType<TaskUpdateOptions, TasksRenames>;
+
+/** @public */
+export type TicketWatcher = RenamedType<TaskWatcher, TasksRenames>;
+
+/** @public */
+export type TicketWatchLevel = RenamedType<TaskWatchLevel, TasksRenames>;
+
+/** @public */
+export type TicketWindow = RenamedType<TaskWindow, TasksRenames>;
 
 /**
  * Every installed block instance with a client, under its key, for
@@ -179,14 +191,14 @@ export const blocks = {
   sla: slaBlockInstance,
   subjects: subjectsBlockInstance,
   teams: teamsBlockInstance,
-  tasks: tasksBlock,
+  tasks: ticketsBlock,
 } as const;
 
 /** The roles `blocks.permissions.roles` defines. @public */
 export type RoleName = "admin" | "member" | "owner" | "viewer";
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & AssetsEvents & EnrollmentsEvents & IncidentsEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & RelationsEvents & SettingsEvents & SlaEvents & SubjectsEvents & TeamsEvents & TasksEvents;
+export type BlockEvents = ApiKeysEvents & ApprovalsEvents & AuditEvents & BillingEvents & AssetsEvents & EnrollmentsEvents & IncidentsEvents & NotificationsEvents & OrganizationsEvents & PipelinesEvents & RelationsEvents & SettingsEvents & SlaEvents & SubjectsEvents & TeamsEvents & TicketsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -289,13 +301,6 @@ export const blockEvents: Events<BlockEvents> = {
     "subject.unlinked",
     "subject_member.added",
     "subject_member.ended",
-    "task.archived",
-    "task.assigned",
-    "task.closed",
-    "task.created",
-    "task.deleted",
-    "task.reopened",
-    "task.updated",
     "team.archived",
     "team.created",
     "team.deleted",
@@ -303,6 +308,13 @@ export const blockEvents: Events<BlockEvents> = {
     "team.updated",
     "team_member.added",
     "team_member.removed",
+    "ticket.archived",
+    "ticket.assigned",
+    "ticket.closed",
+    "ticket.created",
+    "ticket.deleted",
+    "ticket.reopened",
+    "ticket.updated",
   ],
 };
 
@@ -405,13 +417,6 @@ export const blockEventSchemas = {
   "subject.unlinked": true,
   "subject_member.added": true,
   "subject_member.ended": true,
-  "task.archived": true,
-  "task.assigned": true,
-  "task.closed": true,
-  "task.created": true,
-  "task.deleted": true,
-  "task.reopened": true,
-  "task.updated": true,
   "team.archived": true,
   "team.created": true,
   "team.deleted": true,
@@ -419,6 +424,13 @@ export const blockEventSchemas = {
   "team.updated": true,
   "team_member.added": true,
   "team_member.removed": true,
+  "ticket.archived": true,
+  "ticket.assigned": true,
+  "ticket.closed": true,
+  "ticket.created": true,
+  "ticket.deleted": true,
+  "ticket.reopened": true,
+  "ticket.updated": true,
 } as const;
 
 /** The realtime topics the blocks broadcast on, with their placeholders filled. @public */

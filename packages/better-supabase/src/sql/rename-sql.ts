@@ -103,7 +103,7 @@ end $$;`;
  * `table` whose names start with `from_` to start with the table's name, unless
  * the new name is taken.
  */
-export function renameTableObjects(table: Qualified, from: string): string {
+function renameTableObjects(table: Qualified, from: string): string {
   const schema = sqlString(table.schema);
   const prefix = sqlString(`${from}_`);
   const to = sqlString(table.name);

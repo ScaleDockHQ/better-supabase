@@ -17,23 +17,26 @@ import {
   type ChecklistItemInput as DefaultChecklistItemInput,
   type Iteration as DefaultIteration,
   type Project as DefaultProject,
-  type WorkItem,
-  type WorkItemChange,
-  type WorkItemChangeResult,
-  type WorkItemChecklistOptimisticAction,
-  type WorkItemField,
-  type WorkItemInput,
-  type WorkItemListOptions,
-  type WorkItemNode,
-  type WorkItemRecurrence,
-  type WorkItemRecurrenceSinkOptions,
-  type WorkItemSetResult,
-  type WorkItemState,
-  type WorkItemUpdateOptions,
-  type WorkItemWatcher,
-  type WorkItemWatchLevel,
-  type WorkItemWindow,
+  type Task as DefaultTask,
+  type TaskChange as DefaultTaskChange,
+  type TaskChangeResult as DefaultTaskChangeResult,
+  type TaskChecklistOptimisticAction as DefaultTaskChecklistOptimisticAction,
+  type TaskField as DefaultTaskField,
+  type TaskFromConversationClients as DefaultTaskFromConversationClients,
+  type TaskFromConversationOptions as DefaultTaskFromConversationOptions,
+  type TaskInput as DefaultTaskInput,
+  type TaskListOptions as DefaultTaskListOptions,
+  type TaskNode as DefaultTaskNode,
+  type TaskRecurrence as DefaultTaskRecurrence,
+  type TaskRecurrenceSinkOptions as DefaultTaskRecurrenceSinkOptions,
+  type Tasks as DefaultTasks,
+  type TaskSetResult as DefaultTaskSetResult,
   type TasksEvents as DefaultTasksEvents,
+  type TaskState as DefaultTaskState,
+  type TaskUpdateOptions as DefaultTaskUpdateOptions,
+  type TaskWatcher as DefaultTaskWatcher,
+  type TaskWatchLevel as DefaultTaskWatchLevel,
+  type TaskWindow as DefaultTaskWindow,
   tasksBlock as defaultTasksBlock,
 } from "better-supabase/blocks/tasks";
 import type { AccessRequestsEvents } from "better-supabase/blocks/access-requests";
@@ -152,7 +155,6 @@ import type { TrashEvents } from "better-supabase/blocks/trash";
 import type { VersionsEvents } from "better-supabase/blocks/versions";
 import type { WaitlistEvents } from "better-supabase/blocks/waitlist";
 import type { WebhooksEvents } from "better-supabase/blocks/webhooks";
-import type { TasksEvents } from "better-supabase/blocks/tasks";
 import type { WorkflowEditorEvents } from "better-supabase/blocks/workflow-editor";
 import type { WorkflowsEvents } from "better-supabase/blocks/workflows";
 import { salesBlock as salesBlockInstance } from "better-supabase/blocks/sales";
@@ -312,7 +314,6 @@ import { usageBlock as usageBlockInstance } from "better-supabase/blocks/usage";
 import { versionsBlock as versionsBlockInstance } from "better-supabase/blocks/versions";
 import { waitlistBlock as waitlistBlockInstance } from "better-supabase/blocks/waitlist";
 import { webhooksBlock as webhooksBlockInstance } from "better-supabase/blocks/webhooks";
-import { tasksBlock as tasksBlockInstance } from "better-supabase/blocks/tasks";
 import { workflowEditorBlock as workflowEditorBlockInstance } from "better-supabase/blocks/workflow-editor";
 import { workflowsBlock as workflowsBlockInstance } from "better-supabase/blocks/workflows";
 
@@ -320,6 +321,87 @@ import { workflowsBlock as workflowsBlockInstance } from "better-supabase/blocks
 export { blockConfig };
 /** The permission keys, re-exported from `blocks.config.ts`. @public */
 export { permissions, type PermissionKey } from "./blocks.config.ts";
+
+type TasksRenames = (typeof blockConfig)["tasks"]["names"]["entities"];
+type TasksRenamesEvents = EventRenamesOf<(typeof blockConfig)["tasks"]["names"]>;
+
+/**
+ * The `tasks` block under the names `blocks.tasks.entities` gives it.
+ * @public
+ */
+export const workItemsBlock = renameBlock(defaultTasksBlock, blockConfig["tasks"].names);
+
+/** @public */
+export type ChecklistItem = RenamedType<DefaultChecklistItem, TasksRenames>;
+
+/** @public */
+export type ChecklistItemInput = RenamedType<DefaultChecklistItemInput, TasksRenames>;
+
+/** @public */
+export type Iteration = RenamedType<DefaultIteration, TasksRenames>;
+
+/** @public */
+export type Project = RenamedType<DefaultProject, TasksRenames>;
+
+/** @public */
+export type WorkItem<F extends object = Record<never, never>> = RenamedType<DefaultTask<F>, TasksRenames>;
+
+/** @public */
+export type WorkItemChange<F extends object = Record<never, never>> = RenamedType<DefaultTaskChange<F>, TasksRenames>;
+
+/** @public */
+export type WorkItemChangeResult = RenamedType<DefaultTaskChangeResult, TasksRenames>;
+
+/** @public */
+export type WorkItemChecklistOptimisticAction = RenamedType<DefaultTaskChecklistOptimisticAction, TasksRenames>;
+
+/** @public */
+export type WorkItemField = RenamedType<DefaultTaskField, TasksRenames>;
+
+/** @public */
+export type WorkItemFromConversationClients = RenamedType<DefaultTaskFromConversationClients, TasksRenames>;
+
+/** @public */
+export type WorkItemFromConversationOptions = RenamedType<DefaultTaskFromConversationOptions, TasksRenames>;
+
+/** @public */
+export type WorkItemInput<F extends object = Record<never, never>> = RenamedType<DefaultTaskInput<F>, TasksRenames>;
+
+/** @public */
+export type WorkItemListOptions = RenamedType<DefaultTaskListOptions, TasksRenames>;
+
+/** @public */
+export type WorkItemNode = RenamedType<DefaultTaskNode, TasksRenames>;
+
+/** @public */
+export type WorkItemRecurrence = RenamedType<DefaultTaskRecurrence, TasksRenames>;
+
+/** @public */
+export type WorkItemRecurrenceSinkOptions = RenamedType<DefaultTaskRecurrenceSinkOptions, TasksRenames>;
+
+/** @public */
+export type WorkItems<F extends object = Record<never, never>> = RenamedType<DefaultTasks<F>, TasksRenames>;
+
+/** @public */
+export type WorkItemSetResult = RenamedType<DefaultTaskSetResult, TasksRenames>;
+
+/** @public */
+export type WorkItemsEvents = RenamedEvents<DefaultTasksEvents, TasksRenamesEvents>;
+
+/** @public */
+export type WorkItemState = RenamedType<DefaultTaskState, TasksRenames>;
+
+/** @public */
+export type WorkItemUpdateOptions = RenamedType<DefaultTaskUpdateOptions, TasksRenames>;
+
+/** @public */
+export type WorkItemWatcher = RenamedType<DefaultTaskWatcher, TasksRenames>;
+
+/** @public */
+export type WorkItemWatchLevel = RenamedType<DefaultTaskWatchLevel, TasksRenames>;
+
+/** @public */
+export type WorkItemWindow = RenamedType<DefaultTaskWindow, TasksRenames>;
 
 type FacilitiesRenames = (typeof blockConfig)["facilities"]["names"]["entities"];
 type FacilitiesRenamesEvents = EventRenamesOf<(typeof blockConfig)["facilities"]["names"]>;
@@ -331,67 +413,64 @@ type FacilitiesRenamesEvents = EventRenamesOf<(typeof blockConfig)["facilities"]
 export const facilitiesBlock = renameBlock(defaultTasksBlock, blockConfig["facilities"].names);
 
 /** @public */
-export type ChecklistItem = RenamedType<DefaultChecklistItem, FacilitiesRenames>;
+export type MaintenanceRequest<F extends object = Record<never, never>> = RenamedType<DefaultTask<F>, FacilitiesRenames>;
 
 /** @public */
-export type ChecklistItemInput = RenamedType<DefaultChecklistItemInput, FacilitiesRenames>;
+export type MaintenanceRequestChange<F extends object = Record<never, never>> = RenamedType<DefaultTaskChange<F>, FacilitiesRenames>;
 
 /** @public */
-export type Iteration = RenamedType<DefaultIteration, FacilitiesRenames>;
+export type MaintenanceRequestChangeResult = RenamedType<DefaultTaskChangeResult, FacilitiesRenames>;
 
 /** @public */
-export type Project = RenamedType<DefaultProject, FacilitiesRenames>;
+export type MaintenanceRequestChecklistOptimisticAction = RenamedType<DefaultTaskChecklistOptimisticAction, FacilitiesRenames>;
 
 /** @public */
-export type MaintenanceRequest<F extends object = Record<never, never>> = RenamedType<WorkItem<F>, FacilitiesRenames>;
+export type MaintenanceRequestField = RenamedType<DefaultTaskField, FacilitiesRenames>;
 
 /** @public */
-export type MaintenanceRequestChange<F extends object = Record<never, never>> = RenamedType<WorkItemChange<F>, FacilitiesRenames>;
+export type MaintenanceRequestFromConversationClients = RenamedType<DefaultTaskFromConversationClients, FacilitiesRenames>;
 
 /** @public */
-export type MaintenanceRequestChangeResult = RenamedType<WorkItemChangeResult, FacilitiesRenames>;
+export type MaintenanceRequestFromConversationOptions = RenamedType<DefaultTaskFromConversationOptions, FacilitiesRenames>;
 
 /** @public */
-export type MaintenanceRequestChecklistOptimisticAction = RenamedType<WorkItemChecklistOptimisticAction, FacilitiesRenames>;
+export type MaintenanceRequestInput<F extends object = Record<never, never>> = RenamedType<DefaultTaskInput<F>, FacilitiesRenames>;
 
 /** @public */
-export type MaintenanceRequestField = RenamedType<WorkItemField, FacilitiesRenames>;
+export type MaintenanceRequestListOptions = RenamedType<DefaultTaskListOptions, FacilitiesRenames>;
 
 /** @public */
-export type MaintenanceRequestInput<F extends object = Record<never, never>> = RenamedType<WorkItemInput<F>, FacilitiesRenames>;
+export type MaintenanceRequestNode = RenamedType<DefaultTaskNode, FacilitiesRenames>;
 
 /** @public */
-export type MaintenanceRequestListOptions = RenamedType<WorkItemListOptions, FacilitiesRenames>;
+export type MaintenanceRequestRecurrence = RenamedType<DefaultTaskRecurrence, FacilitiesRenames>;
 
 /** @public */
-export type MaintenanceRequestNode = RenamedType<WorkItemNode, FacilitiesRenames>;
+export type MaintenanceRequestRecurrenceSinkOptions = RenamedType<DefaultTaskRecurrenceSinkOptions, FacilitiesRenames>;
 
 /** @public */
-export type MaintenanceRequestRecurrence = RenamedType<WorkItemRecurrence, FacilitiesRenames>;
+export type MaintenanceRequests<F extends object = Record<never, never>> = RenamedType<DefaultTasks<F>, FacilitiesRenames>;
 
 /** @public */
-export type MaintenanceRequestRecurrenceSinkOptions = RenamedType<WorkItemRecurrenceSinkOptions, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestSetResult = RenamedType<WorkItemSetResult, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestState = RenamedType<WorkItemState, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestUpdateOptions = RenamedType<WorkItemUpdateOptions, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestWatcher = RenamedType<WorkItemWatcher, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestWatchLevel = RenamedType<WorkItemWatchLevel, FacilitiesRenames>;
-
-/** @public */
-export type MaintenanceRequestWindow = RenamedType<WorkItemWindow, FacilitiesRenames>;
+export type MaintenanceRequestSetResult = RenamedType<DefaultTaskSetResult, FacilitiesRenames>;
 
 /** @public */
 export type FacilitiesEvents = RenamedEvents<DefaultTasksEvents, FacilitiesRenamesEvents>;
+
+/** @public */
+export type MaintenanceRequestState = RenamedType<DefaultTaskState, FacilitiesRenames>;
+
+/** @public */
+export type MaintenanceRequestUpdateOptions = RenamedType<DefaultTaskUpdateOptions, FacilitiesRenames>;
+
+/** @public */
+export type MaintenanceRequestWatcher = RenamedType<DefaultTaskWatcher, FacilitiesRenames>;
+
+/** @public */
+export type MaintenanceRequestWatchLevel = RenamedType<DefaultTaskWatchLevel, FacilitiesRenames>;
+
+/** @public */
+export type MaintenanceRequestWindow = RenamedType<DefaultTaskWindow, FacilitiesRenames>;
 
 /**
  * Every installed block instance with a client, under its key, for
@@ -557,7 +636,7 @@ export const blocks = {
   versions: versionsBlockInstance,
   waitlist: waitlistBlockInstance,
   webhooks: webhooksBlockInstance,
-  tasks: tasksBlockInstance,
+  tasks: workItemsBlock,
   facilities: facilitiesBlock,
   "workflow-editor": workflowEditorBlockInstance,
   workflows: workflowsBlockInstance,
@@ -584,7 +663,7 @@ export const appTableEventSchemas = {
 } as const;
 
 /** Every installed block's events: type to data. @public */
-export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CarePlansEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & TasksEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
+export type BlockEvents = AccessRequestsEvents & AccountingEvents & AgentsEvents & AiChatEvents & AiKeysEvents & AnnouncementsEvents & ApiKeysEvents & ApprovalsEvents & AttachmentsEvents & AuditEvents & BookingsEvents & BulkEvents & CalendarEvents & CarePlansEvents & CatalogEvents & ConnectorsEvents & CustomFieldsEvents & DataLifecycleEvents & DealsEvents & DocumentsEvents & LedgerEvents & AssetsEvents & ScoresEvents & ModerationEvents & EnrollmentsEvents & GuestsEvents & PassesEvents & BillableTimeEvents & LeasesEvents & ExpensesEvents & DonationsEvents & DispatchEvents & ShipmentsEvents & ContractsEvents & ComplianceEvents & AcknowledgementsEvents & IncidentsEvents & CoursesEvents & SequencesEvents & PostsEvents & ContentEvents & QualificationsEvents & RisksEvents & CasesEvents & InspectionsEvents & MeetingsEvents & MaintenanceEvents & DamEvents & LimsEvents & AppraisalsEvents & WarehouseEvents & RfqsEvents & TillsEvents & PeriodsEvents & DeadlinesEvents & CommissionsEvents & ReferralsEvents & ClinicalDecisionSupportEvents & EPrescribingEvents & ManufacturingEvents & BankingEvents & LegalEntitiesEvents & FundingEvents & PayrollExportEvents & TaxEvents & DocumentTemplatesEvents & ShiftsEvents & ConsentsEvents & ObservationsEvents & MedicationsEvents & DriveEvents & EmployeesEvents & ActivitiesEvents & FlagsEvents & FormsEvents & SignaturesEvents & HiringEvents & ImportsEvents & InboxEvents & InventoryEvents & InvoicesEvents & MessagingEvents & ChannelsEvents & MailSyncEvents & EnrichmentEvents & ForecastsEvents & NotificationsEvents & NumberingEvents & OrdersEvents & OrganizationsEvents & ContactsEvents & PipelinesEvents & PromotionsEvents & PushEvents & QuotesEvents & ReactionsEvents & RelationsEvents & RemindersEvents & AutomationsEvents & SavedViewsEvents & ServiceAccountsEvents & SettingsEvents & ShareLinksEvents & SigningKeysEvents & SlaEvents & SsoEvents & StateMachineEvents & SubjectsEvents & TagsEvents & TeamsEvents & TemplatesEvents & TimeTrackingEvents & TrashEvents & VersionsEvents & WaitlistEvents & WebhooksEvents & WorkItemsEvents & FacilitiesEvents & WorkflowEditorEvents & WorkflowsEvents;
 
 /**
  * The installed blocks' event types under the configured names, for
@@ -1025,6 +1104,13 @@ export const blockEvents: Events<BlockEvents> = {
     "maintenance_plan.deleted",
     "maintenance_plan.triggered",
     "maintenance_plan.updated",
+    "maintenance_request.archived",
+    "maintenance_request.assigned",
+    "maintenance_request.closed",
+    "maintenance_request.created",
+    "maintenance_request.deleted",
+    "maintenance_request.reopened",
+    "maintenance_request.updated",
     "medication_administration.missed",
     "medication_administration.recorded",
     "medication_order.created",
@@ -1284,13 +1370,6 @@ export const blockEvents: Events<BlockEvents> = {
     "tag.created",
     "tag.deleted",
     "tag.updated",
-    "task.archived",
-    "task.assigned",
-    "task.closed",
-    "task.created",
-    "task.deleted",
-    "task.reopened",
-    "task.updated",
     "tax_code.created",
     "tax_code.updated",
     "tax_return.prepared",
@@ -1331,6 +1410,13 @@ export const blockEvents: Events<BlockEvents> = {
     "webhook_endpoint.disabled",
     "webhook_endpoint.failed",
     "webhook_endpoint.secret_rotated",
+    "work_item.archived",
+    "work_item.assigned",
+    "work_item.closed",
+    "work_item.created",
+    "work_item.deleted",
+    "work_item.reopened",
+    "work_item.updated",
     "work_order.created",
     "work_order.part_used",
     "work_order.scheduled",
@@ -1782,6 +1868,13 @@ export const blockEventSchemas = {
   "maintenance_plan.deleted": true,
   "maintenance_plan.triggered": true,
   "maintenance_plan.updated": true,
+  "maintenance_request.archived": true,
+  "maintenance_request.assigned": true,
+  "maintenance_request.closed": true,
+  "maintenance_request.created": true,
+  "maintenance_request.deleted": true,
+  "maintenance_request.reopened": true,
+  "maintenance_request.updated": true,
   "medication_administration.missed": true,
   "medication_administration.recorded": true,
   "medication_order.created": true,
@@ -2041,13 +2134,6 @@ export const blockEventSchemas = {
   "tag.created": true,
   "tag.deleted": true,
   "tag.updated": true,
-  "task.archived": true,
-  "task.assigned": true,
-  "task.closed": true,
-  "task.created": true,
-  "task.deleted": true,
-  "task.reopened": true,
-  "task.updated": true,
   "tax_code.created": true,
   "tax_code.updated": true,
   "tax_return.prepared": true,
@@ -2088,6 +2174,13 @@ export const blockEventSchemas = {
   "webhook_endpoint.disabled": true,
   "webhook_endpoint.failed": true,
   "webhook_endpoint.secret_rotated": true,
+  "work_item.archived": true,
+  "work_item.assigned": true,
+  "work_item.closed": true,
+  "work_item.created": true,
+  "work_item.deleted": true,
+  "work_item.reopened": true,
+  "work_item.updated": true,
   "work_order.created": true,
   "work_order.part_used": true,
   "work_order.scheduled": true,

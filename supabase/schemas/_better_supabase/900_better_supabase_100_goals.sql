@@ -1,6 +1,6 @@
 -- better-supabase module: goals
 -- @bsb-block goals@2 managed
--- @bsb-hash sha256:0b17436f85a346ced538e9c3efafdaac4dd3e626891018508438191210e0637e
+-- @bsb-hash sha256:9fb0f4d9ba1b6ba86cc2b1dc662c0abc2f75c81d7f783f17215e5a8ea15e85c5
 -- Goals per period for a member, a team or the organization, with progress the database computes for won deals, completed work items and paid invoices, or a value the app keeps.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -82,7 +82,7 @@ revoke execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) from
 grant execute on function "better_supabase"."save_goal"(uuid, uuid, jsonb) to authenticated, service_role;
 
 -- The targets whose period contains on, with their actual value and
--- attainment. Built-in metrics: deals.won_amount, deals.won_count, work_items.completed, invoices.paid_amount. Others read actual.
+-- attainment. Built-in metrics: deals.won_amount, deals.won_count, tasks.completed, invoices.paid_amount. Others read actual.
 create or replace function "better_supabase"."goal_progress"(tenant uuid, on_date date, owner uuid)
 returns jsonb
 language sql
@@ -99,7 +99,7 @@ as $$
         and (x."owner_id" is null or d."owner_id" = x."owner_id") and d."currency" = x."currency")
         when 'deals.won_count' then (select count(*) from "better_supabase"."deals" d where d."tenant_id" = x."tenant_id" and d."outcome" = 'won' and d."closed_at"::date between x."period_start" and x."period_end"
         and (x."owner_id" is null or d."owner_id" = x."owner_id"))
-        when 'work_items.completed' then (select count(*) from "better_supabase"."work_items" w
+        when 'tasks.completed' then (select count(*) from "better_supabase"."work_items" w
       where w."tenant_id" = x."tenant_id" and w."state" = 'completed' and w."closed_at"::date between x."period_start" and x."period_end"
         and (x."team_id" is null or w."team_id" = x."team_id")
         and (x."owner_id" is null or exists (select 1 from "better_supabase"."work_item_assignees" a where a."work_item_id" = w."id" and a."user_id" = x."owner_id")))

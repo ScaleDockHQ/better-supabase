@@ -119,7 +119,7 @@ interface WorkNotes {
   list: (subject: {
     type: string;
     id: string;
-  }) => AsyncResult<readonly { workItemId: string }[]>;
+  }) => AsyncResult<readonly { taskId: string }[]>;
   counts: () => AsyncResult<Readonly<Record<string, number>>>;
 }
 
@@ -129,9 +129,7 @@ describe("bindings of a renamed block", () => {
     category: "work",
     create: (): WorkNotes => ({
       list: (subject: { type: string; id: string }) =>
-        AsyncResult.from(() =>
-          Promise.resolve(ok([{ workItemId: subject.id }])),
-        ),
+        AsyncResult.from(() => Promise.resolve(ok([{ taskId: subject.id }]))),
       counts: () =>
         AsyncResult.from(() => Promise.resolve(ok({ "task:1": 2 }))),
     }),
@@ -141,8 +139,8 @@ describe("bindings of a renamed block", () => {
       count: (client: WorkNotes) => client.counts(),
       events: ["task.created"],
       optimistic: (
-        state: readonly { workItemId: string }[],
-        action: { workItemId: string },
+        state: readonly { taskId: string }[],
+        action: { taskId: string },
       ) => [...state, action],
     }),
   });

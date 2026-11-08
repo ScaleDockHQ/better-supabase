@@ -40,7 +40,6 @@ import { resolveNames } from "./resolved-names.ts";
 import { moduleScope } from "./scope.ts";
 import { NOTHING, SERVICE_CALLER } from "./shared.ts";
 import { logsSubjectReads } from "./subject-registry.ts";
-import { columnRenamer, tableBase } from "./table-renames.ts";
 import { blockColumnName, checkTenantEntry } from "./tenant-column.ts";
 import { checkedValueMaps, valueMethods } from "./value-maps.ts";
 
@@ -164,7 +163,7 @@ export interface BlockSqlEntitySubject {
 
 /**
  * A noun the module names its tables, functions, events, permissions and hooks
- * after (`work_item`), renamed through `blocks.<name>.entities`.
+ * after, renamed through `blocks.<name>.entities`.
  */
 export interface BlockSqlEntitySpec {
   /** The logical table that holds the entity; global entities may have none. */
@@ -173,10 +172,10 @@ export interface BlockSqlEntitySpec {
   /** Defaults to the English plural of `singular`. */
   readonly plural?: string;
   /**
-   * The singular before 0.47 (`work_item` for `task`); tables and events keep
-   * it.
+   * The plural is also the block's name, so its `<plural>.` permission and
+   * automation keys keep their names when the entity is renamed.
    */
-  readonly formerly?: string;
+  readonly keyed?: boolean;
   /** The entity `entities: "<noun>"` renames. */
   readonly primary?: boolean;
   /** Renamed in every module, not only this one (the tenant). */
@@ -807,11 +806,8 @@ export function createModuleContext(
 
   // A name the instance's entity renames leave unchanged would clash with
   // the module's other instances, so it takes the instance's prefix.
-  const legacy = (name: string): string => resolved.functionNouns.rename(name);
-
   const scoped = (written: string, original: string): string =>
-    prefix === undefined ||
-    entityNaming.rename(legacy(original)) !== legacy(original)
+    prefix === undefined || entityNaming.rename(original) !== original
       ? written
       : `${prefix}_${written}`;
 
@@ -846,14 +842,10 @@ export function createModuleContext(
   const applied = new Map<string, string>();
 
   const fnName = (name: string): string => {
-    const renamed = naming.rename(legacy(name));
-    requested.add(name).add(renamed).add(resolved.formerName(name));
+    const renamed = naming.rename(name);
+    requested.add(name).add(renamed);
 
-    const written =
-      renames[name] ??
-      renames[resolved.formerName(name)] ??
-      renames[renamed] ??
-      scoped(renamed, name);
+    const written = renames[name] ?? renames[renamed] ?? scoped(renamed, name);
 
     if (written !== name) {
       applied.set(name, written);
@@ -878,11 +870,7 @@ export function createModuleContext(
     }
 
     const parts = splitTable(
-      mapped ??
-        scoped(
-          naming.rename(tableBase(resolved, logical, table.name)),
-          table.name,
-        ),
+      mapped ?? scoped(naming.rename(table.name), table.name),
       config.schema,
     );
 
@@ -922,7 +910,7 @@ export function createModuleContext(
           known.columns,
           known.columns[logical]!,
           tenantColumn,
-          columnRenamer(resolved, names.migrations, table, logical),
+          (name) => resolved.naming.rename(name),
         )
       : mapped;
   };
@@ -971,18 +959,14 @@ export function createModuleContext(
   const schema = sqlIdent(config.schema);
 
   const hookTarget = (written: string): string => {
-    const name = names.hooks?.find(
-      (hook) => hook === written || resolved.formerName(hook) === written,
-    );
+    const name = names.hooks?.find((hook) => hook === written);
 
     if (name === undefined) {
       throw new TypeError(`Module "${module}" declares no hook "${written}"`);
     }
 
     const parts = splitTable(
-      config.hooks.functions[name] ??
-        config.hooks.functions[resolved.formerName(name)] ??
-        scoped(entityNaming.rename(legacy(name)), name),
+      config.hooks.functions[name] ?? scoped(entityNaming.rename(name), name),
       config.hooks.schema,
     );
 
@@ -1306,8 +1290,7 @@ export function createModuleContext(
     permissionKey,
     permission: (action, fallback) =>
       sqlString(permissionKey(action, fallback)),
-    trigger: (name) =>
-      sqlIdent(`bsb_${scoped(naming.rename(legacy(name)), name)}`),
+    trigger: (name) => sqlIdent(`bsb_${scoped(naming.rename(name), name)}`),
     installed(name) {
       declares(name);
 

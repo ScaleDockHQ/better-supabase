@@ -1,6 +1,6 @@
 import type { MyWorkKind } from "../blocks/subjects/my-work-kinds.ts";
 import type {
-  MyWorkItem,
+  MyTask,
   MyWorkOptions,
   Subjects,
 } from "../blocks/subjects/subjects.ts";
@@ -11,9 +11,9 @@ import { MY_WORK_KINDS } from "../blocks/subjects/my-work-kinds.ts";
 /** What `loadMyWork` returns: the items, grouped by kind, and their counts. */
 export interface MyWork {
   /** Every item, newest first. */
-  readonly items: readonly MyWorkItem[];
+  readonly items: readonly MyTask[];
   /** The items of each kind, newest first; an empty list for a kind with none. */
-  readonly groups: Readonly<Record<MyWorkKind, readonly MyWorkItem[]>>;
+  readonly groups: Readonly<Record<MyWorkKind, readonly MyTask[]>>;
   /** How many items of each kind the page holds, for tab badges. */
   readonly counts: Readonly<Record<MyWorkKind, number>>;
 }
@@ -44,7 +44,7 @@ export function loadMyWork(
   return subjects.myWork(rest).map((all) => {
     const items = all.filter((item) => wanted.has(item.kind));
 
-    const of = (kind: MyWorkKind): readonly MyWorkItem[] =>
+    const of = (kind: MyWorkKind): readonly MyTask[] =>
       items.filter((item) => item.kind === kind);
 
     const groups = {
@@ -53,7 +53,7 @@ export function loadMyWork(
       reminder: of("reminder"),
       mention: of("mention"),
       sla: of("sla"),
-    } satisfies Record<MyWorkKind, readonly MyWorkItem[]>;
+    } satisfies Record<MyWorkKind, readonly MyTask[]>;
 
     const counts = {
       assigned: groups.assigned.length,

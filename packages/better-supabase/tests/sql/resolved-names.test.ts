@@ -24,10 +24,8 @@ describe("resolveNames", () => {
     const resolved = resolve("tasks", {});
 
     expect(resolved.naming.renamed).toBe(false);
-    expect(resolved.functionNouns.renamed).toBe(false);
     expect(resolved.tenant.singular).toBe("organization");
     expect(resolved.entities["task"]?.to.plural).toBe("tasks");
-    expect(resolved.formerName("create_task")).toBe("create_work_item");
     expect(entityType(resolved, "task")).toBe("task");
   });
 
@@ -46,14 +44,14 @@ describe("resolveNames", () => {
 
     expect(
       [
-        "work_items",
-        "work_item_id",
+        "tasks",
+        "task_id",
         "tasks.read",
-        "work_item.created",
+        "task.created",
         "tasks/",
-        "workItemId",
+        "taskId",
         "saveProject",
-        "WorkItem",
+        "Task",
         "organization_id",
       ].map(rename),
     ).toEqual([
@@ -61,20 +59,17 @@ describe("resolveNames", () => {
       "ticket_id",
       "tasks.read",
       "ticket.created",
-      "tasks/",
+      "tickets/",
       "ticketId",
       "saveInitiative",
       "Ticket",
       "workspace_id",
     ]);
     expect(resolved.eventNaming.rename("task.created")).toBe("ticket.created");
-    expect(rename(resolved.functionNouns.rename("create_task"))).toBe(
-      "create_ticket",
-    );
+    expect(rename("create_task")).toBe("create_ticket");
     expect(resolved.entities["task"]).toMatchObject({
-      from: { singular: "work_item" },
+      from: { singular: "task" },
       to: { singular: "ticket", plural: "tickets" },
-      formerly: { from: { singular: "work_item" }, to: { singular: "task" } },
       url: "/tickets/{identifier}",
       subject: { title: "title" },
     });

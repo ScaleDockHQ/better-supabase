@@ -24,7 +24,6 @@ import { shipmentsBlock } from "better-supabase/blocks/shipments";
 import { signaturesBlock } from "better-supabase/blocks/signatures";
 import { slaBlock } from "better-supabase/blocks/sla";
 import { tagsBlock } from "better-supabase/blocks/tags";
-import { tasksBlock } from "better-supabase/blocks/tasks";
 import { versionsBlock } from "better-supabase/blocks/versions";
 import { defineRecordType } from "better-supabase/records";
 
@@ -56,6 +55,7 @@ import {
   versionsConfig,
 } from "../blocks/slices.ts";
 import { permissions } from "../blocks/permissions.ts";
+import { workItemsBlock } from "../blocks.generated.ts";
 
 /**
  * The customer record type: each installed block that binds to it. Pass it to
@@ -88,7 +88,7 @@ export const customerRecord = defineRecordType({
     sla: slaBlock,
     tags: tagsBlock,
     versions: versionsBlock,
-    tasks: tasksBlock,
+    tasks: workItemsBlock,
   },
   config: {
     attachments: attachmentsConfig,

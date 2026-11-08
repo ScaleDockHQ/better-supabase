@@ -1,6 +1,6 @@
 "use client";
 
-import type { WorkItemState } from "better-supabase/blocks/tasks";
+import type { TaskState } from "better-supabase/blocks/tasks";
 
 import { useAction } from "better-supabase/react";
 import { Trash2Icon, TriangleAlertIcon, XIcon } from "lucide-react";
@@ -63,7 +63,7 @@ export function BulkActionBar({
   const t = useExtracted("work");
   const errorMessage = useErrorMessage();
   const stateLabel = useStateLabel();
-  const [to, setTo] = useState<WorkItemState | null>(null);
+  const [to, setTo] = useState<TaskState | null>(null);
   const [confirming, setConfirming] = useState(false);
   const [failures, setFailures] = useState<readonly BulkFailure[]>([]);
   const bulk = useAction(runWorkBulkAction);
@@ -71,7 +71,7 @@ export function BulkActionBar({
   const identifiers = new Map(selected.map((row) => [row.id, row.identifier]));
 
   const run = async (
-    input: { action: "state"; to: WorkItemState } | { action: "delete" },
+    input: { action: "state"; to: TaskState } | { action: "delete" },
   ): Promise<void> => {
     const ids = selected.map((row) => row.id);
     const result = await bulk.run({ ...input, ids });

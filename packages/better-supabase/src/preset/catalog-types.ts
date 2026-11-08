@@ -147,7 +147,7 @@ export interface PresetCatalogInputSchema {
   readonly jsonSchema: Readonly<Record<string, unknown>>;
 }
 
-/** A block type named after one of its entities, such as `WorkItem`. */
+/** A block type named after one of its entities, such as `Task`. */
 export interface PresetCatalogEntityType {
   readonly name: string;
   /** Takes the extra columns as its first type parameter, `F`. */
