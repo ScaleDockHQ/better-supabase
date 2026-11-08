@@ -774,17 +774,17 @@ describe("extension flags", () => {
     ).tables.find((table) => table.key === key)?.meta.flags;
 
   it("takes the soft-delete column from the subject's deletedAt", async () => {
-    const subjects = {
+    const recordTypes = {
       customer: { table: "customers", deletedAt: "archived_at" },
     };
 
-    expect(await flagsOf({ subjects }, "customers")).toMatchObject({
+    expect(await flagsOf({ recordTypes }, "customers")).toMatchObject({
       softDelete: "archived_at",
     });
     expect(
       await flagsOf(
         {
-          subjects,
+          recordTypes,
           blocks: { trash: { options: { deletedAt: "created_at" } } },
         },
         "customers",
@@ -793,7 +793,9 @@ describe("extension flags", () => {
     expect(
       await flagsOf(
         {
-          subjects: { customer: { table: "customers", deletedAt: "gone_at" } },
+          recordTypes: {
+            customer: { table: "customers", deletedAt: "gone_at" },
+          },
           blocks: { trash: { options: { deletedAt: "archived_at" } } },
         },
         "customers",
@@ -803,7 +805,7 @@ describe("extension flags", () => {
 
   it("rejects a subject deletedAt that is not a timestamp", async () => {
     const config = resolveConfig(
-      { subjects: { customer: { table: "customers", deletedAt: "name" } } },
+      { recordTypes: { customer: { table: "customers", deletedAt: "name" } } },
       fixtures,
     );
 
@@ -854,7 +856,7 @@ describe("config JSON Schema", () => {
       gen: true,
       api: true,
       tooling: true,
-      subjects: true,
+      recordTypes: true,
       blocks: true,
       adapters: true,
       $env: true,
@@ -878,9 +880,7 @@ describe("gen", () => {
     await cp(snapshotPath, join(dir, "snapshot.json"));
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      JSON.stringify({
-        gen: { casing: "camel", output: "src/db/generated.ts" },
-      }),
+      JSON.stringify({ gen: { casing: "camel", file: "src/db/generated.ts" } }),
     );
   });
 
@@ -958,7 +958,7 @@ describe("gen", () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
-        gen: { casing: "camel", output: "src/db/generated.ts" },
+        gen: { casing: "camel", file: "src/db/generated.ts" },
         auth: { tenant: { column: "organization_id" } },
         database: {
           realtime: {
@@ -1024,7 +1024,7 @@ describe("gen", () => {
     await writeFile(
       join(dir, "better-supabase.config.json"),
       JSON.stringify({
-        gen: { output: "src/db/generated.ts" },
+        gen: { file: "src/db/generated.ts" },
         auth: {
           authorization: withProvider({
             permissions: [

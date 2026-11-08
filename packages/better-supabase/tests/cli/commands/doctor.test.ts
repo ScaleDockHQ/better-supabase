@@ -119,7 +119,7 @@ describe("doctor command", () => {
   it("reads only, format and output from the doctor config", async () => {
     const config: BetterSupabaseConfig = {
       tooling: {
-        doctor: { only: ["BS208"], format: "sarif", output: "doctor.sarif" },
+        doctor: { only: ["BS208"], format: "sarif", file: "doctor.sarif" },
       },
     };
 

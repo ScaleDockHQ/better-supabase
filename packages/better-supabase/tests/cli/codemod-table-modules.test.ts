@@ -112,7 +112,7 @@ describe("codemod table-modules", () => {
       );
 
       const config = resolveConfig(
-        { gen: { output: "src/lib/supabase/generated.ts" } },
+        { gen: { file: "src/lib/supabase/generated.ts" } },
         root,
       );
 

@@ -56,7 +56,7 @@ describe("gen", () => {
         ...config,
         gen: {
           casing: "camel",
-          output: "src/db/generated.ts",
+          file: "src/db/generated.ts",
           // The single-module layout keeps the file lists below short.
           tableModules: false,
           blockModules: false,
@@ -219,7 +219,7 @@ describe("gen", () => {
       {
         gen: {
           casing: "camel",
-          output: "src/db/generated.ts",
+          file: "src/db/generated.ts",
           readSets: ["src/read-sets.ts"],
         },
         database: { sql: { dir: "../stack/schemas" } },

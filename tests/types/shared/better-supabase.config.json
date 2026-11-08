@@ -19,7 +19,7 @@
   },
   "gen": {
     "casing": "camel",
-    "output": "generated.ts",
+    "file": "generated.ts",
     "tableModules": false,
     "blockModules": false,
     "json": {

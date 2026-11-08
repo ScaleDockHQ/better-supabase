@@ -56,7 +56,7 @@ has to keep.
 ## Generated record types
 
 `gen` writes `records/<type>.ts` next to the main module
-(`src/cli/gen/records.ts`) when `gen.recordTypes` is on and a block with a
+(`src/cli/gen/records.ts`) when `gen.records` is on and a block with a
 `record` binding is installed. The files are framework-neutral: the app
 passes the record type to `bsb.record`, `createRecordProvider` or
 `recordQueries`. They are ignored by oxlint and oxfmt

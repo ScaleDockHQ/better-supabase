@@ -9,7 +9,7 @@ const mainOf = async (
   gen: NonNullable<Parameters<typeof resolveConfig>[0]["gen"]>,
 ): Promise<string | undefined> => {
   const config = resolveConfig(
-    { gen: { output: "src/db/generated.ts", ...gen } },
+    { gen: { file: "src/db/generated.ts", ...gen } },
     "/project",
   );
 

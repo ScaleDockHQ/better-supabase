@@ -429,6 +429,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0380: Engagements are activities, and events use the lifecycle verbs.
 - 0381: One confirm flag and one out flag.
 - 0385: The naming catalog rules have no thresholds.
+- 0386: Config keys name a directory `dir`, a file `file` and the record types `recordTypes`.
 
 ## Pre-release pins
 

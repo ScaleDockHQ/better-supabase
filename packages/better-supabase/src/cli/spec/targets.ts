@@ -76,7 +76,7 @@ function resolveOne(
     );
   }
 
-  const path = filter.out ?? output.output;
+  const path = filter.out ?? output.file;
 
   const serialization: SpecSerialization =
     filter.yaml === true
@@ -141,7 +141,7 @@ export function resolveTargets(
         format && !filter.out && hasVersion(format, filter.version)
           ? {
               format: id,
-              output: defaultOutput(
+              file: defaultOutput(
                 format,
                 filter.version,
                 filter.yaml === true ? "yaml" : "json",

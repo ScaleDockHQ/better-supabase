@@ -595,7 +595,7 @@ export async function runDoctor(
 
   const out =
     args.out ??
-    (format === config.doctor.format ? config.doctor.output : undefined);
+    (format === config.doctor.format ? config.doctor.file : undefined);
 
   const fromRepo = format === "sarif" || format === "github";
   const repoRoot = findRepoRoot(config.root);

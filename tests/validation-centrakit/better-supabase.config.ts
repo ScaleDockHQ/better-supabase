@@ -23,7 +23,7 @@ export default defineConfig({
   auth: { authorization: centrakitProvider() },
   // CentraKit's file tree is a comment subject whose read, comment and update
   // are granted per row through the provider's rowsWith template.
-  subjects: {
+  recordTypes: {
     file_node: {
       idType: "uuid",
       permissions: {

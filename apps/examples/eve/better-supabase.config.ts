@@ -5,5 +5,5 @@ export default defineConfig({
     source: { snapshot: "../../../supabase/snapshot.json" },
     expose: { notes: ["select", "insert"] },
   },
-  gen: { casing: "camel", output: "lib/supabase/generated.ts" },
+  gen: { casing: "camel", file: "lib/supabase/generated.ts" },
 });

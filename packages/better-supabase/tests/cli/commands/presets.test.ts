@@ -80,7 +80,7 @@ describe("preset decode", () => {
     );
 
     expect(decoded.output).toContain("Preset: custom");
-    expect(decoded.output).toContain("  casing        camel");
+    expect(decoded.output).toContain("  casing      camel");
     expect(decoded.output).toContain(
       "  memberships (required by permissions, comments and messaging)",
     );
@@ -572,7 +572,7 @@ describe("init --preset", () => {
     );
 
     expect(config).toContain(
-      "  preset: 'minimal',\n  gen: { casing: 'snake', output: 'lib/supabase/generated.ts' },",
+      "  preset: 'minimal',\n  gen: { casing: 'snake', file: 'lib/supabase/generated.ts' },",
     );
     expect(await readFile(join(dir, "lib/blocks.ts"), "utf-8")).toContain(
       "profiles: profilesBlock,",
@@ -607,7 +607,7 @@ describe("init --preset", () => {
     );
 
     expect(config).toContain(
-      `  preset: { casing: 'camel', access: 'provider', blocks: ['profiles'] },\n  gen: { casing: 'camel', output: 'lib/supabase/generated.ts' },`,
+      `  preset: { casing: 'camel', access: 'provider', blocks: ['profiles'] },\n  gen: { casing: 'camel', file: 'lib/supabase/generated.ts' },`,
     );
     expect(config).toContain("set `auth.authorization` to its adapter");
   });
@@ -671,7 +671,7 @@ describe("init --preset", () => {
     const result = await run([
       "init",
       "--preset",
-      await presetUrl({ blocks: ["tags"], integrations: ["mcp"] }),
+      await presetUrl({ blocks: ["tags"], adapters: ["mcp"] }),
       "--dry-run",
       "--cwd",
       dir,

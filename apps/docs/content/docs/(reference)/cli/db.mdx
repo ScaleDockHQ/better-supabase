@@ -106,7 +106,7 @@ pnpm better-supabase db seed --yes  # also inserts into the local database
 ```
 
 `--entry <file>` and `--out <file>` override `database.seed.entry` and
-`database.seed.output`. `--dry-run` prints the diff and writes nothing; neither it nor
+`database.seed.file`. `--dry-run` prints the diff and writes nothing; neither it nor
 `--check` runs `--yes`. `--yes` connects to `$DATABASE_URL` or `$SUPABASE_DB_URL`, or to the local stack;
 to seed another database, pipe its connection string in with
 `--db-url-stdin`.

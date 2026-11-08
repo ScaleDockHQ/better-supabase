@@ -164,7 +164,7 @@ The upload role works on node grants, not on drive grants. When your grant table
 With [access-requests](/docs/blocks/access-requests) installed, a member who finds a link to a node they can't open can ask for access instead of asking someone to share it. Turn it on in the subject entry; `accessRequests: true` lets members ask to read, and a list such as `["read", "write"]` names the actions they may ask for:
 
 ```ts title="better-supabase.config.ts"
-subjects: {
+recordTypes: {
   drive_node: driveSubject({ accessRequests: true }),
 },
 ```

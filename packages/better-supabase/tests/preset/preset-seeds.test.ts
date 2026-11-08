@@ -116,14 +116,14 @@ describe("mergeSeedConfig", () => {
     expect(mergeSeedConfig(preset, { defaults: false }, installed)).toEqual({
       defaults: false,
     });
-    expect(mergeSeedConfig(preset, { output: "x.sql" }, installed)).toEqual({
-      output: "x.sql",
+    expect(mergeSeedConfig(preset, { file: "x.sql" }, installed)).toEqual({
+      file: "x.sql",
       defaults: { variants: { pipelines: "b2b-sales" } },
     });
   });
 
   it("returns the config as is without preset seeds", () => {
-    const own = { output: "x.sql" };
+    const own = { file: "x.sql" };
 
     expect(mergeSeedConfig(undefined, own, installed)).toBe(own);
     expect(mergeSeedConfig({}, undefined, installed)).toBeUndefined();

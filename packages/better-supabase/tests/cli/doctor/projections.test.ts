@@ -120,7 +120,7 @@ describe("BS382", () => {
     const found = check(
       "BS382",
       context(
-        { subjects: { notes: { table: "notes", title: "subject" } } },
+        { recordTypes: { notes: { table: "notes", title: "subject" } } },
         {},
         tagged("@bsb subject title=name"),
       ),
@@ -139,7 +139,7 @@ describe("BS382", () => {
       check(
         "BS382",
         context(
-          { subjects: { notes: { table: "notes", title: "name" } } },
+          { recordTypes: { notes: { table: "notes", title: "name" } } },
           {},
           snapshot,
         ),

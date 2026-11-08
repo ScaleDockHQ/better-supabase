@@ -22,7 +22,7 @@ interface SeedState {
   readonly enabled?: boolean;
   readonly onCreate?: boolean;
   readonly variants?: Record<string, string>;
-  readonly output?: string;
+  readonly file?: string;
   readonly files?: readonly { path: string; text: string }[];
 }
 
@@ -37,7 +37,7 @@ function context(state: SeedState): DoctorContext {
           onCreate: state.onCreate ?? true,
           variants: state.variants ?? {},
         },
-        sample: { output: state.output ?? "supabase/seeds/900_sample.sql" },
+        sample: { file: state.file ?? "supabase/seeds/900_sample.sql" },
       },
     },
     seedFiles: state.files ?? [],

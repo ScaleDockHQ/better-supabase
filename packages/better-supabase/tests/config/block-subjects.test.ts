@@ -142,7 +142,7 @@ describe("resolveConfig subjects", () => {
     const resolved = resolveConfig(
       {
         blocks: ["tasks"],
-        subjects: { invoice: { table: "public.invoices" } },
+        recordTypes: { invoice: { table: "public.invoices" } },
       },
       "/app",
     );

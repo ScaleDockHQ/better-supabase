@@ -66,7 +66,7 @@ describe("expandPreset", () => {
       api: "api",
       access: "catalog",
       idType: "bigint",
-      integrations: ["next"],
+      adapters: ["next"],
     };
 
     expect(expandPreset({ preset: code })).toEqual({

@@ -35,7 +35,7 @@ afterEach(async () => {
 const render = (generators: Parameters<typeof resolveConfig>[0]["gen"]) =>
   renderFiles(
     resolveConfig(
-      { gen: { output: "src/db/generated.ts", ...generators } },
+      { gen: { file: "src/db/generated.ts", ...generators } },
       root,
     ),
     snapshot,
@@ -157,11 +157,7 @@ describe("an external framework binding", () => {
   it("resolves as gen.hooks and writes hooks.ts from its module", async () => {
     const config = resolveConfig(
       {
-        gen: {
-          frameworks: [qwik],
-          hooks: "qwik",
-          output: "src/db/generated.ts",
-        },
+        gen: { frameworks: [qwik], hooks: "qwik", file: "src/db/generated.ts" },
       },
       root,
     );

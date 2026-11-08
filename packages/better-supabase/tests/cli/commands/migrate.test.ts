@@ -218,6 +218,6 @@ describe("migrate schema-first", () => {
 
     expect(refused.code).not.toBe(0);
     expect(refused.stderr).toContain("migrate schema-first");
-    expect(refused.stderr).toContain("renamed to `subjects`");
+    expect(refused.stderr).toContain("renamed to `recordTypes`");
   });
 });

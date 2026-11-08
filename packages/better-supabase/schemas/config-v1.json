@@ -59,7 +59,7 @@
               "enum": ["none", "api"],
               "type": "string"
             },
-            "integrations": {
+            "adapters": {
               "type": "array",
               "items": {
                 "enum": [
@@ -277,7 +277,7 @@
               "type": "string",
               "default": "supabase/seed.ts"
             },
-            "output": {
+            "file": {
               "type": "string",
               "default": "supabase/seeds/000_better_supabase.sql"
             },
@@ -323,7 +323,7 @@
                 "locale": {
                   "type": "string"
                 },
-                "output": {
+                "file": {
                   "type": "string"
                 }
               },
@@ -571,13 +571,13 @@
                     "type": "string"
                   }
                 },
-                "output": {
+                "file": {
                   "type": "string"
                 }
               },
-              "required": ["from", "output"],
+              "required": ["from", "file"],
               "additionalProperties": false,
-              "description": "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `output` on `upgrade`; `upgrade --check` fails when the file is stale."
+              "description": "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `file` on `upgrade`; `upgrade --check` fails when the file is stale."
             },
             "triggers": {
               "type": "array",
@@ -704,7 +704,7 @@
                 "required": ["topic", "table"],
                 "additionalProperties": false
               },
-              "description": "Broadcast triggers `upgrade` writes to `policies.output` through the topic's trigger(), for topics `policies.from` exports. One topic with column values, a keys or row payload and one event name calls better_supabase.broadcast_topic() (the realtime-tables module); any other trigger gets a generated function."
+              "description": "Broadcast triggers `upgrade` writes to `policies.file` through the topic's trigger(), for topics `policies.from` exports. One topic with column values, a keys or row payload and one event name calls better_supabase.broadcast_topic() (the realtime-tables module); any other trigger gets a generated function."
             }
           },
           "additionalProperties": false,
@@ -1512,7 +1512,7 @@
       },
       "additionalProperties": false
     },
-    "subjects": {
+    "recordTypes": {
       "type": "object",
       "propertyNames": {
         "type": "string",
@@ -2810,7 +2810,7 @@
           },
           "additionalProperties": false
         },
-        "output": {
+        "file": {
           "type": "string",
           "description": "Main generated module.",
           "default": "src/lib/supabase/generated.ts"
@@ -2825,7 +2825,7 @@
           "description": "PostgREST major version written to database.types.ts.",
           "default": "13"
         },
-        "recordTypes": {
+        "records": {
           "type": "boolean"
         },
         "hooks": {
@@ -3072,7 +3072,7 @@
                     "type": "string",
                     "description": "Defaults to the format's default version."
                   },
-                  "output": {
+                  "file": {
                     "type": "string",
                     "description": "File to write, relative to the root. Defaults to the format's file name."
                   },
@@ -3149,7 +3149,7 @@
               "description": "Report format. The global --json flag still picks the JSON report.",
               "default": "text"
             },
-            "output": {
+            "file": {
               "type": "string",
               "description": "Write the report to this file."
             },
@@ -3189,7 +3189,7 @@
         "env": {
           "type": "object",
           "properties": {
-            "output": {
+            "file": {
               "type": "string",
               "default": ".env.local"
             },
@@ -3204,7 +3204,7 @@
         "keys": {
           "type": "object",
           "properties": {
-            "output": {
+            "file": {
               "type": "string",
               "description": "Signing key file better-supabase dev keys writes. Defaults to supabase/signing_keys.json."
             }
@@ -3260,8 +3260,8 @@
         "auth": {
           "$ref": "#/properties/auth"
         },
-        "subjects": {
-          "$ref": "#/properties/subjects"
+        "recordTypes": {
+          "$ref": "#/properties/recordTypes"
         },
         "blocks": {
           "$ref": "#/properties/blocks"

@@ -20,7 +20,7 @@ export interface PresetField<
   readonly key: K;
   readonly values: readonly V[];
   readonly default: V | readonly V[];
-  /** The field takes several values (`integrations`). */
+  /** The field takes several values (`adapters`). */
   readonly multi?: true;
   readonly label: string;
   readonly labels: { readonly [P in V]: PresetValueInfo };
@@ -36,7 +36,7 @@ export interface PresetConventions {
   readonly tenantName: PresetTenantName;
   readonly access: "roles" | "catalog" | "provider" | "custom";
   readonly api: "none" | "api";
-  readonly integrations: readonly IntegrationName[];
+  readonly adapters: readonly IntegrationName[];
 }
 
 /** A convention field's key. */
@@ -209,7 +209,7 @@ export const CONVENTION_FIELDS: readonly PresetField<PresetFieldKey>[] = [
     default: "none",
   }),
   field({
-    key: "integrations",
+    key: "adapters",
     label: "Integrations",
     values: ["next", "hono", "orpc", "edge", "expo", "mcp", "client", "react"],
     labels: {
@@ -315,5 +315,5 @@ export const DEFAULT_CONVENTIONS: PresetConventions = {
   tenantName: "organization",
   access: "roles",
   api: "none",
-  integrations: [],
+  adapters: [],
 };

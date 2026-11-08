@@ -118,7 +118,7 @@ export async function runSeed(
   }
 
   const entry = args.entry ?? config.seed.entry;
-  const out = args.out ?? config.seed.output;
+  const out = args.out ?? config.seed.file;
   const seed = await importExport(resolve(config.root, entry), "seed");
 
   if (!isSeed(seed)) {

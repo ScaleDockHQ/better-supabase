@@ -60,7 +60,7 @@
               "enum": ["none", "api"],
               "type": "string"
             },
-            "integrations": {
+            "adapters": {
               "type": "array",
               "items": {
                 "enum": [

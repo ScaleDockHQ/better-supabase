@@ -109,7 +109,7 @@ function undeclaredVariants(context: DoctorContext): FindingInput[] {
 
 /** BS356: a generated sample file outside `database.seed.sample.output`. */
 function sampleFileNotConfigured(context: DoctorContext): FindingInput[] {
-  const configured = posix.normalize(context.config.seed.sample.output);
+  const configured = posix.normalize(context.config.seed.sample.file);
 
   return (context.seedFiles ?? [])
     .filter(

@@ -18,7 +18,7 @@ describe("presetConfigSource", () => {
       casing: "camel" as const,
       api: "api" as const,
       access: "provider" as const,
-      integrations: ["next" as const],
+      adapters: ["next" as const],
       blocks: ["comments", "api-keys"],
     };
 

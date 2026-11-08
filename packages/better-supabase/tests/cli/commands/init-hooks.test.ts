@@ -31,7 +31,7 @@ describe("init and the hooks framework", () => {
 
   it("writes gen.hooks for a framework no adapter selects", async () => {
     expect(await init({ vue: "3" })).toContain(
-      "output: 'lib/supabase/generated.ts', hooks: 'vue' }",
+      "file: 'lib/supabase/generated.ts', hooks: 'vue' }",
     );
   });
 

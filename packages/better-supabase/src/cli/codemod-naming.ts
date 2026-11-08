@@ -10,9 +10,11 @@ import type { Codemod } from "./codemod.ts";
 
 import naming from "../../api/naming.json" with { type: "json" };
 import { bsbPolicyName, readPolicies } from "../sql/index.ts";
+import { renameConfigKeys } from "./codemod-config-keys.ts";
 
 export type RenameKind =
   | "column"
+  | "configKey"
   | "constraint"
   | "env"
   | "event"
@@ -287,6 +289,7 @@ export function renameMigrationSql(
         ];
       }
 
+      case "configKey":
       case "env":
       case "event":
       case "function":
@@ -326,10 +329,14 @@ export function namingCodemod(
       "Applies the renames in api/naming.json: exports, types, subpaths, environment variables and installed SQL objects",
     imports: mapOf(renames, (kind) => IDENTIFIER_KINDS.has(kind)),
     subpaths: mapOf(renames, (kind) => kind === "subpath"),
-    source: (text) => ({
-      text: renameQuotedNames(renameEnvNames(text, renames), renames),
-      review: [],
-    }),
+    source: (text) => {
+      const keys = renameConfigKeys(text, renames);
+
+      return {
+        text: renameQuotedNames(renameEnvNames(keys.text, renames), renames),
+        review: keys.review,
+      };
+    },
     migration: (sql) => renameMigrationSql(renames, sql),
   };
 }

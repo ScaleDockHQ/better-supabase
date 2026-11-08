@@ -6,6 +6,6 @@
   },
   "gen": {
     "casing": "camel",
-    "output": "src/runtime/generated.ts"
+    "file": "src/runtime/generated.ts"
   }
 }

@@ -150,7 +150,7 @@ describe("withTableTags, events and search", () => {
     const config = resolveConfig(
       {
         blocks: {},
-        subjects: { item: { table: "public.items", title: "name" } },
+        recordTypes: { item: { table: "public.items", title: "name" } },
       },
       "/tmp",
     );

@@ -472,7 +472,7 @@ from a job.
 
 `subject_type` and `subject_id` are text with no foreign key, so deleting a
 subject row leaves its notifications in every recipient's inbox. Without
-`blocks.notifications.on`, every subject type in `config.subjects` whose table is yours (outside the block schema) cascades
+`blocks.notifications.on`, every subject type in `config.recordTypes` whose table is yours (outside the block schema) cascades
 (ADR 0370). To choose the types, list them in `blocks.notifications.on` with
 `cascade: true`, and the module writes an `after delete` trigger on each
 table that deletes the subject's notifications (their recipients and
@@ -491,7 +491,7 @@ blocks: {
 
 The key is the `subject_type` your notifications store, and it may contain
 hyphens. `id` names the subject's id column when it isn't `id`. Without
-`on` the module reads `config.subjects`, so a registered type
+`on` the module reads `config.recordTypes`, so a registered type
 with `cascade: true` cleans up its notifications too. A list of registered
 type names (`on: ["expense"]`) limits it to those. The subject tables
 must exist before the module file, and the events table needs its

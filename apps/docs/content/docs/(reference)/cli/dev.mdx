@@ -166,7 +166,7 @@ Point `[auth] signing_keys_path` at it, and local tokens are then signed the way
 your hosted project signs them: asymmetrically, and verifiable through
 JWKS. `--rotate` puts a new signing key first and keeps the old ones so
 existing tokens still verify. `dev keys` refuses to overwrite an existing file
-unless you pass `--force`, and `--out <file>` (or `tooling.keys.output` in the
+unless you pass `--force`, and `--out <file>` (or `tooling.keys.file` in the
 config) writes somewhere else. `--dry-run` writes nothing.
 
 Side effects: Writes files.

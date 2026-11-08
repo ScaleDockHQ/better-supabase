@@ -600,7 +600,7 @@ describe("isAppDefault", () => {
     const config = resolveConfig(
       {
         blocks: { memberships: { names: { organization: "workspace" } } },
-        subjects: { customer: { table: "public.customers" } },
+        recordTypes: { customer: { table: "public.customers" } },
         appTables: {
           projects: {
             id: "bigint",
@@ -650,7 +650,7 @@ describe("isAppDefault", () => {
     expect(() =>
       resolveConfig(
         {
-          subjects: { project: { table: "public.other" } },
+          recordTypes: { project: { table: "public.other" } },
           appTables: { projects: { subject: { type: "project" } } },
         },
         "/app",

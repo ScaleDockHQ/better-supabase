@@ -40,7 +40,7 @@ describe("resolveConfig specs", () => {
   it("defaults to one OpenAPI output", () => {
     expect(resolveConfig({}, "/app").specs).toEqual({
       entry: "src/lib/openapi.ts",
-      outputs: [{ format: "openapi", output: "openapi.json" }],
+      outputs: [{ format: "openapi", file: "openapi.json" }],
       failOn: "error",
     });
   });
@@ -159,7 +159,7 @@ describe("flattenConfig and groupConfig", () => {
       tasks: ["types"],
     },
     tooling: { doctor: { strict: true } },
-    subjects: { customer: { table: "customers" } },
+    recordTypes: { customer: { table: "customers" } },
     adapters: ["next"],
     blocks: {
       teams: { ownership: "custom", owner: "user" },
@@ -172,13 +172,13 @@ describe("flattenConfig and groupConfig", () => {
       schemas: ["public"],
       sql: { scope: "user" },
       claims: { tenant: "app_metadata.org_id" },
-      organization: { column: "org_id" },
+      tenant: { column: "org_id" },
       casing: "camel",
       tables: { audit: { serviceRole: true } },
       gen: { tasks: ["types"] },
       doctor: { strict: true },
-      subjects: { customer: { table: "customers" } },
-      integrations: ["next"],
+      recordTypes: { customer: { table: "customers" } },
+      adapters: ["next"],
       blocks: {
         teams: { mode: "custom", scope: "user" },
         memberships: { entities: { organization: "workspace" } },

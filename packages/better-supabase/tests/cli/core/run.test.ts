@@ -552,7 +552,7 @@ describe("run", () => {
     const configPath = join(dir, "better-supabase.config.mjs");
     await writeFile(
       configPath,
-      `export default { gen: { output: "a/generated.ts" } };\n`,
+      `export default { gen: { file: "a/generated.ts" } };\n`,
     );
     const controller = new AbortController();
     vi.stubGlobal(
@@ -582,7 +582,7 @@ describe("run", () => {
 
             writeFileSync(
               configPath,
-              `export default { gen: { output: "b/generated.ts" } };\n`,
+              `export default { gen: { file: "b/generated.ts" } };\n`,
             );
             const later = new Date(Date.now() + 5000);
             utimesSync(configPath, later, later);

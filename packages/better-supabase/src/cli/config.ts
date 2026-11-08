@@ -116,7 +116,7 @@ function mergeConfig(
 
 /**
  * A config without the removed top-level `tables` and `records` keys: the
- * tables as `appTables`, and the records merged into `subjects`. `migrate
+ * tables as `appTables`, and the records merged into `recordTypes`. `migrate
  * schema-first` reads them to write the tables as SQL.
  */
 function takeLegacyTables(config: unknown): {
@@ -136,9 +136,11 @@ function takeLegacyTables(config: unknown): {
         ? rest
         : {
             ...rest,
-            subjects: {
+            recordTypes: {
               ...subjects,
-              ...(isPlainObject(rest["subjects"]) ? rest["subjects"] : {}),
+              ...(isPlainObject(rest["recordTypes"])
+                ? rest["recordTypes"]
+                : {}),
             },
           },
     // SAFETY: `resolveConfig` checks every table it is given.

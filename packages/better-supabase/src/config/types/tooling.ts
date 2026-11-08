@@ -15,13 +15,10 @@ export interface SpecOutputConfig {
   /** Defaults to the format's default version, e.g. `3.1` for OpenAPI. */
   readonly version?: string;
   /** File to write, relative to the root. Defaults to the format's file name. */
-  readonly output?: string;
+  readonly file?: string;
   /** Overlay files (JSON or YAML), applied in order. */
   readonly overlays?: readonly string[];
-  /**
-   * Defaults to `yaml` when `output` ends in `.yaml` or `.yml`, otherwise
-   * `json`.
-   */
+  /** Defaults to `yaml` when `file` ends in `.yaml` or `.yml`, otherwise `json`. */
   readonly serialize?: "json" | "yaml";
   /**
    * Also writes a reference page (`openapi.html` for `openapi.json`) next to
@@ -159,7 +156,7 @@ export type IntegrationName = (typeof INTEGRATION_NAMES)[number];
 
 export interface EnvFileConfig {
   /** Env file `better-supabase dev env` writes. Defaults to `.env.local`. */
-  readonly output?: string;
+  readonly file?: string;
   /**
    * Prefix for the browser variables, such as `NEXT_PUBLIC_`; `'none'` for no
    * prefix. Detected from the framework by default.
@@ -180,7 +177,7 @@ export interface KeysConfig {
    * Signing key file `better-supabase dev keys` writes. Defaults to
    * `supabase/signing_keys.json`.
    */
-  readonly output?: string;
+  readonly file?: string;
 }
 
 export interface DoctorConfig {
@@ -196,7 +193,7 @@ export interface DoctorConfig {
    */
   readonly format?: "text" | "sarif" | "github";
   /** Write the report to this file. */
-  readonly output?: string;
+  readonly file?: string;
   /**
    * App source files doctor scans for API use (BS210). Globs relative to the
    * root. Defaults to `['src/**\/*.{ts,tsx}']`, plus

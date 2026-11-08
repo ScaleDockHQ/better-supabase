@@ -122,9 +122,9 @@ describe("built-in formats", () => {
     const targets = resolveTargets(
       [
         { format: "asyncapi" },
-        { format: "asyncapi", version: "3.1", output: "asyncapi-3.1.yaml" },
+        { format: "asyncapi", version: "3.1", file: "asyncapi-3.1.yaml" },
         { format: "arazzo" },
-        { format: "arazzo", version: "1.1", output: "arazzo-1.1.json" },
+        { format: "arazzo", version: "1.1", file: "arazzo-1.1.json" },
       ],
       formatRegistry(),
       {},

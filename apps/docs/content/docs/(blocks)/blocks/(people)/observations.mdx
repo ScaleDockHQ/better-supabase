@@ -18,7 +18,7 @@ import { createObservations } from "better-supabase/blocks/observations";
 ```
 
 The module requires `memberships`, `permissions` and `subjects`: an
-observation belongs to any record type in `config.subjects`, and the caller
+observation belongs to any record type in `config.recordTypes`, and the caller
 needs access to that record. With [forms](/docs/blocks/forms) a submitted form
 records observations, with [notifications](/docs/blocks/notifications) a
 critical value notifies the record's leads, with `outbox` it records the

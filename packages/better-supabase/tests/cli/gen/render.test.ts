@@ -16,7 +16,7 @@ import { loadFixtureSnapshot } from "../fixtures/render.ts";
 
 const base: BetterSupabaseConfig = {
   blocks: { "updated-at": {} },
-  subjects: { customer: { table: "customers" } },
+  recordTypes: { customer: { table: "customers" } },
 };
 
 const configFor = (contentMapper: boolean) =>
@@ -209,7 +209,7 @@ describe("render with gen.tableModules", () => {
 describe("render with gen.blockModules", () => {
   const blocks: BetterSupabaseConfig = {
     blocks: { "updated-at": {}, comments: {}, tags: {} },
-    subjects: { customer: { table: "customers" } },
+    recordTypes: { customer: { table: "customers" } },
   };
 
   const renderWith = async (blockModules: boolean) =>

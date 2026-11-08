@@ -200,8 +200,8 @@ export async function runEnv(
     };
   }
 
-  const out = write ?? config.env.output;
-  const path = insideRoot(config.root, out, write ? "--out" : "env.output");
+  const out = write ?? config.env.file;
+  const path = insideRoot(config.root, out, write ? "--out" : "env.file");
   const current = (await readIfExists(path)) ?? "";
   const file = display(config.root, out);
 

@@ -51,7 +51,7 @@ describe("config discovery", () => {
 
   it("loads the config at the repository root from a nested package", async () => {
     await write(repo, "better-supabase.config.json", {
-      gen: { output: "packages/runtime/src/generated.ts", casing: "camel" },
+      gen: { file: "packages/runtime/src/generated.ts", casing: "camel" },
     });
     const config = await loadConfig(join(pkg, "src"));
     expect(config.root).toBe(repo);
@@ -123,7 +123,7 @@ describe("config environments", () => {
           tooling: {
             doctor: {
               format: "sarif",
-              output: "doctor.sarif",
+              file: "doctor.sarif",
               ignore: ["BS304"],
             },
           },
@@ -150,7 +150,7 @@ describe("config environments", () => {
     expect(config.casing).toBe("camel");
     expect(config.doctor).toMatchObject({
       format: "sarif",
-      output: "doctor.sarif",
+      file: "doctor.sarif",
       ignore: ["BS304"],
       strict: false,
     });

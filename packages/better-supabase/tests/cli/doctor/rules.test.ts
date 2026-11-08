@@ -2354,7 +2354,7 @@ describe("subject registry (BS331, BS332)", () => {
         base,
         {},
         {
-          subjects: {
+          recordTypes: {
             note: { table: "notes", title: "headline", url: "/n/{slug}" },
             ghost: { table: "public.ghosts" },
             other: { table: "elsewhere.things" },
@@ -2384,7 +2384,7 @@ describe("subject registry (BS331, BS332)", () => {
           base,
           {},
           {
-            subjects: {
+            recordTypes: {
               note: { table: "notes", title: "body", url: "/n/{id}" },
             },
           },
@@ -2394,7 +2394,7 @@ describe("subject registry (BS331, BS332)", () => {
   });
 
   it("warns about a subject table without RLS", async () => {
-    const config = { subjects: { note: { table: "notes" } } };
+    const config = { recordTypes: { note: { table: "notes" } } };
     expect(await run("BS332", context(base, {}, config))).toEqual([]);
 
     const open = snapshot((tables) => {
@@ -2442,7 +2442,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
     subjects: Readonly<Record<string, Readonly<Record<string, unknown>>>>,
     registry: Readonly<Record<string, { table: string }>> = {},
   ): BetterSupabaseConfig => ({
-    subjects: registry,
+    recordTypes: registry,
     blocks: { attachments: { on: subjects } },
   });
 
@@ -2519,7 +2519,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
           snap,
           {},
           {
-            subjects: {
+            recordTypes: {
               note: { table: "notes", permissions: { read: "notes.read" } },
             },
             blocks: { attachments: {} },
@@ -2536,7 +2536,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
         withPolicies(strict, tenantOnly),
         {},
         {
-          subjects: {
+          recordTypes: {
             note: { table: "public.notes" },
             ghost: { table: "missing" },
           },
@@ -2570,7 +2570,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
             forAll,
             {},
             {
-              subjects: { note: { table: "notes" } },
+              recordTypes: { note: { table: "notes" } },
               // SAFETY: malformed on values, which the rule skips.
               blocks: { attachments: { on: subjects as never } },
             },
@@ -2633,7 +2633,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
           snap,
           {},
           {
-            subjects: {
+            recordTypes: {
               note: { table: "notes", permissions: { upload: "notes.edit" } },
             },
             blocks: { attachments: {} },
@@ -2648,7 +2648,7 @@ describe("attachments subject on block-wide keys (BS345)", () => {
           snap,
           {},
           {
-            subjects: { note: { table: "notes" } },
+            recordTypes: { note: { table: "notes" } },
             blocks: { attachments: {} },
           },
         ),
@@ -2669,7 +2669,7 @@ describe("block on names an unknown record type (BS346)", () => {
         base,
         {},
         {
-          subjects: { deal: { table: "deals" } },
+          recordTypes: { deal: { table: "deals" } },
           blocks: {
             tags: { on: ["deal", "ghost"] },
             attachments: { on: { memo: {} } },
@@ -2692,7 +2692,7 @@ describe("block on names an unknown record type (BS346)", () => {
           base,
           {},
           {
-            subjects: { deal: { table: "deals" } },
+            recordTypes: { deal: { table: "deals" } },
             blocks: { tags: { on: ["deal"] }, comments: {} },
           },
         ),
@@ -2708,7 +2708,7 @@ describe("block on names an unknown record type (BS346)", () => {
           base,
           {},
           {
-            subjects: { "purchase-order": { table: "purchase_orders" } },
+            recordTypes: { "purchase-order": { table: "purchase_orders" } },
             blocks: {
               notifications: { on: { "purchase-order": {} } },
               attachments: { on: ["purchase-order"] },
@@ -3834,7 +3834,7 @@ describe("soft-delete columns reactions read (BS213)", () => {
             base,
             {},
             {
-              subjects: {
+              recordTypes: {
                 project: { table: "projects", deletedAt: "deleted_at" },
               },
             },

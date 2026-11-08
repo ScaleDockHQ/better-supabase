@@ -213,7 +213,7 @@ const pending = await db.dataLifecycle
   .orThrow();
 ```
 
-The subject type is one declared in [`config.subjects`](/docs/repository/record-types)
+The subject type is one declared in [`config.recordTypes`](/docs/repository/record-types)
 or by an app table. The caller needs `organization.export` in the record's
 organization, or the record's `manage` action when the subject declares one,
 so a clinician who manages a chart can export it without exporting the whole

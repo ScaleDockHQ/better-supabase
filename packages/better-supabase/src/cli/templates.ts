@@ -242,7 +242,7 @@ export default defineConfig({${
         ? ""
         : `\n  // Expands into blocks and conventions; \`better-supabase config --preset\` shows what it holds.\n  preset: ${literal(preset)},`
     }
-  gen: { casing: '${casing}', output: '${context.generated}'${keys.hooks === undefined ? "" : `, hooks: ${quote(keys.hooks)}`}${keys.contentMapper === true ? ", contentMapper: true" : ""} },${
+  gen: { casing: '${casing}', file: '${context.generated}'${keys.hooks === undefined ? "" : `, hooks: ${quote(keys.hooks)}`}${keys.contentMapper === true ? ", contentMapper: true" : ""} },${
     grouped["database"] === undefined
       ? ""
       : `\n  database: ${literal(grouped["database"])},`
@@ -260,7 +260,7 @@ export default defineConfig({${
   // \`tasks: ['types', 'sql', 'spec']\` in \`gen\`.
   ${
     keys.migrationSince === undefined
-      ? "// tooling: { env: { output: '.env.local' }, doctor: { format: 'sarif' } },"
+      ? "// tooling: { env: { file: '.env.local' }, doctor: { format: 'sarif' } },"
       : `// Doctor checks the migrations after this one for statements that lock tables.\n  tooling: { doctor: { migrationSafety: { since: ${quote(keys.migrationSince)} } } },`
   }
 });

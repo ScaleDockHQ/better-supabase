@@ -245,7 +245,7 @@ function optionOf(
  */
 function extensionsOf(
   { blocks, blockNames }: Pick<ResolvedConfig, "blocks" | "blockNames">,
-  organization: FlatConfig["organization"],
+  tenant: FlatConfig["tenant"],
   organizationColumn: string,
 ): ResolvedExtensions {
   const has = (name: string): boolean => blockNames.includes(name);
@@ -261,15 +261,13 @@ function extensionsOf(
       ? { column: optionOf(blocks, "trash", "deletedAt", "deleted_at") }
       : undefined,
     tenant:
-      has("memberships") || organization?.column !== undefined
+      has("memberships") || tenant?.column !== undefined
         ? {
-            column: organization?.column ?? organizationColumn,
-            ...(organization?.onMissing === undefined
+            column: tenant?.column ?? organizationColumn,
+            ...(tenant?.onMissing === undefined
               ? {}
-              : { onMissing: organization.onMissing }),
-            ...(organization?.header === undefined
-              ? {}
-              : { header: organization.header }),
+              : { onMissing: tenant.onMissing }),
+            ...(tenant?.header === undefined ? {} : { header: tenant.header }),
           }
         : undefined,
     actor: has("created-by")
@@ -332,7 +330,7 @@ function hooksOf(
     typeof config.hooks === "object" ? config.hooks.framework : config.hooks;
 
   if (named === undefined) {
-    return frameworks.forIntegrations(config.integrations ?? [])?.name ?? false;
+    return frameworks.forIntegrations(config.adapters ?? [])?.name ?? false;
   }
 
   if (named !== false && frameworks.get(named) === undefined) {
@@ -386,7 +384,7 @@ export function resolveConfig(
 ): ResolvedConfig {
   const config = expandFlatPreset(flattenConfig(input));
   const frameworks = frameworkRegistry(config.frameworks);
-  const output = config.output ?? CONFIG_DEFAULTS.output;
+  const output = config.file ?? CONFIG_DEFAULTS.output;
   const tenantName = tenantNameOf(config.blocks);
   const appTables = appTablesOf(config.appTables, tenantName);
 
@@ -406,7 +404,7 @@ export function resolveConfig(
     databaseTypesOutput: output.replace(/[^/]+$/, "database.types.ts"),
     postgrestVersion:
       config.postgrestVersion ?? CONFIG_DEFAULTS.postgrestVersion,
-    recordTypes: config.recordTypes ?? true,
+    records: config.records ?? true,
     hooks: hooksOf(config, frameworks),
     frameworks: frameworks.bindings,
     ...(typeof config.hooks === "object" && config.hooks.select !== undefined
@@ -439,7 +437,7 @@ export function resolveConfig(
     generators: generatorsOf(config.generators),
     extensions: extensionsOf(
       blocks,
-      config.organization,
+      config.tenant,
       tenantNames(tenantName).rename("organization_id"),
     ),
     claims: { ...DEFAULT_CLAIMS, ...config.claims },
@@ -464,7 +462,7 @@ export function resolveConfig(
     vectorSearch: vectorSearchOf(config.vectorSearch),
     subjects: withBlockSubjects(
       withAppTableSubjects(
-        config.subjects ?? {},
+        config.recordTypes ?? {},
         appTables,
         config.sql?.scope,
         tenantName,
@@ -491,14 +489,14 @@ export function resolveConfig(
     appTables,
     seed: {
       entry: config.seed?.entry ?? CONFIG_DEFAULTS.seed.entry,
-      output: config.seed?.output ?? CONFIG_DEFAULTS.seed.output,
+      file: config.seed?.file ?? CONFIG_DEFAULTS.seed.file,
       perTenant: config.seed?.perTenant ?? CONFIG_DEFAULTS.seed.perTenant,
       ...resolveSeedModes(config.seed),
     },
     specs: {
       entry: config.specs?.entry ?? CONFIG_DEFAULTS.specs.entry,
       outputs: config.specs?.outputs ?? [
-        { format: "openapi", output: CONFIG_DEFAULTS.specs.output },
+        { format: "openapi", file: CONFIG_DEFAULTS.specs.file },
       ],
       failOn: config.specs?.failOn ?? CONFIG_DEFAULTS.specs.failOn,
       ...(config.specs?.manifest === undefined
@@ -515,9 +513,9 @@ export function resolveConfig(
         config.doctor?.policyHelperLimit ??
         CONFIG_DEFAULTS.doctor.policyHelperLimit,
       sealTriggers: config.doctor?.sealTriggers ?? [],
-      ...(config.doctor?.output === undefined
+      ...(config.doctor?.file === undefined
         ? {}
-        : { output: config.doctor.output }),
+        : { file: config.doctor.file }),
       ...(config.doctor?.claimsLimit === undefined
         ? {}
         : { claimsLimit: config.doctor.claimsLimit }),
@@ -534,12 +532,12 @@ export function resolveConfig(
         config.gen?.watchInterval ?? CONFIG_DEFAULTS.gen.watchInterval,
     },
     env: {
-      output: config.env?.output ?? CONFIG_DEFAULTS.env.output,
+      file: config.env?.file ?? CONFIG_DEFAULTS.env.file,
       ...(config.env?.prefix === undefined
         ? {}
         : { prefix: config.env.prefix }),
     },
-    integrations: config.integrations ?? [],
+    adapters: config.adapters ?? [],
     skills: config.skills ?? {},
     keys: config.keys ?? {},
   };
@@ -563,7 +561,7 @@ function resolveSeedModes(
       size: seed?.sample?.size ?? CONFIG_DEFAULTS.seed.sample.size,
       seed: seed?.sample?.seed ?? CONFIG_DEFAULTS.seed.sample.seed,
       locale: seed?.sample?.locale ?? locale,
-      output: seed?.sample?.output ?? CONFIG_DEFAULTS.seed.sample.output,
+      file: seed?.sample?.file ?? CONFIG_DEFAULTS.seed.sample.file,
     },
   };
 }

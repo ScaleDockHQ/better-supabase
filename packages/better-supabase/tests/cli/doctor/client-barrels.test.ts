@@ -6,7 +6,7 @@ import { CLIENT_BARREL_RULES } from "../../../src/cli/doctor/client-barrels.ts";
 import { resolveConfig } from "../../../src/config/resolve.ts";
 
 const config = resolveConfig(
-  { gen: { output: "src/lib/supabase/generated.ts" } },
+  { gen: { file: "src/lib/supabase/generated.ts" } },
   "/app",
 );
 
@@ -75,10 +75,7 @@ describe("BS621", () => {
         ],
         resolveConfig(
           {
-            gen: {
-              output: "src/lib/supabase/generated.ts",
-              tableModules: false,
-            },
+            gen: { file: "src/lib/supabase/generated.ts", tableModules: false },
           },
           "/app",
         ),

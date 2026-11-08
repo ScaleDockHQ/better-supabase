@@ -92,7 +92,7 @@ const rows = useQuotes({ limit: 50 });
 | `expired`              | its valid-until date passed (`expire_quotes`, or an answer after the date)  |
 | `withdrawn`            | `withdraw` of a sent or expired quote; it isn't answered until sent again   |
 
-`create` gives a quote the next number (`Q-12`, or the format of a `quote` entity in [numbering](/docs/blocks/numbering)) and a valid-until date `options.validDays` (default 30) from today. Its company and contact are records in `config.subjects` (the parties types `company` and `person` by default), checked like a deal's (`QUOTE_COMPANY_FORBIDDEN`).
+`create` gives a quote the next number (`Q-12`, or the format of a `quote` entity in [numbering](/docs/blocks/numbering)) and a valid-until date `options.validDays` (default 30) from today. Its company and contact are records in `config.recordTypes` (the parties types `company` and `person` by default), checked like a deal's (`QUOTE_COMPANY_FORBIDDEN`).
 
 Over your own quotes table, a company or contact can be one id column of a fixed type, such as a foreign key to your customers, as on [invoices](/docs/blocks/invoices). Map the type column to `null` and name the type in `options.company` (or `options.contact`): `create` and `update` write the id in the column's own type, refuse another type (`QUOTE_COMPANY_UNSUPPORTED`), and a read returns the fixed type as `company_type`. `fromQuote` on invoices passes the customer on to the invoice.
 

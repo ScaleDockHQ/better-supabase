@@ -170,7 +170,7 @@ describe("init", () => {
     );
 
     expect(config?.contents).toContain(
-      "gen: { casing: 'snake', output: 'src/lib/supabase/generated.ts', hooks: 'qwik' }",
+      "gen: { casing: 'snake', file: 'src/lib/supabase/generated.ts', hooks: 'qwik' }",
     );
 
     const [plain] = baseFiles(context, "snake", false);

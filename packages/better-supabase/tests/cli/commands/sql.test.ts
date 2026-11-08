@@ -188,7 +188,7 @@ export const notATopic = { template: "x" };
         realtime: {
           policies: {
             from: ["topics.ts"],
-            output: "supabase/schemas/905_topics.sql",
+            file: "supabase/schemas/905_topics.sql",
           },
         },
       },
@@ -219,7 +219,7 @@ export const notATopic = { template: "x" };
     await expect(
       sql(["sync"], {
         database: {
-          realtime: { policies: { from: ["empty.ts"], output: "out.sql" } },
+          realtime: { policies: { from: ["empty.ts"], file: "out.sql" } },
         },
       }),
     ).rejects.toThrow(/exports no topic/);
@@ -238,7 +238,7 @@ export const quotes = defineTopic("organization:{organizationId}:quotes");
 `,
     );
     const output = "supabase/schemas/905_topics.sql";
-    const policies = { from: ["topics.ts"], output };
+    const policies = { from: ["topics.ts"], file: output };
 
     const triggers = [
       {
@@ -319,7 +319,7 @@ export const thread = defineTopic("thread:{threadId}");
     );
     const { defineTopic } = await import(realtime);
     const output = "supabase/schemas/905_topics.sql";
-    const policies = { from: ["topics.ts"], output };
+    const policies = { from: ["topics.ts"], file: output };
 
     const options = {
       values: {
@@ -433,7 +433,7 @@ export const typing = defineTopic("bsb:t:{room}", { send: true });
 `,
     );
     const output = "supabase/schemas/905_topics.sql";
-    const policies = { from: ["topics.ts", "send.ts"], output };
+    const policies = { from: ["topics.ts", "send.ts"], file: output };
     await sql(["sync"], { database: { realtime: { policies } } });
     const alone = await readFile(join(root, output), "utf-8");
     expect(alone).toContain("-- better-supabase: topic notifications:{userId}");

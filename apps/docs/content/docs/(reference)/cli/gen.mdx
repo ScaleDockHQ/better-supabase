@@ -78,8 +78,8 @@ the same generator behind `supabase gen types typescript`, and writes:
    database, only the config;
 5. with blocks that have a record binding installed, a
    [record type](/docs/repository/record-bindings#generated-record-types) per type in
-   `config.subjects`, in `records/<type>.ts` next to the main module, unless
-   `gen.recordTypes` is `false`;
+   `config.recordTypes`, in `records/<type>.ts` next to the main module, unless
+   `gen.records` is `false`;
 6. with `gen.hooks` set, `hooks.ts` next to the main module: a list hook and a
    record hook per table (`useCustomers`, `useCustomer`) for the
    [data hooks](/docs/frontend/data-hooks) of that framework;
@@ -642,7 +642,7 @@ import { standardSchema } from "better-supabase/generators/standard-schema";
 
 export default defineConfig({
   gen: {
-    output: "src/lib/supabase/generated.ts",
+    file: "src/lib/supabase/generated.ts",
     generators: [
       standardSchema({
         json: { "customers.metadata": "./schemas.ts#metadata" },

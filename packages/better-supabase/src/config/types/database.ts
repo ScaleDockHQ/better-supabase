@@ -112,7 +112,7 @@ export interface SeedConfig {
   /** Module exporting `defineSeed(...)` as `seed` or default. */
   readonly entry?: string;
   /** SQL file `better-supabase db seed` writes. Add it to `[db.seed] sql_paths`. */
-  readonly output?: string;
+  readonly file?: string;
   /**
    * Module exporting `defineTenantSeed(...)` as `seed` or default.
    * `better-supabase db seed --tenant <slug>` applies it to one tenant.
@@ -150,13 +150,13 @@ export interface SeedSampleConfig {
   /** The locale of names and addresses. Defaults to the defaults' locale. */
   readonly locale?: string;
   /** SQL file `db seed --sample` writes with `--out`. */
-  readonly output?: string;
+  readonly file?: string;
 }
 
 /** `database.seed` after defaults: what the CLI reads. */
 export interface ResolvedSeedConfig {
   readonly entry: string;
-  readonly output: string;
+  readonly file: string;
   readonly perTenant: string;
   readonly defaults: {
     readonly enabled: boolean;
@@ -168,7 +168,7 @@ export interface ResolvedSeedConfig {
     readonly size: SeedSampleSize;
     readonly seed: number;
     readonly locale: string;
-    readonly output: string;
+    readonly file: string;
   };
 }
 
@@ -274,7 +274,7 @@ export interface TopicPoliciesConfig {
   /** Modules that export `defineTopic` results. Node imports them. */
   readonly from: readonly string[];
   /** The SQL file to write, such as `supabase/schemas/905_topics.sql`. */
-  readonly output: string;
+  readonly file: string;
 }
 
 /**

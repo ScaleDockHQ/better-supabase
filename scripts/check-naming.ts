@@ -14,6 +14,7 @@ interface Rename {
   readonly to: string;
   readonly kind:
     | "column"
+    | "configKey"
     | "constraint"
     | "env"
     | "event"
@@ -142,7 +143,12 @@ const escaped = (text: string): string =>
   text.replaceAll(/[.*+?^${}()|[\]\\/]/g, String.raw`\$&`);
 
 const renameChecks = naming.renames
-  .filter((rename) => rename.kind !== "column" && rename.kind !== "policy")
+  .filter(
+    (rename) =>
+      rename.kind !== "column" &&
+      rename.kind !== "configKey" &&
+      rename.kind !== "policy",
+  )
   .map((rename) => {
     const from = escaped(rename.from);
 

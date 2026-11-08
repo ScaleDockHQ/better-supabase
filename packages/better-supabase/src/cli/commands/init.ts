@@ -444,7 +444,7 @@ async function runInit(
     chosen === null
       ? []
       : [
-          ...chosen.resolved.preset.integrations,
+          ...chosen.resolved.preset.adapters,
           ...integrationsForFramework(chosen.resolved.preset.framework),
         ],
   );
@@ -628,7 +628,7 @@ async function runInit(
       groupConfig({
         preset: chosen.value,
         casing,
-        output: generated,
+        file: generated,
         ...designKeys(chosen.resolved, chosen.design),
         ...(workflow === "pg-delta" ? {} : { sql: { workflow } }),
       }),

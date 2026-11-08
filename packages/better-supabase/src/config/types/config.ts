@@ -85,7 +85,7 @@ export interface FlatConfig {
    * Main generated module. Defaults to `src/lib/supabase/generated.ts`;
    * `database.types.ts` is written next to it.
    */
-  readonly output?: string;
+  readonly file?: string;
   /**
    * PostgREST major version, written to `__InternalSupabase` in
    * `database.types.ts` so `createClient` picks matching behavior. Defaults to
@@ -93,12 +93,12 @@ export interface FlatConfig {
    */
   readonly postgrestVersion?: string;
   /**
-   * Write one `records/<type>.ts` next to `output` per record type that an
+   * Write one `records/<type>.ts` next to `file` per record type that an
    * installed block binds to (`defineRecordType`). Defaults to `true`.
    */
-  readonly recordTypes?: boolean;
+  readonly records?: boolean;
   /**
-   * Write `hooks.ts` next to `output`: `defineDataHooks` from this framework's
+   * Write `hooks.ts` next to `file`: `defineDataHooks` from this framework's
    * entry, once per block instance and table (`useTickets`, `useTicket`).
    * Defaults to `react` when the adapters include `next`, `react` or `expo`,
    * and to `false` otherwise. The object form also wraps each table's select in
@@ -156,7 +156,7 @@ export interface FlatConfig {
    * `auth.tenant` without its claim (that is `claims.tenant`): the organization
    * column and how the `memberships` extension resolves it.
    */
-  readonly organization?: Omit<TenantConfig, "claim">;
+  readonly tenant?: Omit<TenantConfig, "claim">;
   readonly claims?: ClaimsConfig;
   readonly buckets?: Readonly<Record<string, BucketConfig>>;
   /**
@@ -184,7 +184,7 @@ export interface FlatConfig {
    * module writes `subject_title`, `subject_url` and `can_subject` from it, and
    * `gen` types `SubjectType` from its keys.
    */
-  readonly subjects?: SubjectsConfig;
+  readonly recordTypes?: SubjectsConfig;
   /**
    * A named preset (`saas`, `crm`, ...), or a preset object: the conventions
    * that differ from the defaults and the blocks. It expands into `blocks`,
@@ -226,7 +226,7 @@ export interface FlatConfig {
    * The integrations `init` and `add` wrote; `add` without a name sets up the
    * ones that have no files yet.
    */
-  readonly integrations?: readonly IntegrationName[];
+  readonly adapters?: readonly IntegrationName[];
   readonly skills?: SkillsConfig;
   readonly keys?: KeysConfig;
 }
@@ -242,7 +242,7 @@ export interface ResolvedConfig {
   /** `database.types.ts` next to `output`. */
   readonly databaseTypesOutput: string;
   readonly postgrestVersion: string;
-  readonly recordTypes: boolean;
+  readonly records: boolean;
   readonly hooks: HooksFramework | false;
   /** Every registered binding: the built-in ones, then `frameworks`. */
   readonly frameworks: readonly FrameworkBinding[];
@@ -309,22 +309,16 @@ export interface ResolvedConfig {
     readonly manifest?: string;
   };
   readonly doctor: Required<
-    Omit<
-      DoctorConfig,
-      "claimsLimit" | "output" | "migrationSafety" | "baseline"
-    >
+    Omit<DoctorConfig, "claimsLimit" | "file" | "migrationSafety" | "baseline">
   > &
-    Pick<
-      DoctorConfig,
-      "claimsLimit" | "output" | "migrationSafety" | "baseline"
-    >;
+    Pick<DoctorConfig, "claimsLimit" | "file" | "migrationSafety" | "baseline">;
   /**
    * `tasks` stays unset without a list, so `gen` picks the steps the project
    * uses.
    */
   readonly gen: GenConfig;
-  readonly env: { readonly output: string; readonly prefix?: string };
-  readonly integrations: readonly IntegrationName[];
+  readonly env: { readonly file: string; readonly prefix?: string };
+  readonly adapters: readonly IntegrationName[];
   readonly skills: SkillsConfig;
   readonly keys: KeysConfig;
   /** The environment block the CLI applied, when one was active. */

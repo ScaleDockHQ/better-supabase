@@ -135,7 +135,7 @@ export async function topicPolicyFile(
   ].join("\n");
 
   return {
-    path: policies.output,
+    path: policies.file,
     contents: `${header}\n\n${[...written.map(sqlOf), ...triggerSql].join("\n")}`,
   };
 }

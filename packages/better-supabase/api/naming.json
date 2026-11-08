@@ -1683,6 +1683,78 @@
       "to": "reaction.deleted",
       "kind": "event",
       "since": "0.54"
+    },
+    {
+      "from": "subjects",
+      "to": "recordTypes",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "integrations",
+      "to": "adapters",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "organization",
+      "to": "auth.tenant",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "gen.output",
+      "to": "gen.file",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "gen.recordTypes",
+      "to": "gen.records",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "database.seed.output",
+      "to": "database.seed.file",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "database.seed.sample.output",
+      "to": "database.seed.sample.file",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "database.realtime.policies.output",
+      "to": "database.realtime.policies.file",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "tooling.env.output",
+      "to": "tooling.env.file",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "tooling.keys.output",
+      "to": "tooling.keys.file",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "tooling.doctor.output",
+      "to": "tooling.doctor.file",
+      "kind": "configKey",
+      "since": "0.54"
+    },
+    {
+      "from": "api.specs.outputs.*.output",
+      "to": "api.specs.outputs.*.file",
+      "kind": "configKey",
+      "since": "0.54"
     }
   ],
   "allowlist": {

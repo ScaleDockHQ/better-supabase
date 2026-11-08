@@ -22,7 +22,7 @@ function resolveConfig(input: ResolveInput, root: string) {
 function config(extra: Record<string, unknown> = {}) {
   return resolveConfig(
     {
-      subjects: {
+      recordTypes: {
         customer: { table: "customers" },
         project: {
           table: "projects",
@@ -79,7 +79,7 @@ describe("record types", () => {
 
     const bare = resolveConfig(
       {
-        subjects: { customer: { table: "customers" } },
+        recordTypes: { customer: { table: "customers" } },
         blocks: { memberships: {}, permissions: {} },
       },
       "/project",

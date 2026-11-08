@@ -43,7 +43,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Database names of not-null columns an insert may leave out because the database fills them, for example from a before insert trigger.",
   },
-  "gen.output": {
+  "gen.file": {
     description: "Main generated module.",
     default: "src/lib/supabase/generated.ts",
   },
@@ -241,46 +241,46 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   "database.vectorSearch.*.order": {
     description: "A SQL order by list over the row t that breaks score ties.",
   },
-  subjects: {
+  recordTypes: {
     description:
       "The app's subject types, keyed by type name: the entities blocks attach tags, comments, fields and ranks to. Subject-bound SQL modules read this registry, and the `subjects` module writes `subject_title`, `subject_url` and `can_subject` from it.",
   },
-  "subjects.*.table": {
+  "recordTypes.*.table": {
     description: "`schema.table`, or a table in `public`.",
   },
-  "subjects.*.id": { default: "id" },
-  "subjects.*.idType": {
+  "recordTypes.*.id": { default: "id" },
+  "recordTypes.*.idType": {
     description: "The id column's type, such as `uuid` or `bigint`.",
   },
-  "subjects.*.tenant": {
+  "recordTypes.*.tenant": {
     description:
       "The tenant column, or `false` for a subject without a tenant. Defaults to `organization_id`, or `<blocks.memberships.entities.organization>_id` when the tenant is renamed.",
   },
-  "subjects.*.title": { description: "The column `subject_title` returns." },
-  "subjects.*.url": {
+  "recordTypes.*.title": { description: "The column `subject_title` returns." },
+  "recordTypes.*.url": {
     description:
       "The path `subject_url` returns, with `{column}` placeholders.",
   },
-  "subjects.*.permissions": {
+  "recordTypes.*.permissions": {
     description:
       "A permission key per action that `can_subject` checks in the subject's tenant.",
   },
-  "subjects.*.scope": {
+  "recordTypes.*.scope": {
     description:
       "An authorization provider scope whose ids are this subject's ids.",
   },
-  "subjects.*.cascade": { default: false },
-  "subjects.*.deletedAt": { description: "The soft-delete column." },
-  "subjects.*.template": {
+  "recordTypes.*.cascade": { default: false },
+  "recordTypes.*.deletedAt": { description: "The soft-delete column." },
+  "recordTypes.*.template": {
     description:
       "The column that marks a template row, or { column, children } for a clone.",
   },
-  "subjects.*.auditReads": {
+  "recordTypes.*.auditReads": {
     default: false,
     description:
       "Log every read through the blocks' read functions in the audit log, with the NEN 7513 fields. Needs the audit block.",
   },
-  "subjects.*.rank": {
+  "recordTypes.*.rank": {
     description:
       "The rank key column and the column it is grouped by, for `move()`.",
   },
@@ -299,11 +299,11 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   },
   "database.realtime.policies": {
     description:
-      "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `output` on `upgrade`; `upgrade --check` fails when the file is stale.",
+      "Writes the realtime.messages policies of the topics `from` exports (defineTopic) to `file` on `upgrade`; `upgrade --check` fails when the file is stale.",
   },
   "database.realtime.triggers": {
     description:
-      "Broadcast triggers `upgrade` writes to `policies.output` through the topic's trigger(), for topics `policies.from` exports. One topic with column values, a keys or row payload and one event name calls better_supabase.broadcast_topic() (the realtime-tables module); any other trigger gets a generated function.",
+      "Broadcast triggers `upgrade` writes to `policies.file` through the topic's trigger(), for topics `policies.from` exports. One topic with column values, a keys or row payload and one event name calls better_supabase.broadcast_topic() (the realtime-tables module); any other trigger gets a generated function.",
   },
   "database.realtime.triggers[].topic": {
     description: "The template of a topic `policies.from` exports.",
@@ -389,7 +389,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
       "Database roles the tenant scope lets through, such as supabase_auth_admin for a security invoker access token hook, which runs without auth.uid(). Each role becomes an or current_user branch. Defaults to none.",
   },
   "database.seed.entry": { default: "supabase/seed.ts" },
-  "database.seed.output": { default: "supabase/seeds/000_better_supabase.sql" },
+  "database.seed.file": { default: "supabase/seeds/000_better_supabase.sql" },
   "database.seed.perTenant": { default: "supabase/seed.tenant.ts" },
   "api.specs": {
     description:
@@ -406,7 +406,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   "api.specs.outputs[].version": {
     description: "Defaults to the format's default version.",
   },
-  "api.specs.outputs[].output": {
+  "api.specs.outputs[].file": {
     description:
       "File to write, relative to the root. Defaults to the format's file name.",
   },
@@ -436,7 +436,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
       "Report format. The global --json flag still picks the JSON report.",
     default: "text",
   },
-  "tooling.doctor.output": { description: "Write the report to this file." },
+  "tooling.doctor.file": { description: "Write the report to this file." },
   gen: { description: "What better-supabase gen runs." },
   "gen.tasks": {
     description:
@@ -464,7 +464,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
   "tooling.env": {
     description: "The env file better-supabase dev env writes.",
   },
-  "tooling.env.output": { default: ".env.local" },
+  "tooling.env.file": { default: ".env.local" },
   "tooling.env.prefix": {
     description:
       "Prefix for browser variables, such as NEXT_PUBLIC_; none for no prefix. Detected from the framework by default.",
@@ -474,7 +474,7 @@ export const CONFIG_ANNOTATIONS: Readonly<Record<string, Annotation>> = {
     description:
       "Agent folders skills install writes to. Defaults to the ones the project has, else agents.",
   },
-  "tooling.keys.output": {
+  "tooling.keys.file": {
     description:
       "Signing key file better-supabase dev keys writes. Defaults to supabase/signing_keys.json.",
   },

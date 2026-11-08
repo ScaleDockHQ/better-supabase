@@ -232,7 +232,7 @@ const root = "/project";
 const config = resolveConfig(
   {
     gen: {
-      output: "src/generated.ts",
+      file: "src/generated.ts",
       json: { "events.meta": { type: "{ a: number }" } },
     },
   },

@@ -406,7 +406,7 @@ describe("shipped JSON Schemas", () => {
       },
       gen: {
         casing: "camel",
-        output: "src/lib/supabase/generated.ts",
+        file: "src/lib/supabase/generated.ts",
         postgrestVersion: "13",
         tables: { audit_logs: { serviceRole: true } },
       },
@@ -418,11 +418,7 @@ describe("shipped JSON Schemas", () => {
           entry: "src/lib/api.ts",
           outputs: [
             { format: "openapi", version: "3.2", ui: "scalar" },
-            {
-              format: "asyncapi",
-              output: "asyncapi.yaml",
-              overlays: ["o.yaml"],
-            },
+            { format: "asyncapi", file: "asyncapi.yaml", overlays: ["o.yaml"] },
           ],
           failOn: "warning",
         },
@@ -442,10 +438,10 @@ describe("shipped JSON Schemas", () => {
     const config = {
       gen: { tasks: ["types", "sql", "spec"], watchInterval: 1000 },
       tooling: {
-        env: { output: ".env.development.local", prefix: "NEXT_PUBLIC_" },
-        doctor: { only: ["BS100"], format: "sarif", output: "doctor.sarif" },
+        env: { file: ".env.development.local", prefix: "NEXT_PUBLIC_" },
+        doctor: { only: ["BS100"], format: "sarif", file: "doctor.sarif" },
         skills: { agents: ["cursor"] },
-        keys: { output: "supabase/keys.json" },
+        keys: { file: "supabase/keys.json" },
       },
       adapters: ["next", "client"],
       api: { specs: { manifest: "spec-manifest.json" } },

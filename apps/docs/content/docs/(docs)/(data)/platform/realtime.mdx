@@ -145,7 +145,7 @@ export default defineConfig({
     realtime: {
       policies: {
         from: ["src/realtime/topics.ts"],
-        output: "supabase/schemas/905_topics.sql",
+        file: "supabase/schemas/905_topics.sql",
       },
     },
   },
@@ -376,7 +376,7 @@ export default defineConfig({
     realtime: {
       policies: {
         from: ["src/realtime/topics.ts"],
-        output: "supabase/schemas/905_topics.sql",
+        file: "supabase/schemas/905_topics.sql",
       },
       triggers: [
         {
@@ -401,7 +401,7 @@ export default defineConfig({
     realtime: {
       policies: {
         from: ["src/realtime/topics.ts"],
-        output: "supabase/schemas/905_topics.sql",
+        file: "supabase/schemas/905_topics.sql",
       },
       triggers: [
         {

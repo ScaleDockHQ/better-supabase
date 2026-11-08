@@ -581,9 +581,9 @@ const FLAT = {
       }),
     ),
   ),
-  output: v.optional(v.string()),
+  file: v.optional(v.string()),
   postgrestVersion: v.optional(v.string()),
-  recordTypes: v.optional(v.boolean()),
+  records: v.optional(v.boolean()),
   hooks: v.optional(hooksSchema),
   json: v.optional(
     v.record(
@@ -662,9 +662,7 @@ const FLAT = {
       tables: v.optional(strings),
       global: v.optional(strings),
       users: v.optional(stringRecord),
-      policies: v.optional(
-        v.strictObject({ from: strings, output: v.string() }),
-      ),
+      policies: v.optional(v.strictObject({ from: strings, file: v.string() })),
       triggers: v.optional(
         v.array(
           v.strictObject({
@@ -778,7 +776,7 @@ const FLAT = {
       ]),
     ),
   ),
-  subjects: v.optional(
+  recordTypes: v.optional(
     v.record(
       v.pipe(
         v.string(),
@@ -845,7 +843,7 @@ const FLAT = {
   seed: v.optional(
     v.strictObject({
       entry: v.optional(v.string()),
-      output: v.optional(v.string()),
+      file: v.optional(v.string()),
       perTenant: v.optional(v.string()),
       defaults: v.optional(
         v.union([
@@ -862,7 +860,7 @@ const FLAT = {
           size: v.optional(v.picklist(["s", "m", "l"])),
           seed: v.optional(v.number()),
           locale: v.optional(v.string()),
-          output: v.optional(v.string()),
+          file: v.optional(v.string()),
         }),
       ),
     }),
@@ -875,7 +873,7 @@ const FLAT = {
           v.strictObject({
             format: v.pipe(v.string(), v.minLength(1)),
             version: v.optional(v.string()),
-            output: v.optional(v.string()),
+            file: v.optional(v.string()),
             overlays: v.optional(strings),
             serialize: v.optional(v.picklist(["json", "yaml"])),
             ui: v.optional(
@@ -894,7 +892,7 @@ const FLAT = {
       only: v.optional(strings),
       strict: v.optional(v.boolean()),
       format: v.optional(v.picklist(["text", "sarif", "github"])),
-      output: v.optional(v.string()),
+      file: v.optional(v.string()),
       sources: v.optional(strings),
       policyHelperLimit: v.optional(v.number()),
       sealTriggers: v.optional(strings),
@@ -907,15 +905,15 @@ const FLAT = {
   ),
   env: v.optional(
     v.strictObject({
-      output: v.optional(v.string()),
+      file: v.optional(v.string()),
       prefix: v.optional(v.string()),
     }),
   ),
-  integrations: v.optional(v.array(v.picklist(INTEGRATIONS))),
+  adapters: v.optional(v.array(v.picklist(INTEGRATIONS))),
   skills: v.optional(
     v.strictObject({ agents: v.optional(v.array(v.picklist(SKILLS_AGENTS))) }),
   ),
-  keys: v.optional(v.strictObject({ output: v.optional(v.string()) })),
+  keys: v.optional(v.strictObject({ file: v.optional(v.string()) })),
 };
 
 const pickEntries = <const K extends keyof typeof FLAT>(
@@ -956,9 +954,9 @@ const ENTRIES = {
       ...pickEntries(["claims", "authorization", "entitlements"]),
     }),
   ),
-  subjects: FLAT.subjects,
+  recordTypes: FLAT.recordTypes,
   blocks: FLAT.blocks,
-  adapters: FLAT.integrations,
+  adapters: FLAT.adapters,
   gen: v.optional(
     v.strictObject({
       tasks: v.optional(v.array(v.picklist(GEN_TASKS))),
@@ -978,10 +976,10 @@ const ENTRIES = {
         }),
       ),
       ...pickEntries([
-        "output",
+        "file",
         "casing",
         "postgrestVersion",
-        "recordTypes",
+        "records",
         "hooks",
         "tables",
         "json",

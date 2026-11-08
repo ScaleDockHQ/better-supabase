@@ -22,7 +22,7 @@ const fixtureConfig: BetterSupabaseConfig = {
     // default layout is covered by tests/cli/gen/render.test.ts and the examples.
     tableModules: false,
     blockModules: false,
-    output: "tests/fixtures/generated.ts",
+    file: "tests/fixtures/generated.ts",
     json: {
       "customers.metadata": {
         type: "{ source?: string; tier?: 'free' | 'pro' }",
@@ -80,7 +80,7 @@ export async function renderFixtures(): Promise<
       gen: {
         ...fixtureConfig.gen,
         casing: "camel",
-        output: "tests/fixtures/generated-camel.ts",
+        file: "tests/fixtures/generated-camel.ts",
         generators: [
           zod(),
           zod({

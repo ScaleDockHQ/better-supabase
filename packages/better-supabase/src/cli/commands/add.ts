@@ -172,7 +172,7 @@ async function addBlocks(
 
   const frameworks = PRESET_FRAMEWORKS.filter(
     (framework) =>
-      config.integrations.some((name) => name === framework) ||
+      config.adapters.some((name) => name === framework) ||
       project.frameworks.some((name) => name === framework),
   );
 
@@ -316,9 +316,9 @@ async function addIntegrations(
     config.blockNames.length > 0,
   );
 
-  const fromConfig = args._.length === 0 && config.integrations.length > 0;
+  const fromConfig = args._.length === 0 && config.adapters.length > 0;
 
-  const missing = config.integrations.filter((name) =>
+  const missing = config.adapters.filter((name) =>
     integrationFiles([name], templateContext).some(
       (file) => !existsSync(resolve(config.root, file.path)),
     ),
@@ -327,7 +327,7 @@ async function addIntegrations(
   if (fromConfig && missing.length === 0) {
     return {
       code: 0,
-      output: `Every integration in the config is set up: ${config.integrations.join(", ")}.`,
+      output: `Every integration in the config is set up: ${config.adapters.join(", ")}.`,
       data: { integrations: [], files: [], packages: [], unlisted: [] },
     };
   }
@@ -408,14 +408,14 @@ async function addIntegrations(
   }
 
   const unlisted = integrations.filter(
-    (name) => !config.integrations.includes(name),
+    (name) => !config.adapters.includes(name),
   );
 
   if (unlisted.length > 0) {
     lines.push(
       "",
       "Add them to your config so `better-supabase add` sets them up in a fresh checkout:",
-      `  adapters: [${[...config.integrations, ...unlisted].map((name) => `'${name}'`).join(", ")}]`,
+      `  adapters: [${[...config.adapters, ...unlisted].map((name) => `'${name}'`).join(", ")}]`,
     );
   }
 

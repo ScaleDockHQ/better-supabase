@@ -28,7 +28,7 @@ type RecordsConfig = Pick<
   | "buckets"
   | "casing"
   | "gen"
-  | "recordTypes"
+  | "records"
   | "instances"
   | "output"
   | "sql"
@@ -251,10 +251,10 @@ function recordFile(
  * `records/` next to the main module: one `records/<type>.ts` per record type
  * that an installed block binds to, and an index. Record types the binding
  * blocks and the blocks they require register themselves (a comment's message,
- * an attachment) get none. Empty with `recordTypes: false`.
+ * an attachment) get none. Empty with `records: false`.
  */
 export function emitRecords(config: RecordsConfig): GeneratedFile[] {
-  if (!config.recordTypes || config.blockNames.length === 0) {
+  if (!config.records || config.blockNames.length === 0) {
     return [];
   }
 

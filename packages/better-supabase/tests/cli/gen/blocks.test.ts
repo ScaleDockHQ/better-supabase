@@ -419,7 +419,7 @@ describe("blocks.generated.ts", () => {
   it("writes the keys of record actions, skipping actions granted only per row", () => {
     const config = resolveConfig(
       {
-        subjects: {
+        recordTypes: {
           file: {
             table: "public.files",
             permissions: {
@@ -445,7 +445,7 @@ describe("blocks.generated.ts", () => {
     const config = resolveConfig(
       {
         gen: { casing: "camel" },
-        subjects: {
+        recordTypes: {
           customer: {
             table: "public.customers",
             tenant: "organization_id",
@@ -509,7 +509,7 @@ describe("blocks.generated.ts", () => {
   it("emits a typed module next to the main generated module", () => {
     const config = resolveConfig(
       {
-        gen: { output: "app/lib/db/generated.ts" },
+        gen: { file: "app/lib/db/generated.ts" },
         blocks: ["memberships", "attachments"],
       },
       "/project",
@@ -653,7 +653,7 @@ describe("schemaExtensions", () => {
           "updated-at": { options: { stamp: "trigger" } },
           trash: {},
         },
-        gen: { output: "src/db/generated.ts" },
+        gen: { file: "src/db/generated.ts" },
       },
       "/project",
     );
@@ -712,7 +712,7 @@ describe("schemaExtensions", () => {
     const config = resolveConfig(
       {
         blocks: { trash: { options: { deletedAt: "archived_at" } } },
-        gen: { output: "src/db/generated.ts", generators: [zod()] },
+        gen: { file: "src/db/generated.ts", generators: [zod()] },
       },
       "/project",
     );

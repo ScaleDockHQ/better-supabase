@@ -106,7 +106,7 @@ describe("init and add", () => {
     await rm(join(dir, "better-supabase.config.ts"));
     await writeFile(
       join(dir, "better-supabase.config.json"),
-      '{"gen": {"output": "src/db/generated.ts"}}',
+      '{"gen": {"file": "src/db/generated.ts"}}',
     );
     const again = await run(["init", "--cwd", dir]);
     expect(again.stderr).not.toMatch(/^! /m);
@@ -221,7 +221,7 @@ describe("init and add", () => {
 
     await writeFile(
       join(dir, "apps/web/better-supabase.config.json"),
-      '{"gen": {"output": "src/db/generated.ts"}}',
+      '{"gen": {"file": "src/db/generated.ts"}}',
     );
     await rm(join(dir, "apps/web/better-supabase.config.ts"));
 
@@ -984,7 +984,7 @@ describe("flags from the config", () => {
       },
     );
     await configure({
-      tooling: { env: { output: ".env.development.local", prefix: "VITE_" } },
+      tooling: { env: { file: ".env.development.local", prefix: "VITE_" } },
     });
     expect(
       (await run(["dev", "env", "--status-file", "status.json", "--cwd", dir]))
@@ -1012,7 +1012,7 @@ describe("flags from the config", () => {
   it("writes the signing key to keys.output", async () => {
     await project({}, { "supabase/config.toml": "[auth]\n" });
     await configure({
-      tooling: { keys: { output: "supabase/keys/local.json" } },
+      tooling: { keys: { file: "supabase/keys/local.json" } },
     });
     expect((await run(["dev", "keys", "--cwd", dir])).code).toBe(0);
     expect(existsSync(join(dir, "supabase/keys/local.json"))).toBe(true);

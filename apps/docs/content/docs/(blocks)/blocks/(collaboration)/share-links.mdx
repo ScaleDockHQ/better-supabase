@@ -52,7 +52,7 @@ The functions other modules serve a link through (calendar feeds, booking pages,
 
 `downloadAllowed: false` makes a view-only link: `resolve` and `list` return `downloadAllowed: false`. The block serves no files itself, so the page or block that serves the subject's files checks the flag before it offers a download; the drive does this in `drive_link`. It defaults to `true`.
 
-The roles a link may carry depend on its subject type. A type that another block shares lists them in its contribution (`roles`, `["view"]` unless set), and `create` refuses any other role with `SHARE_LINK_ROLE_INVALID`. Public forms take `respond`. [Drive](/docs/blocks/drive#stars-recent-items-and-links) nodes take `view`, `download` and `upload`: creating one needs the drive's share role on the node, an `upload` link must name a folder (a [file request](/docs/blocks/drive#file-requests)), and the drive leaves the original out when `downloadAllowed` is false or a download block covers the node. Types from `config.subjects` and `blocks["share-links"].on` take any role.
+The roles a link may carry depend on its subject type. A type that another block shares lists them in its contribution (`roles`, `["view"]` unless set), and `create` refuses any other role with `SHARE_LINK_ROLE_INVALID`. Public forms take `respond`. [Drive](/docs/blocks/drive#stars-recent-items-and-links) nodes take `view`, `download` and `upload`: creating one needs the drive's share role on the node, an `upload` link must name a folder (a [file request](/docs/blocks/drive#file-requests)), and the drive leaves the original out when `downloadAllowed` is false or a download block covers the node. Types from `config.recordTypes` and `blocks["share-links"].on` take any role.
 
 ## Errors
 
@@ -79,14 +79,14 @@ The roles a link may carry depend on its subject type. A type that another block
 The service role may make every call.
 
 `blocks["share-links"].on` lists the subject types that may be shared, both
-`config.subjects` types and the types other blocks share, such as `calendar`,
+`config.recordTypes` types and the types other blocks share, such as `calendar`,
 `calendar_user` or `leave_feed`. Any other type gets `SHARE_SUBJECT_UNKNOWN`, also for the
 service role. Unset, every type can be shared.
 
 ### Sharing one record
 
 A record type that declares a `share` action in
-[`config.subjects`](/docs/blocks/sql#actions-granted-per-row) is checked per
+[`config.recordTypes`](/docs/blocks/sql#actions-granted-per-row) is checked per
 record as well: `create` needs that action on the record, and `revoke` and
 `list` need it on top of the organization key, so only the creator or someone
 who may share the record sees and revokes its links. The action can be a key,

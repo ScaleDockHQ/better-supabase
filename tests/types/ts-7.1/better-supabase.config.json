@@ -19,7 +19,7 @@
   },
   "gen": {
     "casing": "camel",
-    "output": "mapper/generated.ts",
+    "file": "mapper/generated.ts",
     "json": {
       "customers.metadata": {
         "type": "{ source?: string; tier?: 'free' | 'pro' }"

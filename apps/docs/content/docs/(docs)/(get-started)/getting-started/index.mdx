@@ -49,7 +49,7 @@ import { valibot } from "better-supabase/generators/valibot";
 export default defineConfig({
   gen: {
     casing: "camel",
-    output: "src/lib/supabase/generated.ts",
+    file: "src/lib/supabase/generated.ts",
     generators: [valibot()],
   },
   blocks: { "updated-at": {}, trash: {} },

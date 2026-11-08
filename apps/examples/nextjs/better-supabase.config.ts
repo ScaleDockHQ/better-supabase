@@ -70,7 +70,7 @@ export default defineConfig({
     api: { types: false },
     casing: "camel",
     codecs: { int8: "bigint" },
-    output: "src/lib/supabase/generated.ts",
+    file: "src/lib/supabase/generated.ts",
     // Rows store the object path; URLs are built when rendering.
     storagePaths: { "customers.logo_path": "customerLogos" },
     readSets: ["src/lib/read-sets.ts"],
@@ -112,7 +112,7 @@ export default defineConfig({
   // Rows the search index, comments and other subject-aware modules point at.
   // Installed blocks register their own entities (deals, work items, ...);
   // `blocks.<name>.entities` sets their pages.
-  subjects: {
+  recordTypes: {
     customer: {
       table: "public.customers",
       idType: "uuid",

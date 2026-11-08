@@ -73,7 +73,7 @@ async function runKeys(
   args: KeysOptions,
 ): Promise<CommandResult> {
   const dir = supabaseDir(config.root);
-  const out = args.out ?? config.keys.output ?? `${dir}/signing_keys.json`;
+  const out = args.out ?? config.keys.file ?? `${dir}/signing_keys.json`;
   const path = resolve(config.root, out);
   const rotate = args.rotate === true;
   const exists = existsSync(path);
@@ -105,7 +105,7 @@ async function runKeys(
     {
       // The supabase folder can sit above the package in a monorepo.
       root:
-        args.out === undefined && config.keys.output === undefined
+        args.out === undefined && config.keys.file === undefined
           ? resolve(config.root, dir, "..")
           : config.root,
       base: config.root,

@@ -53,7 +53,7 @@ reminders: {
 
 `upsert` checks the subject. With `on` set, a subject type that `on` doesn't
 list is refused with `REMINDER_SUBJECT_UNSUPPORTED`. A subject of a type in
-`on`, or in [`config.subjects`](/docs/repository/record-types) when `on` is unset,
+`on`, or in [`config.recordTypes`](/docs/repository/record-types) when `on` is unset,
 must exist in the organization and be readable by the caller, or `upsert`
 fails with `REMINDER_SUBJECT_NOT_FOUND`. Other types pass unchecked. The
 service role skips both checks.
