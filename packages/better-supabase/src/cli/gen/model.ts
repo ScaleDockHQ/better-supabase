@@ -633,8 +633,12 @@ function toTableModels(
       ? subject.table
       : `public.${subject.table}`;
 
-    // A block over the app's table names the app's tenant column here.
-    if (typeof subject.tenant === "string") {
+    // A block over the app's table names the app's tenant column here. The
+    // tenant table itself (tenant on its id) is not scoped to one tenant.
+    if (
+      typeof subject.tenant === "string" &&
+      subject.tenant !== (subject.id ?? "id")
+    ) {
       subjectTenant.set(table, subject.tenant);
     }
 

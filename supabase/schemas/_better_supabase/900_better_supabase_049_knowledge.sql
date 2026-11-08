@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:496ce13f06ddb33df9f489059402f55e0df568eb02d4c303ef374e1fa43017ff
+-- @bsb-hash sha256:c0ac7428744934df825585910cde8fef0502a1985c4e01da3ed9f5a09e329adb
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -443,6 +443,7 @@ begin
     when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'documents.read'), false)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."organization_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'customers.read'), false)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant and (coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
+    when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."id" = create_knowledge_document.tenant)
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."tenant_id" = create_knowledge_document.tenant) and coalesce(better_supabase.can('tenant', create_knowledge_document.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."organization_id" = create_knowledge_document.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (create_knowledge_document.subject_id)::uuid and s."organization_id" = create_knowledge_document.tenant)

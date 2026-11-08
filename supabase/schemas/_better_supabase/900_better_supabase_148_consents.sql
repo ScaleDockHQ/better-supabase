@@ -1,6 +1,6 @@
 -- better-supabase module: consents
 -- @bsb-block consents@3 managed
--- @bsb-hash sha256:c5fd38123c44cdd8e9fa66a31cf55e2fceb6c945238cbdb6d9140694194b6849
+-- @bsb-hash sha256:2407126d27a6d01b99945573f3c38278a8709c72f957bf3ad4320547326cd7aa
 -- Consent per record and purpose: the purposes an organization asks consent for with their lawful basis and version, each decision with who made it (the person or a representative) and its signature, form or file as evidence, withdrawals and expiry. consent_active() answers whether processing may go ahead.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -392,6 +392,7 @@ begin
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (record_consent.subject_id)::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (record_consent.subject_id)::uuid)
       when 'drive_node' then (select s."tenant_id"::text from "better_supabase"."drive_nodes" s where s."id" = (record_consent.subject_id)::uuid)
+      when 'organization' then (select s."id"::text from "public"."organizations" s where s."id" = (record_consent.subject_id)::uuid)
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (record_consent.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (record_consent.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (record_consent.subject_id)::uuid)
@@ -751,6 +752,7 @@ declare
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (consent_active.subject_id)::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (consent_active.subject_id)::uuid)
       when 'drive_node' then (select s."tenant_id"::text from "better_supabase"."drive_nodes" s where s."id" = (consent_active.subject_id)::uuid)
+      when 'organization' then (select s."id"::text from "public"."organizations" s where s."id" = (consent_active.subject_id)::uuid)
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (consent_active.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (consent_active.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (consent_active.subject_id)::uuid)
@@ -859,6 +861,7 @@ declare
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (list_consents.subject_id)::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (list_consents.subject_id)::uuid)
       when 'drive_node' then (select s."tenant_id"::text from "better_supabase"."drive_nodes" s where s."id" = (list_consents.subject_id)::uuid)
+      when 'organization' then (select s."id"::text from "public"."organizations" s where s."id" = (list_consents.subject_id)::uuid)
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (list_consents.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (list_consents.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (list_consents.subject_id)::uuid)
@@ -1094,6 +1097,7 @@ declare
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (record_consent_signal.subject_id)::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (record_consent_signal.subject_id)::uuid)
       when 'drive_node' then (select s."tenant_id"::text from "better_supabase"."drive_nodes" s where s."id" = (record_consent_signal.subject_id)::uuid)
+      when 'organization' then (select s."id"::text from "public"."organizations" s where s."id" = (record_consent_signal.subject_id)::uuid)
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (record_consent_signal.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (record_consent_signal.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (record_consent_signal.subject_id)::uuid)
@@ -1242,6 +1246,7 @@ declare
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (list_consent_signals.subject_id)::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (list_consent_signals.subject_id)::uuid)
       when 'drive_node' then (select s."tenant_id"::text from "better_supabase"."drive_nodes" s where s."id" = (list_consent_signals.subject_id)::uuid)
+      when 'organization' then (select s."id"::text from "public"."organizations" s where s."id" = (list_consent_signals.subject_id)::uuid)
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (list_consent_signals.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (list_consent_signals.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (list_consent_signals.subject_id)::uuid)
@@ -1412,6 +1417,7 @@ declare
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (list_consent_receipts.subject_id)::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (list_consent_receipts.subject_id)::uuid)
       when 'drive_node' then (select s."tenant_id"::text from "better_supabase"."drive_nodes" s where s."id" = (list_consent_receipts.subject_id)::uuid)
+      when 'organization' then (select s."id"::text from "public"."organizations" s where s."id" = (list_consent_receipts.subject_id)::uuid)
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (list_consent_receipts.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (list_consent_receipts.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (list_consent_receipts.subject_id)::uuid)
@@ -1555,6 +1561,7 @@ declare
       when 'document' then (select s."tenant_id"::text from "better_supabase"."documents" s where s."id" = (requires_consent.subject_id)::uuid)
       when 'customer' then (select s."organization_id"::text from "public"."customers" s where s."id" = (requires_consent.subject_id)::uuid)
       when 'drive_node' then (select s."tenant_id"::text from "better_supabase"."drive_nodes" s where s."id" = (requires_consent.subject_id)::uuid)
+      when 'organization' then (select s."id"::text from "public"."organizations" s where s."id" = (requires_consent.subject_id)::uuid)
       when 'application' then (select s."tenant_id"::text from "better_supabase"."applications" s where s."id" = (requires_consent.subject_id)::uuid)
       when 'change_request' then (select s."organization_id"::text from "public"."change_requests" s where s."id" = (requires_consent.subject_id)::uuid)
       when 'project' then (select s."organization_id"::text from "public"."projects" s where s."id" = (requires_consent.subject_id)::uuid)

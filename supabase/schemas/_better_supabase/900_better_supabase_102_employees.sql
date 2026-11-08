@@ -1,6 +1,6 @@
 -- better-supabase module: employees
 -- @bsb-block employees@2 managed
--- @bsb-hash sha256:b691f7a0ce9943b5e044dc3d9e0c9b972685821a2b4c78ea5eccdf9ba6cf2c58
+-- @bsb-hash sha256:816de25bb420beaaf205a8eb432026af3314120e2312199b6cc3b767865e5bfe
 -- Employees with or without an account, a manager, team, job title, employment type and status, an org chart, offboarding, and private details and contracts behind employees.view_sensitive. With time-entries, time entries carry the employee_id of their member.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -666,6 +666,7 @@ begin
       when 'document' then (select s."name"::text from "better_supabase"."documents" s where s."id" = (v_application."candidate_id")::uuid)
       when 'customer' then (select s."name"::text from "public"."customers" s where s."id" = (v_application."candidate_id")::uuid)
       when 'drive_node' then (select s."name"::text from "better_supabase"."drive_nodes" s where s."id" = (v_application."candidate_id")::uuid)
+      when 'organization' then (select s."name"::text from "public"."organizations" s where s."id" = (v_application."candidate_id")::uuid)
       when 'change_request' then (select s."title"::text from "public"."change_requests" s where s."id" = (v_application."candidate_id")::uuid)
       when 'project' then (select s."name"::text from "public"."projects" s where s."id" = (v_application."candidate_id")::uuid)
       when 'task' then (select s."title"::text from "public"."tasks" s where s."id" = (v_application."candidate_id")::uuid)

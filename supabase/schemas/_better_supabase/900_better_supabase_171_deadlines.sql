@@ -1,6 +1,6 @@
 -- better-supabase module: deadlines
 -- @bsb-block deadlines@2 managed
--- @bsb-hash sha256:d73aba2ee864bbf225e2f03b644b00a6da38a4afcc97c99aee2745ab06b38b6f
+-- @bsb-hash sha256:a1f186138e610613949b1810ffbfa63ed32b7f6853c62f93817dd977ac3c00d4
 -- Platform-owned rule sets per jurisdiction and kind, versioned and approved once with a content hash: ordered groups of rules with conditions, exceptions, a deadline grammar, a counting block with holidays and opaque meta. Each group yields a subject's deadline from its facts: due on a date (one per month for a periodic rule), unknown with the facts still missing, pending, undated, or not covered, not applicable, not required or barred; recomputed when facts arrive and satisfied by a recorded action.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -184,6 +184,7 @@ begin
     when 'document' then exists (select 1 from "better_supabase"."documents" s where s."id" = (deadline_subject_readable.subject_id)::uuid and s."tenant_id" = deadline_subject_readable.tenant) and coalesce(better_supabase.can('tenant', deadline_subject_readable.tenant, 'documents.read'), false)
     when 'customer' then exists (select 1 from "public"."customers" s where s."id" = (deadline_subject_readable.subject_id)::uuid and s."organization_id" = deadline_subject_readable.tenant) and coalesce(better_supabase.can('tenant', deadline_subject_readable.tenant, 'customers.read'), false)
     when 'drive_node' then exists (select 1 from "better_supabase"."drive_nodes" s where s."id" = (deadline_subject_readable.subject_id)::uuid and s."tenant_id" = deadline_subject_readable.tenant and (coalesce(better_supabase.can('tenant', deadline_subject_readable.tenant, 'drive.read'), false) and coalesce("better_supabase"."drive_node_readable"(s."id"), false)))
+    when 'organization' then exists (select 1 from "public"."organizations" s where s."id" = (deadline_subject_readable.subject_id)::uuid and s."id" = deadline_subject_readable.tenant)
     when 'application' then exists (select 1 from "better_supabase"."applications" s where s."id" = (deadline_subject_readable.subject_id)::uuid and s."tenant_id" = deadline_subject_readable.tenant) and coalesce(better_supabase.can('tenant', deadline_subject_readable.tenant, 'hiring.read'), false)
     when 'change_request' then exists (select 1 from "public"."change_requests" s where s."id" = (deadline_subject_readable.subject_id)::uuid and s."organization_id" = deadline_subject_readable.tenant)
     when 'project' then exists (select 1 from "public"."projects" s where s."id" = (deadline_subject_readable.subject_id)::uuid and s."organization_id" = deadline_subject_readable.tenant)
