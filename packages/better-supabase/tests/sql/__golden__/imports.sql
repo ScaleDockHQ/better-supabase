@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:25420e953b8e5255c6c6a47098d902e131758511b6b345208f77a7728e2e25bb
+-- @bsb-hash sha256:9a87d9a44907ac64d682073898cdfe4a9dc378f9a33bf81ee8362ba796ae1c91
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -468,7 +468,9 @@ declare
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
-  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
+  -- No row lock here: two batches of one run write at the same time, and the
+  -- counts update at the end is the only statement that locks the run row.
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
   if not found then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
@@ -694,7 +696,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:eb1ec04a409492b04e0db0de8327f9e8689195f4670cf329b3695b9d8ec5dc89
+-- @bsb-hash sha256:39b067a34772bf386678f044b3a060d86900f4db75a1828ba2df5941465d2ee9
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1265,7 +1267,9 @@ declare
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
-  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
+  -- No row lock here: two batches of one run write at the same time, and the
+  -- counts update at the end is the only statement that locks the run row.
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
   if not found then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
@@ -1493,7 +1497,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:b4f6f57ca2a92a64b54c64fe1318059d6772e9d464dee4a3184b5150705b7b53
+-- @bsb-hash sha256:897a74545c5a630b58793458839cbbe4b45190f5f3fd8ec4ec2a74e2fab81598
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1965,7 +1969,9 @@ declare
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
-  select * into v_run from "app_private"."import_runs" r where r."id" = v_run_id for update;
+  -- No row lock here: two batches of one run write at the same time, and the
+  -- counts update at the end is the only statement that locks the run row.
+  select * into v_run from "app_private"."import_runs" r where r."id" = v_run_id;
   if not found then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
@@ -2191,7 +2197,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:4fb437b1b295689ce8782e2ba89b3b084cb11ea9bbeab804b8bbb464f4267a1e
+-- @bsb-hash sha256:76397f78e3c0e37d5fdeb7678bcb3622ee1e13c429aca5eac4b5890e63eb9d1d
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2658,7 +2664,9 @@ declare
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
-  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
+  -- No row lock here: two batches of one run write at the same time, and the
+  -- counts update at the end is the only statement that locks the run row.
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
   if not found then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
@@ -3008,7 +3016,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:dbd48373f6328c1e8300294c8eaa5d5e08adc44664157794456315e86d728614
+-- @bsb-hash sha256:eb0280ce7f5e2f08144736c1ac8f46daa57d2416bec40ad448e89f03cd852b5f
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3468,7 +3476,9 @@ declare
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
-  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
+  -- No row lock here: two batches of one run write at the same time, and the
+  -- counts update at the end is the only statement that locks the run row.
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
   if not found then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;
@@ -3694,7 +3704,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_064_imports.sql
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:d9b4f4f4107ef65f11bde515650e815a36ca22c8ef9be2d7bf707103728217da
+-- @bsb-hash sha256:3eab923ea844965d4c20d8acc6b5aa74c9d3df3e023b57a8c4bcaee682f26f90
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -4161,7 +4171,9 @@ declare
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
-  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
+  -- No row lock here: two batches of one run write at the same time, and the
+  -- counts update at the end is the only statement that locks the run row.
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
   if not found then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;

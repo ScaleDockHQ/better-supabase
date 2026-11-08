@@ -242,7 +242,9 @@ Map `tables.runs` onto the app's import table. Optional columns can be `null`.
 
 ## Run an import in one call
 
-`run({ organizationId, source, entities, batchSize?, onBatch? })` is for the service role. It starts a run, marks it running, writes each entity's items in batches of `batchSize` in the order given, then finishes the run. Item errors do not stop the run: they come back in `errors`. When the run cannot start or a batch call fails, the run is cancelled and the error is returned.
+`run({ organizationId, source, entities, batchSize?, maxBatchSize?, targetBatchMs?, onBatch? })` is for the service role. It starts a run, marks it running, writes each entity's items in batches of `batchSize` in the order given, then finishes the run. Item errors do not stop the run: they come back in `errors`. When the run cannot start or a batch call fails, the run is cancelled and the error is returned.
+
+The batch size adapts. A batch that takes longer than `targetBatchMs` (default 30,000) halves the next one, and with `maxBatchSize` set a batch under half of it doubles the next one up to that size. A batch that hits the statement timeout (SQLSTATE `57014`) is split in two and each half is sent again, down to one item. The result's `suggestedBatchSize` is the size to start the next run of the source with. Two batches of one run can write at the same time: `import_upsert_batch` reads the run without a row lock and only the counts update at its end locks the row.
 
 ## Hooks
 

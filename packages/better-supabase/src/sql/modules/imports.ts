@@ -749,7 +749,9 @@ declare
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
-  select * into v_run from ${runs} r where r.${r("id")} = v_run_id for update;
+  -- No row lock here: two batches of one run write at the same time, and the
+  -- counts update at the end is the only statement that locks the run row.
+  select * into v_run from ${runs} r where r.${r("id")} = v_run_id;
   if not found then
     ${fail("IMPORT_NOT_FOUND", "import not found", "P0002")}
   end if;

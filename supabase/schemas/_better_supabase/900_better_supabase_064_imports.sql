@@ -1,6 +1,6 @@
 -- better-supabase module: imports
 -- @bsb-block imports@2 managed
--- @bsb-hash sha256:5d7b82ca4011a988d51c612c3c9bf93b0569b6bf28f1741ef93395c512e0cfe4
+-- @bsb-hash sha256:81f9f1149f10a346bc6b13bf35619507cbfad324c4852c6b3521950e0d1d48f0
 -- Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -576,7 +576,9 @@ declare
   v_name text;
   v_previous jsonb := '{}'::jsonb;
 begin
-  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id for update;
+  -- No row lock here: two batches of one run write at the same time, and the
+  -- counts update at the end is the only statement that locks the run row.
+  select * into v_run from "better_supabase"."import_runs" r where r."id" = v_run_id;
   if not found then
     raise exception 'import not found' using errcode = 'P0002', hint = 'IMPORT_NOT_FOUND';
   end if;

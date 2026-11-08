@@ -450,6 +450,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0484: Ship bucket definitions to the browser from `better-supabase/storage/client`.
 - 0421: Index search records once per import batch.
 - 0422: Check the import summary mode in the audit trigger's when clause.
+- 0423: Import batches do not lock the run, and their size adapts.
 
 ## Pre-release pins
 
