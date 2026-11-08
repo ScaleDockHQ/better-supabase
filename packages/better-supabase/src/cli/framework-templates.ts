@@ -29,7 +29,7 @@ function relative(from: string, context: FrameworkTemplateContext): string {
  * SvelteKit always keeps its hooks in `src`, so the path doesn't follow
  * `srcDir`, and the import reaches `lib/supabase` relative to it.
  */
-export function sveltekitTemplates(
+function sveltekitTemplates(
   context: FrameworkTemplateContext,
 ): readonly FrameworkTemplateFile[] {
   return [
@@ -51,7 +51,7 @@ export const handle = toSvelteKit([
 }
 
 /** `lib/supabase/start-middleware.ts`: the TanStack Start request middleware. */
-export function tanstackStartTemplates(
+function tanstackStartTemplates(
   context: FrameworkTemplateContext,
 ): readonly FrameworkTemplateFile[] {
   return [
@@ -78,7 +78,7 @@ export const supabase = createMiddleware().server(
 }
 
 /** `lib/supabase/middleware.server.ts`: the React Router server middleware. */
-export function reactRouterTemplates(
+function reactRouterTemplates(
   context: FrameworkTemplateContext,
 ): readonly FrameworkTemplateFile[] {
   return [
@@ -115,7 +115,7 @@ export const supabaseMiddleware = toReactRouter(
  * in the binding, so the `plugins` runtime entry carries no file text (ADR
  * 0582).
  */
-export const BUILT_IN_TEMPLATES: Readonly<
+const BUILT_IN_TEMPLATES: Readonly<
   Record<
     string,
     (context: FrameworkTemplateContext) => readonly FrameworkTemplateFile[]

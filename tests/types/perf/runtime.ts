@@ -11,7 +11,7 @@ export interface RuntimeTimes {
   readonly ratio: number;
 }
 
-export const RUNTIME_CHAINS = 20_000;
+const RUNTIME_CHAINS = 20_000;
 const RUNTIME_ROUNDS = 5;
 
 /** One chain: a value through two `map` steps, an `andThen` and a read. */
