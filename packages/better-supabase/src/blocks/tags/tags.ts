@@ -191,24 +191,25 @@ export function createTags<S extends StandardSchemaV1 | undefined = undefined>(
 
   const client: Tags<F> = {
     create: ({ kind, name, color, description, slug, fields: extra }) =>
-      AsyncResult.pipe(async (bind) => {
-        const organizationId = await bind(tenant());
-        const checked = await bind(fields.args(extra));
-
-        return call(
-          "create_tag",
-          {
-            tenant: organizationId,
-            kind,
-            name,
-            color: color ?? null,
-            description: description ?? null,
-            ...(slug === undefined ? {} : { slug }),
-            fields: checked,
-          },
-          (value) => ({ ...tagOf(value), name }),
-        ).andThen(fields.row);
-      }),
+      tenant().andThen((organizationId) =>
+        fields
+          .args(extra)
+          .andThen((checked) =>
+            call(
+              "create_tag",
+              {
+                tenant: organizationId,
+                kind,
+                name,
+                color: color ?? null,
+                description: description ?? null,
+                ...(slug === undefined ? {} : { slug }),
+                fields: checked,
+              },
+              (value) => ({ ...tagOf(value), name }),
+            ).andThen(fields.row),
+          ),
+      ),
     update: ({ id, patch }) =>
       fields
         .args(patch.fields)

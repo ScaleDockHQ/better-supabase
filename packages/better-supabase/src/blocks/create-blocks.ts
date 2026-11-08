@@ -525,8 +525,8 @@ function withOverrides(
   blocks: BlockMap,
   overrides: Readonly<Record<string, object | undefined>>,
 ): BlockMap {
-  // The same map keeps the memoized port wiring.
-  if (Object.values(overrides).every((own) => own === undefined)) {
+  // The same map keeps its wiring check.
+  if (!Object.values(overrides).some(Boolean)) {
     return blocks;
   }
 
@@ -565,151 +565,8 @@ interface BlockBuilder {
   ) => BlockPorts[P] | undefined;
 }
 
-/** `key`'s generated entry: under its key, else under its block's name. */
-function entryFor(
-  blocks: BlockMap,
-  config: GeneratedBlocks | undefined,
-  key: string,
-): GeneratedBlock | undefined {
-  const block = blocks[key];
-
-  if (block === undefined) {
-    throw new TypeError(`No block named "${key}"`);
-  }
-
-  const own = config?.[key];
-
-  if (own === undefined) {
-    return config?.[block.name];
-  }
-
-  if ((own.block ?? key) !== block.name) {
-    throw new TypeError(
-      `createBlocks: blocks.${key} installs the "${own.block ?? key}" block, not "${block.name}"`,
-    );
-  }
-
-  return own;
-}
-
-interface Wiring {
-  /** The key of the block `key` takes `port` from, if any. */
-  readonly providerOf: (target: {
-    readonly key: string;
-    readonly port: UniquePort;
-  }) => string | undefined;
-}
-
-interface WiringMemo {
-  readonly config: GeneratedBlocks | undefined;
-  readonly bound: CreateBlocksOptions["ports"];
-  readonly wiring: Wiring;
-}
-
-const wirings = new WeakMap<BlockMap, WiringMemo>();
-
-function samePorts(
-  left: CreateBlocksOptions["ports"],
-  right: CreateBlocksOptions["ports"],
-): boolean {
-  return UNIQUE_PORTS.every((port) => left?.[port] === right?.[port]);
-}
-
-/**
- * Checks the port wiring of `blocks` and resolves every consumed port to its
- * provider. The result is kept per block set, so the blocks by ports by blocks
- * loop runs once for a `defineBlocks` call, not for each builder.
- */
-function wiringOf(
-  blocks: BlockMap,
-  config: GeneratedBlocks | undefined,
-  bound: CreateBlocksOptions["ports"],
-): Wiring {
-  const memo = wirings.get(blocks);
-
-  if (memo && memo.config === config && samePorts(memo.bound, bound)) {
-    return memo.wiring;
-  }
-
-  for (const port of UNIQUE_PORTS) {
-    const key = bound?.[port];
-
-    if (key !== undefined && blocks[key]?.provides[port] === undefined) {
-      throw new TypeError(
-        `createBlocks: ports.${port} names "${key}", which provides no ${port} port`,
-      );
-    }
-  }
-
-  const providers = new Map<UniquePort, readonly string[]>();
-
-  for (const port of UNIQUE_PORTS) {
-    providers.set(
-      port,
-      Object.keys(blocks).filter(
-        (each) => blocks[each]?.provides[port] !== undefined,
-      ),
-    );
-  }
-
-  const resolve = (key: string, port: UniquePort): string | undefined => {
-    const keys = (providers.get(port) ?? []).filter((each) => each !== key);
-
-    if (keys.length <= 1) {
-      return keys[0];
-    }
-
-    const uses = Object.values(entryFor(blocks, config, key)?.uses ?? {});
-    const used = keys.filter((each) => uses.includes(each));
-
-    if (used.length === 1) {
-      return used[0];
-    }
-
-    const named = bound?.[port];
-
-    if (named !== undefined && keys.includes(named)) {
-      return named;
-    }
-
-    throw new TypeError(
-      `createBlocks: ${keys.map((each) => `"${each}"`).join(" and ")} all provide the ${port} port "${key}" consumes; set blocks.${key}.uses or pass ports.${port}`,
-    );
-  };
-
-  const resolved = new Map<string, string | undefined>();
-
-  for (const [key, block] of Object.entries(blocks)) {
-    for (const port of UNIQUE_PORTS) {
-      const need = block.consumes[port];
-
-      if (need === undefined) {
-        continue;
-      }
-
-      const provider = resolve(key, port);
-
-      if (provider === undefined && need === "required") {
-        throw new TypeError(
-          `createBlocks: "${key}" needs a block that provides the ${port} port`,
-        );
-      }
-
-      resolved.set(`${key}\u0000${port}`, provider);
-    }
-  }
-
-  const wiring: Wiring = {
-    providerOf: ({ key, port }) =>
-      resolved.has(`${key}\u0000${port}`)
-        ? resolved.get(`${key}\u0000${port}`)
-        : resolve(key, port),
-  };
-
-  wirings.set(blocks, { config, bound, wiring });
-
-  return wiring;
-}
+/** The config (or the set itself without one) each block set was wired with. */
+const checked = new WeakMap<BlockMap, object>();
 
 /** Builds the blocks of `blocks` on demand, each one once, wired on ports. */
 function blockBuilder(
@@ -728,10 +585,87 @@ function blockBuilder(
     return block;
   };
 
-  const entryOf = (key: string): GeneratedBlock | undefined =>
-    entryFor(blocks, config, key);
+  /** `key`'s generated entry: under its key, else under its block's name. */
+  const entryOf = (key: string): GeneratedBlock | undefined => {
+    const block = blockOf(key);
+    const own = config?.[key];
 
-  const { providerOf } = wiringOf(blocks, config, bound);
+    if (own === undefined) {
+      return config?.[block.name];
+    }
+
+    if ((own.block ?? key) !== block.name) {
+      throw new TypeError(
+        `createBlocks: blocks.${key} installs the "${own.block ?? key}" block, not "${block.name}"`,
+      );
+    }
+
+    return own;
+  };
+
+  for (const port of UNIQUE_PORTS) {
+    const key = bound?.[port];
+
+    if (key !== undefined && blocks[key]?.provides[port] === undefined) {
+      throw new TypeError(
+        `createBlocks: ports.${port} names "${key}", which provides no ${port} port`,
+      );
+    }
+  }
+
+  /**
+   * The key of the block `key` takes `port` from: the only other block that
+   * provides it, else the one its `uses` names, else `ports[port]`.
+   */
+  const providerOf = (key: string, port: UniquePort): string | undefined => {
+    const keys = Object.keys(blocks).filter(
+      (each) => each !== key && blocks[each]?.provides[port] !== undefined,
+    );
+
+    if (keys.length <= 1) {
+      return keys[0];
+    }
+
+    const uses = Object.values(entryOf(key)?.uses ?? {});
+    const used = keys.filter((each) => uses.includes(each));
+
+    if (used.length === 1) {
+      return used[0];
+    }
+
+    const named = bound?.[port];
+
+    if (named !== undefined && keys.includes(named)) {
+      return named;
+    }
+
+    throw new TypeError(
+      `createBlocks: ${keys.map((each) => `"${each}"`).join(" and ")} all provide the ${port} port "${key}" consumes; set blocks.${key}.uses or pass ports.${port}`,
+    );
+  };
+
+  // The wiring of a block set is checked once; later builders skip the loops.
+  if (bound || checked.get(blocks) !== (config ?? blocks)) {
+    for (const [key, block] of Object.entries(blocks)) {
+      for (const port of UNIQUE_PORTS) {
+        const need = block.consumes[port];
+
+        if (need === undefined) {
+          continue;
+        }
+
+        if (providerOf(key, port) === undefined && need === "required") {
+          throw new TypeError(
+            `createBlocks: "${key}" needs a block that provides the ${port} port`,
+          );
+        }
+      }
+    }
+
+    if (!bound) {
+      checked.set(blocks, config ?? blocks);
+    }
+  }
 
   const built = new Map<string, unknown>();
   const building = new Set<string>();
@@ -774,7 +708,7 @@ function blockBuilder(
         continue;
       }
 
-      const provider = providerOf({ key, port });
+      const provider = providerOf(key, port);
 
       if (provider === undefined) {
         continue;
