@@ -30,6 +30,7 @@ import { diffEngine, migrationCommand, tomlGet } from "../supabase-toml.ts";
 import { ADOPTION_RULES } from "./adoption.ts";
 import { advisorRule } from "./advisor-rules.ts";
 import { APP_TABLE_SCOPE_RULES } from "./app-table-scope.ts";
+import { AUTH_USER_RULES } from "./auth-users.ts";
 import { AUTHORIZATION_RULES } from "./authorization.ts";
 import { BLOCK_PREFIX, blockTargets } from "./block-policies.ts";
 import { BLOCK_WRITE_RULES } from "./block-writes.ts";
@@ -153,6 +154,8 @@ export interface DoctorContext {
   readonly seedFiles?: readonly TextFile[];
   /** The `.sql` files under `supabase/better-supabase-data` (BS357, BS358). */
   readonly dataFiles?: readonly TextFile[];
+  /** The source files under `supabase/functions` (BS395). */
+  readonly functionFiles?: readonly TextFile[];
   /** Codes of the rules in this run, so a rule can defer to another. */
   readonly codes?: readonly string[];
   /** Better-supabase's peers and the versions the project installs (BS601). */
@@ -312,8 +315,6 @@ const TENANT_COLUMN =
   /^(?:organization|organization|tenant|team|workspace|account)_id$/;
 
 const COMMANDS = ["select", "insert", "update", "delete"] as const;
-
-const MFA_FACTORS = /\bauth\.\s*"?mfa_factors\b/i;
 
 const OWN_RULES: readonly Rule[] = [
   advisorRule(
@@ -569,25 +570,6 @@ const OWN_RULES: readonly Rule[] = [
         ];
       });
     },
-  },
-  {
-    code: "BS108",
-    severity: "error",
-    title: "Policy reads auth.mfa_factors directly",
-    description:
-      "`authenticated` has no access to `auth.mfa_factors`, so a policy that reads it fails every request with 42501. Check the factor in a `security definer` function such as `better_supabase.mfa_satisfied()` from the `mfa` SQL module.",
-    check: (context) =>
-      exposed(context).flatMap((table) =>
-        table.policies
-          .filter((policy) =>
-            MFA_FACTORS.test(`${policy.using ?? ""} ${policy.check ?? ""}`),
-          )
-          .map((policy) => ({
-            message: `Policy "${policy.name}" on ${qualified(table)} reads auth.mfa_factors, which authenticated can't select, so every request fails with 42501. Use \`(select better_supabase.mfa_satisfied())\` from \`better-supabase add mfa\` instead.`,
-            target: `${qualified(table)}.${policy.name}`,
-            object: policyObject(table, policy),
-          })),
-      ),
   },
   advisorRule(
     "BS200",
@@ -1109,33 +1091,10 @@ const OWN_RULES: readonly Rule[] = [
       ];
     },
   },
-  {
-    code: "BS406",
-    severity: "warning",
-    title: "Foreign key to auth.users blocks account deletion",
-    description:
-      'A foreign key to `auth.users` with `no action` or `restrict` makes `auth.admin.deleteUser` (and `deleteAccount`) fail with "Database error deleting user" while the user has rows. Use `on delete cascade` for data the user owns, or `on delete set null` for records that outlive them.',
-    check: (context) =>
-      catalogOf(context).tables.flatMap((table) =>
-        table.schema === "auth"
-          ? []
-          : table.foreignKeys
-              .filter(
-                (key) =>
-                  key.refSchema === "auth" &&
-                  key.refTable === "users" &&
-                  (key.onDelete === "no action" || key.onDelete === "restrict"),
-              )
-              .map((key) => ({
-                message: `${qualified(table)}.${key.name} (${key.columns.join(", ")}) references auth.users with on delete ${key.onDelete}. Deleting the user fails while rows point at it; use on delete cascade or set null.`,
-                target: `${qualified(table)}.${key.name}`,
-                object: tableObject(table),
-              })),
-      ),
-  },
 ];
 
 export const RULES: readonly Rule[] = [
+  ...AUTH_USER_RULES,
   ...OWN_RULES,
   ...RLS_RULES,
   ...POLICY_RULES,

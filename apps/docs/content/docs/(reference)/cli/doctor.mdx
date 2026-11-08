@@ -1789,8 +1789,10 @@ unique indexes and expression indexes are left out.
 **Info: a parameter that is null or matched with `any()`.** A function that
 filters with `param is null or col = any(param)` can't use an index on `col`
 once Postgres caches a generic plan, because the plan has to cover both
-branches. Split the statement by whether the parameter is null. Doctor reads the
-functions in the schema files.
+branches. Split the statement by whether the parameter is null, or set
+`plan_cache_mode = force_custom_plan` on a PL/pgSQL function so the planner
+folds the null. Doctor reads the functions in the app's schema files, not the
+block modules'.
 
 ### BS392
 
@@ -1809,6 +1811,47 @@ mean time with the `statement_timeout` of the `service_role`, else the
 `authenticator`, else the server. A mean above half of it fails once the table
 grows or another job holds a lock. Send smaller batches, or raise the timeout of
 the role that imports.
+
+### BS394
+
+**Warning: an app override of a block function has drifted.** An app file that
+replaces a block function marks it with `-- @bsb-override-of schema.fn <hash>`
+above its own `create function`. The hash is the first twelve hex digits of the
+SHA-256 of the block's function statement with its whitespace collapsed, and
+doctor prints the current one in its message. When the block module's function
+changes, `upgrade` leaves the override behind and it keeps the old behavior, so
+doctor reports a recorded hash that no longer matches, and a tag whose target no
+module declares. Diff the module's function against your copy, merge what
+changed, then write the new hash. BS369 skips a tagged function. Doctor reads
+every schema file.
+
+### BS395
+
+**Error: verify_jwt is off for a function that expects a user.**
+`[functions.<name>] verify_jwt = false` turns off the gateway's JWT check. A
+function written with `auth: 'user'` relies on that check to refuse requests
+without a token before any code runs. Turn `verify_jwt` back on, or verify the
+token in the function and drop `auth: 'user'`. The `mcp` function is the
+documented exception: it verifies the OAuth token itself, because the gateway
+would reject the MCP client first. Doctor reads `supabase/config.toml` and the
+files under `supabase/functions`.
+
+### BS396
+
+**Info: a seed file inserts one row at a time.** A file under `supabase/seeds`
+with ten or more single-row `insert ... values (...)` statements for one table
+is slow to parse and run, because each statement is planned and sent on its own.
+Write one insert with several value tuples, or `insert ... select` from
+`generate_series`. Files that `db seed --sample` wrote are left out.
+
+### BS397
+
+**Warning: a schema file changes rows a data migration holds.** A schema file in
+the declarative layout holds structure. An `insert`, `update` or `delete` in it
+runs on every sync, and when a migration or block data file writes the same
+table, the rows have two owners. Remove the statement from the schema file and
+keep the rows in the data migration or a seed. Files a block module wrote are
+left out.
 
 ### BS369
 

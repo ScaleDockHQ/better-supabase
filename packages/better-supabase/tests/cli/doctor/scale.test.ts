@@ -408,6 +408,30 @@ $$;`;
     expect(findings[0]?.location).toEqual({ file: "s.sql", line: 1 });
   });
 
+  it("accepts a custom-plan function and the block modules' files", async () => {
+    expect(
+      await run(
+        {
+          ...context(base),
+          sqlFiles: [
+            {
+              path: "a.sql",
+              text: sql("ids is null or n.id = any(ids)").replace(
+                "language sql",
+                "language sql set plan_cache_mode = force_custom_plan",
+              ),
+            },
+            {
+              path: "m.sql",
+              text: `-- @bsb-block notifications@1\n${sql("ids is null or n.id = any(ids)")}`,
+            },
+          ],
+        },
+        "BS391",
+      ),
+    ).toEqual([]);
+  });
+
   it("accepts a plain any() and a migration", async () => {
     expect(
       await run(

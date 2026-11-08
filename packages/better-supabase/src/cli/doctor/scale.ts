@@ -3,7 +3,9 @@ import type { DoctorContext, FindingInput, Rule, TextFile } from "./rules.ts";
 
 import { ownerOf, splitStatements } from "../../sql/index.ts";
 import { errorText } from "../core/errors.ts";
+import { EDGE_FUNCTION_RULES } from "./edge-functions.ts";
 import { statementsView } from "./live.ts";
+import { OVERRIDE_RULES } from "./overrides.ts";
 import { catalogOf, policyObject, qualified, tableObject } from "./shared.ts";
 
 /** Row-level `bsb_*` triggers on one table before BS387 reports it. */
@@ -204,7 +206,7 @@ export function durationMs(text: string): number | undefined {
 }
 
 /** Scale checks on the catalog and the app's SQL (ADR 0500). */
-export const SCALE_RULES: readonly Rule[] = [
+const SCALE_CHECKS: readonly Rule[] = [
   {
     code: "BS386",
     severity: "warning",
@@ -402,18 +404,25 @@ export const SCALE_RULES: readonly Rule[] = [
     severity: "info",
     title: "A parameter that is null or matched with any()",
     description:
-      "`param is null or col = any(param)` in a function can't use an index on `col` when Postgres caches a generic plan, because it can't know which branch runs. Build the filter in the branch that needs it (two statements, or `case when param is null then ... end` around a subquery), or default the parameter to every value. Doctor reads the functions in the schema files.",
+      "`param is null or col = any(param)` in a function can't use an index on `col` when Postgres caches a generic plan, because it can't know which branch runs. Build the filter in the branch that needs it (two statements, or `case when param is null then ... end` around a subquery), or default the parameter to every value. A PL/pgSQL function that sets `plan_cache_mode = force_custom_plan` folds the null parameter, so it is accepted. Doctor reads the functions in the app's schema files, not the block modules'.",
     check: (context) =>
       sqlTexts(context)
-        .filter((file) => !file.path.includes("migrations/"))
+        .filter(
+          (file) =>
+            !file.path.includes("migrations/") &&
+            ownerOf(file.path, file.text).kind === "app",
+        )
         .flatMap((file) =>
           splitStatements(file.text)
-            .filter((statement) =>
-              /^create\s+(?:or\s+replace\s+)?function\b/i.test(statement.text),
+            .filter(
+              (statement) =>
+                /^create\s+(?:or\s+replace\s+)?function\b/i.test(
+                  statement.text,
+                ) && !/\bplan_cache_mode\b/i.test(statement.text),
             )
             .flatMap((statement): FindingInput[] =>
               [...statement.text.matchAll(ANY_PARAMETER)].map((match) => ({
-                message: `${file.path}:${statement.line} filters with \`${match[0].replaceAll(/\s+/g, " ")}\`, which stops the planner from using an index on that column. Split the statement by whether the parameter is null.`,
+                message: `${file.path}:${statement.line} filters with \`${match[0].replaceAll(/\s+/g, " ")}\`, which stops the planner from using an index on that column. Split the statement by whether the parameter is null, or set plan_cache_mode = force_custom_plan on a PL/pgSQL function.`,
                 target: `${file.path}:${statement.line}`,
                 location: { file: file.path, line: statement.line },
               })),
@@ -538,4 +547,11 @@ export const SCALE_RULES: readonly Rule[] = [
       }
     },
   },
+];
+
+/** The scale, override and Edge Function rules. */
+export const SCALE_RULES: readonly Rule[] = [
+  ...SCALE_CHECKS,
+  ...OVERRIDE_RULES,
+  ...EDGE_FUNCTION_RULES,
 ];

@@ -3,7 +3,7 @@ import { posix } from "node:path";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { PRESET_CATALOG } from "../../preset/index.ts";
-import { resolveBlocks, splitStatements } from "../../sql/index.ts";
+import { ownerOf, resolveBlocks, splitStatements } from "../../sql/index.ts";
 
 /** The first characters of a file `db seed --sample --out` wrote. */
 export const SAMPLE_FILE_MARKER =
@@ -234,7 +234,124 @@ function seedFunctionWithoutLocale(context: DoctorContext): FindingInput[] {
     );
 }
 
-/** Declared tenant defaults, sample files and data files (BS354 to BS359). */
+/** Single-row inserts into one table before BS396 asks for a multi-row one. */
+export const SINGLE_ROW_INSERTS = 10;
+
+/**
+ * The number of top-level tuples after `values`, or 0 when it isn't a values
+ * list.
+ */
+function valueTuples(statement: string): number {
+  const at = /\bvalues\b/i.exec(statement);
+
+  if (at === null || /\bselect\b/i.test(statement.slice(at.index))) {
+    return 0;
+  }
+
+  let depth = 0;
+  let tuples = 0;
+  let quoted = false;
+
+  for (const char of statement.slice(at.index + at[0].length)) {
+    if (char === "'") {
+      quoted = !quoted;
+    } else if (!quoted && char === "(") {
+      tuples += depth === 0 ? 1 : 0;
+      depth += 1;
+    } else if (!quoted && char === ")") {
+      depth -= 1;
+    }
+  }
+
+  return tuples;
+}
+
+/** BS396: many single-row inserts into one table in a seed file. */
+function unbatchedSeedInserts(context: DoctorContext): FindingInput[] {
+  return (context.seedFiles ?? [])
+    .filter((file) => !file.text.startsWith(SAMPLE_FILE_MARKER))
+    .flatMap((file) => {
+      const counts = new Map<string, { count: number; line: number }>();
+
+      for (const insert of insertedTables([file])) {
+        if (valueTuples(insert.text) !== 1) {
+          continue;
+        }
+
+        const seen = counts.get(insert.table);
+
+        counts.set(insert.table, {
+          count: (seen?.count ?? 0) + 1,
+          line: seen?.line ?? insert.line,
+        });
+      }
+
+      return [...counts]
+        .filter(([, seen]) => seen.count >= SINGLE_ROW_INSERTS)
+        .map(([table, seen]): FindingInput => ({
+          message: `${file.path}:${String(seen.line)}: ${String(seen.count)} single-row inserts into ${table}. Write one insert with several value tuples (or insert ... select from generate_series), so the file parses and runs one statement per table.`,
+          target: `${file.path}:${table}`,
+          location: { file: file.path, line: seen.line },
+        }));
+    });
+}
+
+const SCHEMA_DATA = new RegExp(
+  String.raw`^(?:insert\s+into|update|delete\s+from)\s+(${IDENT}(?:\s*\.\s*${IDENT})?)`,
+  "i",
+);
+
+/**
+ * BS397: a data statement in a schema file that a migration or data file also
+ * holds.
+ */
+function dataInSchemaFiles(context: DoctorContext): FindingInput[] {
+  const files = context.sqlFiles ?? [];
+
+  const isMigration = (path: string): boolean =>
+    /(?:^|\/)migrations\//.test(path);
+
+  const held = new Set(
+    insertedTables([
+      ...files.filter((file) => isMigration(file.path)),
+      ...(context.dataFiles ?? []),
+    ]).map((insert) => insert.table),
+  );
+
+  if (held.size === 0) {
+    return [];
+  }
+
+  return files
+    .filter(
+      (file) =>
+        !isMigration(file.path) &&
+        !file.path.includes("better-supabase-data/") &&
+        ownerOf(file.path, file.text).kind === "app",
+    )
+    .flatMap((file) =>
+      splitStatements(file.text).flatMap((statement): FindingInput[] => {
+        const table = SCHEMA_DATA.exec(statement.text)?.[1];
+
+        if (table === undefined || !held.has(tableKey(table))) {
+          return [];
+        }
+
+        return [
+          {
+            message: `${file.path}:${String(statement.line)}: this statement changes rows of ${tableKey(table)}, which a migration or block data file also writes. A schema file holds structure only; remove the statement and keep the rows in the data migration or a seed.`,
+            target: file.path,
+            location: { file: file.path, line: statement.line },
+          },
+        ];
+      }),
+    );
+}
+
+/**
+ * Declared tenant defaults, sample files and data files (BS354 to BS359, BS396,
+ * BS397).
+ */
 export const SEED_RULES: readonly Rule[] = [
   {
     code: "BS354",
@@ -283,5 +400,20 @@ export const SEED_RULES: readonly Rule[] = [
     description:
       "A function named `seed_<name>_defaults` has no `p_locale` parameter. Defaults that depend on a country (tax codes, letterheads, number formats) need the locale, and `seed_tenant_defaults` passes it to every seed function. Reads every schema file.",
     check: seedFunctionWithoutLocale,
+  },
+  {
+    code: "BS396",
+    severity: "info",
+    title: "A seed file inserts one row at a time",
+    description: `A seed file with ${String(SINGLE_ROW_INSERTS)} or more single-row \`insert ... values (...)\` statements for one table makes the file slow to parse and run: every statement is planned and sent on its own. Write one insert with several value tuples, or \`insert ... select\` from \`generate_series\`. Reads the files in \`supabase/seeds\`; files \`db seed --sample\` wrote are left out.`,
+    check: unbatchedSeedInserts,
+  },
+  {
+    code: "BS397",
+    severity: "warning",
+    title: "A schema file changes rows a data migration holds",
+    description:
+      "A schema file in the declarative layout holds structure. An `insert`, `update` or `delete` in it runs on every sync, and when a migration or block data file already writes the same table, the rows have two owners. Remove the statement from the schema file and keep the rows in the data migration or a seed. Files a block module wrote are left out.",
+    check: dataInSchemaFiles,
   },
 ];
