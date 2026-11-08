@@ -23,6 +23,15 @@ export interface NameConstantLines {
   readonly lines: readonly string[];
 }
 
+/** The views over block tables, and the block tables by instance. */
+export interface ViewFanOut {
+  /** The `db` keys of the views over each `schema.table`. */
+  readonly views: ReadonlyMap<string, readonly string[]>;
+  readonly tables: Readonly<
+    Record<string, Readonly<Record<string, { readonly table: string }>>>
+  >;
+}
+
 type NamesConfig = Pick<
   ResolvedConfig,
   "appTables" | "blocks" | "blockNames" | "buckets" | "casing" | "subjects"
@@ -464,8 +473,40 @@ function keyUnionLines(config: NamesConfig): string[] {
   );
 }
 
+/**
+ * The tables a read lists, and the views the app projects over them: a read is
+ * served from the view, so a write to the table must invalidate it too.
+ */
+function readTables(
+  key: string,
+  tables: readonly string[],
+  fanOut: ViewFanOut | undefined,
+): string[] {
+  if (fanOut === undefined) {
+    return [...tables];
+  }
+
+  const own = fanOut.tables[key] ?? {};
+  const others = Object.values(fanOut.tables);
+
+  // A read can list a table another instance owns (organization_overview reads
+  // the memberships and invitations tables).
+  const tableOf = (logical: string): string =>
+    own[logical]?.table ??
+    others.find((tables) => tables[logical] !== undefined)?.[logical]?.table ??
+    "";
+
+  return [
+    ...new Set([
+      ...tables,
+      ...tables.flatMap((logical) => fanOut.views.get(tableOf(logical)) ?? []),
+    ]),
+  ];
+}
+
 function readLines(
   entries: Readonly<Record<string, GeneratedBlock>>,
+  fanOut?: ViewFanOut,
 ): NameConstantLines {
   const types: string[] = [];
   const groups: string[] = [];
@@ -502,7 +543,7 @@ function readLines(
         .map(([name, arg]) => `${prop(name)}: ${q(arg.param)}`)
         .join(", ");
 
-      return `    ${prop(read.name)}: blockRead<${base}Args, ${base}Result>(${q(fn)}, { ${params} }, [${read.tables.map(q).join(", ")}], ${q(entry.api ?? entry.schema)}),`;
+      return `    ${prop(read.name)}: blockRead<${base}Args, ${base}Result>(${q(fn)}, { ${params} }, [${readTables(key, read.tables, fanOut).map(q).join(", ")}], ${q(entry.api ?? entry.schema)}),`;
     });
 
     groups.push(`  ${prop(camel(key))}: {`, ...lines, "  },");
@@ -538,9 +579,10 @@ function readLines(
 export function nameConstantLines(
   config: NamesConfig,
   entries: Readonly<Record<string, GeneratedBlock>>,
+  fanOut?: ViewFanOut,
 ): NameConstantLines {
   const events = eventLines(entries);
-  const reads = readLines(entries);
+  const reads = readLines(entries, fanOut);
 
   return {
     specifiers: [...events.specifiers, ...reads.specifiers],

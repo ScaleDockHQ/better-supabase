@@ -44,7 +44,7 @@ function argumentsOf(text: string, open: number): string {
  * The app's views over block tables, as the block table and the view name:
  * `better_supabase.attachments` is read through `public.job_attachments`.
  */
-function projectedBlockTables(
+export function projectedBlockTables(
   context: DoctorContext,
 ): readonly { readonly base: string; readonly view: string }[] {
   const files = (context.sqlFiles ?? []).filter(

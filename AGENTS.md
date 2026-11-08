@@ -441,6 +441,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0450: Resolve auth once per scope and split the server entry.
 - 0460: Check storage, initplan and policy-index practices in doctor, prefer `db advisors`, pin the audience.
 - 0470: Hold the app stages to three fixtures.
+- 0471: Serve reads from projection views and invalidate them from the table.
 
 ## Pre-release pins
 

@@ -4,7 +4,7 @@ import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 import { toSnake } from "../../index.ts";
 import { blockTables } from "../../sql/index.ts";
 import { appTablesOf } from "./app-tables.ts";
-import { PROJECTION_RULES } from "./projections.ts";
+import { PROJECTION_RULES, projectedBlockTables } from "./projections.ts";
 
 /**
  * A supabase-js write: `.from("x").insert(`, with an optional `.schema("s")`
@@ -25,6 +25,8 @@ interface OwnedTable {
   readonly block: string;
   readonly logical: string;
   readonly table: BlockTable;
+  /** The app's view a write went through, as `schema.view`. */
+  readonly view?: string;
 }
 
 interface OwnedTables {
@@ -34,6 +36,8 @@ interface OwnedTables {
   readonly named: ReadonlyMap<string, OwnedTable>;
   /** The app's tables, which a write without `.schema()` reaches first. */
   readonly own: Readonly<Record<string, string>>;
+  /** The app's projection views over block tables, by `schema.view`. */
+  readonly views: ReadonlyMap<string, OwnedTable>;
 }
 
 /**
@@ -59,7 +63,17 @@ function ownedTables(context: DoctorContext): OwnedTables {
     }
   }
 
-  return { qualified, named, own };
+  const views = new Map<string, OwnedTable>();
+
+  for (const { base, view } of projectedBlockTables(context)) {
+    const entry = qualified.get(base);
+
+    if (entry !== undefined) {
+      views.set(view, { ...entry, view });
+    }
+  }
+
+  return { qualified, named, own, views };
 }
 
 /**
@@ -73,11 +87,15 @@ function writtenTable(
   name: string,
 ): OwnedTable | undefined {
   if (schema !== undefined) {
-    return owned.qualified.get(`${schema}.${name}`);
+    return (
+      owned.qualified.get(`${schema}.${name}`) ??
+      owned.views.get(`${schema}.${name}`)
+    );
   }
 
   return (
     owned.qualified.get(`public.${name}`) ??
+    owned.views.get(`public.${name}`) ??
     (Object.hasOwn(owned.own, `public.${name}`)
       ? undefined
       : owned.named.get(name))
@@ -153,7 +171,7 @@ function directBlockWrites(context: DoctorContext): FindingInput[] {
         const line = lineAt(file.text, index);
 
         return {
-          message: `${file.path}:${String(line)} calls .${method}() on ${entry.table.table}, the ${entry.logical} table of blocks.${entry.block}. A direct write skips the block's functions, so its events, hooks and checks don't run. Write it through the ${entry.block} API that createBlocks returns.`,
+          message: `${file.path}:${String(line)} calls .${method}() on ${entry.view === undefined ? "" : `${entry.view}, the app's view over `}${entry.table.table}, the ${entry.logical} table of blocks.${entry.block}. A direct write skips the block's functions, so its events, hooks and checks don't run. Write it through the ${entry.block} API that createBlocks returns.`,
           target: `${file.path}:${String(line)}`,
           location: { file: file.path, line },
         };
