@@ -268,7 +268,7 @@ describe("blocks over an app's own declarative schema, on the local stack", () =
     expect(filled.data).toMatchObject({ filled: 1, remaining: 0 });
 
     expect(codes(await doctor(["--only", "BS236,BS238"]))).toEqual(["BS236"]);
-    expect((await doctor(["--only", "BS236", "--fix"])).code).toBe(0);
+    expect((await doctor(["--only", "BS236", "--yes"])).code).toBe(0);
 
     const { rows } = await db.query<{ convalidated: boolean }>(
       "select convalidated from pg_constraint where conname = 'notes_organization_id_not_null'",

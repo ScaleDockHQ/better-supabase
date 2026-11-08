@@ -5,7 +5,12 @@ import { afterAll, beforeAll, describe, expect, it } from "vitest";
 import { defineTopic } from "../../src/realtime/index.ts";
 import { defineBucket } from "../../src/storage/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
-import { stackDbUrl, stackEngine, stackUrl } from "./stack-env.ts";
+import {
+  stackDbUrl,
+  stackEngine,
+  stackUrl,
+  storageReachable,
+} from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
@@ -27,17 +32,7 @@ const HEX = "abcdef00-0000-4000-8000-0000000000ab";
 const RUN = String(Date.now());
 const SCHEMA = `bsb_authz_${RUN}`;
 
-async function reachable(): Promise<boolean> {
-  try {
-    const response = await fetch(`${url}/storage/v1/status`, {
-      signal: AbortSignal.timeout(1000),
-    });
-
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
+const reachable = (): Promise<boolean> => storageReachable(url);
 
 const live = await reachable();
 

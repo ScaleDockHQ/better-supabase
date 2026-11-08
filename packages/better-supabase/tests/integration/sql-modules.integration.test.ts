@@ -5033,7 +5033,9 @@ describe.skipIf(!live)("SQL modules against the local database", () => {
         `select tests.rls_enabled('public') as result`,
       );
 
-      expect(fixed.rows[0]!.result).toMatch(/^ok/);
+      // Other files commit tables of their own to `public`, so only this
+      // test's table has to be gone from the failures.
+      expect(fixed.rows[0]!.result).not.toContain(`bsb_block_${RUN}`);
 
       await client.query("savepoint as_anon");
       await client.query("select tests.authenticate_as_anon()");

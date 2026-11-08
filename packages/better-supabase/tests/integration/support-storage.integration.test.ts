@@ -11,7 +11,7 @@ import { supportStorage } from "../../src/server/support-storage.ts";
 import { defineBucket, fromStorageError } from "../../src/storage/index.ts";
 import { signLocalJwt } from "../../src/testing/local-key.ts";
 import { FIXTURE_HELPERS_SQL } from "./fixture-tenant.ts";
-import { stackDbUrl, stackUrl } from "./stack-env.ts";
+import { stackDbUrl, stackUrl, storageReachable } from "./stack-env.ts";
 
 const url = stackUrl();
 const dbUrl = stackDbUrl();
@@ -30,17 +30,7 @@ const USER = "00000000-0000-4000-8000-0000000000ff";
 const OTHER_USER = "00000000-0000-4000-8000-0000000000fe";
 const RUN = `s${String(Date.now())}`;
 
-async function reachable(): Promise<boolean> {
-  try {
-    const response = await fetch(`${url}/storage/v1/status`, {
-      signal: AbortSignal.timeout(1000),
-    });
-
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
+const reachable = (): Promise<boolean> => storageReachable(url);
 
 const live = await reachable();
 

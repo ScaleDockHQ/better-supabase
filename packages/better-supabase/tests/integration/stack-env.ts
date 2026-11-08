@@ -26,3 +26,32 @@ export const stackDbUrl = (): string => required("SUPABASE_DB_URL");
 export const stackEngine: boolean = ["native", "docker", "podman"].includes(
   process.env["SUPABASE_RUNTIME"] ?? "",
 );
+
+/**
+ * Whether the stack's storage service answers. The CLI's native stack starts a
+ * service on its first request, so a single 1 s probe reports a service that is
+ * still waking up as absent and skips its tests; poll for up to 20 s instead.
+ */
+export async function storageReachable(url: string): Promise<boolean> {
+  const deadline = Date.now() + 20_000;
+
+  while (Date.now() < deadline) {
+    try {
+      const response = await fetch(`${url}/storage/v1/status`, {
+        signal: AbortSignal.timeout(3000),
+      });
+
+      if (response.ok) {
+        return true;
+      }
+    } catch {
+      // The service is not up yet, or the stack is not running at all.
+    }
+
+    await new Promise<void>((resolve) => {
+      setTimeout(resolve, 500);
+    });
+  }
+
+  return false;
+}

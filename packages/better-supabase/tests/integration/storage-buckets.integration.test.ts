@@ -2,7 +2,7 @@ import { createClient } from "@supabase/supabase-js";
 import { afterAll, describe, expect, it } from "vitest";
 
 import { defineBucket, defineVectorBucket } from "../../src/storage/index.ts";
-import { stackUrl } from "./stack-env.ts";
+import { stackUrl, storageReachable } from "./stack-env.ts";
 
 const url = stackUrl();
 
@@ -10,17 +10,7 @@ const secretKey =
   process.env["SUPABASE_SECRET_KEY"] ??
   "sb_secret_N7UND0UgjKTVK-Uodkm0Hg_xSvEMPvz";
 
-async function reachable(): Promise<boolean> {
-  try {
-    const response = await fetch(`${url}/storage/v1/status`, {
-      signal: AbortSignal.timeout(1000),
-    });
-
-    return response.ok;
-  } catch {
-    return false;
-  }
-}
+const reachable = (): Promise<boolean> => storageReachable(url);
 
 const live = await reachable();
 
