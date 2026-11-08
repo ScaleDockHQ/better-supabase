@@ -7,6 +7,7 @@ import { describe, expect, it } from "vitest";
 const APP = resolve(import.meta.dirname, "../../apps/examples/nextjs");
 const NEXT = join(APP, ".next");
 const BASELINE = resolve(import.meta.dirname, "baseline.json");
+const SERVER_BASELINE = resolve(import.meta.dirname, "server-baseline.json");
 
 /**
  * The three sizes a visitor pays for: minified, gzip and brotli (Vercel serves
@@ -157,12 +158,49 @@ async function routeSource(chunks: ReadonlySet<string>): Promise<string> {
   return texts.join("\n");
 }
 
+/** Entry files of the server's route modules: pages and route handlers. */
+const SERVER_ENTRY = /\/(?:page|route)\.js$/;
+
+const SERVER_CHUNK = /R\.c\("([^"]+)"\)/g;
+
+/**
+ * The server chunks each page and route handler loads when it starts, summed.
+ * `page.js` lists them as `R.c("server/chunks/...")` before it evaluates the
+ * route's module, so a route pays for what it imports (ADR 0450).
+ */
+async function serverRoutes(): Promise<Baseline> {
+  const root = join(NEXT, "server/app");
+  const result: Baseline = {};
+
+  const entries = (await files(root))
+    .filter((file) => SERVER_ENTRY.test(file))
+    .toSorted();
+
+  for (const entry of entries) {
+    const source = await readFile(entry, "utf-8");
+
+    const chunks = new Set(
+      [...source.matchAll(SERVER_CHUNK)].flatMap((match) =>
+        match[1] === undefined ? [] : [match[1]],
+      ),
+    );
+
+    // `server/app/<route>/page.js` is the route `<route>/page`.
+    const route = relative(root, entry).replace(/\.js$/, "");
+
+    // A chunk is read relative to `.next`, like the client's.
+    result[`/${route}`] = await measure(chunks);
+  }
+
+  return result;
+}
+
 const SIZES = ["raw", "gzip", "brotli"] as const;
 const UPDATE = Boolean(process.env["NEXT_BUILD_UPDATE"]);
 
-async function readBaseline(): Promise<Baseline> {
+async function readBaseline(file = BASELINE): Promise<Baseline> {
   // SAFETY: the file is written by the update below.
-  return JSON.parse(await readFile(BASELINE, "utf-8")) as Baseline;
+  return JSON.parse(await readFile(file, "utf-8")) as Baseline;
 }
 
 function sizeOf(sizes: Baseline, route: string): Size {
@@ -311,6 +349,79 @@ describe("the Next.js example's first-load JavaScript", () => {
           'listTopic:"ai-chats"',
         );
       }
+    },
+    120_000,
+  );
+
+  // Server chunks per route (ADR 0450): a route loads the chunks of what it
+  // imports, so a page that reads one table does not pay for the block set.
+  it.skipIf(UPDATE)(
+    "never grows past the server baseline of any route",
+    async () => {
+      const current = await serverRoutes();
+      const baseline = await readBaseline(SERVER_BASELINE);
+
+      expect(
+        Object.keys(current).filter((route) => !(route in baseline)),
+        "a new route needs a server baseline: run `pnpm --filter @better-supabase/next-build update`",
+      ).toEqual([]);
+
+      expect(
+        Object.keys(baseline).filter((route) => !(route in current)),
+        "a removed route leaves the server baseline: run update",
+      ).toEqual([]);
+
+      const grown = Object.entries(current).flatMap(([route, size]) =>
+        SIZES.flatMap((key) => {
+          const allowed = sizeOf(baseline, route)[key];
+
+          return size[key] > allowed
+            ? [`${route} ${key}: ${allowed} -> ${size[key]}`]
+            : [];
+        }),
+      );
+
+      expect(grown, "server chunks grew").toEqual([]);
+    },
+    120_000,
+  );
+
+  it.runIf(UPDATE)(
+    "lowers the server baseline",
+    async () => {
+      const current = await serverRoutes();
+
+      const previous = existsSync(SERVER_BASELINE)
+        ? await readBaseline(SERVER_BASELINE)
+        : {};
+
+      const next: Baseline = {};
+      const grown: string[] = [];
+
+      for (const route of Object.keys(current).toSorted()) {
+        const now = sizeOf(current, route);
+        const before = previous[route];
+
+        if (before === undefined) {
+          next[route] = now;
+          continue;
+        }
+
+        const kept = { ...before };
+
+        for (const size of SIZES) {
+          if (now[size] > before[size]) {
+            grown.push(`${route} ${size}: ${before[size]} -> ${now[size]}`);
+          } else {
+            kept[size] = now[size];
+          }
+        }
+
+        next[route] = kept;
+      }
+
+      await writeFile(SERVER_BASELINE, `${JSON.stringify(next, null, 2)}\n`);
+      expect(grown, "the update never raises a baseline").toEqual([]);
     },
     120_000,
   );
