@@ -180,6 +180,45 @@ in a `DataEngine` follows the engine's own online handling and only reports the
 flag. `init` writes `app/manifest.ts`, `public/sw.js`, `public/offline.html` and
 the Web Push keys in `.env.example` for a new Next.js app.
 
+## Data hooks and record pages offline
+
+`OfflineBoundary` from `better-supabase/next/offline` hands `useOffline()` to
+the generated data hooks and to `RecordProvider`. Put it once inside
+`BetterSupabaseProvider`.
+
+```tsx title="app/providers.tsx"
+"use client";
+
+import { BetterSupabaseProvider } from "better-supabase/react";
+import { OfflineBoundary } from "better-supabase/next/offline";
+
+export function Providers({ client, children }) {
+  return (
+    <BetterSupabaseProvider client={client}>
+      <OfflineBoundary>{children}</OfflineBoundary>
+    </BetterSupabaseProvider>
+  );
+}
+```
+
+Below it, `useList` and `useOne` wait while the app is offline: the last rows
+stay, `offline` is `true` instead of an error, and the read runs once when the
+connection returns. A write (`create`, `update`, `delete`) keeps its optimistic
+row, waits, and rolls back if it fails after the reconnect. Every held write
+runs, in the order it was made.
+
+A `RecordProvider` holds its loads the same way: each binding keeps its last
+data, and one whose load fails while offline loads again on reconnect.
+`state.offline` tells the cards to show the wait. `actions.write` queues one
+write per binding and write name. A second call replaces the input and shares
+the first promise, and a queued write that the page leaves settles with a
+`network` error.
+
+An engine over a local database (`powersyncEngine`, `sqliteEngine`) never
+waits, because the device answers its reads and writes. Outside Next.js, call
+`setOffline` on the controllers yourself: `createDataList(target, args, {
+offline })` and `createRecordController({ offline })` both take it.
+
 ## Check it
 
 1. Run `next build` and `next start`, open the app, and sign in.

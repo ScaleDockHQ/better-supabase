@@ -1934,6 +1934,7 @@
   },
   "./next/offline": {
     "values": [
+      "OfflineBoundary",
       "useBlockMutation",
       "useBlockQuery"
     ],

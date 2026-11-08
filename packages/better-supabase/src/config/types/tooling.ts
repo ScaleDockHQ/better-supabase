@@ -149,6 +149,20 @@ export interface PowerSyncGenConfig {
    * `@powersync/common`.
    */
   readonly import?: string;
+  /**
+   * App tables that sync with their parent subject, such as `job_parties` under
+   * `jobs`. Each streams the rows whose `column` holds the id of a parent row
+   * in the user's organizations (and, when the parent has `deleted-at`, one
+   * that is not deleted). `table` is `schema.table`, `parent` is the type of a
+   * table tagged `@bsb subject`, and the parent needs a tenant column. A child
+   * needs an `id` column and a saved snapshot (`better-supabase gen
+   * --save-snapshot`) for its column types.
+   */
+  readonly children?: readonly {
+    readonly table: string;
+    readonly parent: string;
+    readonly column: string;
+  }[];
 }
 
 /** Glue `better-supabase init` and `add` write for a framework or runtime. */

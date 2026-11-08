@@ -1,7 +1,9 @@
 "use client";
 
+import type { ReactNode } from "react";
+
 import { useOffline } from "next/offline.js";
-import { useEffect } from "react";
+import { createElement, useEffect } from "react";
 
 import type {
   BlockArgsOf,
@@ -23,6 +25,7 @@ import {
   createOfflineBlockQuery,
 } from "../../blocks/block-offline.ts";
 import { useController } from "../../blocks/react-controller.ts";
+import { OfflineContext } from "../../react/offline.ts";
 
 /**
  * `useBlockQuery` that pauses while the app is offline (`useOffline()` from
@@ -92,4 +95,14 @@ export function useBlockMutation<
   }, [controller, offline]);
 
   return view;
+}
+
+/**
+ * Tells the data hooks and `RecordProvider` below it whether the app is
+ * offline, from `useOffline()`. Put it once inside `BetterSupabaseProvider`.
+ */
+export function OfflineBoundary(props: {
+  readonly children?: ReactNode;
+}): ReactNode {
+  return createElement(OfflineContext, { value: useOffline() }, props.children);
 }

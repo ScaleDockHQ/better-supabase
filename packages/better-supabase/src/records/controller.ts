@@ -44,6 +44,11 @@ export interface RecordControllerOptions<
    */
   readonly summary?: Pick<Subjects, "summary">;
   readonly summaryOptions?: RecordSummaryOptions;
+  /**
+   * Starts paused, for a page that mounts while the app is already offline.
+   * `setOffline` keeps it current afterwards (ADR 0344).
+   */
+  readonly offline?: boolean;
 }
 
 export interface RecordSnapshot<B extends BindingBlocks, N extends string> {
@@ -54,11 +59,23 @@ export interface RecordSnapshot<B extends BindingBlocks, N extends string> {
   readonly status: SubscriptionStatus;
   /** The error of the last summary load. */
   readonly error: DbError | undefined;
+  /**
+   * `true` while loads wait for a connection: the bindings keep their last data
+   * and show no error. Absent until `offline` or `setOffline` is used.
+   */
+  readonly offline?: boolean;
 }
 
 export interface RecordActions<N extends string> {
   /** Loads the named bindings again, or every binding and the summary. */
   readonly refresh: (names?: readonly N[]) => Promise<void>;
+  /**
+   * Pauses loads (`true`) and keeps the names a pause held back, or resumes
+   * (`false`) and loads them once. A binding whose load fails while offline
+   * keeps its last data and loads again on reconnect. Calling it with the
+   * current value changes nothing.
+   */
+  readonly setOffline: (offline: boolean) => void;
 }
 
 export type RecordController<
@@ -84,12 +101,22 @@ export function createRecordController<
       summary: undefined,
       status: "closed",
       error: undefined,
+      ...(options.offline === undefined ? {} : { offline: options.offline }),
     },
     (state) => {
       const tickets = new Map<string, number>();
+      let offline = options.offline === true;
+      const held = new Set<N>();
+      let heldSummary = false;
 
       const loadSummary = async (): Promise<void> => {
         if (subject === null || options.summary === undefined) {
+          return;
+        }
+
+        if (offline) {
+          heldSummary = true;
+
           return;
         }
 
@@ -118,6 +145,14 @@ export function createRecordController<
           return;
         }
 
+        if (offline) {
+          for (const name of names) {
+            held.add(name);
+          }
+
+          return;
+        }
+
         const mine = new Map(
           names.map((name) => {
             const ticket = (tickets.get(name) ?? 0) + 1;
@@ -130,9 +165,24 @@ export function createRecordController<
         const loaded: Readonly<Record<string, RecordBindingResult<unknown>>> =
           await loadBindings(source, subject, names, options);
 
-        const current = names.filter(
-          (name) => tickets.get(name) === mine.get(name),
-        );
+        const current = names.filter((name) => {
+          if (tickets.get(name) !== mine.get(name)) {
+            return false;
+          }
+
+          // The connection dropped mid-load: keep what the binding had.
+          if (
+            offline &&
+            loaded[name]?.kind === "error" &&
+            state.get().bindings?.[name] !== undefined
+          ) {
+            held.add(name);
+
+            return false;
+          }
+
+          return true;
+        });
 
         if (current.length === 0) {
           return;
@@ -163,8 +213,31 @@ export function createRecordController<
         return matching.length === 0 ? bindings : matching;
       };
 
+      const setOffline = (next: boolean): void => {
+        if (next === offline) {
+          return;
+        }
+
+        offline = next;
+        state.set({ offline: next });
+
+        if (next) {
+          return;
+        }
+
+        const names = [...held];
+        const summary = heldSummary;
+        held.clear();
+        heldSummary = false;
+
+        void Promise.all([
+          loadNamed(names),
+          summary ? loadSummary() : undefined,
+        ]);
+      };
+
       return {
-        actions: { refresh },
+        actions: { refresh, setOffline },
         start: () =>
           subject === null
             ? undefined

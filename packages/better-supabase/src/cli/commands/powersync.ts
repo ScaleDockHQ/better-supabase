@@ -7,10 +7,18 @@ import type { BlockSqlLayout } from "../../sql/index.ts";
 import type { AnyCommand } from "../core/command.ts";
 import type { PlanFlags, PlannedFile } from "../core/files.ts";
 import type { CommandResult } from "../core/io.ts";
-import type { PowerSyncInstance } from "../powersync/streams.ts";
+import type {
+  PowerSyncChild,
+  PowerSyncInstance,
+  PowerSyncSubject,
+} from "../powersync/streams.ts";
 import type { Now } from "../sql/migrations.ts";
 
-import { blockReadRoles } from "../../sql/index.ts";
+import {
+  blockReadRoles,
+  parseBsbComment,
+  tableTagComments,
+} from "../../sql/index.ts";
 import { defineCliCommand } from "../core/command.ts";
 import { applyPlan, PLAN_ARGS, planResult } from "../core/files.ts";
 import { commandMeta } from "../core/manifest.ts";
@@ -31,6 +39,7 @@ import {
 import { hasMigrationSuffix, migrationFile } from "../sql/migration-names.ts";
 import { layoutFor } from "../sql/providers.ts";
 import { renderBlocksCached } from "../sql/render-cache.ts";
+import { subjectFromTag } from "../subject-tag.ts";
 
 const ARGS = {
   instance: {
@@ -209,6 +218,48 @@ function readRolesOf(
 }
 
 /**
+ * The app's subjects by type, from the `@bsb subject` tags of its schema files
+ * (a `subjects.<type>` entry in the config wins over its tag).
+ */
+function subjectsOf(
+  config: ResolvedConfig,
+  app: readonly { readonly text: string }[],
+): Map<string, PowerSyncSubject> {
+  const found = new Map<string, PowerSyncSubject>();
+
+  for (const { text } of app) {
+    for (const comment of tableTagComments(text)) {
+      const tag = parseBsbComment(comment.comment).tags.find(
+        (each) => each.name === "subject",
+      );
+
+      if (tag === undefined) {
+        continue;
+      }
+
+      const type =
+        typeof tag.args["type"] === "string" ? tag.args["type"] : comment.name;
+
+      const subject = {
+        ...subjectFromTag(tag.args, comment.name),
+        ...config.subjects[type],
+      };
+
+      found.set(type, {
+        table: `${comment.schema}.${comment.name}`,
+        id: subject.id ?? "id",
+        tenant: subject.tenant ?? "organization_id",
+        ...(subject.deletedAt === undefined
+          ? {}
+          : { deletedAt: subject.deletedAt }),
+      });
+    }
+  }
+
+  return found;
+}
+
+/**
  * Writes `sync-streams.yaml` and `schema.ts` for the synced block instances,
  * and a migration that adds their tables to the `powersync` publication.
  */
@@ -264,6 +315,18 @@ export async function runPowerSync(
     ]),
   );
 
+  const childConfig = settings?.children ?? [];
+
+  const childTypes = await snapshotColumnTypes(
+    config,
+    childConfig.map(({ table }) => table),
+  );
+
+  const children: PowerSyncChild[] = childConfig.map((child) => ({
+    ...child,
+    columns: childTypes.get(child.table) ?? new Map(),
+  }));
+
   const layout = await layoutFor(config, {}, config.blockNames);
   const app = await appSchemaTexts(config);
   let output: ReturnType<typeof powersyncOutput>;
@@ -284,6 +347,8 @@ export async function runPowerSync(
       own,
       readRoles: readRolesOf(config, layout, instances),
       projections: projectionsOf(app),
+      subjects: subjectsOf(config, app),
+      children,
       importFrom: settings?.import ?? "@powersync/common",
     });
   } catch (cause) {
@@ -327,7 +392,7 @@ export async function runPowerSync(
   const applied = await applyPlan(plan, args);
 
   return planResult(plan, applied, {
-    data: { instances: keys, tables: output.tables },
+    data: { instances: keys, tables: output.tables, children: output.children },
   });
 }
 

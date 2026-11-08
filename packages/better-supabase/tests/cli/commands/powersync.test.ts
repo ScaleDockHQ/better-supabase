@@ -131,6 +131,65 @@ describe("powersync streams", () => {
     expect(await migrations()).toHaveLength(2);
   });
 
+  const jobsFile = `create table public.jobs (id uuid primary key, organization_id uuid not null, deleted_at timestamptz);
+comment on table public.jobs is '@bsb subject type=job deleted-at=deleted_at';
+create view public.job_attachments as
+  select id, tenant_id as organization_id, subject_id as job_id from better_supabase.attachments where subject_type = 'job';
+`;
+
+  it("scopes a projected attachments stream to the app's subject rows", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(join(root, "supabase/schemas/010_app.sql"), jobsFile);
+
+    const result = await runPowerSync(
+      config(["memberships", "attachments"]),
+      {},
+      now,
+    );
+
+    expect(result.code).toBe(0);
+
+    expect(
+      await readFile(join(root, "powersync/sync-streams.yaml"), "utf-8"),
+    ).toContain(
+      "subject_id IN (SELECT id::text FROM public.jobs WHERE organization_id IN active_orgs AND deleted_at IS NULL)",
+    );
+  });
+
+  it("reads a child table's columns from the snapshot and refuses without one", async () => {
+    await mkdir(join(root, "supabase/schemas"), { recursive: true });
+    await writeFile(join(root, "supabase/schemas/010_app.sql"), jobsFile);
+
+    const result = await runPowerSync(
+      resolveConfig(
+        {
+          blocks: BLOCKS,
+          gen: {
+            powersync: {
+              instances: ["memberships"],
+              children: [
+                {
+                  table: "public.job_parties",
+                  parent: "job",
+                  column: "job_id",
+                },
+              ],
+            },
+          },
+        },
+        root,
+      ),
+      {},
+      now,
+    );
+
+    expect(result).toMatchObject({
+      code: 1,
+      errorCode: "config_invalid",
+      error: expect.stringContaining("has no job_id column"),
+    });
+  });
+
   it("takes --instance and --out over the config", async () => {
     const result = await runPowerSync(
       config(["notifications", "attachments"]),
