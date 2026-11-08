@@ -225,6 +225,7 @@ function build(ctx: BlockSqlContext): string {
   const targets = targetsOf(ctx);
   const eventsPolicy = sqlString(eventsPolicyOf(ctx));
   const auditMode = auditModeOf(ctx);
+  const searchDeferral = ctx.installed("search");
   const runsName = ctx.tableName("runs").name;
   const recordsName = ctx.tableName("records").name;
   const unique = `(${x("tenant")}, ${x("source")}, ${x("scope")}, ${x("entity")}, ${x("externalKey")}, ${x("role")})`;
@@ -756,11 +757,11 @@ begin
     ${fail("IMPORT_RUN_NOT_RUNNING", "the import is not running", "55000")}
   end if;
 
-  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     v_previous := v_previous || jsonb_build_object(v_name, coalesce(current_setting(v_name, true), ''));
   end loop;
   perform ${ctx.fn("begin_import_session")}(v_run_id);
-
+${searchDeferral ? "  perform set_config('better_supabase.search_deferred', 'on', true);\n" : ""}
   if v_run.${r("dryRun")} then
     begin
       v_result := ${ctx.fn("import_apply_batch")}(v_run_id, v_entity, import_upsert_batch.items);
@@ -770,9 +771,9 @@ begin
     end;
   else
     v_result := ${ctx.fn("import_apply_batch")}(v_run_id, v_entity, import_upsert_batch.items);
-  end if;
+${searchDeferral ? `    perform ${ctx.of("search").fn("search_refresh_dirty")}();\n` : ""}  end if;
 
-  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit'] loop
+  foreach v_name in array array['better_supabase.import_run', 'better_supabase.correlation_id', 'better_supabase.import_events', 'better_supabase.import_audit', 'better_supabase.search_deferred'] loop
     perform set_config(v_name, v_previous ->> v_name, true);
   end loop;
 
@@ -998,7 +999,7 @@ export const IMPORTS: BlockSqlDefinition = {
   description:
     "Import runs and the external record map. import_upsert_batch writes items through the targets blocks and the app register, skips equal content, reports rows a user changed since the last import and marks missing keys on full runs. The dry run, parsing and mapping live in TypeScript.",
   requires: ["memberships", "permissions", "queue"],
-  integrates: ["attachments", "outbox"],
+  integrates: ["attachments", "outbox", "search"],
   target: "schema",
   modes: ["managed", "custom"],
   version: 2,

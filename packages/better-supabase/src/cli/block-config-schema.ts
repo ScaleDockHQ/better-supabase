@@ -93,6 +93,7 @@ type SubjectSearchInput = {
         key: string;
         via?: string | undefined;
         through?: { table: string; from: string; to: string }[] | undefined;
+        columns?: string[] | undefined;
       }[]
     | undefined;
 };
@@ -120,6 +121,7 @@ export const subjectSearchSchema: v.GenericSchema<SubjectSearchInput> =
               }),
             ),
           ),
+          columns: v.optional(v.array(v.string())),
         }),
       ),
     ),

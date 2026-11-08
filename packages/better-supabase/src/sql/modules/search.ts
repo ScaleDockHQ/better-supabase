@@ -173,54 +173,86 @@ function refreshBranch(subject: RegisteredSubject, described: boolean): string {
       v_found := found;`;
 }
 
-/**
- * Triggers on the tables a subject's `search.watch` names: a change there
- * re-indexes the record its row points at. Each runs once the table exists.
- */
-function watchTriggers(
-  ctx: BlockSqlContext,
-  subjects: readonly RegisteredSubject[],
-): string {
-  return subjects
-    .flatMap((subject) =>
-      (subject.config.search?.watch ?? []).map((watched, index) => {
-        const fn = ctx.fn(
-          `search_watch_${subjectTypeIdent(subject.type)}_${String(index)}`,
-        );
+/** One `search.watch` entry of a subject, with where its trigger is created. */
+interface WatchEntry {
+  readonly subject: RegisteredSubject;
+  readonly watched: NonNullable<
+    NonNullable<RegisteredSubject["config"]["search"]>["watch"]
+  >[number];
+  readonly index: number;
+  readonly qualified: string;
+}
 
-        const trigger = sqlIdent(
-          `bsb_search_${subjectTypeIdent(subject.type)}_watch_${String(index)}`.slice(
-            0,
-            63,
-          ),
-        );
+/** The qualified name of a watched table, `public` when it names no schema. */
+function qualifiedWatched(table: string): string {
+  return table.includes(".") ? table : `public.${table}`;
+}
 
-        const key = sqlIdent(watched.key);
-        const table = quotedTable(watched.table);
+/** Whether a watched table is an app table, created after every block file. */
+function isWatchedAppTable(ctx: BlockSqlContext, entry: WatchEntry): boolean {
+  return (
+    entry.qualified.startsWith("public.") &&
+    ctx.appTables.has(entry.qualified.slice("public.".length))
+  );
+}
 
-        const hops = watched.through ?? [];
+function watchEntries(subjects: readonly RegisteredSubject[]): WatchEntry[] {
+  return subjects.flatMap((subject) =>
+    (subject.config.search?.watch ?? []).map((watched, index) => ({
+      subject,
+      watched,
+      index,
+      qualified: qualifiedWatched(watched.table),
+    })),
+  );
+}
 
-        const values = (row: "old" | "new"): string =>
-          hops.reduce(
-            (previous, hop, at) =>
-              `select h${String(at)}.${sqlIdent(hop.to)}::text from ${quotedTable(hop.table)} h${String(at)} where h${String(at)}.${sqlIdent(hop.from)}::text in (${previous})`,
-            `select ${row}.${key}::text`,
-          );
+/** A watch trigger and its function, for a table that exists when this runs. */
+function watchTrigger(ctx: BlockSqlContext, entry: WatchEntry): string {
+  const { subject, watched, index } = entry;
 
-        const refresh = (row: "old" | "new"): string =>
-          watched.via === undefined && hops.length === 0
-            ? `perform ${ctx.fn("search_refresh")}(${sqlString(subject.type)}, ${row}.${key}::text);`
-            : `for v_id in ${
-                watched.via === undefined
-                  ? values(row)
-                  : hops.length === 0
-                    ? `select s.${subject.id}::text from ${subject.qualified} s where s.${sqlIdent(watched.via)}::text = ${row}.${key}::text`
-                    : `select s.${subject.id}::text from ${subject.qualified} s where s.${sqlIdent(watched.via)}::text in (${values(row)})`
-              } loop
-      perform ${ctx.fn("search_refresh")}(${sqlString(subject.type)}, v_id);
+  const fn = ctx.fn(
+    `search_watch_${subjectTypeIdent(subject.type)}_${String(index)}`,
+  );
+
+  const trigger = sqlIdent(
+    `bsb_search_${subjectTypeIdent(subject.type)}_watch_${String(index)}`.slice(
+      0,
+      63,
+    ),
+  );
+
+  const key = sqlIdent(watched.key);
+  const table = quotedTable(watched.table);
+  const hops = watched.through ?? [];
+  const enqueue = ctx.fn("search_enqueue");
+
+  const columns =
+    watched.columns === undefined
+      ? undefined
+      : [...new Set([watched.key, ...watched.columns])];
+
+  const values = (row: "old" | "new"): string =>
+    hops.reduce(
+      (previous, hop, at) =>
+        `select h${String(at)}.${sqlIdent(hop.to)}::text from ${quotedTable(hop.table)} h${String(at)} where h${String(at)}.${sqlIdent(hop.from)}::text in (${previous})`,
+      `select ${row}.${key}::text`,
+    );
+
+  const refresh = (row: "old" | "new"): string =>
+    watched.via === undefined && hops.length === 0
+      ? `perform ${enqueue}(${sqlString(subject.type)}, ${row}.${key}::text);`
+      : `for v_id in ${
+          watched.via === undefined
+            ? values(row)
+            : hops.length === 0
+              ? `select s.${subject.id}::text from ${subject.qualified} s where s.${sqlIdent(watched.via)}::text = ${row}.${key}::text`
+              : `select s.${subject.id}::text from ${subject.qualified} s where s.${sqlIdent(watched.via)}::text in (${values(row)})`
+        } loop
+      perform ${enqueue}(${sqlString(subject.type)}, v_id);
     end loop;`;
 
-        return `
+  return `
 -- A change in ${watched.table} re-indexes the ${subject.type} it points at.
 create or replace function ${fn}()
 returns trigger
@@ -241,17 +273,28 @@ begin
 end;
 $$;
 revoke execute on function ${fn}() from public, anon, authenticated;
-do $watch$
-begin
-  if to_regclass(${sqlString(watched.table.includes(".") ? watched.table : `public.${watched.table}`)}) is not null then
-    drop trigger if exists ${trigger} on ${table};
-    create trigger ${trigger} after insert or update or delete on ${table}
-      for each row execute function ${fn}();
-  end if;
-end;
-$watch$;`;
-      }),
-    )
+drop trigger if exists ${trigger} on ${table};
+create trigger ${trigger} after insert or delete or ${columns === undefined ? "update" : `update of ${columns.map(sqlIdent).join(", ")}`} on ${table}
+  for each row execute function ${fn}();`;
+}
+
+/**
+ * Triggers on the tables a subject's `search.watch` names: a change there
+ * re-indexes the record its row points at. A table that exists after the search
+ * file (an app table, or a block that renders later) gets its trigger from its
+ * own file, like the index triggers.
+ */
+function watchTriggers(
+  ctx: BlockSqlContext,
+  layout: BlockSqlLayout,
+  subjects: readonly RegisteredSubject[],
+): string {
+  const later = laterTables(ctx, layout);
+
+  return watchEntries(subjects)
+    .filter((entry) => !isWatchedAppTable(ctx, entry))
+    .filter((entry) => !later.has(quotedTable(entry.watched.table)))
+    .map((entry) => watchTrigger(ctx, entry))
     .join("\n");
 }
 
@@ -359,13 +402,24 @@ export function ownerSearchTriggers(
   const fn = search.fn("search_index_row");
   const tables = tablesOf(owner);
 
-  return searchedSubjects(search)
+  const subjects = searchedSubjects(search);
+
+  const index = subjects
     .filter(
       (subject) =>
         !isAppTable(search, subject) && tables.has(subject.qualified),
     )
-    .map((subject) => triggerSql(fn, subject))
-    .join("\n\n");
+    .map((subject) => triggerSql(fn, subject));
+
+  const watch = watchEntries(subjects)
+    .filter(
+      (entry) =>
+        !isWatchedAppTable(search, entry) &&
+        tables.has(quotedTable(entry.watched.table)),
+    )
+    .map((entry) => watchTrigger(search, entry));
+
+  return [...index, ...watch].join("\n\n");
 }
 
 /**
@@ -380,10 +434,17 @@ export function appTableSearchTriggers(ctx: BlockSqlContext): string {
 
   const fn = ctx.fn("search_index_row");
 
-  return searchedSubjects(ctx)
+  const subjects = searchedSubjects(ctx);
+
+  const index = subjects
     .filter((subject) => isAppTable(ctx, subject))
-    .map((subject) => triggerSql(fn, subject))
-    .join("\n\n");
+    .map((subject) => triggerSql(fn, subject));
+
+  const watch = watchEntries(subjects)
+    .filter((entry) => isWatchedAppTable(ctx, entry))
+    .map((entry) => watchTrigger(ctx, entry));
+
+  return [...index, ...watch].join("\n\n");
 }
 
 interface SearchNames {
@@ -854,7 +915,9 @@ ${cases}
     ${c("url")} = excluded.${c("url")},${described ? `\n    ${c("description")} = excluded.${c("description")},` : ""}
     ${c("tsv")} = excluded.${c("tsv")},${vector ? `\n    ${c("embedding")} = case when ${docs}.${c("contentHash")} = excluded.${c("contentHash")} then ${docs}.${c("embedding")} end,` : ""}
     ${c("contentHash")} = excluded.${c("contentHash")},
-    ${c("updatedAt")} = now();
+    ${c("updatedAt")} = now()
+  where (${docs}.${c("tenant")}, ${docs}.${c("title")}, ${docs}.${c("body")}, ${docs}.${c("url")}${described ? `, ${docs}.${c("description")}` : ""})
+    is distinct from (excluded.${c("tenant")}, excluded.${c("title")}, excluded.${c("body")}, excluded.${c("url")}${described ? `, excluded.${c("description")}` : ""});
   ${ctx.hook("after_search_document_index", [
     ["text", "search_refresh.subject_type"],
     ["text", "search_refresh.subject_id"],
@@ -912,6 +975,57 @@ end;
 $$;
 ${serviceGrant(`${fn("search_reindex")}(text)`)}
 
+-- Indexes a record now, or, while an import batch runs with
+-- better_supabase.search_deferred on (import_upsert_batch sets it), notes the
+-- key once in better_supabase.search_dirty (a transaction-local setting, one
+-- line per key) so search_refresh_dirty indexes it once at the end of the batch.
+create or replace function ${fn("search_enqueue")}(subject_type text, subject_id text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+#variable_conflict use_column
+declare
+  v_key text := search_enqueue.subject_type || E'\\x1f' || search_enqueue.subject_id;
+  v_dirty text;
+begin
+  if coalesce(current_setting('better_supabase.search_deferred', true), '') = 'on' then
+    v_dirty := coalesce(current_setting('better_supabase.search_dirty', true), '');
+    if position(E'\\n' || v_key || E'\\n' in E'\\n' || v_dirty) = 0 then
+      perform set_config('better_supabase.search_dirty', v_dirty || v_key || E'\\n', true);
+    end if;
+  else
+    perform ${fn("search_refresh")}(search_enqueue.subject_type, search_enqueue.subject_id);
+  end if;
+end;
+$$;
+revoke execute on function ${fn("search_enqueue")}(text, text) from public, anon, authenticated;
+
+-- Indexes every record noted by search_enqueue in this transaction, once each.
+-- Returns how many it indexed.
+create or replace function ${fn("search_refresh_dirty")}()
+returns integer
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_count integer := 0;
+  v_dirty text := coalesce(current_setting('better_supabase.search_dirty', true), '');
+  v_line text;
+begin
+  perform set_config('better_supabase.search_dirty', '', true);
+  for v_line in select l from string_to_table(v_dirty, E'\\n') l where l <> '' loop
+    if ${fn("search_refresh")}(split_part(v_line, E'\\x1f', 1), split_part(v_line, E'\\x1f', 2)) then
+      v_count := v_count + 1;
+    end if;
+  end loop;
+  return v_count;
+end;
+$$;
+${serviceGrant(`${fn("search_refresh_dirty")}()`)}
+
 create or replace function ${fn("search_index_row")}()
 returns trigger
 language plpgsql
@@ -923,17 +1037,17 @@ declare
   v_new text := case when tg_op in ('INSERT', 'UPDATE') then to_jsonb(new) ->> tg_argv[1] end;
 begin
   if v_old is not null and v_old is distinct from v_new then
-    perform ${fn("search_refresh")}(tg_argv[0], v_old);
+    perform ${fn("search_enqueue")}(tg_argv[0], v_old);
   end if;
   if v_new is not null then
-    perform ${fn("search_refresh")}(tg_argv[0], v_new);
+    perform ${fn("search_enqueue")}(tg_argv[0], v_new);
   end if;
   return null;
 end;
 $$;
 revoke execute on function ${fn("search_index_row")}() from public, anon, authenticated;
 
-${triggers(ctx, layout, subjects)}${watchTriggers(ctx, subjects)}
+${triggers(ctx, layout, subjects)}${watchTriggers(ctx, layout, subjects)}
 ${searchFunction(ctx, names, described)}
 ${userStateFunctions(ctx, state)}
 ${vector ? embeddingFunctions(ctx, names, vector) : ""}
@@ -970,7 +1084,12 @@ function contract(ctx: BlockSqlContext): readonly BlockSqlContractFunction[] {
 }
 
 export const SEARCH: BlockSqlDefinition = {
-  internal: ["search_user_state", "search_normalize"],
+  internal: [
+    "search_user_state",
+    "search_normalize",
+    "search_enqueue",
+    "search_refresh_dirty",
+  ],
   name: "search",
   scopes: ["tenant"],
   title: "Search",

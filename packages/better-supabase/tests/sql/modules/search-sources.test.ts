@@ -42,8 +42,41 @@ describe("search sources beyond the record's row", () => {
       `alter table "better_supabase"."search_documents" add column "description" text;`,
     );
     expect(sql).toContain(
-      `create trigger "bsb_search_customer_watch_0" after insert or update or delete on "public"."customer_contacts"`,
+      `create trigger "bsb_search_customer_watch_0" after insert or delete or update on "public"."customer_contacts"`,
     );
+  });
+
+  it("creates watch triggers without a do block and limits them to named columns", () => {
+    const sql = sqlOf();
+
+    expect(sql).not.toContain("$watch$");
+    expect(sql).toContain(
+      'perform "better_supabase"."search_enqueue"(\'customer\', new."customer_id"::text);',
+    );
+
+    const columns = sqlOf({
+      customer: {
+        table: "public.customers",
+        title: "name",
+        search: {
+          watch: [
+            { table: "public.tags", key: "customer_id", columns: ["label"] },
+          ],
+        },
+      },
+    });
+
+    expect(columns).toContain(
+      'after insert or delete or update of "customer_id", "label" on "public"."tags"',
+    );
+  });
+
+  it("notes keys while an import defers indexing and indexes each once", () => {
+    const sql = sqlOf();
+
+    expect(sql).toContain("better_supabase.search_deferred");
+    expect(sql).toContain("search_refresh_dirty");
+    expect(sql).toContain("is distinct from (excluded");
   });
 
   it("follows a watched table across a junction table to the records", () => {

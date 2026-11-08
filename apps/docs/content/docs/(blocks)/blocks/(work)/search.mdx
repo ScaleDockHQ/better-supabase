@@ -64,12 +64,12 @@ exist, and `search.reindex()` does it again after a config change.
 A `search` entry takes four more keys for records whose label or matches live
 outside their own row:
 
-| Key           | What it does                                                                                                                                                                                                                                                                                                                                                      |
-| ------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `description` | A column whose value each hit returns as `description` (`SearchHit.description`), such as a SKU or the customer a record belongs to. The index adds a `description` column only once a subject sets it                                                                                                                                                            |
-| `exclude`     | A column that keeps a row out of search while it is set (not null and not `false`), such as `archived_at`. Unlike `deletedAt`, the other blocks still see the row                                                                                                                                                                                                 |
-| `from`        | `{ view, key }`: a view or table with one row per record, keyed by the record's id, that `title`, `body`, `description` and `exclude` read instead of the record's own row. The tenant, `deletedAt` and `url` still come from the record, and any update of the record's row re-indexes it, since the view may read any of its columns                            |
-| `watch`       | `[{ table, key, via?, through? }]`: tables whose insert, update or delete re-index the record. `key` holds the record's id, or, with `via`, the value the record's `via` column holds. `through: [{ table, from, to }]` follows `key` across more tables first, such as a junction table: each hop reads `to` from the rows whose `from` holds the previous value |
+| Key           | What it does                                                                                                                                                                                                                                                                                                                                                                                                                                                              |
+| ------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `description` | A column whose value each hit returns as `description` (`SearchHit.description`), such as a SKU or the customer a record belongs to. The index adds a `description` column only once a subject sets it                                                                                                                                                                                                                                                                    |
+| `exclude`     | A column that keeps a row out of search while it is set (not null and not `false`), such as `archived_at`. Unlike `deletedAt`, the other blocks still see the row                                                                                                                                                                                                                                                                                                         |
+| `from`        | `{ view, key }`: a view or table with one row per record, keyed by the record's id, that `title`, `body`, `description` and `exclude` read instead of the record's own row. The tenant, `deletedAt` and `url` still come from the record, and any update of the record's row re-indexes it, since the view may read any of its columns                                                                                                                                    |
+| `watch`       | `[{ table, key, via?, through?, columns? }]`: tables whose insert, update or delete re-index the record. `columns` limits the update trigger to those columns (and `key`); without it any update does. `key` holds the record's id, or, with `via`, the value the record's `via` column holds. `through: [{ table, from, to }]` follows `key` across more tables first, such as a junction table: each hop reads `to` from the rows whose `from` holds the previous value |
 
 ```ts title="better-supabase.config.ts"
 records: {
@@ -107,6 +107,17 @@ A source view is ordinary schema of the app: it expresses how a record is
 labelled (a number and a title joined, a related name) without the block
 knowing the shape. Changes to the record's own columns still re-index it;
 `watch` covers the tables behind the view.
+
+## Imports
+
+While `import_upsert_batch` writes a batch, the index triggers note each touched
+record once and the batch indexes every noted record when it ends, so a record
+that changes several times in one batch is indexed once. A refresh that finds
+the same tenant, title, body, URL and description leaves the document alone.
+Watch triggers are plain `create trigger` statements on the watched table, so
+the table has to exist when the file runs: an app table or a block table gets its
+trigger from its own file, and a table the schema creates later needs the
+trigger in your own SQL.
 
 ## Search
 
