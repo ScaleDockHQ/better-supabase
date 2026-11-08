@@ -167,8 +167,10 @@ Where the findings come from depends on what doctor reads:
   shows.
 - **A database on this machine** (the local stack or a loopback URL): `supabase db advisors`
   when the Supabase CLI is 2.81.3 or later. Doctor passes the URL with
-  `--db-url` and reads the JSON output. A missing or older CLI, a remote
-  database or a failed run falls back to splinter.
+  `--db-url`, `--type` and `--level info`, and reads the JSON output (a list, an
+  object with `lints`, or one lint per line). A missing or older CLI, a remote
+  database, a failed run or an output shape it doesn't know falls back to
+  splinter.
 - **Any other database, or the fallback** (`$DATABASE_URL`, `$SUPABASE_DB_URL` or `--db-url-stdin`): [splinter](https://github.com/supabase/splinter),
   the SQL behind the advisors. Doctor downloads `splinter.sql` at a pinned
   commit, checks its SHA-256, caches it in

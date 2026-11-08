@@ -43,6 +43,12 @@ a rule can't assume the guard exists yet.
   table in a seed file, and a data statement in an app schema file for a table a
   migration or block data file also writes.
 
+- `supabase db advisors` (ADR 0460): the installed CLI 2.122.0 lists `--db-url`,
+  `--type` (`all`, `security`, `performance`), `--level` and `--fail-on`, which
+  doctor passes. The JSON body was not captured against a database here, so the
+  parser also accepts one lint per line, a test keeps a saved document, and an
+  unknown shape still falls back to splinter at the pinned commit.
+
 ## Alternatives considered
 
 Failing doctor on each shape would have turned existing apps red on upgrade, so
