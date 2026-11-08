@@ -3,7 +3,7 @@ import * as v from "valibot";
 
 import { avatars, avatarSrc } from "@/lib/buckets";
 import { Role } from "@/lib/claims";
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 export interface OrganizationSummary {
   readonly id: string;

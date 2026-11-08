@@ -1,6 +1,6 @@
 # 0541: Record what the server layout items measured and why four stay open
 
-- Status: accepted
+- Status: accepted; the A1 and A2 findings are superseded by 0542
 - Date: 2026-11-08
 - Amends: 0451, 0393
 
@@ -31,7 +31,7 @@ numbers support.
   parameters were never the cost: the `Db` over the schema is. A breaking type
   change that costs 8 instantiations is reverted, and `BetterNext<App>` (3 files,
   the same parameter list) is not piloted.
-- **Per-instance server modules and a lazy `app.ts` (A1, A2).** The customers
+- **Per-instance server modules and a lazy `app.ts` (A1, A2).** _Superseded by ADR 0542: the pilot cut the three routes by 48 to 54 percent, because the estimate below charged block code to shared library chunks._ The customers
   `[id]` page loads one 2.14 MB minified chunk shared by the app routes. By source
   map, `better-supabase/dist/blocks` is 254 KB of it (12%), the rest of the
   library 838 KB, npm packages 532 KB and the app 517 KB (the env schema and its
@@ -62,8 +62,7 @@ numbers support.
 
 ## Consequences
 
-No baseline moves in this record: the server baselines are unchanged because
-no server module changed. What is open is A1 and A2 (a generator change with a
-7.5% upper bound), the `tags.replace` function (a hook contract decision) and a
-cold-start gate (needs the stack in CI). Each has its number here, so the next
-attempt starts from them.
+This record moves no baseline. ADR 0542 moves the three routes after measuring what this
+record estimated. What stays open here is the `tags.replace` function (a hook contract
+decision, decided against in ADR 0542), `ServerContext<App>` (reverted on a measured loss)
+and a cold-start gate (needs the stack in CI). Each has its number here.

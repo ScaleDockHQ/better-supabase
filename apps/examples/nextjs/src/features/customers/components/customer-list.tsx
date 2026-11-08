@@ -1,10 +1,10 @@
 import { getExtracted } from "next-intl/server";
 
 import { Skeleton } from "@/components/ui/skeleton";
+import { getCustomers } from "@/features/customers-list/customers-list-queries";
 import { getPermissions } from "@/features/user/permission-snapshot";
 import { can } from "@/features/user/user-permissions";
 
-import { getCustomers } from "../customers-queries";
 import { CustomerTable } from "./customer-table";
 
 /** Render inside `<Suspense>`; the fallback is `CustomerListSkeleton`. */

@@ -1,7 +1,7 @@
 import "server-only";
 import { refresh } from "next/cache";
 
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 /**
  * Re-renders the caller's page after a mutation, with fresh `'use cache:

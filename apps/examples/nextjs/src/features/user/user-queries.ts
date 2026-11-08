@@ -7,7 +7,7 @@ import type { Claims, Profile } from "@/lib/claims";
 
 import { env } from "@/env";
 import { avatarSrc } from "@/lib/buckets";
-import { bsb } from "@/lib/supabase/server";
+import { bsbShell as bsb } from "@/lib/supabase/server-shell";
 
 import { ProfileRow } from "./profile-row";
 

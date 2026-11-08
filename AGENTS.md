@@ -450,6 +450,7 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0484: Ship bucket definitions to the browser from `better-supabase/storage/client`.
 - 0540: Count object levels in `renameBlock`, not wrappers, and cap the depth at 4.
 - 0541: Record what the server layout items measured and why four stay open.
+- 0542: Build a route's server from a named block set, and load the help bot on demand.
 
 ## Pre-release pins
 
