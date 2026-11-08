@@ -349,6 +349,11 @@
       "types": "./dist/storage/index.d.ts",
       "default": "./dist/storage/index.js"
     },
+    "./storage/client": {
+      "@better-supabase/source": "./src/storage/client/index.ts",
+      "types": "./dist/storage/client/index.d.ts",
+      "default": "./dist/storage/client/index.js"
+    },
     "./realtime": {
       "@better-supabase/source": "./src/realtime/index.ts",
       "types": "./dist/realtime/index.d.ts",
@@ -1736,6 +1741,10 @@
       "./storage": {
         "types": "./dist/storage/index.d.ts",
         "default": "./dist/storage/index.js"
+      },
+      "./storage/client": {
+        "types": "./dist/storage/client/index.d.ts",
+        "default": "./dist/storage/client/index.js"
       },
       "./realtime": {
         "types": "./dist/realtime/index.d.ts",

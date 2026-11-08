@@ -192,6 +192,7 @@ const PURE_BARRELS = [
   "generators/nuqs",
   "sql",
   "storage",
+  "storage/client",
   "streams",
   "streams/redis",
   "credentials",

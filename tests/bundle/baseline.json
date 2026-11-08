@@ -61,6 +61,7 @@
   "./env": 2838,
   "./list": 16193,
   "./storage": 37433,
+  "./storage/client": 28034,
   "./realtime": 46703,
   "./rate-limit": 26820,
   "./recurrence": 10155,

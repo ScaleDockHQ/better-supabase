@@ -3211,6 +3211,7 @@
       "BucketPolicy",
       "Buckets",
       "BucketWithId",
+      "ClientBucket",
       "ConnectedRef",
       "DownloadOptions",
       "ImageBucketOptions",
@@ -3276,6 +3277,44 @@
       "VectorQueryOptions",
       "VectorRecord",
       "VersioningStatus"
+    ]
+  },
+  "./storage/client": {
+    "values": [
+      "defineBucket",
+      "fromStorageError",
+      "parseSize",
+      "storageImageSrcSet",
+      "storageImageUrl",
+      "TTL"
+    ],
+    "types": [
+      "BucketClient",
+      "BucketConfig",
+      "BucketConnectOptions",
+      "ClientBucket",
+      "DownloadOptions",
+      "ImageTransform",
+      "ObjectTarget",
+      "ObjectVersion",
+      "PathValues",
+      "PurgeCacheOptions",
+      "ReplaceOptions",
+      "ReplaceResult",
+      "Reservation",
+      "ReserveResumableOptions",
+      "ResumableReservation",
+      "StorageClient",
+      "StorageImageOptions",
+      "StorageImageSize",
+      "StoragePath",
+      "StoredObject",
+      "TransferOptions",
+      "TransformOptions",
+      "TtlPreset",
+      "UploadBody",
+      "UploadOptions",
+      "UrlOptions"
     ]
   },
   "./realtime": {

@@ -46,14 +46,19 @@ stack and `EXPOSE_TESTING_API`; they were type-checked here, not run.
 
 ## Known limitations
 
-`next build` logs `Date.now()` prerender errors for `/[locale]` and
-`/[locale]/projects`, from the expiry check in `server/sessions.ts`. Next falls
-back to rendering those routes at request time. The same errors appear on
-`feat/bsb-declarative-base-layer`, so this change did not add them. The check
-stays as it is: reading the clock through `performance.timeOrigin` would hide
-the error and let a prerendered shell treat an expired session as live, and a
-runtime entry cannot call `connection()`. A fix belongs with the cache scopes
-that verify a session, so the expiry check runs only inside a request.
+The `Date.now()` prerender errors for `/[locale]` and `/[locale]/projects` do not
+come from `next build`. They come from the production server of the end-to-end
+run (`EXPOSE_TESTING_API`, which turns on `instant()`), where Next renders a
+route as a runtime prefetch with the cookies available. `bsb.resolve` read the
+clock for the cookie session's freshness, called from the Flags SDK `identify`
+(`createIdentify({ server: bsb })`) and not from `server/sessions.ts`, as an
+earlier version of this section said. Awaiting `cookies()` does not keep a clock
+read out of that render. ADR 0484 fixes it in the Next adapter: `bsb.resolve`
+and `bsb.contextFromSession` wait for `io()` first, so a prerender suspends
+there and never judges expiry, and a request runs the check at once. The core
+`resolve` and the proxy are unchanged: a valid token still makes no Auth server
+call, and an expired one is refreshed only in the proxy. The log of the full
+end-to-end run now has no `Date.now()` error.
 
 `tests/bench-scopes.spec.ts` matched `scope-11` twice while React streamed the
 boundary, so the test now looks inside the list. After that, both tests still

@@ -68,6 +68,7 @@ export type {
   BucketConnectOptions,
   BucketConfig,
   BucketDrift,
+  ClientBucket,
   BucketPolicy,
   DownloadOptions,
   ImageTransform,

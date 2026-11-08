@@ -398,6 +398,41 @@ describe("the Next.js example's first-load JavaScript", () => {
     120_000,
   );
 
+  // `better-supabase/storage/client` (ADR 0484) carries paths, limits and
+  // `connect`. `defineBucket` from `better-supabase/storage` also writes the
+  // bucket's SQL and policies, which no route needs in the browser.
+  it.skipIf(UPDATE)(
+    "keeps the storage SQL and policy code out of every route",
+    async () => {
+      const routes = await routeChunks();
+
+      const markers = [
+        "insert into storage.buckets",
+        "on storage.objects",
+        "storage.allow_any_operation",
+        "[storage.buckets.",
+      ];
+
+      const customers = await routeSource(
+        routes.get("/[locale]/(app)/customers/page") ?? new Set(),
+      );
+
+      // The customers page shows logos, so the client bucket is in its tree.
+      expect(customers, "the customers route has the client bucket").toContain(
+        "customer-logos",
+      );
+
+      for (const [route, chunks] of routes) {
+        const source = await routeSource(chunks);
+
+        for (const marker of markers) {
+          expect(source, `${route} loads "${marker}"`).not.toContain(marker);
+        }
+      }
+    },
+    120_000,
+  );
+
   // Markdown, syntax highlighting and json-render load when an answer renders.
   it.skipIf(UPDATE)(
     "defers the assistant's Markdown renderer",
