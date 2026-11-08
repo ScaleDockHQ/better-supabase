@@ -100,5 +100,17 @@ gen: {
 
 The generated module imports `metadata` for its `typeof` and types the column
 as `StandardSchemaV1.InferOutput<typeof metadata>`. An entry in `gen.json` for
-the same column wins. Settings keep their own declaration: pass the
-`defineSettings()` result as `blocks.settings.options.schemas`.
+the same column wins.
+
+## Settings schemas
+
+Name the `defineSettings()` result in the `settings` option, and the
+`settings` block checks its keys with those schemas. You no longer pass it as
+`blocks.settings.options.schemas`:
+
+```ts title="better-supabase.config.ts"
+standardSchema({ settings: "./src/settings.ts#settings" });
+```
+
+The CLI imports that module when it loads the config. A `schemas` option on
+the block wins.

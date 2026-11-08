@@ -15,6 +15,9 @@ with `npx shadcn add @better-supabase/use-notifications`, which writes
 pnpm better-supabase add notifications
 ```
 
+Config installs the block for you when `gen.powersync.instances` or
+`gen.clientBlocks` names it.
+
 Sending goes through `notify(jsonb)`, a `security definer` function, so a
 client can't write notification rows directly or pick another user as the
 actor. With the [access contract](/docs/repository/permissions) installed, the sender

@@ -42,6 +42,12 @@ export interface StandardSchemaGeneratorOptions {
    */
   readonly json?: Readonly<Record<string, string>>;
   /**
+   * The project's `defineSettings()` result, `'./settings.ts#settings'`. The
+   * `settings` block checks its keys with these schemas when
+   * `blocks.settings.options.schemas` is unset.
+   */
+  readonly settings?: string;
+  /**
    * Also export `fieldMeta`: a label, a required flag, enum options and bounds
    * for each writable field, for building forms.
    */

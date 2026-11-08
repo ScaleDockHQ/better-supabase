@@ -203,3 +203,26 @@ describe("resolveConfig vector search", () => {
     expect(resolveConfig({}, "/app").blockNames).not.toContain("vector-search");
   });
 });
+
+describe("resolveConfig notifications", () => {
+  it("installs the notifications block where only it can answer", () => {
+    const stream = { gen: { powersync: { instances: ["notifications"] } } };
+    const client = { gen: { clientBlocks: ["notifications"] } };
+
+    for (const input of [stream, client]) {
+      expect(resolveConfig(input, "/app").blockNames).toEqual([
+        "notifications",
+      ]);
+      expect(
+        resolveConfig({ ...input, blocks: ["notifications"] }, "/app")
+          .blockNames,
+      ).toEqual(["notifications"]);
+    }
+
+    expect(resolveConfig({}, "/app").blockNames).not.toContain("notifications");
+    expect(
+      resolveConfig({ gen: { powersync: { instances: ["teams"] } } }, "/app")
+        .blockNames,
+    ).not.toContain("notifications");
+  });
+});

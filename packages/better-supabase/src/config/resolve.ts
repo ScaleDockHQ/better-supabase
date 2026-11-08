@@ -101,6 +101,23 @@ function isBlockNames(
   return Array.isArray(blocks);
 }
 
+/** `blocks` with `name` added as an empty entry, unchanged when it is there. */
+function withBlock(
+  blocks: BetterSupabaseConfig["blocks"],
+  name: string,
+): BetterSupabaseConfig["blocks"] {
+  if (blocks === undefined) {
+    return [name];
+  }
+
+  if (isBlockNames(blocks)) {
+    return blocks.includes(name) ? blocks : [...blocks, name];
+  }
+
+  // SAFETY: an empty entry is a valid input for every block key.
+  return name in blocks ? blocks : { ...blocks, [name]: {} };
+}
+
 /**
  * `vector-search` joins the blocks of an app with a `vectorSearch` table, so
  * the search functions need no `blocks` entry of their own.
@@ -113,22 +130,23 @@ function withVectorSearch(
     return blocks;
   }
 
-  if (blocks === undefined) {
-    return ["vector-search"];
-  }
+  return withBlock(blocks, "vector-search");
+}
 
-  if (isBlockNames(blocks)) {
-    return blocks.includes("vector-search")
-      ? blocks
-      : [...blocks, "vector-search"];
-  }
+/**
+ * `notifications` joins the blocks of an app that names it where only the block
+ * can answer: a PowerSync stream or a browser client block. A topic template
+ * alone does not install it, since templates exist with or without the block.
+ */
+function withNotifications(
+  blocks: BetterSupabaseConfig["blocks"],
+  config: Pick<FlatConfig, "gen">,
+): BetterSupabaseConfig["blocks"] {
+  const named =
+    config.gen?.powersync?.instances.includes("notifications") === true ||
+    config.gen?.clientBlocks?.includes("notifications") === true;
 
-  // SAFETY: an empty entry is a valid input for every block key.
-  return "vector-search" in blocks
-    ? blocks
-    : ({ ...blocks, "vector-search": {} } as NonNullable<
-        BetterSupabaseConfig["blocks"]
-      >);
+  return named ? withBlock(blocks, "notifications") : blocks;
 }
 
 function blocksOf(
@@ -389,7 +407,10 @@ export function resolveConfig(
   const appTables = appTablesOf(config.appTables, tenantName);
 
   const blocks = blocksOf(
-    withVectorSearch(config.blocks, config.vectorSearch),
+    withNotifications(
+      withVectorSearch(config.blocks, config.vectorSearch),
+      config,
+    ),
     config.sql,
     config.authorization !== undefined,
   );
