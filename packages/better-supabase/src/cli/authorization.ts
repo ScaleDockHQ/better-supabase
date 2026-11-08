@@ -145,7 +145,7 @@ function membershipTemplates(
  * membership rows when it sets the rows and leaves the templates out. A
  * template the provider sets always wins.
  */
-export function providerFunctions(
+function providerFunctions(
   provider: AuthorizationProvider,
   scope: string,
 ): AuthorizationFunctions {

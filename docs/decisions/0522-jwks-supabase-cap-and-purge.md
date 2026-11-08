@@ -15,7 +15,7 @@ key set after it revoked a key.
 ## Decision
 
 - `core/jwks-cache.ts` caps the cache of a Supabase Auth key set (a URL ending
-  in `/auth/v1/.well-known/jwks.json`) at `SUPABASE_JWKS_MAX_CACHE_SECONDS`
+  in `/auth/v1/.well-known/jwks.json`) at the 600 second cap
   (600). The default stays 300, and other issuers keep their own value.
 - `purgeJwks(url?)` forgets one key set, or all of them. `purgeKeys(url?)` in
   `better-supabase/server` is the public form: with a URL it purges that set,

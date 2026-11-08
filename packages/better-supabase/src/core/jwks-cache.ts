@@ -37,12 +37,12 @@ export interface RawJwks {
  * whatever `cacheSeconds` says. Signing keys rotate, and a revoked key keeps
  * verifying until the set is fetched again.
  */
-export const SUPABASE_JWKS_MAX_CACHE_SECONDS = 600;
+const SUPABASE_JWKS_MAX_CACHE_SECONDS = 600;
 
 const SUPABASE_JWKS_PATH = "/auth/v1/.well-known/jwks.json";
 
 /** Whether `url` is a Supabase Auth key set (hosted, self-hosted or local). */
-export function isSupabaseJwksUrl(url: URL): boolean {
+function isSupabaseJwksUrl(url: URL): boolean {
   return url.pathname.endsWith(SUPABASE_JWKS_PATH);
 }
 
