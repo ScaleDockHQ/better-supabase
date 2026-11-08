@@ -488,7 +488,6 @@ begin
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"
     or new."active_organization_id" is distinct from old."active_organization_id"
-    or new."active_team_id" is distinct from old."active_team_id"
     or new."created_at" is distinct from old."created_at"
   ) then
     raise exception 'These profile columns are managed by the service' using errcode = '42501', hint = 'PROFILE_COLUMN_READONLY';

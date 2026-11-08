@@ -1,0 +1,19 @@
+{
+  "name": "@better-supabase/validation-migrations",
+  "private": true,
+  "description": "The migrations and migra workflows on the declarative fixture: upgrade writes a content-stamped migration after the newest one and never touches schemas.",
+  "type": "module",
+  "scripts": {
+    "lint": "oxlint",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@better-supabase/typescript-config": "workspace:*",
+    "@types/node": "catalog:",
+    "better-supabase": "workspace:*",
+    "oxlint": "catalog:",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
+  }
+}

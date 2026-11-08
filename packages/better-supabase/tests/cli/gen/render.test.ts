@@ -29,6 +29,38 @@ const configFor = (contentMapper: boolean) =>
   );
 
 describe("render", () => {
+  it("imports EnrichDatabase only when a table needs it", async () => {
+    const snapshot = await loadFixtureSnapshot();
+
+    const empty = {
+      ...snapshot,
+      generator: {
+        ...snapshot.generator,
+        tables: [],
+        views: [],
+        columns: [],
+        primaryKeys: [],
+        relationships: [],
+        functions: [],
+      },
+      extras: { ...snapshot.extras, tables: [], functions: [] },
+    };
+
+    const generated = async (input: typeof snapshot): Promise<string> => {
+      const { files } = await render(configFor(false), input);
+
+      return files
+        .filter((file) => file.contents.includes("export type Database ="))
+        .map((file) => file.contents)
+        .join("\n");
+    };
+
+    const without = await generated(empty);
+
+    expect(without).toContain("export type Database = SupabaseDatabase;");
+    expect(without).not.toContain("EnrichDatabase");
+  });
+
   it("renders the types module only when asked in files mode", async () => {
     const snapshot = await loadFixtureSnapshot();
     const config = configFor(false);

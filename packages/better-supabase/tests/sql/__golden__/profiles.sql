@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:104f5add5b481ae4ee60bd6739abef3df18f02aea917c043e3eed06b782a552c
+-- @bsb-hash sha256:35b532e22b789bce81ddae117bb12bd3ce327577838e02107d5dcc9760d216b2
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -16,8 +16,6 @@ create table "better_supabase"."profiles" (
   "avatar_url" text,
   "avatar_path" text,
   "locale" text,
-  "active_organization_id" uuid,
-  "active_team_id" uuid,
   "onboarding" jsonb not null default '{}',
   "disabled_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -49,9 +47,9 @@ grant all on "better_supabase"."profiles" to service_role;
 revoke update on "better_supabase"."profiles" from authenticated;
 grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
 
--- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
--- definer functions (switch_organization, the email mirror) run as their
--- owner and pass.
+-- The API roles can't change the key or "email", "disabled_at", "created_at". Security
+-- definer functions (the email mirror among them) run as their owner and
+-- pass.
 create or replace function "better_supabase"."guard_profile"()
 returns trigger
 language plpgsql
@@ -62,8 +60,6 @@ begin
     new."id" is distinct from old."id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"
-    or new."active_organization_id" is distinct from old."active_organization_id"
-    or new."active_team_id" is distinct from old."active_team_id"
     or new."created_at" is distinct from old."created_at"
   ) then
     raise exception 'These profile columns are managed by the service' using errcode = '42501', hint = 'PROFILE_COLUMN_READONLY';
@@ -288,7 +284,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:104f5add5b481ae4ee60bd6739abef3df18f02aea917c043e3eed06b782a552c
+-- @bsb-hash sha256:195e9272e4038d73a415119cebb19fcbe8ab10857e3096a69c84629a29759033
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -337,8 +333,8 @@ revoke update on "better_supabase"."profiles" from authenticated;
 grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
 
 -- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
--- definer functions (switch_organization, the email mirror) run as their
--- owner and pass.
+-- definer functions (the email mirror among them) run as their owner and
+-- pass.
 create or replace function "better_supabase"."guard_profile"()
 returns trigger
 language plpgsql
@@ -575,7 +571,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:3a756e43a1fce4dba3ad07841580c35251c4b952891a83aad561ba2cba3366c7
+-- @bsb-hash sha256:9427c889165010c9634bac1824edd6325f19eb9515aea9562150517e4d16fdcd
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -595,8 +591,6 @@ create table "app_private"."profiles" (
   "avatar_url" text,
   "avatar_path" text,
   "locale" text,
-  "active_organization_id" uuid,
-  "active_team_id" uuid,
   "onboarding" jsonb not null default '{}',
   "disabled_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -628,9 +622,9 @@ grant all on "app_private"."profiles" to service_role;
 revoke update on "app_private"."profiles" from authenticated;
 grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "app_private"."profiles" to authenticated;
 
--- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
--- definer functions (switch_organization, the email mirror) run as their
--- owner and pass.
+-- The API roles can't change the key or "email", "disabled_at", "created_at". Security
+-- definer functions (the email mirror among them) run as their owner and
+-- pass.
 create or replace function "app_private"."guard_profile"()
 returns trigger
 language plpgsql
@@ -641,8 +635,6 @@ begin
     new."id" is distinct from old."id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"
-    or new."active_organization_id" is distinct from old."active_organization_id"
-    or new."active_team_id" is distinct from old."active_team_id"
     or new."created_at" is distinct from old."created_at"
   ) then
     raise exception 'These profile columns are managed by the service' using errcode = '42501', hint = 'PROFILE_COLUMN_READONLY';
@@ -867,7 +859,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:796464f1bc4e3a4321663edf74eb66b3c85df525bcdca5f0108dcca94300b880
+-- @bsb-hash sha256:ea0d7afe0966995022980bcf4d6c46bcd17d3c78e2e2f0eabb1ed3bd4bbf6b5d
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -882,8 +874,6 @@ create table "better_supabase"."profiles" (
   "avatar_url" text,
   "avatar_path" text,
   "locale" text,
-  "active_organization_id" uuid,
-  "active_team_id" uuid,
   "onboarding" jsonb not null default '{}',
   "disabled_at" timestamptz,
   "created_at" timestamptz not null default now(),
@@ -915,9 +905,9 @@ grant all on "better_supabase"."profiles" to service_role;
 revoke update on "better_supabase"."profiles" from authenticated;
 grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;
 
--- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
--- definer functions (switch_organization, the email mirror) run as their
--- owner and pass.
+-- The API roles can't change the key or "email", "disabled_at", "created_at". Security
+-- definer functions (the email mirror among them) run as their owner and
+-- pass.
 create or replace function "better_supabase"."guard_profile"()
 returns trigger
 language plpgsql
@@ -928,8 +918,6 @@ begin
     new."id" is distinct from old."id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"
-    or new."active_organization_id" is distinct from old."active_organization_id"
-    or new."active_team_id" is distinct from old."active_team_id"
     or new."created_at" is distinct from old."created_at"
   ) then
     raise exception 'These profile columns are managed by the service' using errcode = '42501', hint = 'PROFILE_COLUMN_READONLY';
@@ -1204,7 +1192,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_022_profiles.sql
 -- better-supabase module: profiles
 -- @bsb-block profiles@3 managed
--- @bsb-hash sha256:c5118beee06147aa9d6972f7d914013c365d937d8cf9bca0cc57b038242a945a
+-- @bsb-hash sha256:1b46c22be4c011276b379d9e6be169c09e10687d843d8c7c21cd436e256b8256
 -- A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -1217,8 +1205,6 @@ alter table "better_supabase"."profiles" add column if not exists "full_name" te
 alter table "better_supabase"."profiles" add column if not exists "first_name" text;
 alter table "better_supabase"."profiles" add column if not exists "last_name" text;
 alter table "better_supabase"."profiles" add column if not exists "avatar_url" text;
-alter table "better_supabase"."profiles" add column if not exists "active_organization_id" uuid;
-alter table "better_supabase"."profiles" add column if not exists "active_team_id" uuid;
 alter table "better_supabase"."profiles" add column if not exists "onboarding" jsonb not null default '{}';
 alter table "better_supabase"."profiles" add column if not exists "disabled_at" timestamptz;
 alter table "better_supabase"."profiles" add column if not exists "created_at" timestamptz not null default now();
@@ -1238,9 +1224,9 @@ grant all on "better_supabase"."profiles" to service_role;
 
 
 
--- The API roles can't change the key or "email", "disabled_at", "active_organization_id", "active_team_id", "created_at". Security
--- definer functions (switch_organization, the email mirror) run as their
--- owner and pass.
+-- The API roles can't change the key or "email", "disabled_at", "created_at". Security
+-- definer functions (the email mirror among them) run as their owner and
+-- pass.
 create or replace function "better_supabase"."guard_profile"()
 returns trigger
 language plpgsql
@@ -1251,8 +1237,6 @@ begin
     new."id" is distinct from old."id"
     or new."email" is distinct from old."email"
     or new."disabled_at" is distinct from old."disabled_at"
-    or new."active_organization_id" is distinct from old."active_organization_id"
-    or new."active_team_id" is distinct from old."active_team_id"
     or new."created_at" is distinct from old."created_at"
   ) then
     raise exception 'These profile columns are managed by the service' using errcode = '42501', hint = 'PROFILE_COLUMN_READONLY';

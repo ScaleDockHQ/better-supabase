@@ -4,7 +4,6 @@ invitations
 permissions
 impersonation
 organizations
-profiles
 notifications
 webhooks-in
 api-keys

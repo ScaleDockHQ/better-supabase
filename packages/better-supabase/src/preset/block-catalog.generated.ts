@@ -454,7 +454,8 @@ export const BLOCK_CATALOG: BlockCatalog = {
       "description": "A profile per user, created on sign-up from auth metadata with a unique username, an email mirror, column-level update grants and a guard on columns the service owns.",
       "requires": [],
       "integrates": [
-        "memberships"
+        "memberships",
+        "teams"
       ],
       "modes": [
         "managed",

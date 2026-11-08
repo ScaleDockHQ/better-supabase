@@ -132,6 +132,27 @@ describe("profiles module", () => {
     ).not.toContain("avatar_path");
   });
 
+  it("adds the active organization and team columns only next to their modules", () => {
+    const alone = body({});
+
+    for (const name of ["active_organization_id", "active_team_id"]) {
+      expect(alone).not.toContain(name);
+    }
+
+    const tenant = renderBlocks(["profiles", "memberships", "teams"], {
+      modules: { profiles: {}, memberships: {}, teams: {} },
+    })
+      .filter((file) => file.module === "profiles")
+      .map((file) => file.contents)
+      .join("\n");
+
+    expect(tenant).toContain('"active_organization_id" uuid');
+    expect(tenant).toContain('"active_team_id" uuid');
+    expect(tenant).toContain(
+      'new."active_organization_id" is distinct from old."active_organization_id"',
+    );
+  });
+
   it("owns its table with grants, a guard and the auth triggers", () => {
     const sql = body({});
     expect(sql).toContain('create table "better_supabase"."profiles" (');
@@ -139,9 +160,6 @@ describe("profiles module", () => {
       'grant update ("full_name", "first_name", "last_name", "avatar_url", "avatar_path", "locale", "username", "onboarding", "updated_at") on "better_supabase"."profiles" to authenticated;',
     );
     expect(sql).toContain("hint = 'PROFILE_COLUMN_READONLY'");
-    expect(sql).toContain(
-      'new."active_organization_id" is distinct from old."active_organization_id"',
-    );
     expect(sql).toContain(
       'create trigger "bsb_profile_sync" after insert on auth.users',
     );
