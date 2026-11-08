@@ -1,7 +1,7 @@
 -- ==== alone: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:a8cc43ea205c417906a2899cf77be6b3ae1869e7ea531a8b5ecdb7e08f6c1289
+-- @bsb-hash sha256:3e2bb385c34c3fef6522eb813a699421addc2d0c549611ed956b5f9c9c946b2f
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -524,7 +524,7 @@ as $$
       and (list_notifications.read is null or (rc."read_at" is not null) = list_notifications.read)
       and (list_notifications.resolved is null or (rc."resolved_at" is not null) = list_notifications.resolved)
       and (list_notifications.tenant is null or rc."tenant_id" = list_notifications.tenant)
-      and (list_notifications.types is null or ev."type" = any(list_notifications.types))
+      and ev."type" = any(coalesce(list_notifications.types, array[ev."type"]))
       and (list_notifications.subject_types is null or ev."subject_type" = any(list_notifications.subject_types))
       and (list_notifications.search is null or btrim(list_notifications.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
       and case coalesce(list_notifications.status, 'all')
@@ -569,7 +569,7 @@ as $$
       and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)
       and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)
       and (notification_page.tenant is null or rc."tenant_id" = notification_page.tenant)
-      and (notification_page.types is null or ev."type" = any(notification_page.types))
+      and ev."type" = any(coalesce(notification_page.types, array[ev."type"]))
       and (notification_page.subject_types is null or ev."subject_type" = any(notification_page.subject_types))
       and (notification_page.search is null or btrim(notification_page.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
       and case coalesce(notification_page.status, 'all')
@@ -669,7 +669,12 @@ as $$
     where rc."user_id" = auth.uid()
       and rc."read_at" is null
       and rc."dismissed_at" is null
-      and (mark_notifications_read.ids is null or rc."id" = any(mark_notifications_read.ids))
+      and rc."id" in (
+        select picked from unnest(mark_notifications_read.ids) picked
+        union all
+        select all_rc."id" from "better_supabase"."notification_recipients" all_rc
+        where mark_notifications_read.ids is null and all_rc."user_id" = auth.uid() and all_rc."read_at" is null
+      )
       and (mark_notifications_read.tenant is null or rc."tenant_id" = mark_notifications_read.tenant)
     returning rc.*
   )
@@ -1579,7 +1584,7 @@ on conflict (name) do update
 -- ==== with every module: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:c2d76edb93bfcb75656b2a148941b14097df77809f5e3bc0a94091e4c55e600f
+-- @bsb-hash sha256:8cceca180309d85d0e0f161002515bcb806bbc66c619fc6f85895290d65b651e
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -2130,7 +2135,7 @@ as $$
       and (list_notifications.read is null or (rc."read_at" is not null) = list_notifications.read)
       and (list_notifications.resolved is null or (rc."resolved_at" is not null) = list_notifications.resolved)
       and (list_notifications.tenant is null or rc."tenant_id" = list_notifications.tenant)
-      and (list_notifications.types is null or ev."type" = any(list_notifications.types))
+      and ev."type" = any(coalesce(list_notifications.types, array[ev."type"]))
       and (list_notifications.subject_types is null or ev."subject_type" = any(list_notifications.subject_types))
       and (list_notifications.search is null or btrim(list_notifications.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
       and case coalesce(list_notifications.status, 'all')
@@ -2175,7 +2180,7 @@ as $$
       and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)
       and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)
       and (notification_page.tenant is null or rc."tenant_id" = notification_page.tenant)
-      and (notification_page.types is null or ev."type" = any(notification_page.types))
+      and ev."type" = any(coalesce(notification_page.types, array[ev."type"]))
       and (notification_page.subject_types is null or ev."subject_type" = any(notification_page.subject_types))
       and (notification_page.search is null or btrim(notification_page.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
       and case coalesce(notification_page.status, 'all')
@@ -2275,7 +2280,12 @@ as $$
     where rc."user_id" = auth.uid()
       and rc."read_at" is null
       and rc."dismissed_at" is null
-      and (mark_notifications_read.ids is null or rc."id" = any(mark_notifications_read.ids))
+      and rc."id" in (
+        select picked from unnest(mark_notifications_read.ids) picked
+        union all
+        select all_rc."id" from "better_supabase"."notification_recipients" all_rc
+        where mark_notifications_read.ids is null and all_rc."user_id" = auth.uid() and all_rc."read_at" is null
+      )
       and (mark_notifications_read.tenant is null or rc."tenant_id" = mark_notifications_read.tenant)
     returning rc.*
   )
@@ -3235,7 +3245,7 @@ on conflict (name) do update
 -- ==== schema app_private: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:52800ee2dd49fb06bfc959f4e4a6126479244f11acf9fb55f3cdc50569ded860
+-- @bsb-hash sha256:3273517075a07a8455192d686b99bc06122a47826180c9c0ad7018f9ebd116de
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -3763,7 +3773,7 @@ as $$
       and (list_notifications.read is null or (rc."read_at" is not null) = list_notifications.read)
       and (list_notifications.resolved is null or (rc."resolved_at" is not null) = list_notifications.resolved)
       and (list_notifications.tenant is null or rc."tenant_id" = list_notifications.tenant)
-      and (list_notifications.types is null or ev."type" = any(list_notifications.types))
+      and ev."type" = any(coalesce(list_notifications.types, array[ev."type"]))
       and (list_notifications.subject_types is null or ev."subject_type" = any(list_notifications.subject_types))
       and (list_notifications.search is null or btrim(list_notifications.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
       and case coalesce(list_notifications.status, 'all')
@@ -3808,7 +3818,7 @@ as $$
       and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)
       and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)
       and (notification_page.tenant is null or rc."tenant_id" = notification_page.tenant)
-      and (notification_page.types is null or ev."type" = any(notification_page.types))
+      and ev."type" = any(coalesce(notification_page.types, array[ev."type"]))
       and (notification_page.subject_types is null or ev."subject_type" = any(notification_page.subject_types))
       and (notification_page.search is null or btrim(notification_page.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
       and case coalesce(notification_page.status, 'all')
@@ -3908,7 +3918,12 @@ as $$
     where rc."user_id" = auth.uid()
       and rc."read_at" is null
       and rc."dismissed_at" is null
-      and (mark_notifications_read.ids is null or rc."id" = any(mark_notifications_read.ids))
+      and rc."id" in (
+        select picked from unnest(mark_notifications_read.ids) picked
+        union all
+        select all_rc."id" from "app_private"."notification_recipients" all_rc
+        where mark_notifications_read.ids is null and all_rc."user_id" = auth.uid() and all_rc."read_at" is null
+      )
       and (mark_notifications_read.tenant is null or rc."tenant_id" = mark_notifications_read.tenant)
     returning rc.*
   )
@@ -4818,7 +4833,7 @@ on conflict (name) do update
 -- ==== api schema: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:60bfd1917e13a42114488c1b1e3774afb2fdb01cdd676b27fec132426283d779
+-- @bsb-hash sha256:d6cbfdce1e0b086e22300f81c5d181adaff3b03353511d0317e4e39cfd4848aa
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -5341,7 +5356,7 @@ as $$
       and (list_notifications.read is null or (rc."read_at" is not null) = list_notifications.read)
       and (list_notifications.resolved is null or (rc."resolved_at" is not null) = list_notifications.resolved)
       and (list_notifications.tenant is null or rc."tenant_id" = list_notifications.tenant)
-      and (list_notifications.types is null or ev."type" = any(list_notifications.types))
+      and ev."type" = any(coalesce(list_notifications.types, array[ev."type"]))
       and (list_notifications.subject_types is null or ev."subject_type" = any(list_notifications.subject_types))
       and (list_notifications.search is null or btrim(list_notifications.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
       and case coalesce(list_notifications.status, 'all')
@@ -5386,7 +5401,7 @@ as $$
       and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)
       and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)
       and (notification_page.tenant is null or rc."tenant_id" = notification_page.tenant)
-      and (notification_page.types is null or ev."type" = any(notification_page.types))
+      and ev."type" = any(coalesce(notification_page.types, array[ev."type"]))
       and (notification_page.subject_types is null or ev."subject_type" = any(notification_page.subject_types))
       and (notification_page.search is null or btrim(notification_page.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
       and case coalesce(notification_page.status, 'all')
@@ -5486,7 +5501,12 @@ as $$
     where rc."user_id" = auth.uid()
       and rc."read_at" is null
       and rc."dismissed_at" is null
-      and (mark_notifications_read.ids is null or rc."id" = any(mark_notifications_read.ids))
+      and rc."id" in (
+        select picked from unnest(mark_notifications_read.ids) picked
+        union all
+        select all_rc."id" from "better_supabase"."notification_recipients" all_rc
+        where mark_notifications_read.ids is null and all_rc."user_id" = auth.uid() and all_rc."read_at" is null
+      )
       and (mark_notifications_read.tenant is null or rc."tenant_id" = mark_notifications_read.tenant)
     returning rc.*
   )
@@ -6684,7 +6704,7 @@ on conflict (name) do update
 -- ==== over the app's tables: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:b2381d60f22d92a7ce931d5e8847c5ff64a9a5304b38c9037e4ca70758217f41
+-- @bsb-hash sha256:4e9a41f0b68904efab5e592d1b7f4f6c183ca0a768d996dc9219991634639c5d
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -7193,7 +7213,7 @@ as $$
       and (list_notifications.read is null or (rc."read_at" is not null) = list_notifications.read)
       and (list_notifications.resolved is null or (rc."resolved_at" is not null) = list_notifications.resolved)
       and (list_notifications.tenant is null or rc."tenant_id" = list_notifications.tenant)
-      and (list_notifications.types is null or ev."type" = any(list_notifications.types))
+      and ev."type" = any(coalesce(list_notifications.types, array[ev."type"]))
       and (list_notifications.subject_types is null or ev."subject_type" = any(list_notifications.subject_types))
       and (list_notifications.search is null or btrim(list_notifications.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
       and case coalesce(list_notifications.status, 'all')
@@ -7238,7 +7258,7 @@ as $$
       and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)
       and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)
       and (notification_page.tenant is null or rc."tenant_id" = notification_page.tenant)
-      and (notification_page.types is null or ev."type" = any(notification_page.types))
+      and ev."type" = any(coalesce(notification_page.types, array[ev."type"]))
       and (notification_page.subject_types is null or ev."subject_type" = any(notification_page.subject_types))
       and (notification_page.search is null or btrim(notification_page.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
       and case coalesce(notification_page.status, 'all')
@@ -7338,7 +7358,12 @@ as $$
     where rc."user_id" = auth.uid()
       and rc."read_at" is null
       and rc."dismissed_at" is null
-      and (mark_notifications_read.ids is null or rc."id" = any(mark_notifications_read.ids))
+      and rc."id" in (
+        select picked from unnest(mark_notifications_read.ids) picked
+        union all
+        select all_rc."id" from "better_supabase"."notification_recipients" all_rc
+        where mark_notifications_read.ids is null and all_rc."user_id" = auth.uid() and all_rc."read_at" is null
+      )
       and (mark_notifications_read.tenant is null or rc."tenant_id" = mark_notifications_read.tenant)
     returning rc.*
   )
@@ -8248,7 +8273,7 @@ on conflict (name) do update
 -- ==== tenant column renamed: schema supabase/schemas/900_better_supabase_024_notifications.sql
 -- better-supabase module: notifications
 -- @bsb-block notifications@10 managed
--- @bsb-hash sha256:5d417c27c26247e5767d66b98edab1e0482ee11a667fad1b2f4c945c9c968bea
+-- @bsb-hash sha256:29903bfc15c7d1896cb590308912c7ab2d86d6848f0ed5b652213b586f8ec4c5
 -- In-app notifications sent through a security definer notify(): one event per change, per-recipient read, dismissed and resolved state, per-channel deliveries, subject subscriptions, preferences with a tenant override, and realtime on a private topic.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -8771,7 +8796,7 @@ as $$
       and (list_notifications.read is null or (rc."read_at" is not null) = list_notifications.read)
       and (list_notifications.resolved is null or (rc."resolved_at" is not null) = list_notifications.resolved)
       and (list_notifications.tenant is null or rc."org_id" = list_notifications.tenant)
-      and (list_notifications.types is null or ev."type" = any(list_notifications.types))
+      and ev."type" = any(coalesce(list_notifications.types, array[ev."type"]))
       and (list_notifications.subject_types is null or ev."subject_type" = any(list_notifications.subject_types))
       and (list_notifications.search is null or btrim(list_notifications.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(list_notifications.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
       and case coalesce(list_notifications.status, 'all')
@@ -8816,7 +8841,7 @@ as $$
       and (notification_page.read is null or (rc."read_at" is not null) = notification_page.read)
       and (notification_page.resolved is null or (rc."resolved_at" is not null) = notification_page.resolved)
       and (notification_page.tenant is null or rc."org_id" = notification_page.tenant)
-      and (notification_page.types is null or ev."type" = any(notification_page.types))
+      and ev."type" = any(coalesce(notification_page.types, array[ev."type"]))
       and (notification_page.subject_types is null or ev."subject_type" = any(notification_page.subject_types))
       and (notification_page.search is null or btrim(notification_page.search) = '' or concat_ws(' ', ev."summary", ev."subject_label", ev."type") ilike '%' || replace(replace(replace(btrim(notification_page.search), chr(92), chr(92) || chr(92)), '%', chr(92) || '%'), '_', chr(92) || '_') || '%')
       and case coalesce(notification_page.status, 'all')
@@ -8916,7 +8941,12 @@ as $$
     where rc."user_id" = auth.uid()
       and rc."read_at" is null
       and rc."dismissed_at" is null
-      and (mark_notifications_read.ids is null or rc."id" = any(mark_notifications_read.ids))
+      and rc."id" in (
+        select picked from unnest(mark_notifications_read.ids) picked
+        union all
+        select all_rc."id" from "better_supabase"."notification_recipients" all_rc
+        where mark_notifications_read.ids is null and all_rc."user_id" = auth.uid() and all_rc."read_at" is null
+      )
       and (mark_notifications_read.tenant is null or rc."org_id" = mark_notifications_read.tenant)
     returning rc.*
   )

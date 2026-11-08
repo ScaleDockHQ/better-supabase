@@ -1,6 +1,6 @@
 -- better-supabase module: knowledge
 -- @bsb-block knowledge@7 managed
--- @bsb-hash sha256:496ce13f06ddb33df9f489059402f55e0df568eb02d4c303ef374e1fa43017ff
+-- @bsb-hash sha256:8817e5cfe2e2f01d32a734759d6f1e1d484f47c251646b75c94a15177a7cbe81
 -- Documents and chunks for retrieval with an embedding and a tsvector each, scoped to an organization, agent, project, chat, user or record (subject) and grouped into collections with a visibility, a priority and grants, plus system documents shared with every tenant; hybrid search with reciprocal rank fusion, chunks that keep their embedding when unchanged, and an embed job per document when jobs is installed. With ai-files and jobs, queue_knowledge_file ingests a file through a job.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -607,7 +607,8 @@ grant execute on function "better_supabase"."delete_knowledge_document"(uuid) to
 -- priority_order is false. Returns a JSON array of {document_id, idx,
 -- chunk_id, organization_id, content, metadata, title, score}; chunk_id is
 -- the document id and idx joined by '#', and organization_id is null for a
--- system document.
+-- system document. The custom plan setting lets the planner fold the null
+-- collections parameter, so the collection filter can use its index.
 
 create or replace function "better_supabase"."knowledge_search"(
   tenant uuid,
@@ -624,6 +625,7 @@ language plpgsql
 stable
 security invoker
 set search_path = ''
+set plan_cache_mode = force_custom_plan
 as $$
 declare
   previous_scan text := current_setting('hnsw.iterative_scan', true);
