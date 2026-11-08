@@ -9,7 +9,7 @@ import {
   ChatListSkeleton,
 } from "@/features/assistant/components/chat-list";
 import { NewChat } from "@/features/assistant/components/new-chat";
-import { SpecView } from "@/features/assistant/components/spec-view";
+import { SpecViewLazy } from "@/features/assistant/components/spec-view-lazy";
 import { StoredChatSkeleton } from "@/features/assistant/components/stored-chat";
 
 const SAMPLE_SPEC: JsonRenderSpec = {
@@ -26,6 +26,9 @@ const SAMPLE_SPEC: JsonRenderSpec = {
   },
 };
 
+// The heading and the sample card paint before the chats stream in.
+export const instant = true;
+
 export default function AssistantPage() {
   const t = useExtracted("assistant");
 
@@ -37,7 +40,7 @@ export default function AssistantPage() {
           "Chats on the ai-chat block. A reload resumes an answer that is still streaming.",
         )}
       />
-      <SpecView spec={SAMPLE_SPEC} />
+      <SpecViewLazy spec={SAMPLE_SPEC} />
       <div data-recipe="chat-with-history">
         <Suspense fallback={<StoredChatSkeleton />}>
           <NewChat />

@@ -9,7 +9,6 @@ import {
 import { useExtracted } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { toast } from "sonner";
 
 import {
   Alert,
@@ -34,6 +33,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Loaded, MeetingMinutesView } from "../meetings-queries";

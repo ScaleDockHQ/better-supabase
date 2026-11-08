@@ -14,7 +14,6 @@ import {
 } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -40,6 +39,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { useUndoToast } from "@/features/trash/components/undo-toast";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import {

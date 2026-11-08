@@ -4,7 +4,6 @@ import { useAction } from "better-supabase/react";
 import { CopyIcon, LinkIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +15,7 @@ import {
 } from "@/components/ui/dialog";
 import { Field, FieldLabel } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { createBookingLink } from "../bookings-actions";
@@ -74,9 +74,9 @@ export function BookingLinkButton() {
                 aria-label={t("Copy link")}
                 onClick={() => {
                   if (url) {
-                    void navigator.clipboard
-                      .writeText(url)
-                      .then(() => toast.success(t("Link copied")));
+                    void navigator.clipboard.writeText(url).then(() => {
+                      toast.success(t("Link copied"));
+                    });
                   }
                 }}
               >

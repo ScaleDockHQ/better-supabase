@@ -1,4 +1,5 @@
 import { createSupabase } from "better-supabase";
+import "temporal-polyfill/global";
 import { Temporal } from "temporal-polyfill";
 
 import { toAppError } from "../app-error.ts";

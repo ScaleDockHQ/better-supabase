@@ -17,7 +17,6 @@ import { useAction } from "better-supabase/react";
 import { PlayIcon, PlusIcon, SaveIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -31,6 +30,7 @@ import {
 } from "@/components/ui/select";
 import { useWorkflowCanvasRun } from "@/hooks/use-workflow-editor";
 import { useWorkflowRuns } from "@/hooks/use-workflows";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { BuilderDetail } from "../builder-queries";

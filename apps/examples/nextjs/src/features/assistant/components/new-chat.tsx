@@ -1,7 +1,7 @@
 import { io } from "next/cache";
 
 import { durableAvailable } from "../assistant-server";
-import { AssistantChat } from "./assistant-chat";
+import { AssistantChatLazy } from "./assistant-chat-lazy";
 
 // skeleton: renders from props and translations, so nothing of its own suspends
 /**
@@ -12,7 +12,7 @@ export async function NewChat() {
   await io();
 
   return (
-    <AssistantChat
+    <AssistantChatLazy
       // oxlint-disable-next-line react-doctor/rendering-hydration-mismatch-time -- a server component after `io()`, so each request gets a fresh chat id on purpose
       id={crypto.randomUUID()}
       messages={[]}

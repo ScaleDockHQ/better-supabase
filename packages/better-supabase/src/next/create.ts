@@ -372,11 +372,34 @@ export function createNext<
     secure: options.support?.options.cookie?.secure ?? true,
   } as const;
 
-  const contextFromSession = (
+  /**
+   * Both read the clock to judge a token's expiry: `resolve` for a cookie
+   * session's freshness, `contextFromSession` for a parked snapshot. During a
+   * runtime prefetch render the cookies are available, so awaiting them does
+   * not keep the read out of the prerender; `io()` suspends there until a real
+   * request, so a prerender never judges expiry and never treats an expired
+   * session as live. In a request, in a cache scope and outside Next it
+   * resolves at once.
+   */
+  const resolveAtRequest: BetterServer<M, F, E, C, P, B>["resolve"] = async (
+    request,
+    resolveOptions,
+  ) => {
+    await io();
+
+    return base.resolve(request, resolveOptions);
+  };
+
+  const contextFromSession = async (
     snapshot: SessionSnapshot<C> | null,
     contextOptions?: ContextOptions,
-  ): Promise<ServerContext<M, F, E, C, P, B>> =>
-    base.contextFromSession(snapshot, contextOptions);
+  ): Promise<ServerContext<M, F, E, C, P, B>> => {
+    if (snapshot !== null && snapshot.expiresAt !== null) {
+      await io();
+    }
+
+    return base.contextFromSession(snapshot, contextOptions);
+  };
 
   const evictSession = async (
     userId: string,
@@ -395,6 +418,7 @@ export function createNext<
       ),
     ),
     contextFromSession,
+    resolve: resolveAtRequest,
     evictSession,
     deleteAccount: ((userId, deleteOptions) =>
       base.deleteAccount(userId, deleteOptions).map((result) => {

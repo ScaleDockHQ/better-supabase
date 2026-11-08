@@ -4,7 +4,6 @@ import { useAction } from "better-supabase/react";
 import { BellPlusIcon, XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
@@ -15,6 +14,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { ReminderOffset } from "../calendar-subjects";

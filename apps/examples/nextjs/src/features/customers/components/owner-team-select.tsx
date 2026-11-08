@@ -3,7 +3,6 @@
 import { useAction } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useOptimistic, useTransition } from "react";
-import { toast } from "sonner";
 
 import {
   Select,
@@ -12,6 +11,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { setCustomerOwnerTeam } from "../customers-actions";

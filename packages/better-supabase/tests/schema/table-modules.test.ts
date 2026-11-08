@@ -71,6 +71,20 @@ describe("client.table", () => {
     }),
   };
 
+  it("exposes the query options of a table registered after the client was built", () => {
+    const app = createSupabase(defineSchema(lazy));
+
+    const client = bindClient(app, supabase);
+
+    expect(client.queries).not.toHaveProperty("customers");
+    client.table(customers);
+
+    const queries: Record<string, { list?: unknown } | undefined> =
+      client.queries;
+
+    expect(typeof queries["customers"]?.list).toBe("function");
+  });
+
   it("registers the table, also on a `db` made before it", async () => {
     const bound = bindClient(createSupabase(defineSchema(lazy)), supabase, {
       engine,

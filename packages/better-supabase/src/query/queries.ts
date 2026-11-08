@@ -630,21 +630,42 @@ export function createQueries<
     }),
   };
 
-  for (const table of Object.keys(betterSupabase.meta.tables)) {
+  const defineTable = (table: string): void => {
     let built: Record<string, unknown> | undefined;
     Object.defineProperty(queries, table, {
       enumerable: true,
+      configurable: true,
       get: () => {
         built ??= tableQueries(runtime, table);
 
         return built;
       },
     });
+  };
+
+  for (const table of Object.keys(betterSupabase.meta.tables)) {
+    defineTable(table);
   }
+
+  // A `lazyTables` schema starts without tables and gains one each time a
+  // module registers it, after this object was built.
+  const lateTables = new Proxy(queries, {
+    get: (target, name) => {
+      if (
+        typeof name === "string" &&
+        !(name in target) &&
+        name in betterSupabase.meta.tables
+      ) {
+        defineTable(name);
+      }
+
+      return typeof name === "string" ? target[name] : undefined;
+    },
+  });
 
   // SAFETY: queries has one entry per table and procedure, which is the shape
   // of BetterQueries<M, E, F>.
-  return queries as BetterQueries<M, E, F>;
+  return lateTables as BetterQueries<M, E, F>;
 }
 
 /** Invalidates every query that read a table in the target. */

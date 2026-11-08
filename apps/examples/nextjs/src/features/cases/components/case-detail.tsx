@@ -3,7 +3,6 @@
 import { useAction } from "better-supabase/react";
 import { CircleCheckIcon, CircleDotIcon, ListChecksIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { toast } from "sonner";
 
 import { Alert, AlertDescription, AlertTitle } from "@/components/reui/alert";
 import { Badge } from "@/components/reui/badge";
@@ -23,6 +22,7 @@ import {
   EmptyMedia,
   EmptyTitle,
 } from "@/components/ui/empty";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { CaseDetailView } from "../cases-queries";

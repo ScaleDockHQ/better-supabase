@@ -8,7 +8,6 @@ import { formatMoney, moneyFromJson } from "better-supabase/commerce";
 import { useAction } from "better-supabase/react";
 import { useExtracted, useFormatter, useLocale } from "next-intl";
 import { createContext, use, useCallback, useMemo } from "react";
-import { toast } from "sonner";
 
 import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
 
@@ -21,6 +20,7 @@ import {
 import { DataGridScrollArea } from "@/components/reui/data-grid/data-grid-scroll-area";
 import { DataGridTable } from "@/components/reui/data-grid/data-grid-table";
 import { Button } from "@/components/ui/button";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { BankTransactionRow } from "../banking-queries";

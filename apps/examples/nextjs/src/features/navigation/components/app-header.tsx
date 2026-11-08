@@ -4,9 +4,9 @@ import { useExtracted } from "next-intl";
 
 import { Separator } from "@/components/ui/separator";
 import { SidebarTrigger } from "@/components/ui/sidebar";
-import { HelpSheet } from "@/features/inbox/components/help-sheet";
+import { HelpSheetLazy } from "@/features/inbox/components/help-sheet-lazy";
 import { UnreadBadge } from "@/features/notifications/components/unread-badge";
-import { CommandSearch } from "@/features/search/components/command-search";
+import { CommandSearchLazy } from "@/features/search/components/command-search-lazy";
 
 /**
  * Synchronous, so it is part of the static shell of every page. The layout
@@ -25,8 +25,8 @@ export function AppHeader({ breadcrumbs }: { breadcrumbs: ReactNode }) {
       <Separator orientation="vertical" className="mr-2 h-4" />
       {breadcrumbs}
       <div className="ml-auto flex items-center gap-1">
-        <CommandSearch />
-        <HelpSheet />
+        <CommandSearchLazy />
+        <HelpSheetLazy />
         <UnreadBadge />
       </div>
     </header>

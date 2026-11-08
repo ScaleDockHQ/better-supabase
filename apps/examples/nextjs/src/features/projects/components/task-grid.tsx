@@ -11,7 +11,6 @@ import { useAction } from "better-supabase/react";
 import { BookmarkIcon, SearchIcon, Trash2Icon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState, useTransition } from "react";
-import { toast } from "sonner";
 import * as v from "valibot";
 
 import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
@@ -58,6 +57,7 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { Link, usePathname, useRouter, withSearch } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type {

@@ -19,7 +19,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Link } from "@/i18n/navigation";
-import { useSupabase } from "@/lib/hooks";
+import { loadBrowserClient } from "@/lib/supabase/load-client";
 
 type State =
   | { readonly error: string; readonly email: string }
@@ -31,11 +31,12 @@ export function ForgotPasswordForm() {
   const t = useExtracted("auth");
   const fieldId = useId();
   const locale = useLocale();
-  const supabase = useSupabase();
 
   const [state, submit, pending] = useActionState(
     async (_previous: State, form: FormData): Promise<State> => {
       const email = String(form.get("email"));
+
+      const { supabase } = await loadBrowserClient();
 
       const { error } = await supabase.auth.resetPasswordForEmail(email, {
         redirectTo: `${window.location.origin}/${locale}/reset-password`,

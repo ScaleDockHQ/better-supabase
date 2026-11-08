@@ -4,7 +4,6 @@
 import { useActionForm } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -16,6 +15,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SubmitLabel } from "@/features/offline/components/submit-label";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { updateProfile } from "../user-actions";

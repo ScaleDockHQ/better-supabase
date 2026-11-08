@@ -7,7 +7,6 @@ import { useAction, useActionForm } from "better-supabase/react";
 import { TicketPercentIcon, XIcon } from "lucide-react";
 import { useExtracted, useLocale } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/reui/badge";
 import { Button } from "@/components/ui/button";
@@ -29,6 +28,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import {

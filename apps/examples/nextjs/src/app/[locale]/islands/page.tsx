@@ -1,6 +1,7 @@
 import { useExtracted } from "next-intl";
 import { Suspense } from "react";
 
+import { DataProviders } from "@/app/data-providers";
 import { PageHeader } from "@/components/page-header";
 import { buttonVariants } from "@/components/ui/button";
 import { AuthzRefresh } from "@/features/islands/components/authz-refresh";
@@ -108,5 +109,9 @@ export default function IslandsPage({
 
 /** Starts the session read inside its boundary, so the shell never waits for it. */
 function IslandsAuthzRefresh() {
-  return <AuthzRefresh session={bsb.claims()} />;
+  return (
+    <DataProviders>
+      <AuthzRefresh session={bsb.claims()} />
+    </DataProviders>
+  );
 }

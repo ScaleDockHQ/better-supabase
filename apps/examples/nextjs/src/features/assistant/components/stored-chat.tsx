@@ -4,7 +4,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 
 import { getStoredChat } from "../assistant-queries";
 import { durableAvailable } from "../assistant-server";
-import { AssistantChat } from "./assistant-chat";
+import { AssistantChatLazy } from "./assistant-chat-lazy";
 
 /** Render inside `<Suspense>`: reads the `id` param and the stored branch. */
 export async function StoredChat({ id }: { id: string }) {
@@ -15,7 +15,7 @@ export async function StoredChat({ id }: { id: string }) {
   }
 
   return (
-    <AssistantChat
+    <AssistantChatLazy
       id={id}
       messages={chat.messages}
       streaming={chat.streaming}

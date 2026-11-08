@@ -4,7 +4,7 @@ import { ThemeProvider } from "@wrksz/themes/next";
 import { NextIntlClientProvider, useLocale } from "next-intl";
 import { getExtracted } from "next-intl/server";
 
-import { Toaster } from "@/components/ui/sonner";
+import { LazyToaster } from "@/components/ui/lazy-toaster";
 import { ServiceWorkerRegistrar } from "@/features/offline/components/service-worker-registrar";
 import { routing } from "@/i18n/routing";
 import { geistMono, geistSans } from "@/lib/fonts";
@@ -12,6 +12,11 @@ import { cn } from "@/lib/utils";
 
 import "../globals.css";
 import { Providers } from "../providers";
+
+// Every route group keeps its app shell static: a default <Link> loads only
+// prerendered output, and anything that reads the session or a route token
+// renders behind its own <Suspense> boundary (Next.js 16.4, ADR 0481).
+export const ensureStatic = "shell";
 
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
@@ -54,7 +59,7 @@ export default function LocaleLayout({ children }: LayoutProps<"/[locale]">) {
         <ThemeProvider storage="cookie" themes={["light", "dark"]}>
           <NextIntlClientProvider>
             <Providers>{children}</Providers>
-            <Toaster />
+            <LazyToaster />
             <ServiceWorkerRegistrar />
           </NextIntlClientProvider>
         </ThemeProvider>

@@ -8,7 +8,6 @@ import { DbException } from "better-supabase";
 import { UserMinusIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { createContext, use, useCallback, useMemo, useState } from "react";
-import { toast } from "sonner";
 import * as v from "valibot";
 
 import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
@@ -50,6 +49,7 @@ import { Link } from "@/i18n/navigation";
 import { Role } from "@/lib/claims";
 import { initials } from "@/lib/initials";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
+import { toast } from "@/lib/toast";
 import { useSearchParam } from "@/lib/url-filters";
 import { useErrorMessage } from "@/lib/use-error-message";
 

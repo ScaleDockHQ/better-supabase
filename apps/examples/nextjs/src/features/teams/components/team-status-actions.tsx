@@ -3,7 +3,6 @@
 import { useAction } from "better-supabase/react";
 import { ArchiveIcon, ArchiveRestoreIcon, Trash2Icon } from "lucide-react";
 import { useExtracted } from "next-intl";
-import { toast } from "sonner";
 
 import {
   AlertDialog,
@@ -18,6 +17,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { useRouter } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { deleteTeam, setTeamArchived } from "../teams-actions";

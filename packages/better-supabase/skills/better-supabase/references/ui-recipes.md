@@ -1015,7 +1015,6 @@ import { DbException } from "better-supabase";
 import { CheckIcon, ChevronsUpDownIcon, PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useState, useTransition } from "react";
-import { toast } from "sonner";
 
 import {
   DropdownMenu,
@@ -1029,6 +1028,7 @@ import {
 import { SidebarMenuButton } from "@/components/ui/sidebar";
 import { useOrganizations } from "@/hooks/use-organizations";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { OrganizationSummary } from "../organization-queries";
@@ -1250,7 +1250,6 @@ import type { Money } from "better-supabase/commerce";
 import { DbException } from "better-supabase";
 import { formatMoney } from "better-supabase/commerce";
 import { useExtracted, useLocale } from "next-intl";
-import { toast } from "sonner";
 
 import type { PlanCatalog } from "@/hooks/use-billing";
 
@@ -1264,6 +1263,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { usePlanPicker } from "@/hooks/use-billing";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { PlanOption } from "../billing-queries";
@@ -1783,7 +1783,6 @@ import type { SettingEntries } from "better-supabase/blocks/settings";
 import { tenantOf } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
-import { toast } from "sonner";
 
 import type { SettingField, SettingsState } from "@/hooks/use-settings";
 
@@ -1814,6 +1813,7 @@ import { Switch } from "@/components/ui/switch";
 import { useSettings } from "@/hooks/use-settings";
 import { useAuth } from "@/lib/hooks";
 import { settingsConfig } from "@/lib/supabase/blocks/slices";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { settings } from "../settings-definition";
@@ -2209,7 +2209,6 @@ import { DbException } from "better-supabase";
 import { UserMinusIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { createContext, use, useCallback, useMemo, useState } from "react";
-import { toast } from "sonner";
 import * as v from "valibot";
 
 import type { DataGridFeatures } from "@/components/reui/data-grid/data-grid";
@@ -2251,6 +2250,7 @@ import { Link } from "@/i18n/navigation";
 import { Role } from "@/lib/claims";
 import { initials } from "@/lib/initials";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
+import { toast } from "@/lib/toast";
 import { useSearchParam } from "@/lib/url-filters";
 import { useErrorMessage } from "@/lib/use-error-message";
 
@@ -2736,7 +2736,6 @@ import type { SubmitEvent } from "react";
 import { CopyIcon, UserPlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 import * as v from "valibot";
 
 import { Button } from "@/components/ui/button";
@@ -2771,6 +2770,7 @@ import { useRoleLabel } from "@/features/organization/use-role-label";
 import { useInvitations } from "@/hooks/use-organizations";
 import { Role } from "@/lib/claims";
 import { organizationsConfig } from "@/lib/supabase/blocks/slices";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 /**
@@ -2860,9 +2860,9 @@ export function InviteMemberDialog({
                 size="icon"
                 aria-label={t("Copy link")}
                 onClick={() => {
-                  void navigator.clipboard
-                    .writeText(link)
-                    .then(() => toast.success(t("Link copied")));
+                  void navigator.clipboard.writeText(link).then(() => {
+                    toast.success(t("Link copied"));
+                  });
                 }}
               >
                 <CopyIcon />
@@ -3082,7 +3082,6 @@ npx shadcn add @better-supabase/use-api-keys
 
 import { KeyRoundIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -3104,6 +3103,7 @@ import {
 } from "@/components/ui/table";
 import { useApiKeys } from "@/hooks/use-api-keys";
 import { apiKeysConfig } from "@/lib/supabase/blocks/slices";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { apiKeyCreated } from "../api-keys-actions";
@@ -3980,7 +3980,6 @@ npx shadcn add button field input
 import { useActionForm } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -3992,6 +3991,7 @@ import {
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { SubmitLabel } from "@/features/offline/components/submit-label";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { updateProfile } from "../user-actions";
@@ -4074,7 +4074,6 @@ import { ShieldCheckIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import Image from "next/image";
 import { useId, useState, useTransition } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -4098,6 +4097,7 @@ import {
   InputOTPSlot,
 } from "@/components/ui/input-otp";
 import { useSupabase } from "@/lib/hooks";
+import { toast } from "@/lib/toast";
 
 import type { AuthRead } from "../user-queries";
 
@@ -4571,7 +4571,6 @@ import {
 } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import { Alert, AlertAction, AlertTitle } from "@/components/reui/alert";
 import { Badge } from "@/components/reui/badge";
@@ -4613,6 +4612,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Switch } from "@/components/ui/switch";
 import { useConversations } from "@/hooks/use-messaging";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 import { cn } from "@/lib/utils";
 
@@ -5203,7 +5203,6 @@ import { useAction } from "better-supabase/react";
 import { PaperclipIcon, SendIcon, XIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useRef, useState } from "react";
-import { toast } from "sonner";
 
 import type { MessageDraft } from "@/hooks/use-messaging";
 
@@ -5213,6 +5212,7 @@ import { Label } from "@/components/ui/label";
 import { Spinner } from "@/components/ui/spinner";
 import { Textarea } from "@/components/ui/textarea";
 import { useSupabase } from "@/lib/hooks";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { confirmChatUpload, startChatUpload } from "../chat-actions";
@@ -5713,7 +5713,6 @@ npx shadcn add button field input
 import { useActionForm } from "better-supabase/react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -5724,6 +5723,7 @@ import {
   FieldLabel,
 } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { updateOrganization } from "../organization-actions";
@@ -6275,7 +6275,6 @@ import { useAction } from "better-supabase/react";
 import { PlayIcon, PlusIcon, SaveIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useState } from "react";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -6289,6 +6288,7 @@ import {
 } from "@/components/ui/select";
 import { useWorkflowCanvasRun } from "@/hooks/use-workflow-editor";
 import { useWorkflowRuns } from "@/hooks/use-workflows";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { BuilderDetail } from "../builder-queries";
@@ -6756,7 +6756,6 @@ import { useAction } from "better-supabase/react";
 import { KeySquareIcon, Trash2Icon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Field, FieldLabel } from "@/components/ui/field";
@@ -6769,6 +6768,7 @@ import {
   SheetTitle,
   SheetTrigger,
 } from "@/components/ui/sheet";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { CredentialRow } from "../builder-queries";
@@ -6936,7 +6936,6 @@ import { useAction } from "better-supabase/react";
 import { CalendarClockIcon, PauseIcon, PlayIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useTransition } from "react";
-import { toast } from "sonner";
 
 import {
   Alert,
@@ -6971,6 +6970,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useRouter } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { AiTaskRow, AiTasksRead } from "../ai-tasks-queries";
@@ -7228,7 +7228,6 @@ import { useAction } from "better-supabase/react";
 import { CpuIcon, PlusIcon, Trash2Icon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useId, useState, useTransition } from "react";
-import { toast } from "sonner";
 
 import {
   Alert,
@@ -7299,6 +7298,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useRouter } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Provider } from "../ai-provider-options";
@@ -11253,9 +11253,9 @@ function CreateShareLink({ customerId }: { customerId: string }) {
                 size="icon"
                 aria-label={t("Copy link")}
                 onClick={() => {
-                  void navigator.clipboard
-                    .writeText(url)
-                    .then(() => toast.success(t("Link copied")));
+                  void navigator.clipboard.writeText(url).then(() => {
+                    toast.success(t("Link copied"));
+                  });
                 }}
               >
                 <CopyIcon />
@@ -13064,7 +13064,6 @@ import { recordForm } from "better-supabase/records";
 import { PlusIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useMemo, useState } from "react";
-import { toast } from "sonner";
 
 import type { FieldRow } from "@/features/custom-fields/custom-fields-types";
 
@@ -13094,6 +13093,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { TeamOption } from "../work-types";
@@ -14679,8 +14679,8 @@ npx shadcn add sonner
 
 import { useAction } from "better-supabase/react";
 import { useExtracted } from "next-intl";
-import { toast } from "sonner";
 
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { restoreTrashItem } from "../trash-actions";
@@ -14709,7 +14709,7 @@ export function useUndoToast() {
   });
 
   return function show({ trashItemId, name }: TrashedRecord) {
-    toast(
+    toast.message(
       <span data-recipe="undo-toast">
         {t("{name} moved to the trash", { name })}
       </span>,

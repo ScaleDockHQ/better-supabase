@@ -1,4 +1,4 @@
-import { defineBucket } from "better-supabase/storage";
+import { defineBucket } from "better-supabase/storage/client";
 
 import { buckets } from "./supabase/generated.ts";
 

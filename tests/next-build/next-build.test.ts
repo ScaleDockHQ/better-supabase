@@ -29,6 +29,13 @@ interface ClientManifest {
   readonly entryJSFiles: Readonly<Record<string, readonly string[]>>;
 }
 
+/**
+ * The key of the nomodule polyfill bundle. Until 0.57 it was added to every
+ * route (113 KB raw, 35 KB brotli each), so each route's baseline before the
+ * change read 112594 raw bytes higher.
+ */
+const NOMODULE = "(nomodule polyfill)";
+
 /** Entries every route carries that do not belong to the route's own tree. */
 const SHARED_ENTRIES = /\/(?:not-found|global-error)$/;
 
@@ -109,7 +116,9 @@ async function routeChunks(): Promise<Map<string, Set<string>>> {
     await readFile(join(NEXT, "build-manifest.json"), "utf-8"),
   ) as BuildManifest;
 
-  const shared = [...build.rootMainFiles, ...build.polyfillFiles];
+  // `polyfillFiles` is the nomodule bundle: modern browsers never fetch it, so
+  // it is measured on its own (`NOMODULE`) and not charged to every route.
+  const shared = [...build.rootMainFiles];
   const routes = new Map<string, Set<string>>();
 
   const manifests = (await files(join(NEXT, "server/app")))
@@ -145,6 +154,12 @@ async function firstLoad(): Promise<Baseline> {
     result[route] = await measure(chunks);
   }
 
+  const build = JSON.parse(
+    await readFile(join(NEXT, "build-manifest.json"), "utf-8"),
+  ) as BuildManifest;
+
+  result[NOMODULE] = await measure(new Set(build.polyfillFiles));
+
   return result;
 }
 
@@ -158,6 +173,27 @@ async function routeSource(chunks: ReadonlySet<string>): Promise<string> {
 }
 
 const SIZES = ["raw", "gzip", "brotli"] as const;
+
+/**
+ * Chunk file names carry a content hash that lands inside the compressed bytes,
+ * so an unchanged root chunk compresses to a few bytes more or less between two
+ * builds (raw stays identical). Compressed sizes may move by this much; raw
+ * bytes never.
+ */
+const COMPRESSION_SLACK = 0.0025;
+
+/**
+ * Moving a module between chunks changes the chunk registration code each chunk
+ * carries, so a route can move by a few dozen raw bytes when an unrelated
+ * module changes chunks (+82 bytes on `/people/time` with no module added to
+ * it). A module that lands in a route is far larger than this.
+ */
+const RAW_SLACK = 128;
+
+function slack(key: keyof Size, allowed: number): number {
+  return key === "raw" ? RAW_SLACK : Math.ceil(allowed * COMPRESSION_SLACK);
+}
+
 const UPDATE = Boolean(process.env["NEXT_BUILD_UPDATE"]);
 
 async function readBaseline(): Promise<Baseline> {
@@ -201,7 +237,8 @@ describe("the Next.js example's first-load JavaScript", () => {
 
       const grown = Object.entries(current).flatMap(([route, size]) =>
         SIZES.flatMap((key) => {
-          const allowed = sizeOf(baseline, route)[key];
+          const base = sizeOf(baseline, route)[key];
+          const allowed = base + slack(key, base);
 
           return size[key] > allowed
             ? [`${route} ${key}: ${allowed} -> ${size[key]}`]
@@ -235,9 +272,9 @@ describe("the Next.js example's first-load JavaScript", () => {
         const kept = { ...before };
 
         for (const size of SIZES) {
-          if (now[size] > before[size]) {
+          if (now[size] > before[size] + slack(size, before[size])) {
             grown.push(`${route} ${size}: ${before[size]} -> ${now[size]}`);
-          } else {
+          } else if (now[size] < before[size]) {
             kept[size] = now[size];
           }
         }
@@ -293,15 +330,20 @@ describe("the Next.js example's first-load JavaScript", () => {
     async () => {
       const routes = await routeChunks();
 
-      const login = await routeSource(
-        routes.get("/[locale]/(auth)/login/page") ?? new Set(),
-      );
+      const count = async (route: string): Promise<number> =>
+        (
+          (await routeSource(routes.get(route) ?? new Set())).match(
+            /schema:"better_supabase"/g,
+          ) ?? []
+        ).length;
 
-      const slices = login.match(/schema:"better_supabase"/g)?.length ?? 0;
+      // The example installs more than 100 instances; the browser client wires
+      // 22, and only the routes under `(app)` load it (ADR 0480).
+      const slices = await count("/[locale]/(app)/customers/page");
 
-      // The example installs more than 100 instances; the browser client wires 22.
-      expect(slices, "slices on the login route").toBeGreaterThan(0);
-      expect(slices, "slices on the login route").toBeLessThanOrEqual(30);
+      expect(slices, "slices on the customers route").toBeGreaterThan(0);
+      expect(slices, "slices on the customers route").toBeLessThanOrEqual(30);
+      expect(await count("/[locale]/(auth)/login/page")).toBe(0);
 
       for (const [route, chunks] of routes) {
         const source = await routeSource(chunks);
@@ -311,6 +353,132 @@ describe("the Next.js example's first-load JavaScript", () => {
           'listTopic:"ai-chats"',
         );
       }
+    },
+    120_000,
+  );
+
+  // Only the `(app)` layout, the OAuth consent page and the islands page render
+  // `DataProviders`. The sign-in routes load the browser client on submit, so
+  // they ship none of the data engine (ADR 0480).
+  it.skipIf(UPDATE)(
+    "keeps the data engine out of the sign-in routes",
+    async () => {
+      const routes = await routeChunks();
+
+      const markers = [
+        "GoTrueClient",
+        "RealtimeClient",
+        "Missing queryFn",
+        'key:"customers"',
+      ];
+
+      for (const route of [
+        "/[locale]/(auth)/login/page",
+        "/[locale]/(auth)/signup/page",
+        "/[locale]/(auth)/forgot-password/page",
+        "/[locale]/(auth)/reset-password/page",
+        "/[locale]/(auth)/mfa/page",
+      ]) {
+        const source = await routeSource(routes.get(route) ?? new Set());
+
+        expect(source.length, `${route} has chunks`).toBeGreaterThan(0);
+
+        for (const marker of markers) {
+          expect(source, `${route} loads ${marker}`).not.toContain(marker);
+        }
+      }
+
+      // The app routes still carry the engine, so the markers prove something.
+      const customers = await routeSource(
+        routes.get("/[locale]/(app)/customers/page") ?? new Set(),
+      );
+
+      expect(customers).toContain("GoTrueClient");
+    },
+    120_000,
+  );
+
+  // `better-supabase/storage/client` (ADR 0484) carries paths, limits and
+  // `connect`. `defineBucket` from `better-supabase/storage` also writes the
+  // bucket's SQL and policies, which no route needs in the browser.
+  it.skipIf(UPDATE)(
+    "keeps the storage SQL and policy code out of every route",
+    async () => {
+      const routes = await routeChunks();
+
+      const markers = [
+        "insert into storage.buckets",
+        "on storage.objects",
+        "storage.allow_any_operation",
+        "[storage.buckets.",
+      ];
+
+      const customers = await routeSource(
+        routes.get("/[locale]/(app)/customers/page") ?? new Set(),
+      );
+
+      // The customers page shows logos, so the client bucket is in its tree.
+      expect(customers, "the customers route has the client bucket").toContain(
+        "customer-logos",
+      );
+
+      for (const [route, chunks] of routes) {
+        const source = await routeSource(chunks);
+
+        for (const marker of markers) {
+          expect(source, `${route} loads "${marker}"`).not.toContain(marker);
+        }
+      }
+    },
+    120_000,
+  );
+
+  // Markdown, syntax highlighting and json-render load when an answer renders.
+  it.skipIf(UPDATE)(
+    "defers the assistant's Markdown renderer",
+    async () => {
+      const routes = await routeChunks();
+
+      const assistant = await routeSource(
+        routes.get("/[locale]/(app)/assistant/page") ?? new Set(),
+      );
+
+      for (const marker of ["streamdown", "parse5", "vscode-textmate"]) {
+        expect(assistant, `the assistant loads ${marker}`).not.toContain(
+          marker,
+        );
+      }
+    },
+    120_000,
+  );
+
+  // A `lazy()` or `next/dynamic` boundary defers nothing when another module
+  // imports its target statically (a barrel, a provider, a recipe). Each marker
+  // is a string that only the lazy module contains; no route may carry it in
+  // its first load (ADR 0484).
+  it.skipIf(UPDATE)(
+    "keeps lazily loaded modules out of every route's first load",
+    async () => {
+      const markers = new Map([
+        ["the Help sheet", "acme:help:"],
+        ["the mobile sidebar", "Displays the mobile sidebar."],
+        ["sonner", "data-sonner-toaster"],
+        ["the Markdown renderer", "streamdown"],
+      ]);
+
+      const leaks: string[] = [];
+
+      for (const [route, chunks] of await routeChunks()) {
+        const source = await routeSource(chunks);
+
+        for (const [name, marker] of markers) {
+          if (source.includes(marker)) {
+            leaks.push(`${route} carries ${name}`);
+          }
+        }
+      }
+
+      expect(leaks, "lazy modules in a first load").toEqual([]);
     },
     120_000,
   );

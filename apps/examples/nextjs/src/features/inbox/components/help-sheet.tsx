@@ -3,7 +3,6 @@
 import { LifeBuoyIcon, SendIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
 import { useId, useRef, useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import { Label } from "@/components/ui/label";
@@ -18,6 +17,7 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { useInboxWidget } from "@/hooks/use-inbox";
 import { useAuth } from "@/lib/hooks";
+import { toast } from "@/lib/toast";
 import { cn } from "@/lib/utils";
 
 import {

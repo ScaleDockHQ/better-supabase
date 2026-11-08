@@ -12,7 +12,7 @@ import { expect, test } from "@playwright/test";
 
 async function signIn(page: Page): Promise<void> {
   await page.goto("/en/login");
-  await page.getByLabel("Email").fill("admin@acme.test");
+  await page.getByRole("textbox", { name: "Email" }).fill("admin@acme.test");
   await page.getByLabel("Password").fill("password123");
   await page.getByRole("button", { name: "Sign in" }).click();
   await page.waitForURL((url) => !url.pathname.endsWith("/login"));
@@ -80,6 +80,54 @@ test("the sign-in form is static and the sign-up link is instant", async ({
     await signUp.click();
     await page.waitForURL((url) => url.pathname === "/en/signup");
 
-    await expect(page.getByLabel("Email")).toBeVisible();
+    await expect(page.getByRole("textbox", { name: "Email" })).toBeVisible();
+  });
+});
+
+test("the sign-up form is static and the sign-in link is instant", async ({
+  page,
+}) => {
+  await page.goto("/en/signup");
+  const signIn = page.getByRole("link", { name: "Sign in" });
+
+  await expect(signIn).toBeVisible();
+
+  await instant(page, async () => {
+    await signIn.click();
+    await page.waitForURL((url) => url.pathname === "/en/login");
+
+    await expect(page.getByRole("textbox", { name: "Email" })).toBeVisible();
+  });
+});
+
+test("the assistant paints its heading before the chats", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/en");
+  const link = page.getByRole("link", { name: "Assistant", exact: true });
+
+  await expect(link.first()).toBeVisible();
+
+  await instant(page, async () => {
+    await link.first().click();
+    await page.waitForURL((url) => url.pathname === "/en/assistant");
+
+    await expect(
+      page.getByRole("heading", { name: "Assistant" }),
+    ).toBeVisible();
+  });
+});
+
+test("the projects frame paints before the project data", async ({ page }) => {
+  await signIn(page);
+  await page.goto("/en");
+  const link = page.getByRole("link", { name: "Projects", exact: true });
+
+  await expect(link.first()).toBeVisible();
+
+  await instant(page, async () => {
+    await link.first().click();
+    await page.waitForURL((url) => url.pathname === "/en/projects");
+
+    await expect(page.getByRole("heading", { name: "Projects" })).toBeVisible();
   });
 });

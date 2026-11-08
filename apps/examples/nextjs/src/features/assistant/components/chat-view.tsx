@@ -21,7 +21,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useSupabase } from "@/lib/hooks";
 
 import { confirmAttachment, reserveAttachment } from "../assistant-actions";
-import { MessageText } from "./message-text";
+import { MessageTextLazy } from "./message-text-lazy";
 
 const textOf = (message: UIMessage): string =>
   message.parts
@@ -274,7 +274,7 @@ export function ChatView({ id, chat }: { id: string; chat: AssistantState }) {
               {message.role === "user" ? (
                 <p className="whitespace-pre-wrap">{textOf(message)}</p>
               ) : (
-                <MessageText
+                <MessageTextLazy
                   text={textOf(message)}
                   animating={busy && message.id === chat.messages.at(-1)?.id}
                 />

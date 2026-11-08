@@ -3,7 +3,6 @@
 
 import { KeyRoundIcon } from "lucide-react";
 import { useExtracted, useFormatter } from "next-intl";
-import { toast } from "sonner";
 
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -25,6 +24,7 @@ import {
 } from "@/components/ui/table";
 import { useApiKeys } from "@/hooks/use-api-keys";
 import { apiKeysConfig } from "@/lib/supabase/blocks/slices";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { apiKeyCreated } from "../api-keys-actions";

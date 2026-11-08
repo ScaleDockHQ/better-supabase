@@ -10,7 +10,6 @@ import {
 import { useExtracted } from "next-intl";
 import { useRouter } from "next/navigation";
 import { useTransition } from "react";
-import { toast } from "sonner";
 
 import {
   Alert,
@@ -36,6 +35,7 @@ import {
   EmptyTitle,
 } from "@/components/ui/empty";
 import { Link } from "@/i18n/navigation";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { InspectionRunView, Loaded } from "../inspections-queries";

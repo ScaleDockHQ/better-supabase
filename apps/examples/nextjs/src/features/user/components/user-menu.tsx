@@ -6,7 +6,7 @@ import {
 
 import { roleOf } from "../user-permissions";
 import { getMyProfile, getSession } from "../user-queries";
-import { UserMenuDropdown } from "./user-menu-dropdown";
+import { UserMenuLazy } from "./user-menu-lazy";
 
 /** Render inside `<Suspense>`; the fallback is `UserMenuSkeleton`. */
 export async function UserMenu() {
@@ -19,7 +19,7 @@ export async function UserMenu() {
   return (
     <SidebarMenu>
       <SidebarMenuItem>
-        <UserMenuDropdown
+        <UserMenuLazy
           name={profile?.fullName ?? null}
           email={session.user.email ?? profile?.email ?? null}
           avatarUrl={profile?.avatarUrl ?? null}

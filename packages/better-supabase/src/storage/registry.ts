@@ -1,6 +1,6 @@
 import type { Result } from "../core/result.ts";
 import type {
-  Bucket,
+  ClientBucket,
   BucketClient,
   BucketConnectOptions,
   StorageClient,
@@ -11,7 +11,8 @@ import { dbError } from "../core/errors.ts";
 import { err, ok } from "../core/result.ts";
 
 /** Any bucket definition from `defineBucket` or a preset. */
-export type AnyBucket = Bucket<string>;
+// oxlint-disable-next-line typescript/no-explicit-any -- ClientBucket is invariant in its template and variant parameters.
+export type AnyBucket = ClientBucket<any, string, any>;
 
 export type BucketMap = Readonly<Record<string, AnyBucket>>;
 
@@ -155,10 +156,12 @@ export function defineBuckets<const B extends BucketMap>(
 
       const { bucket } = resolved.data;
 
-      const storage: BucketClient<string, BucketIdOf<B>> = bucket.connect(
-        client,
-        options,
-      );
+      // SAFETY: AnyBucket erases the template and variant parameters, and the
+      // registry keeps the id parameter of the bucket it resolved.
+      const storage = bucket.connect(client, options) as BucketClient<
+        string,
+        BucketIdOf<B>
+      >;
 
       const path = storage.path(ref.path);
 

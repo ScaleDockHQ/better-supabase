@@ -441,6 +441,11 @@ One ADR per decision in `docs/decisions` (copy `0000-template.md`).
 - 0450: Resolve auth once per scope and split the server entry.
 - 0460: Check storage, initplan and policy-index practices in doctor, prefer `db advisors`, pin the audience.
 - 0470: Hold the app stages to three fixtures.
+- 0480: Keep the data client out of the sign-in routes and load heavy UI on first use.
+- 0481: Enforce a static shell for every route group and measure with the Turbopack analyzer.
+- 0482: Use the runtime's Temporal in the browser and load the polyfill only when it is missing.
+- 0483: Load header dialogs on intent, render the side navigation on the server and load the chat panel after paint.
+- 0484: Ship bucket definitions to the browser from `better-supabase/storage/client`.
 
 ## Pre-release pins
 

@@ -1,5 +1,4 @@
 import type { DateTimeFormatOptions } from "next-intl";
-import type { Temporal } from "temporal-polyfill";
 
 import { ChevronLeftIcon, ChevronRightIcon } from "lucide-react";
 import { getExtracted, getFormatter } from "next-intl/server";

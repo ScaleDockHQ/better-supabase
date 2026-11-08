@@ -4,7 +4,6 @@ import { useAction } from "better-supabase/react";
 import { ClockIcon, SendIcon, StickyNoteIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useRef, useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -15,6 +14,7 @@ import {
 import { Label } from "@/components/ui/label";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import type { Later } from "../inbox-types";

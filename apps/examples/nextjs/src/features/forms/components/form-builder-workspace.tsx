@@ -6,7 +6,6 @@ import { useAction } from "better-supabase/react";
 import { PlusIcon, SendIcon, Trash2Icon, UploadIcon } from "lucide-react";
 import { useExtracted } from "next-intl";
 import { useId, useState } from "react";
-import { toast } from "sonner";
 
 import { Button } from "@/components/ui/button";
 import {
@@ -34,6 +33,7 @@ import {
 } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Textarea } from "@/components/ui/textarea";
+import { toast } from "@/lib/toast";
 import { useErrorMessage } from "@/lib/use-error-message";
 
 import { publishForm, submitForm } from "../forms-actions";

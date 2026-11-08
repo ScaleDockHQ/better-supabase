@@ -275,6 +275,7 @@ const entries = [
   "env/index",
   "list/index",
   "storage/index",
+  "storage/client/index",
   "realtime/index",
   "rate-limit/index",
   "recurrence/index",
