@@ -228,8 +228,21 @@ const COMPRESSION_SLACK = 0.0025;
  */
 const RAW_SLACK = 128;
 
-function slack(key: keyof Size, allowed: number): number {
-  return key === "raw" ? RAW_SLACK : Math.ceil(allowed * COMPRESSION_SLACK);
+/**
+ * A server chunk set also moves between machines: the first CI run of the
+ * combined branch measured 231 raw bytes more than the local build on the 51
+ * routes that share the workflow chunks, with no source change between them
+ * (0.005 percent of the smallest of these routes). A module that lands in a
+ * server route is far larger than this.
+ */
+const SERVER_RAW_SLACK = 512;
+
+function slack(
+  key: keyof Size,
+  allowed: number,
+  rawSlack: number = RAW_SLACK,
+): number {
+  return key === "raw" ? rawSlack : Math.ceil(allowed * COMPRESSION_SLACK);
 }
 
 const UPDATE = Boolean(process.env["NEXT_BUILD_UPDATE"]);
@@ -541,7 +554,8 @@ describe("the Next.js example's first-load JavaScript", () => {
 
       const grown = Object.entries(current).flatMap(([route, size]) =>
         SIZES.flatMap((key) => {
-          const allowed = sizeOf(baseline, route)[key];
+          const base = sizeOf(baseline, route)[key];
+          const allowed = base + slack(key, base, SERVER_RAW_SLACK);
 
           return size[key] > allowed
             ? [`${route} ${key}: ${allowed} -> ${size[key]}`]
