@@ -24,6 +24,7 @@ import {
   manyRoles,
   memberRolesFunction,
   membershipRolesPolicy,
+  membershipRolesData,
   membershipRolesSql,
   membershipRolesTable,
 } from "./membership-roles.ts";
@@ -651,4 +652,5 @@ export const TENANT: BlockSqlDefinition = {
     },
   ],
   build: tenantSql,
+  data: membershipRolesData,
 };

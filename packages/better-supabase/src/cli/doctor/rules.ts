@@ -151,6 +151,8 @@ export interface DoctorContext {
   readonly sqlFiles?: readonly TextFile[];
   /** The `.sql` files under `supabase/seeds` (BS356). */
   readonly seedFiles?: readonly TextFile[];
+  /** The `.sql` files under `supabase/better-supabase-data` (BS357, BS358). */
+  readonly dataFiles?: readonly TextFile[];
   /** Codes of the rules in this run, so a rule can defer to another. */
   readonly codes?: readonly string[];
   /** Better-supabase's peers and the versions the project installs (BS601). */

@@ -1586,7 +1586,7 @@ exports[`help > documents upgrade 1`] = `
 Brings the blocks' SQL up to the config and this release: upgrade steps for blocks behind, then every block's files
 
 Options
-  --check            Write nothing; exit 1 when a block is behind its current version or a schema file is stale
+  --check            Write nothing; exit 1 when a block is behind its current version, a schema file is stale or a data statement is in no data migration
   --tests-dir <dir>  Where the pgtap module goes. Defaults to database.sql.testsDir
   --dry-run          Show what would be written
   --force            Overwrite or remove block files that were edited by hand

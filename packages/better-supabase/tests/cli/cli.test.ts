@@ -1172,6 +1172,11 @@ describe("sql", () => {
     const sync = await run(["upgrade", "--cwd", dir]);
     expect(sync.stdout).toContain("memberships");
     expect(sync.stdout).toContain("invitations");
+
+    const pending = await run(["upgrade", "--check", "--cwd", dir]);
+    expect(pending.code).toBe(1);
+    expect(pending.stderr).toContain("in no data migration");
+    expect((await run(["add", "--adopt", "--cwd", dir])).code).toBe(0);
     expect((await run(["upgrade", "--check", "--cwd", dir])).code).toBe(0);
     const list = await run(["blocks", "list", "--installed", "--cwd", dir]);
     expect(list.stdout).toMatch(/● invitations/);

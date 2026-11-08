@@ -24,6 +24,8 @@ interface SeedState {
   readonly variants?: Record<string, string>;
   readonly file?: string;
   readonly files?: readonly { path: string; text: string }[];
+  readonly dataFiles?: readonly { path: string; text: string }[];
+  readonly sqlFiles?: readonly { path: string; text: string }[];
 }
 
 function context(state: SeedState): DoctorContext {
@@ -41,6 +43,8 @@ function context(state: SeedState): DoctorContext {
       },
     },
     seedFiles: state.files ?? [],
+    dataFiles: state.dataFiles ?? [],
+    sqlFiles: state.sqlFiles ?? [],
   } as unknown as DoctorContext;
 }
 
@@ -125,5 +129,101 @@ describe("BS356 sample file outside the configured output", () => {
       }),
     ).toEqual([]);
     expect(await run("BS356", { blockNames: [] })).toEqual([]);
+  });
+});
+
+const DATA = "-- @bsb-block-data memberships\n";
+
+describe("BS357 data file insert without a key", () => {
+  it("flags an insert that reruns without effect only when it has a key", async () => {
+    const findings = await run("BS357", {
+      blockNames: [],
+      dataFiles: [
+        {
+          path: "supabase/better-supabase-data/a.sql",
+          text: `${DATA}insert into public.roles (name) values ('a');\ninsert into public.roles (name) values ('b') on conflict (name) do nothing;\ninsert into public.roles (name) select 'c' where not exists (select 1 from public.roles);`,
+        },
+      ],
+    });
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.location).toEqual({
+      file: "supabase/better-supabase-data/a.sql",
+      line: 2,
+    });
+  });
+
+  it("leaves files that are not block data files alone", async () => {
+    expect(
+      await run("BS357", {
+        blockNames: [],
+        dataFiles: [{ path: "x.sql", text: "insert into t values (1);" }],
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("BS358 app seed on a block table", () => {
+  const dataFiles = [
+    {
+      path: "supabase/better-supabase-data/a.sql",
+      text: `${DATA}insert into "public"."roles" (name) values ('a') on conflict do nothing;`,
+    },
+  ];
+
+  it("flags an app seed that writes a block-seeded table", async () => {
+    const findings = await run("BS358", {
+      blockNames: [],
+      dataFiles,
+      files: [
+        {
+          path: "supabase/seeds/010.sql",
+          text: "insert into roles (name) values ('x');\ninsert into other (a) values (1);",
+        },
+      ],
+    });
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.location?.line).toBe(1);
+  });
+
+  it("ignores generated sample files and tables no block seeds", async () => {
+    expect(
+      await run("BS358", {
+        blockNames: [],
+        dataFiles,
+        files: [
+          {
+            path: "supabase/seeds/900_sample.sql",
+            text: `${SAMPLE_FILE_MARKER}\ninsert into roles (name) values ('x');`,
+          },
+          {
+            path: "supabase/seeds/020.sql",
+            text: "insert into trade_types values (1);",
+          },
+        ],
+      }),
+    ).toEqual([]);
+  });
+});
+
+describe("BS359 seed function without a locale", () => {
+  it("flags a seed_*_defaults function without p_locale", async () => {
+    const findings = await run("BS359", {
+      blockNames: [],
+      sqlFiles: [
+        {
+          path: "supabase/schemas/a.sql",
+          text: "create or replace function better_supabase.seed_tax_defaults(p_tenant uuid, p_variant text) returns void language sql as $$ select 1 $$;\ncreate function better_supabase.seed_x_defaults(p_tenant uuid, p_locale text) returns void language sql as $$ select 1 $$;\ncreate function public.other(p_tenant uuid) returns void language sql as $$ select 1 $$;",
+        },
+        {
+          path: "supabase/migrations/1_a.sql",
+          text: "create function seed_old_defaults(p uuid) returns void language sql as $$ select 1 $$;",
+        },
+      ],
+    });
+
+    expect(findings).toHaveLength(1);
+    expect(findings[0]?.message).toContain("seed_tax_defaults");
   });
 });

@@ -3,7 +3,7 @@ import { posix } from "node:path";
 import type { DoctorContext, FindingInput, Rule } from "./rules.ts";
 
 import { PRESET_CATALOG } from "../../preset/index.ts";
-import { resolveBlocks } from "../../sql/index.ts";
+import { resolveBlocks, splitStatements } from "../../sql/index.ts";
 
 /** The first characters of a file `db seed --sample --out` wrote. */
 export const SAMPLE_FILE_MARKER =
@@ -123,7 +123,118 @@ function sampleFileNotConfigured(context: DoctorContext): FindingInput[] {
     }));
 }
 
-/** Declared tenant defaults and sample files (BS354 to BS356). */
+const IDENT = String.raw`(?:"(?:[^"]|"")+"|[A-Za-z_][\w$]*)`;
+
+const INSERT_TARGET = new RegExp(
+  String.raw`^insert\s+into\s+(${IDENT}(?:\s*\.\s*${IDENT})?)`,
+  "i",
+);
+
+const SEED_FUNCTION = new RegExp(
+  String.raw`^create\s+(?:or\s+replace\s+)?function\s+(${IDENT}(?:\s*\.\s*${IDENT})?)\s*\(([^)]*)\)`,
+  "i",
+);
+
+/** A table name without quotes, spaces and a default schema, to compare by. */
+const tableKey = (name: string): string =>
+  name
+    .replaceAll(/["\s]/g, "")
+    .toLowerCase()
+    .replace(/^public\./, "");
+
+const isDataFile = (file: { readonly text: string }): boolean =>
+  file.text.includes("-- @bsb-block-data ");
+
+/** The tables the insert statements of `files` write to, with their lines. */
+function insertedTables(
+  files: readonly { readonly path: string; readonly text: string }[],
+): { path: string; table: string; line: number; text: string }[] {
+  return files.flatMap((file) =>
+    splitStatements(file.text).flatMap((statement) => {
+      const match = INSERT_TARGET.exec(statement.text);
+
+      return match === null
+        ? []
+        : [
+            {
+              path: file.path,
+              table: tableKey(match[1]!),
+              line: statement.line,
+              text: statement.text,
+            },
+          ];
+    }),
+  );
+}
+
+/** BS357: an insert in a block data file that reruns without a key. */
+function dataStatementWithoutKey(context: DoctorContext): FindingInput[] {
+  return insertedTables((context.dataFiles ?? []).filter(isDataFile))
+    .filter(
+      (insert) =>
+        !/\bon\s+conflict\b/i.test(insert.text) &&
+        !/\bnot\s+exists\b/i.test(insert.text),
+    )
+    .map((insert) => ({
+      message: `${insert.path}:${String(insert.line)}: this insert into ${insert.table} has no key, so a second run adds the rows again. End it with on conflict (...) do nothing or do update.`,
+      target: insert.path,
+      location: { file: insert.path, line: insert.line },
+    }));
+}
+
+/** BS358: an app seed file that writes a table a block seeds. */
+function appSeedOnBlockTable(context: DoctorContext): FindingInput[] {
+  const blockTables = new Set(
+    insertedTables((context.dataFiles ?? []).filter(isDataFile)).map(
+      (insert) => insert.table,
+    ),
+  );
+
+  if (blockTables.size === 0) {
+    return [];
+  }
+
+  return insertedTables(
+    (context.seedFiles ?? []).filter(
+      (file) => !file.text.startsWith(SAMPLE_FILE_MARKER),
+    ),
+  )
+    .filter((insert) => blockTables.has(insert.table))
+    .map((insert) => ({
+      message: `${insert.path}:${String(insert.line)}: ${insert.table} is seeded by a block data file, so the block and this file both own its rows. Seed it from one place.`,
+      target: insert.path,
+      location: { file: insert.path, line: insert.line },
+    }));
+}
+
+/** BS359: a `seed_*_defaults` function that takes no locale. */
+function seedFunctionWithoutLocale(context: DoctorContext): FindingInput[] {
+  return (context.sqlFiles ?? [])
+    .filter((file) => !/(?:^|\/)migrations\//.test(file.path))
+    .flatMap((file) =>
+      splitStatements(file.text).flatMap((statement): FindingInput[] => {
+        const match = SEED_FUNCTION.exec(statement.text);
+
+        if (match === null) {
+          return [];
+        }
+
+        const name = match[1]!.split(".").at(-1)!.replaceAll('"', "").trim();
+
+        return /^seed_.*_defaults$/.test(name) && !/locale/i.test(match[2]!)
+          ? [
+              {
+                message: `${file.path}:${String(statement.line)}: ${name} takes no locale. Add p_locale text, so the rows can differ per country.`,
+                target: file.path,
+                location: { file: file.path, line: statement.line },
+              },
+            ]
+          : [];
+      }),
+    );
+}
+
+/** Declared tenant defaults, sample files and data files (BS354 to BS359). */
 export const SEED_RULES: readonly Rule[] = [
   {
     code: "BS354",
@@ -148,5 +259,29 @@ export const SEED_RULES: readonly Rule[] = [
     description:
       "A file under `supabase/seeds` was written by `better-supabase db seed --sample --out`, but `database.seed.sample.output` points elsewhere. The next run writes a second copy instead of replacing it, and `supabase db reset` loads both. Set `database.seed.sample.output` to the file, or delete it.",
     check: sampleFileNotConfigured,
+  },
+  {
+    code: "BS357",
+    severity: "error",
+    title: "A data file insert has no key",
+    description:
+      "A block data file reruns in every data migration that changes it, so each `insert` ends with `on conflict (...)` or guards itself with `not exists`. Without a key a second run adds the rows again. Reads the files in `supabase/better-supabase-data`.",
+    check: dataStatementWithoutKey,
+  },
+  {
+    code: "BS358",
+    severity: "warning",
+    title: "An app seed writes a table a block seeds",
+    description:
+      "A file under `supabase/seeds` inserts into a table that a block data file also inserts into. Both own the rows, so a reset and a data migration can disagree. Let the block seed the table, or keep the rows in your seed and remove the block's. Files `db seed --sample` wrote are left out.",
+    check: appSeedOnBlockTable,
+  },
+  {
+    code: "BS359",
+    severity: "warning",
+    title: "A seed function takes no locale",
+    description:
+      "A function named `seed_<name>_defaults` has no `p_locale` parameter. Defaults that depend on a country (tax codes, letterheads, number formats) need the locale, and `seed_tenant_defaults` passes it to every seed function. Reads every schema file.",
+    check: seedFunctionWithoutLocale,
   },
 ];

@@ -6,7 +6,7 @@ import type { BlockSqlExtension, BlockSqlFile } from "../../sql/index.ts";
 import type { CommandResult } from "../core/io.ts";
 import type { SqlFlags } from "./args.ts";
 
-import { moduleSchemaExtensions } from "../../sql/index.ts";
+import { moduleSchemaExtensions, splitStatements } from "../../sql/index.ts";
 import { applyPlan, changeLines } from "../core/files.ts";
 import { migrationsDir, sqlPlan } from "../sql-layout.ts";
 import { readSupabaseToml, sqlWorkflow } from "../supabase-toml.ts";
@@ -101,22 +101,61 @@ export const DATA_NEXT =
 
 const DATA_SUFFIX = "_better_supabase_module_data.sql";
 
+const LOCK_TIMEOUT = "set lock_timeout = '5s';";
+
+/** A statement without comments and extra whitespace, the key it is compared by. */
+const normalized = (statement: string): string =>
+  statement.replaceAll(/\s+/g, " ").trim().replace(/;$/, "");
+
+/** The statements of a migration, comments and the lock timeout left out. */
+const migrationStatements = (sql: string): Set<string> =>
+  new Set(
+    splitStatements(sql)
+      .map((statement) => normalized(statement.text))
+      .filter((text) => text !== normalized(LOCK_TIMEOUT)),
+  );
+
+/** One module's data statements that no data migration holds yet. */
+interface PendingData {
+  readonly module: string;
+  readonly statements: readonly string[];
+}
+
 /**
- * A migration without its comment lines, so a reworded comment needs no new
- * one.
+ * Compares the data files against the statements of the data migrations already
+ * in the migrations folder, so a statement is never written twice and a changed
+ * statement is written once more.
  */
-const statements = (sql: string): string =>
-  sql
-    .split("\n")
-    .filter((line) => !line.trimStart().startsWith("--"))
-    .join("\n")
-    .replaceAll(/\n{2,}/g, "\n")
-    .trim();
+function pendingData(
+  files: readonly BlockSqlFile[],
+  migrated: ReadonlySet<string>,
+): PendingData[] {
+  const seen = new Set(migrated);
+
+  return files.flatMap((file): PendingData[] => {
+    const statements = splitStatements(file.contents)
+      .map((statement) => statement.text)
+      .filter((text) => {
+        const key = normalized(text);
+
+        if (key === normalized(LOCK_TIMEOUT) || seen.has(key)) {
+          return false;
+        }
+
+        seen.add(key);
+
+        return true;
+      });
+
+    return statements.length === 0 ? [] : [{ module: file.module, statements }];
+  });
+}
 
 /**
  * Writes the data files of `blocks` into one migration, meant to run after the
- * schema migration that creates their tables. Every statement is idempotent, so
- * the migration carries all of them, not only the changes.
+ * schema migration that creates their tables. It carries only the statements no
+ * earlier data migration holds, so a sync after a block upgrade writes the
+ * change and nothing else. Every statement is idempotent either way.
  */
 export async function dataMigration(
   config: ResolvedConfig,
@@ -161,36 +200,57 @@ export async function dataMigration(
   }
 
   const files = rendered.filter((file) => file.kind === "data");
-  const contents = `-- better-supabase add --adopt: the rows and settings of ${files.map((file) => file.module).join(", ")}, which a schema diff skips.\n\nset lock_timeout = '5s';\n\n${files.map((file) => file.contents.trim()).join("\n\n")}\n`;
   const dir = migrationsDir(config);
 
   const existing: string[] = await readdir(resolve(config.root, dir)).catch(
     () => [],
   );
 
-  const latest = existing
+  const dataMigrations = existing
     .toSorted()
-    .findLast((name) => hasMigrationSuffix(name, DATA_SUFFIX));
+    .filter((name) => hasMigrationSuffix(name, DATA_SUFFIX));
 
-  if (
-    latest !== undefined &&
-    statements(await readFile(resolve(config.root, dir, latest), "utf-8")) ===
-      statements(contents)
-  ) {
+  const latest = dataMigrations.at(-1);
+  const migrated = new Set<string>();
+
+  for (const name of dataMigrations) {
+    for (const statement of migrationStatements(
+      await readFile(resolve(config.root, dir, name), "utf-8"),
+    )) {
+      migrated.add(statement);
+    }
+  }
+
+  const pending = pendingData(files, migrated);
+
+  if (pending.length === 0) {
     return {
       code: 0,
-      output: `${dir}/${latest} already has these rows; nothing to write.`,
-      data: { file: `${dir}/${latest}`, wrote: false },
+      output:
+        latest === undefined
+          ? "The blocks have no rows or settings to write."
+          : `${dir}/${latest} already has these rows; nothing to write.`,
+      data: {
+        ...(latest === undefined ? {} : { file: `${dir}/${latest}` }),
+        wrote: false,
+      },
     };
   }
+
+  const count = pending.reduce(
+    (total, part) => total + part.statements.length,
+    0,
+  );
 
   if (args.check === true) {
     return {
       code: 1,
-      error: `${latest === undefined ? "No data migration holds" : `${dir}/${latest} doesn't hold`} the current rows and settings of the blocks. Run \`better-supabase add --adopt\` after the schema migration.`,
-      data: { wrote: false },
+      error: `${String(count)} data statement${count === 1 ? "" : "s"} of ${pending.map((part) => part.module).join(", ")} ${count === 1 ? "is" : "are"} in no data migration. Run \`better-supabase add --adopt\` after the schema migration.`,
+      data: { wrote: false, pending: count },
     };
   }
+
+  const contents = `-- better-supabase add --adopt: the rows and settings of ${pending.map((part) => part.module).join(", ")} that no data migration holds yet.\n\n${LOCK_TIMEOUT}\n\n${pending.map((part) => `-- ${part.module}\n${part.statements.map((statement) => `${statement};`).join("\n\n")}`).join("\n\n")}\n`;
 
   const path = `${dir}/${migrationFile(existing, now(), DATA_SUFFIX, contents).name}`;
 
