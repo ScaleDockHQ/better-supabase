@@ -1,6 +1,6 @@
 -- better-supabase module: legal-entities
 -- @bsb-block legal-entities@1 managed
--- @bsb-hash sha256:2c8a3cae622d2e1b72f84a7463f40c43b669d78eac6fb355a7c02a58ed68da55
+-- @bsb-hash sha256:1398b23b70c38de8b1da1b844070f842c80f5208b0156ea4f5d9bc3459fe343b
 -- Several legal entities inside one organization, each with its VAT and chamber numbers, bank account, logo and fiscal settings and one default per organization. Settings resolve from the legal entity to the organization to the code default, and options.on adds a nullable legal_entity_id to invoices, quotes, orders, numbering, accounting, inventory locations and settings; null means the default entity.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -142,20 +142,6 @@ $$;
 revoke execute on function "better_supabase"."bsb_invoices_entity_numbers"() from public, anon, authenticated;
 create trigger "bsb_invoices_entity_numbers" before insert or update of "number", "identifier", "direction", "kind", legal_entity_id on "better_supabase"."invoices"
   for each row execute function "better_supabase"."bsb_invoices_entity_numbers"();
--- Documents that already share a number across the null and default spellings
--- stay as they are; the guard only checks new and changed rows. They are
--- listed by legal_entities_disable_check.
-do $$
-begin
-  if exists (
-    select 1 from "better_supabase"."invoices" x
-    join "better_supabase"."legal_entities" d on d."tenant_id" = x."tenant_id" and d."is_default" and x.legal_entity_id = d."id"
-    join "better_supabase"."invoices" y on y."tenant_id" = x."tenant_id" and y.legal_entity_id is null and (x."number" = y."number" or x."identifier" = y."identifier") and x."direction" is not distinct from y."direction" and x."kind" is not distinct from y."kind"
-  ) then
-    raise warning 'invoices holds numbers twice for the default legal entity and for documents without one; list them with legal_entities_disable_check and renumber one of each pair'
-      using hint = 'LEGAL_ENTITY_NUMBER_DUPLICATE';
-  end if;
-end $$;
 alter table "better_supabase"."quotes" add column legal_entity_id uuid;
 alter table "better_supabase"."quotes" add constraint "bsb_quotes_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
 create index "bsb_quotes_legal_entity_idx" on "better_supabase"."quotes" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
@@ -222,20 +208,6 @@ $$;
 revoke execute on function "better_supabase"."bsb_quotes_entity_numbers"() from public, anon, authenticated;
 create trigger "bsb_quotes_entity_numbers" before insert or update of "number", "revision", legal_entity_id on "better_supabase"."quotes"
   for each row execute function "better_supabase"."bsb_quotes_entity_numbers"();
--- Documents that already share a number across the null and default spellings
--- stay as they are; the guard only checks new and changed rows. They are
--- listed by legal_entities_disable_check.
-do $$
-begin
-  if exists (
-    select 1 from "better_supabase"."quotes" x
-    join "better_supabase"."legal_entities" d on d."tenant_id" = x."tenant_id" and d."is_default" and x.legal_entity_id = d."id"
-    join "better_supabase"."quotes" y on y."tenant_id" = x."tenant_id" and y.legal_entity_id is null and (x."number" = y."number") and x."revision" is not distinct from y."revision"
-  ) then
-    raise warning 'quotes holds numbers twice for the default legal entity and for documents without one; list them with legal_entities_disable_check and renumber one of each pair'
-      using hint = 'LEGAL_ENTITY_NUMBER_DUPLICATE';
-  end if;
-end $$;
 alter table "better_supabase"."orders" add column legal_entity_id uuid;
 alter table "better_supabase"."orders" add constraint "bsb_orders_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
 create index "bsb_orders_legal_entity_idx" on "better_supabase"."orders" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
@@ -313,20 +285,6 @@ $$;
 revoke execute on function "better_supabase"."bsb_orders_entity_numbers"() from public, anon, authenticated;
 create trigger "bsb_orders_entity_numbers" before insert or update of "number", "invoice_number", legal_entity_id on "better_supabase"."orders"
   for each row execute function "better_supabase"."bsb_orders_entity_numbers"();
--- Documents that already share a number across the null and default spellings
--- stay as they are; the guard only checks new and changed rows. They are
--- listed by legal_entities_disable_check.
-do $$
-begin
-  if exists (
-    select 1 from "better_supabase"."orders" x
-    join "better_supabase"."legal_entities" d on d."tenant_id" = x."tenant_id" and d."is_default" and x.legal_entity_id = d."id"
-    join "better_supabase"."orders" y on y."tenant_id" = x."tenant_id" and y.legal_entity_id is null and (x."number" = y."number" or x."invoice_number" = y."invoice_number")
-  ) then
-    raise warning 'orders holds numbers twice for the default legal entity and for documents without one; list them with legal_entities_disable_check and renumber one of each pair'
-      using hint = 'LEGAL_ENTITY_NUMBER_DUPLICATE';
-  end if;
-end $$;
 alter table "better_supabase"."number_sequences" add column legal_entity_id uuid;
 alter table "better_supabase"."number_sequences" add constraint "bsb_number_sequences_legal_entity_fk" foreign key ("tenant_id", legal_entity_id) references "better_supabase"."legal_entities" ("tenant_id", "id") on delete restrict;
 create index "bsb_number_sequences_legal_entity_idx" on "better_supabase"."number_sequences" ("tenant_id", legal_entity_id) where legal_entity_id is not null;
