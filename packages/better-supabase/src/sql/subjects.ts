@@ -548,13 +548,19 @@ function recordGrant(
   where: string,
   subject: Subject,
   tenant: string,
+  asSet = false,
 ): string {
   const { entry, scope } = subject.read!;
+
+  // A tenant column in a policy is checked as a set; a parameter, per call.
+  const tenantCan = (key: string): string =>
+    asSet ? ctx.scope.check(tenant, key) : ctx.scope.can(tenant, key);
+
   const id = `s.${sqlIdent(subject.id ?? "id")}::text`;
   const parts: string[] = [];
 
   if (entry.key !== undefined) {
-    parts.push(ctx.scope.can(tenant, sqlString(entry.key)));
+    parts.push(tenantCan(sqlString(entry.key)));
 
     if (scope !== undefined) {
       parts.push(ctx.can(scope, id, sqlString(entry.key)));
@@ -609,7 +615,7 @@ function recordGrant(
   }
 
   const also = [
-    ctx.scope.can(tenant, sqlString(entry.also)),
+    tenantCan(sqlString(entry.also)),
     ...(scope === undefined ? [] : [ctx.can(scope, id, sqlString(entry.also))]),
   ];
 
@@ -636,11 +642,18 @@ export function subjectReadable(
      * subject table's policies and the tenant permission don't.
      */
     readonly guest?: boolean;
+    /**
+     * `args.tenant` is a column of the table the check guards (a policy), so
+     * the tenant permission is checked as a set, not once per row.
+     */
+    readonly tenantColumn?: boolean;
   } = {},
 ): string {
   if (subjects.length === 0) {
     return "true";
   }
+
+  const asSet = options.tenantColumn === true;
 
   const guest =
     options.guest === true
@@ -663,11 +676,11 @@ export function subjectReadable(
       const granted =
         subject.read === undefined
           ? ""
-          : ` and ${recordGrant(ctx, `records.${type}.permissions.read`, subject, args.tenant)}`;
+          : ` and ${recordGrant(ctx, `records.${type}.permissions.read`, subject, args.tenant, asSet)}`;
 
       const extra =
         subject.read === undefined && subject.permission
-          ? ` and ${ctx.scope.can(args.tenant, sqlString(subject.permission))}`
+          ? ` and ${asSet ? ctx.scope.check(args.tenant, sqlString(subject.permission)) : ctx.scope.can(args.tenant, sqlString(subject.permission))}`
           : "";
 
       return `    when ${sqlString(type)} then exists (select 1 from ${qualifiedTable(subject.table)} s where ${subjectIdMatches(subject, args.id)} and ${ctx.scope.eq(`s.${sqlIdent(subject.tenant ?? ctx.naming.rename("organization_id"))}`, args.tenant)}${live}${granted})${extra}`;

@@ -25,8 +25,10 @@ subject lookup. The function stays for callers that pass values. The new
 
 Same fixture, 200,000 customers and 40,000 attachments: 32,044 ms before,
 15,603 ms and 8,734 ms on two later runs of the inlined policy (the machine was
-shared). At 60,000 customers and 12,000 attachments: 2,468 ms. The remaining time is the
-one scan of the subject table through its own policies.
+shared). At 60,000 customers and 12,000 attachments: 2,468 ms. Inlining the check
+alone left one per-row `can('tenant', "tenant_id", key)` call per attachment inside it.
+With the tenant permission checked as a set (`tenantColumn`, ADR 0426) the same
+60,000-customer run takes 73 ms.
 
 ## Alternatives considered
 

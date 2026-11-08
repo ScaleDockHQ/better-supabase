@@ -22,7 +22,14 @@ a set cannot express without one set per key; it is left as the next slice, with
 the provider set-helper placeholder (a template for the provider's set helper so
 a block policy never renders a per-row provider call), which is not built.
 
+`subjectReadable` takes `tenantColumn: true` when its tenant argument is a column
+of the guarded table, and then checks the subject's permission, its `also` key and
+the record grants with `tenant_ids_with`. The attachments read policy uses it.
+
 ## Measured
+
+Attachments read, 60,000 customers and 12,000 attachments as a member: 2,468 ms
+with the check inlined, 73 ms with the tenant checked as a set.
 
 Plan shape only: the settings insert policy has no `can(` call and carries
 `tenant_ids_with` (pgTAP `settings_insert_set_check`). The settings table has

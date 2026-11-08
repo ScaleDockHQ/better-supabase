@@ -389,7 +389,7 @@ end;`;
   const readablePolicySql =
     subjects.length === 0
       ? "true"
-      : `(${c("subjectType")} is null or ${subjectReadable(ctx, subjects, { type: c("subjectType"), id: c("subjectId"), tenant: c("tenant") }, { guest: true })})`;
+      : `(${c("subjectType")} is null or ${subjectReadable(ctx, subjects, { type: c("subjectType"), id: c("subjectId"), tenant: c("tenant") }, { guest: true, tenantColumn: true })})`;
 
   const cascades = subjectCascades(
     ctx,
