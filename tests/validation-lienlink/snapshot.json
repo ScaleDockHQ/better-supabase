@@ -11,7 +11,7 @@
         "owner": "postgres"
       },
       {
-        "id": 2200,
+        "id": 4000001,
         "name": "public",
         "owner": "pg_database_owner"
       }
@@ -163,7 +163,7 @@
       {
         "id": 1000012,
         "schema": "public",
-        "name": "jobs",
+        "name": "job_parties",
         "rls_enabled": true,
         "rls_forced": false,
         "replica_identity": "DEFAULT",
@@ -174,7 +174,20 @@
         "comment": null
       },
       {
-        "id": 1000018,
+        "id": 1000013,
+        "schema": "public",
+        "name": "jobs",
+        "rls_enabled": true,
+        "rls_forced": false,
+        "replica_identity": "DEFAULT",
+        "bytes": 0,
+        "size": "0 bytes",
+        "live_rows_estimate": 0,
+        "dead_rows_estimate": 0,
+        "comment": "@bsb subject type=job"
+      },
+      {
+        "id": 1000019,
         "schema": "public",
         "name": "user_signups",
         "rls_enabled": true,
@@ -199,7 +212,7 @@
         "comment": null
       },
       {
-        "id": 1000013,
+        "id": 1000014,
         "schema": "public",
         "name": "memberships",
         "is_updatable": true,
@@ -208,7 +221,7 @@
         "comment": null
       },
       {
-        "id": 1000014,
+        "id": 1000015,
         "schema": "public",
         "name": "organizations",
         "is_updatable": true,
@@ -217,7 +230,7 @@
         "comment": null
       },
       {
-        "id": 1000015,
+        "id": 1000016,
         "schema": "public",
         "name": "profiles",
         "is_updatable": true,
@@ -226,7 +239,7 @@
         "comment": null
       },
       {
-        "id": 1000016,
+        "id": 1000017,
         "schema": "public",
         "name": "team_members",
         "is_updatable": true,
@@ -235,7 +248,7 @@
         "comment": null
       },
       {
-        "id": 1000017,
+        "id": 1000018,
         "schema": "public",
         "name": "teams",
         "is_updatable": true,
@@ -2174,7 +2187,7 @@
         "is_nullable": true,
         "is_updatable": true,
         "is_unique": false,
-        "check": "username IS NULL OR length(username) >= 3 AND length(username) <= 32 AND username ~* '^[a-z][a-z0-9_]*$'::text AND (lower(username) <> ALL (ARRAY['admin'::text, 'administrator'::text, 'api'::text, 'app'::text, 'auth'::text, 'billing'::text, 'help'::text, 'login'::text, 'logout'::text, 'me'::text, 'null'::text, 'root'::text, 'settings'::text, 'signup'::text, 'support'::text, 'system'::text, 'www'::text]))",
+        "check": "username IS NULL OR username ~ '^[a-z0-9_]+$'::text",
         "enums": [],
         "comment": null
       },
@@ -2958,9 +2971,9 @@
       {
         "table_id": 1000012,
         "schema": "public",
-        "table": "jobs",
-        "id": "1000012.5",
-        "ordinal_position": 5,
+        "table": "job_parties",
+        "id": "1000012.7",
+        "ordinal_position": 7,
         "name": "created_at",
         "default_value": "now()",
         "data_type": "timestamp with time zone",
@@ -2979,7 +2992,28 @@
       {
         "table_id": 1000012,
         "schema": "public",
-        "table": "jobs",
+        "table": "job_parties",
+        "id": "1000012.6",
+        "ordinal_position": 6,
+        "name": "email",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000012,
+        "schema": "public",
+        "table": "job_parties",
         "id": "1000012.1",
         "ordinal_position": 1,
         "name": "id",
@@ -3000,9 +3034,51 @@
       {
         "table_id": 1000012,
         "schema": "public",
-        "table": "jobs",
+        "table": "job_parties",
         "id": "1000012.2",
         "ordinal_position": 2,
+        "name": "job_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000012,
+        "schema": "public",
+        "table": "job_parties",
+        "id": "1000012.4",
+        "ordinal_position": 4,
+        "name": "name",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000012,
+        "schema": "public",
+        "table": "job_parties",
+        "id": "1000012.3",
+        "ordinal_position": 3,
         "name": "organization_id",
         "default_value": null,
         "data_type": "uuid",
@@ -3021,32 +3097,11 @@
       {
         "table_id": 1000012,
         "schema": "public",
-        "table": "jobs",
-        "id": "1000012.3",
-        "ordinal_position": 3,
-        "name": "team_id",
-        "default_value": null,
-        "data_type": "uuid",
-        "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000012,
-        "schema": "public",
-        "table": "jobs",
-        "id": "1000012.4",
-        "ordinal_position": 4,
-        "name": "title",
-        "default_value": null,
+        "table": "job_parties",
+        "id": "1000012.5",
+        "ordinal_position": 5,
+        "name": "role",
+        "default_value": "'owner'::text",
         "data_type": "text",
         "format": "text",
         "type_schema": "pg_catalog",
@@ -3063,9 +3118,9 @@
       {
         "table_id": 1000012,
         "schema": "public",
-        "table": "jobs",
-        "id": "1000012.6",
-        "ordinal_position": 6,
+        "table": "job_parties",
+        "id": "1000012.8",
+        "ordinal_position": 8,
         "name": "updated_at",
         "default_value": "now()",
         "data_type": "timestamp with time zone",
@@ -3084,11 +3139,11 @@
       {
         "table_id": 1000013,
         "schema": "public",
-        "table": "memberships",
+        "table": "jobs",
         "id": "1000013.5",
         "ordinal_position": 5,
         "name": "created_at",
-        "default_value": null,
+        "default_value": "now()",
         "data_type": "timestamp with time zone",
         "format": "timestamptz",
         "type_schema": "pg_catalog",
@@ -3105,11 +3160,11 @@
       {
         "table_id": 1000013,
         "schema": "public",
-        "table": "memberships",
+        "table": "jobs",
         "id": "1000013.1",
         "ordinal_position": 1,
         "name": "id",
-        "default_value": null,
+        "default_value": "gen_random_uuid()",
         "data_type": "uuid",
         "format": "uuid",
         "type_schema": "pg_catalog",
@@ -3126,7 +3181,7 @@
       {
         "table_id": 1000013,
         "schema": "public",
-        "table": "memberships",
+        "table": "jobs",
         "id": "1000013.2",
         "ordinal_position": 2,
         "name": "organization_id",
@@ -3147,10 +3202,31 @@
       {
         "table_id": 1000013,
         "schema": "public",
-        "table": "memberships",
+        "table": "jobs",
+        "id": "1000013.3",
+        "ordinal_position": 3,
+        "name": "team_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000013,
+        "schema": "public",
+        "table": "jobs",
         "id": "1000013.4",
         "ordinal_position": 4,
-        "name": "role",
+        "name": "title",
         "default_value": null,
         "data_type": "text",
         "format": "text",
@@ -3168,13 +3244,13 @@
       {
         "table_id": 1000013,
         "schema": "public",
-        "table": "memberships",
-        "id": "1000013.3",
-        "ordinal_position": 3,
-        "name": "user_id",
-        "default_value": null,
-        "data_type": "uuid",
-        "format": "uuid",
+        "table": "jobs",
+        "id": "1000013.6",
+        "ordinal_position": 6,
+        "name": "updated_at",
+        "default_value": "now()",
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
         "type_schema": "pg_catalog",
         "is_identity": false,
         "identity_generation": null,
@@ -3189,9 +3265,9 @@
       {
         "table_id": 1000014,
         "schema": "public",
-        "table": "organizations",
-        "id": "1000014.4",
-        "ordinal_position": 4,
+        "table": "memberships",
+        "id": "1000014.5",
+        "ordinal_position": 5,
         "name": "created_at",
         "default_value": null,
         "data_type": "timestamp with time zone",
@@ -3210,49 +3286,7 @@
       {
         "table_id": 1000014,
         "schema": "public",
-        "table": "organizations",
-        "id": "1000014.6",
-        "ordinal_position": 6,
-        "name": "deleted_at",
-        "default_value": null,
-        "data_type": "timestamp with time zone",
-        "format": "timestamptz",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000014,
-        "schema": "public",
-        "table": "organizations",
-        "id": "1000014.5",
-        "ordinal_position": 5,
-        "name": "disabled_at",
-        "default_value": null,
-        "data_type": "timestamp with time zone",
-        "format": "timestamptz",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000014,
-        "schema": "public",
-        "table": "organizations",
+        "table": "memberships",
         "id": "1000014.1",
         "ordinal_position": 1,
         "name": "id",
@@ -3273,10 +3307,31 @@
       {
         "table_id": 1000014,
         "schema": "public",
-        "table": "organizations",
+        "table": "memberships",
         "id": "1000014.2",
         "ordinal_position": 2,
-        "name": "name",
+        "name": "organization_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000014,
+        "schema": "public",
+        "table": "memberships",
+        "id": "1000014.4",
+        "ordinal_position": 4,
+        "name": "role",
         "default_value": null,
         "data_type": "text",
         "format": "text",
@@ -3294,13 +3349,13 @@
       {
         "table_id": 1000014,
         "schema": "public",
-        "table": "organizations",
+        "table": "memberships",
         "id": "1000014.3",
         "ordinal_position": 3,
-        "name": "slug",
+        "name": "user_id",
         "default_value": null,
-        "data_type": "text",
-        "format": "text",
+        "data_type": "uuid",
+        "format": "uuid",
         "type_schema": "pg_catalog",
         "is_identity": false,
         "identity_generation": null,
@@ -3315,72 +3370,9 @@
       {
         "table_id": 1000015,
         "schema": "public",
-        "table": "profiles",
-        "id": "1000015.7",
-        "ordinal_position": 7,
-        "name": "active_organization_id",
-        "default_value": null,
-        "data_type": "uuid",
-        "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000015,
-        "schema": "public",
-        "table": "profiles",
-        "id": "1000015.8",
-        "ordinal_position": 8,
-        "name": "active_team_id",
-        "default_value": null,
-        "data_type": "uuid",
-        "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000015,
-        "schema": "public",
-        "table": "profiles",
-        "id": "1000015.5",
-        "ordinal_position": 5,
-        "name": "avatar_url",
-        "default_value": null,
-        "data_type": "text",
-        "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000015,
-        "schema": "public",
-        "table": "profiles",
-        "id": "1000015.9",
-        "ordinal_position": 9,
+        "table": "organizations",
+        "id": "1000015.4",
+        "ordinal_position": 4,
         "name": "created_at",
         "default_value": null,
         "data_type": "timestamp with time zone",
@@ -3399,13 +3391,13 @@
       {
         "table_id": 1000015,
         "schema": "public",
-        "table": "profiles",
-        "id": "1000015.2",
-        "ordinal_position": 2,
-        "name": "email",
+        "table": "organizations",
+        "id": "1000015.6",
+        "ordinal_position": 6,
+        "name": "deleted_at",
         "default_value": null,
-        "data_type": "text",
-        "format": "text",
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
         "type_schema": "pg_catalog",
         "is_identity": false,
         "identity_generation": null,
@@ -3420,13 +3412,13 @@
       {
         "table_id": 1000015,
         "schema": "public",
-        "table": "profiles",
-        "id": "1000015.4",
-        "ordinal_position": 4,
-        "name": "full_name",
+        "table": "organizations",
+        "id": "1000015.5",
+        "ordinal_position": 5,
+        "name": "disabled_at",
         "default_value": null,
-        "data_type": "text",
-        "format": "text",
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
         "type_schema": "pg_catalog",
         "is_identity": false,
         "identity_generation": null,
@@ -3441,7 +3433,7 @@
       {
         "table_id": 1000015,
         "schema": "public",
-        "table": "profiles",
+        "table": "organizations",
         "id": "1000015.1",
         "ordinal_position": 1,
         "name": "id",
@@ -3462,34 +3454,13 @@
       {
         "table_id": 1000015,
         "schema": "public",
-        "table": "profiles",
-        "id": "1000015.6",
-        "ordinal_position": 6,
-        "name": "locale",
+        "table": "organizations",
+        "id": "1000015.2",
+        "ordinal_position": 2,
+        "name": "name",
         "default_value": null,
         "data_type": "text",
         "format": "text",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": true,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000015,
-        "schema": "public",
-        "table": "profiles",
-        "id": "1000015.10",
-        "ordinal_position": 10,
-        "name": "updated_at",
-        "default_value": null,
-        "data_type": "timestamp with time zone",
-        "format": "timestamptz",
         "type_schema": "pg_catalog",
         "is_identity": false,
         "identity_generation": null,
@@ -3504,10 +3475,73 @@
       {
         "table_id": 1000015,
         "schema": "public",
-        "table": "profiles",
+        "table": "organizations",
         "id": "1000015.3",
         "ordinal_position": 3,
-        "name": "username",
+        "name": "slug",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000016,
+        "schema": "public",
+        "table": "profiles",
+        "id": "1000016.7",
+        "ordinal_position": 7,
+        "name": "active_organization_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000016,
+        "schema": "public",
+        "table": "profiles",
+        "id": "1000016.8",
+        "ordinal_position": 8,
+        "name": "active_team_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000016,
+        "schema": "public",
+        "table": "profiles",
+        "id": "1000016.5",
+        "ordinal_position": 5,
+        "name": "avatar_url",
         "default_value": null,
         "data_type": "text",
         "format": "text",
@@ -3525,9 +3559,9 @@
       {
         "table_id": 1000016,
         "schema": "public",
-        "table": "team_members",
-        "id": "1000016.3",
-        "ordinal_position": 3,
+        "table": "profiles",
+        "id": "1000016.9",
+        "ordinal_position": 9,
         "name": "created_at",
         "default_value": null,
         "data_type": "timestamp with time zone",
@@ -3546,73 +3580,10 @@
       {
         "table_id": 1000016,
         "schema": "public",
-        "table": "team_members",
-        "id": "1000016.1",
-        "ordinal_position": 1,
-        "name": "team_id",
-        "default_value": null,
-        "data_type": "uuid",
-        "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000016,
-        "schema": "public",
-        "table": "team_members",
+        "table": "profiles",
         "id": "1000016.2",
         "ordinal_position": 2,
-        "name": "user_id",
-        "default_value": null,
-        "data_type": "uuid",
-        "format": "uuid",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000017,
-        "schema": "public",
-        "table": "teams",
-        "id": "1000017.7",
-        "ordinal_position": 7,
-        "name": "created_at",
-        "default_value": null,
-        "data_type": "timestamp with time zone",
-        "format": "timestamptz",
-        "type_schema": "pg_catalog",
-        "is_identity": false,
-        "identity_generation": null,
-        "is_generated": false,
-        "is_nullable": false,
-        "is_updatable": true,
-        "is_unique": false,
-        "check": null,
-        "enums": [],
-        "comment": null
-      },
-      {
-        "table_id": 1000017,
-        "schema": "public",
-        "table": "teams",
-        "id": "1000017.5",
-        "ordinal_position": 5,
-        "name": "description",
+        "name": "email",
         "default_value": null,
         "data_type": "text",
         "format": "text",
@@ -3628,10 +3599,31 @@
         "comment": null
       },
       {
-        "table_id": 1000017,
+        "table_id": 1000016,
         "schema": "public",
-        "table": "teams",
-        "id": "1000017.1",
+        "table": "profiles",
+        "id": "1000016.4",
+        "ordinal_position": 4,
+        "name": "full_name",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000016,
+        "schema": "public",
+        "table": "profiles",
+        "id": "1000016.1",
         "ordinal_position": 1,
         "name": "id",
         "default_value": null,
@@ -3649,15 +3641,78 @@
         "comment": null
       },
       {
-        "table_id": 1000017,
+        "table_id": 1000016,
         "schema": "public",
-        "table": "teams",
-        "id": "1000017.3",
-        "ordinal_position": 3,
-        "name": "name",
+        "table": "profiles",
+        "id": "1000016.6",
+        "ordinal_position": 6,
+        "name": "locale",
         "default_value": null,
         "data_type": "text",
         "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000016,
+        "schema": "public",
+        "table": "profiles",
+        "id": "1000016.10",
+        "ordinal_position": 10,
+        "name": "updated_at",
+        "default_value": null,
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000016,
+        "schema": "public",
+        "table": "profiles",
+        "id": "1000016.3",
+        "ordinal_position": 3,
+        "name": "username",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000017,
+        "schema": "public",
+        "table": "team_members",
+        "id": "1000017.3",
+        "ordinal_position": 3,
+        "name": "created_at",
+        "default_value": null,
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
         "type_schema": "pg_catalog",
         "is_identity": false,
         "identity_generation": null,
@@ -3672,10 +3727,10 @@
       {
         "table_id": 1000017,
         "schema": "public",
-        "table": "teams",
-        "id": "1000017.2",
-        "ordinal_position": 2,
-        "name": "organization_id",
+        "table": "team_members",
+        "id": "1000017.1",
+        "ordinal_position": 1,
+        "name": "team_id",
         "default_value": null,
         "data_type": "uuid",
         "format": "uuid",
@@ -3693,8 +3748,134 @@
       {
         "table_id": 1000017,
         "schema": "public",
+        "table": "team_members",
+        "id": "1000017.2",
+        "ordinal_position": 2,
+        "name": "user_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000018,
+        "schema": "public",
         "table": "teams",
-        "id": "1000017.4",
+        "id": "1000018.7",
+        "ordinal_position": 7,
+        "name": "created_at",
+        "default_value": null,
+        "data_type": "timestamp with time zone",
+        "format": "timestamptz",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000018,
+        "schema": "public",
+        "table": "teams",
+        "id": "1000018.5",
+        "ordinal_position": 5,
+        "name": "description",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": true,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000018,
+        "schema": "public",
+        "table": "teams",
+        "id": "1000018.1",
+        "ordinal_position": 1,
+        "name": "id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000018,
+        "schema": "public",
+        "table": "teams",
+        "id": "1000018.3",
+        "ordinal_position": 3,
+        "name": "name",
+        "default_value": null,
+        "data_type": "text",
+        "format": "text",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000018,
+        "schema": "public",
+        "table": "teams",
+        "id": "1000018.2",
+        "ordinal_position": 2,
+        "name": "organization_id",
+        "default_value": null,
+        "data_type": "uuid",
+        "format": "uuid",
+        "type_schema": "pg_catalog",
+        "is_identity": false,
+        "identity_generation": null,
+        "is_generated": false,
+        "is_nullable": false,
+        "is_updatable": true,
+        "is_unique": false,
+        "check": null,
+        "enums": [],
+        "comment": null
+      },
+      {
+        "table_id": 1000018,
+        "schema": "public",
+        "table": "teams",
+        "id": "1000018.4",
         "ordinal_position": 4,
         "name": "slug",
         "default_value": null,
@@ -3712,10 +3893,10 @@
         "comment": null
       },
       {
-        "table_id": 1000017,
+        "table_id": 1000018,
         "schema": "public",
         "table": "teams",
-        "id": "1000017.6",
+        "id": "1000018.6",
         "ordinal_position": 6,
         "name": "status",
         "default_value": null,
@@ -3733,10 +3914,10 @@
         "comment": null
       },
       {
-        "table_id": 1000017,
+        "table_id": 1000018,
         "schema": "public",
         "table": "teams",
-        "id": "1000017.8",
+        "id": "1000018.8",
         "ordinal_position": 8,
         "name": "updated_at",
         "default_value": null,
@@ -3754,10 +3935,10 @@
         "comment": null
       },
       {
-        "table_id": 1000018,
+        "table_id": 1000019,
         "schema": "public",
         "table": "user_signups",
-        "id": "1000018.2",
+        "id": "1000019.2",
         "ordinal_position": 2,
         "name": "created_at",
         "default_value": "now()",
@@ -3775,10 +3956,10 @@
         "comment": null
       },
       {
-        "table_id": 1000018,
+        "table_id": 1000019,
         "schema": "public",
         "table": "user_signups",
-        "id": "1000018.1",
+        "id": "1000019.1",
         "ordinal_position": 1,
         "name": "user_id",
         "default_value": null,
@@ -3884,11 +4065,17 @@
       {
         "table_id": 1000012,
         "schema": "public",
+        "table_name": "job_parties",
+        "name": "id"
+      },
+      {
+        "table_id": 1000013,
+        "schema": "public",
         "table_name": "jobs",
         "name": "id"
       },
       {
-        "table_id": 1000018,
+        "table_id": 1000019,
         "schema": "public",
         "table_name": "user_signups",
         "name": "user_id"
@@ -3953,6 +4140,36 @@
         "is_one_to_one": false,
         "referenced_schema": "auth",
         "referenced_relation": "users",
+        "referenced_columns": ["id"]
+      },
+      {
+        "foreign_key_name": "job_parties_job_id_organization_id_fkey",
+        "schema": "public",
+        "relation": "job_parties",
+        "columns": ["job_id", "organization_id"],
+        "referenced_schema": "public",
+        "referenced_relation": "jobs",
+        "referenced_columns": ["id", "organization_id"],
+        "is_one_to_one": false
+      },
+      {
+        "foreign_key_name": "job_parties_organization_id_fkey",
+        "schema": "public",
+        "relation": "job_parties",
+        "columns": ["organization_id"],
+        "referenced_schema": "better_supabase",
+        "referenced_relation": "organizations",
+        "referenced_columns": ["id"],
+        "is_one_to_one": false
+      },
+      {
+        "foreign_key_name": "job_parties_organization_id_fkey",
+        "schema": "public",
+        "relation": "job_parties",
+        "columns": ["organization_id"],
+        "is_one_to_one": false,
+        "referenced_schema": "public",
+        "referenced_relation": "organizations",
         "referenced_columns": ["id"]
       },
       {
@@ -4518,8 +4735,8 @@
         "schema": "better_supabase",
         "name": "attachment_subject_readable",
         "language": "plpgsql",
-        "definition": "\nbegin\n  return true;\nend;\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.attachment_subject_readable(subject_type text, subject_id text, tenant uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n STABLE\n SET search_path TO ''\nAS $function$\nbegin\n  return true;\nend;\n$function$\n",
+        "definition": "\nbegin\n  return attachment_subject_readable.subject_type is null or case attachment_subject_readable.subject_type\n    when 'job' then exists (select 1 from \"public\".\"jobs\" s where s.\"id\"::text = attachment_subject_readable.subject_id and s.\"organization_id\" = attachment_subject_readable.tenant)\n    else false\n  end;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.attachment_subject_readable(subject_type text, subject_id text, tenant uuid)\n RETURNS boolean\n LANGUAGE plpgsql\n STABLE\n SET search_path TO ''\nAS $function$\nbegin\n  return attachment_subject_readable.subject_type is null or case attachment_subject_readable.subject_type\n    when 'job' then exists (select 1 from \"public\".\"jobs\" s where s.\"id\"::text = attachment_subject_readable.subject_id and s.\"organization_id\" = attachment_subject_readable.tenant)\n    else false\n  end;\nend;\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -4556,6 +4773,46 @@
       {
         "id": 3000012,
         "schema": "better_supabase",
+        "name": "attachments_subject_merge",
+        "language": "plpgsql",
+        "definition": "\ndeclare\n  v_type text;\n  v_keep text := keep;\n  v_drop text := drop;\nbegin\n  for v_type in select unnest(case subject_table when 'public.jobs' then array['job'] else '{}'::text[] end) loop\n    update \"better_supabase\".\"attachments\" x set \"subject_id\" = v_keep where x.\"subject_type\" = v_type and x.\"subject_id\" = v_drop;\n  end loop;\nend;\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.attachments_subject_merge(subject_table text, keep text, drop text)\n RETURNS void\n LANGUAGE plpgsql\n SECURITY DEFINER\n SET search_path TO ''\nAS $function$\ndeclare\n  v_type text;\n  v_keep text := keep;\n  v_drop text := drop;\nbegin\n  for v_type in select unnest(case subject_table when 'public.jobs' then array['job'] else '{}'::text[] end) loop\n    update \"better_supabase\".\"attachments\" x set \"subject_id\" = v_keep where x.\"subject_type\" = v_type and x.\"subject_id\" = v_drop;\n  end loop;\nend;\n$function$\n",
+        "args": [
+          {
+            "mode": "in",
+            "name": "drop",
+            "type_id": 25,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "keep",
+            "type_id": 25,
+            "has_default": false
+          },
+          {
+            "mode": "in",
+            "name": "subject_table",
+            "type_id": 25,
+            "has_default": false
+          }
+        ],
+        "argument_types": "subject_table text, keep text, drop text",
+        "identity_argument_types": "subject_table text, keep text, drop text",
+        "return_type_id": 2278,
+        "return_type": "void",
+        "return_type_relation_id": null,
+        "is_set_returning_function": false,
+        "prorows": null,
+        "behavior": "VOLATILE",
+        "security_definer": true,
+        "config_params": {
+          "search_path": "\"\""
+        }
+      },
+      {
+        "id": 3000013,
+        "schema": "better_supabase",
         "name": "backfill_profiles",
         "language": "sql",
         "definition": "\n  select count(*)::integer from auth.users u where \"better_supabase\".\"sync_profile\"(u.id)\n",
@@ -4575,7 +4832,7 @@
         }
       },
       {
-        "id": 3000013,
+        "id": 3000014,
         "schema": "better_supabase",
         "name": "can",
         "language": "sql",
@@ -4615,7 +4872,7 @@
         }
       },
       {
-        "id": 3000014,
+        "id": 3000015,
         "schema": "better_supabase",
         "name": "can_assign",
         "language": "sql",
@@ -4649,7 +4906,7 @@
         }
       },
       {
-        "id": 3000015,
+        "id": 3000016,
         "schema": "better_supabase",
         "name": "can_assign_as",
         "language": "sql",
@@ -4689,7 +4946,7 @@
         }
       },
       {
-        "id": 3000016,
+        "id": 3000017,
         "schema": "better_supabase",
         "name": "can_user",
         "language": "sql",
@@ -4735,7 +4992,7 @@
         }
       },
       {
-        "id": 3000017,
+        "id": 3000018,
         "schema": "better_supabase",
         "name": "cap_allows",
         "language": "sql",
@@ -4763,7 +5020,7 @@
         }
       },
       {
-        "id": 3000018,
+        "id": 3000019,
         "schema": "better_supabase",
         "name": "claim_attachment_upload",
         "language": "plpgsql",
@@ -4791,7 +5048,7 @@
         }
       },
       {
-        "id": 3000019,
+        "id": 3000020,
         "schema": "better_supabase",
         "name": "column_default",
         "language": "plpgsql",
@@ -4831,7 +5088,7 @@
         }
       },
       {
-        "id": 3000020,
+        "id": 3000021,
         "schema": "better_supabase",
         "name": "confirm_attachment",
         "language": "plpgsql",
@@ -4859,7 +5116,7 @@
         }
       },
       {
-        "id": 3000021,
+        "id": 3000022,
         "schema": "better_supabase",
         "name": "create_attachment",
         "language": "plpgsql",
@@ -4965,7 +5222,7 @@
         }
       },
       {
-        "id": 3000022,
+        "id": 3000023,
         "schema": "better_supabase",
         "name": "create_organization",
         "language": "plpgsql",
@@ -4993,7 +5250,7 @@
         }
       },
       {
-        "id": 3000023,
+        "id": 3000024,
         "schema": "better_supabase",
         "name": "create_team",
         "language": "plpgsql",
@@ -5033,7 +5290,7 @@
         }
       },
       {
-        "id": 3000024,
+        "id": 3000025,
         "schema": "better_supabase",
         "name": "current_tenant_id",
         "language": "sql",
@@ -5054,7 +5311,7 @@
         }
       },
       {
-        "id": 3000025,
+        "id": 3000026,
         "schema": "better_supabase",
         "name": "define_attachment_document_type",
         "language": "plpgsql",
@@ -5100,7 +5357,7 @@
         }
       },
       {
-        "id": 3000026,
+        "id": 3000027,
         "schema": "better_supabase",
         "name": "delete_attachment",
         "language": "sql",
@@ -5128,7 +5385,7 @@
         }
       },
       {
-        "id": 3000027,
+        "id": 3000028,
         "schema": "better_supabase",
         "name": "delete_attachment_document_type",
         "language": "plpgsql",
@@ -5162,7 +5419,7 @@
         }
       },
       {
-        "id": 3000028,
+        "id": 3000029,
         "schema": "better_supabase",
         "name": "delete_organization",
         "language": "plpgsql",
@@ -5190,7 +5447,7 @@
         }
       },
       {
-        "id": 3000029,
+        "id": 3000030,
         "schema": "better_supabase",
         "name": "delete_team",
         "language": "plpgsql",
@@ -5218,7 +5475,7 @@
         }
       },
       {
-        "id": 3000030,
+        "id": 3000031,
         "schema": "better_supabase",
         "name": "get_attachment",
         "language": "sql",
@@ -5246,7 +5503,7 @@
         }
       },
       {
-        "id": 3000031,
+        "id": 3000032,
         "schema": "better_supabase",
         "name": "guard_membership_role",
         "language": "plpgsql",
@@ -5298,7 +5555,7 @@
         }
       },
       {
-        "id": 3000032,
+        "id": 3000033,
         "schema": "better_supabase",
         "name": "has_organization_role",
         "language": "sql",
@@ -5332,7 +5589,7 @@
         }
       },
       {
-        "id": 3000033,
+        "id": 3000034,
         "schema": "better_supabase",
         "name": "import_run",
         "language": "sql",
@@ -5353,7 +5610,7 @@
         }
       },
       {
-        "id": 3000034,
+        "id": 3000035,
         "schema": "better_supabase",
         "name": "is_platform",
         "language": "sql",
@@ -5381,7 +5638,7 @@
         }
       },
       {
-        "id": 3000035,
+        "id": 3000036,
         "schema": "better_supabase",
         "name": "leave_organization",
         "language": "plpgsql",
@@ -5409,7 +5666,7 @@
         }
       },
       {
-        "id": 3000036,
+        "id": 3000037,
         "schema": "better_supabase",
         "name": "list_attachment_document_types",
         "language": "sql",
@@ -5437,7 +5694,7 @@
         }
       },
       {
-        "id": 3000037,
+        "id": 3000038,
         "schema": "better_supabase",
         "name": "list_attachment_versions",
         "language": "sql",
@@ -5465,7 +5722,7 @@
         }
       },
       {
-        "id": 3000038,
+        "id": 3000039,
         "schema": "better_supabase",
         "name": "list_attachments",
         "language": "plpgsql",
@@ -5505,7 +5762,7 @@
         }
       },
       {
-        "id": 3000039,
+        "id": 3000040,
         "schema": "better_supabase",
         "name": "list_members",
         "language": "plpgsql",
@@ -5551,7 +5808,7 @@
         }
       },
       {
-        "id": 3000040,
+        "id": 3000041,
         "schema": "better_supabase",
         "name": "list_my_organizations",
         "language": "sql",
@@ -5603,7 +5860,7 @@
         }
       },
       {
-        "id": 3000041,
+        "id": 3000042,
         "schema": "better_supabase",
         "name": "list_teams",
         "language": "sql",
@@ -5631,7 +5888,7 @@
         }
       },
       {
-        "id": 3000042,
+        "id": 3000043,
         "schema": "better_supabase",
         "name": "mark_attachment_missing",
         "language": "plpgsql",
@@ -5659,7 +5916,7 @@
         }
       },
       {
-        "id": 3000043,
+        "id": 3000044,
         "schema": "better_supabase",
         "name": "mark_used",
         "language": "plpgsql",
@@ -5687,7 +5944,7 @@
         }
       },
       {
-        "id": 3000044,
+        "id": 3000045,
         "schema": "better_supabase",
         "name": "member_can",
         "language": "sql",
@@ -5727,7 +5984,7 @@
         }
       },
       {
-        "id": 3000045,
+        "id": 3000046,
         "schema": "better_supabase",
         "name": "member_can_while_deleting",
         "language": "sql",
@@ -5767,7 +6024,7 @@
         }
       },
       {
-        "id": 3000046,
+        "id": 3000047,
         "schema": "better_supabase",
         "name": "member_organization_ids",
         "language": "sql",
@@ -5795,7 +6052,7 @@
         }
       },
       {
-        "id": 3000047,
+        "id": 3000048,
         "schema": "better_supabase",
         "name": "member_permissions",
         "language": "sql",
@@ -5829,7 +6086,7 @@
         }
       },
       {
-        "id": 3000048,
+        "id": 3000049,
         "schema": "better_supabase",
         "name": "membership_claims",
         "language": "sql",
@@ -5857,7 +6114,7 @@
         }
       },
       {
-        "id": 3000049,
+        "id": 3000050,
         "schema": "better_supabase",
         "name": "memo_get",
         "language": "sql",
@@ -5885,7 +6142,7 @@
         }
       },
       {
-        "id": 3000050,
+        "id": 3000051,
         "schema": "better_supabase",
         "name": "memo_set",
         "language": "sql",
@@ -5919,7 +6176,7 @@
         }
       },
       {
-        "id": 3000051,
+        "id": 3000052,
         "schema": "better_supabase",
         "name": "merge_subject_refs",
         "language": "plpgsql",
@@ -5959,7 +6216,7 @@
         }
       },
       {
-        "id": 3000052,
+        "id": 3000053,
         "schema": "better_supabase",
         "name": "my_permissions",
         "language": "sql",
@@ -5993,7 +6250,7 @@
         }
       },
       {
-        "id": 3000053,
+        "id": 3000054,
         "schema": "better_supabase",
         "name": "my_profile",
         "language": "sql",
@@ -6014,7 +6271,7 @@
         }
       },
       {
-        "id": 3000054,
+        "id": 3000055,
         "schema": "better_supabase",
         "name": "object_clean",
         "language": "sql",
@@ -6048,7 +6305,7 @@
         }
       },
       {
-        "id": 3000055,
+        "id": 3000056,
         "schema": "better_supabase",
         "name": "object_scan",
         "language": "sql",
@@ -6082,7 +6339,7 @@
         }
       },
       {
-        "id": 3000056,
+        "id": 3000057,
         "schema": "better_supabase",
         "name": "operation_permission",
         "language": "sql",
@@ -6110,7 +6367,7 @@
         }
       },
       {
-        "id": 3000057,
+        "id": 3000058,
         "schema": "better_supabase",
         "name": "organization_member_role",
         "language": "sql",
@@ -6144,7 +6401,7 @@
         }
       },
       {
-        "id": 3000058,
+        "id": 3000059,
         "schema": "better_supabase",
         "name": "organization_member_roles",
         "language": "sql",
@@ -6178,7 +6435,7 @@
         }
       },
       {
-        "id": 3000059,
+        "id": 3000060,
         "schema": "better_supabase",
         "name": "organization_overview",
         "language": "plpgsql",
@@ -6206,7 +6463,7 @@
         }
       },
       {
-        "id": 3000060,
+        "id": 3000061,
         "schema": "better_supabase",
         "name": "organization_slug_problem",
         "language": "sql",
@@ -6240,7 +6497,7 @@
         }
       },
       {
-        "id": 3000061,
+        "id": 3000062,
         "schema": "better_supabase",
         "name": "permission_claims",
         "language": "sql",
@@ -6268,7 +6525,7 @@
         }
       },
       {
-        "id": 3000062,
+        "id": 3000063,
         "schema": "better_supabase",
         "name": "permission_claims",
         "language": "sql",
@@ -6302,7 +6559,7 @@
         }
       },
       {
-        "id": 3000063,
+        "id": 3000064,
         "schema": "better_supabase",
         "name": "permission_matches",
         "language": "sql",
@@ -6336,7 +6593,7 @@
         }
       },
       {
-        "id": 3000064,
+        "id": 3000065,
         "schema": "better_supabase",
         "name": "platform_can",
         "language": "sql",
@@ -6370,7 +6627,7 @@
         }
       },
       {
-        "id": 3000065,
+        "id": 3000066,
         "schema": "better_supabase",
         "name": "raise_actor_readonly",
         "language": "plpgsql",
@@ -6391,7 +6648,7 @@
         }
       },
       {
-        "id": 3000066,
+        "id": 3000067,
         "schema": "better_supabase",
         "name": "remove_member",
         "language": "plpgsql",
@@ -6425,7 +6682,7 @@
         }
       },
       {
-        "id": 3000067,
+        "id": 3000068,
         "schema": "better_supabase",
         "name": "remove_team_member",
         "language": "plpgsql",
@@ -6459,7 +6716,7 @@
         }
       },
       {
-        "id": 3000068,
+        "id": 3000069,
         "schema": "better_supabase",
         "name": "replace_attachment",
         "language": "plpgsql",
@@ -6523,7 +6780,7 @@
         }
       },
       {
-        "id": 3000069,
+        "id": 3000070,
         "schema": "better_supabase",
         "name": "replace_equivalent_triggers",
         "language": "plpgsql",
@@ -6569,7 +6826,7 @@
         }
       },
       {
-        "id": 3000070,
+        "id": 3000071,
         "schema": "better_supabase",
         "name": "restore_attachment_version",
         "language": "plpgsql",
@@ -6603,7 +6860,7 @@
         }
       },
       {
-        "id": 3000071,
+        "id": 3000072,
         "schema": "better_supabase",
         "name": "resume_member",
         "language": "plpgsql",
@@ -6637,7 +6894,7 @@
         }
       },
       {
-        "id": 3000072,
+        "id": 3000073,
         "schema": "better_supabase",
         "name": "role_grants",
         "language": "sql",
@@ -6671,12 +6928,12 @@
         }
       },
       {
-        "id": 3000073,
+        "id": 3000074,
         "schema": "better_supabase",
         "name": "role_permissions",
         "language": "sql",
-        "definition": "\n  select case role\n    when 'owner' then array['*']::text[]\n    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_tracking.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*']::text[]\n    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_tracking.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register']::text[]\n    when 'viewer' then array['organization.read']::text[]\n    else '{}'::text[]\n  end\n",
-        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.role_permissions(role text)\n RETURNS text[]\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO ''\nAS $function$\n  select case role\n    when 'owner' then array['*']::text[]\n    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_tracking.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*']::text[]\n    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_tracking.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register']::text[]\n    when 'viewer' then array['organization.read']::text[]\n    else '{}'::text[]\n  end\n$function$\n",
+        "definition": "\n  select case role\n    when 'owner' then array['*']::text[]\n    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk_actions.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_entries.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*']::text[]\n    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk_actions.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_entries.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register']::text[]\n    when 'viewer' then array['organization.read']::text[]\n    else '{}'::text[]\n  end\n",
+        "complete_statement": "CREATE OR REPLACE FUNCTION better_supabase.role_permissions(role text)\n RETURNS text[]\n LANGUAGE sql\n IMMUTABLE\n SET search_path TO ''\nAS $function$\n  select case role\n    when 'owner' then array['*']::text[]\n    when 'admin' then array['organization.read', 'organization.update', 'members.*', 'audit.read', 'audit.revert', 'webhooks.*', 'notifications.*', 'billing.*', 'api_keys.*', 'settings.*', 'usage.*', 'timeline.read', 'attachments.*', 'data_lifecycle.export', 'onboarding.*', 'inbox.*', 'ai_chat.*', 'agents.*', 'ai_files.*', 'ai_keys.*', 'ai_schedules.*', 'connectors.*', 'knowledge.*', 'memory.*', 'tags.*', 'teams.*', 'subjects.*', 'custom_fields.*', 'share_links.*', 'reminders.*', 'imports.*', 'saved_views.*', 'relations.*', 'bulk_actions.*', 'search.*', 'metrics.*', 'calendar.*', 'bookings.*', 'versions.*', 'trash.*', 'reactions.*', 'approvals.*', 'access_requests.*', 'documents.*', 'drive.*', 'forms.*', 'signatures.*', 'templates.*', 'time_entries.*', 'service_accounts.*', 'pipelines.*', 'option_sets.*', 'contacts.*', 'activities.*', 'deals.*', 'tasks.*', 'quotes.*', 'invoices.*', 'sla.*', 'goals.*', 'hiring.*', 'employees.*', 'collections.*', 'messages.*', 'channels.*', 'mail_sync.*', 'legal_entities.*', 'document_templates.*', 'segments.*', 'assignment.*', 'enrichment.*', 'forecasts.*', 'field_history.*', 'domains.*', 'automations.*', 'reviews.*', 'leave.*', 'ledger.*', 'assets.*', 'scores.*', 'moderation.*', 'enrollments.*', 'guests.*', 'passes.*', 'billable_time.*', 'leases.*', 'expenses.*', 'donations.*', 'dispatch.*', 'shipments.*', 'contracts.*', 'compliance.*', 'acknowledgements.*', 'incidents.*', 'courses.*', 'sequences.*', 'posts.*', 'content.*', 'qualifications.*', 'risks.*', 'advisories.*', 'shifts.*', 'consents.*', 'waitlist.invite', 'accounting.*', 'observations.*', 'medications.*', 'care_plans.*', 'cases.*', 'inspections.*', 'meetings.*', 'maintenance.*', 'dam.*', 'lims.*', 'appraisals.*', 'warehouse.*', 'rfqs.*', 'tills.*', 'periods.*', 'deadlines.*', 'commissions.*', 'referrals.*', 'agent_checkout.*', 'clinical_decision_support.*', 'e_prescribing.*', 'manufacturing.*', 'banking.*', 'tax.*', 'funding.*', 'payroll_export.*']::text[]\n    when 'member' then array['organization.read', 'members.read', 'notifications.read', 'api_keys.own', 'settings.read', 'timeline.read', 'attachments.read', 'attachments.upload', 'onboarding.read', 'inbox.read', 'inbox.reply', 'ai_chat.read', 'ai_chat.create', 'ai_chat.share', 'agents.read', 'agents.write', 'agents.publish', 'ai_files.upload', 'ai_keys.use', 'ai_schedules.write', 'connectors.read', 'connectors.use', 'knowledge.read', 'knowledge.write', 'memory.read', 'custom_fields.read', 'teams.read', 'tags.read', 'tags.apply', 'share_links.read', 'reminders.read', 'saved_views.read', 'relations.read', 'bulk_actions.run', 'search.read', 'metrics.read', 'calendar.read', 'calendar.write', 'bookings.read', 'bookings.create', 'versions.read', 'versions.create', 'versions.restore', 'trash.read', 'trash.create', 'trash.restore', 'reactions.read', 'reactions.create', 'approvals.read', 'approvals.request', 'access_requests.create', 'documents.read', 'documents.write', 'documents.suggest', 'drive.read', 'drive.create', 'forms.read', 'forms.submit', 'signatures.read', 'signatures.request', 'templates.read', 'templates.apply', 'time_entries.track', 'leave.request', 'pipelines.read', 'option_sets.read', 'contacts.read', 'contacts.write', 'activities.read', 'activities.write', 'deals.read', 'deals.write', 'tasks.read', 'tasks.write', 'quotes.read', 'quotes.write', 'invoices.read', 'sla.read', 'goals.read', 'employees.read', 'collections.read', 'collections.write', 'domains.read', 'automations.read', 'assets.read', 'scores.read', 'moderation.report', 'enrollments.read', 'leases.maintain', 'expenses.submit', 'dispatch.read', 'dispatch.work', 'shipments.read', 'contracts.read', 'contracts.write', 'compliance.read', 'compliance.collect', 'acknowledgements.acknowledge', 'incidents.read', 'incidents.write', 'courses.read', 'sequences.read', 'sequences.enroll', 'posts.read', 'posts.write', 'content.read', 'content.write', 'shifts.read', 'shifts.request', 'messages.read', 'messages.send', 'channels.create', 'mail_sync.read', 'legal_entities.read', 'document_templates.read', 'mail_sync.connect', 'mail_sync.send', 'segments.read', 'assignment.read', 'enrichment.read', 'forecasts.read', 'field_history.read', 'risks.read', 'advisories.read', 'observations.read', 'observations.record', 'care_plans.read', 'cases.read', 'cases.create', 'manufacturing.read', 'manufacturing.produce', 'banking.read', 'banking.reconcile', 'tax.read', 'funding.read', 'funding.register']::text[]\n    when 'viewer' then array['organization.read']::text[]\n    else '{}'::text[]\n  end\n$function$\n",
         "args": [
           {
             "mode": "in",
@@ -6699,7 +6956,7 @@
         }
       },
       {
-        "id": 3000074,
+        "id": 3000075,
         "schema": "better_supabase",
         "name": "scope_permissions",
         "language": "sql",
@@ -6727,7 +6984,7 @@
         }
       },
       {
-        "id": 3000075,
+        "id": 3000076,
         "schema": "better_supabase",
         "name": "seed_attachments_defaults",
         "language": "plpgsql",
@@ -6767,7 +7024,7 @@
         }
       },
       {
-        "id": 3000076,
+        "id": 3000077,
         "schema": "better_supabase",
         "name": "seed_tenant_defaults",
         "language": "plpgsql",
@@ -6807,7 +7064,7 @@
         }
       },
       {
-        "id": 3000077,
+        "id": 3000078,
         "schema": "better_supabase",
         "name": "set_attachment_status",
         "language": "plpgsql",
@@ -6853,7 +7110,7 @@
         }
       },
       {
-        "id": 3000078,
+        "id": 3000079,
         "schema": "better_supabase",
         "name": "set_object_scan",
         "language": "plpgsql",
@@ -6899,7 +7156,7 @@
         }
       },
       {
-        "id": 3000079,
+        "id": 3000080,
         "schema": "better_supabase",
         "name": "suspend_member",
         "language": "plpgsql",
@@ -6933,7 +7190,7 @@
         }
       },
       {
-        "id": 3000080,
+        "id": 3000081,
         "schema": "better_supabase",
         "name": "switch_organization",
         "language": "plpgsql",
@@ -6961,7 +7218,7 @@
         }
       },
       {
-        "id": 3000081,
+        "id": 3000082,
         "schema": "better_supabase",
         "name": "sync_profile",
         "language": "plpgsql",
@@ -6989,7 +7246,7 @@
         }
       },
       {
-        "id": 3000082,
+        "id": 3000083,
         "schema": "better_supabase",
         "name": "team_ids_of",
         "language": "plpgsql",
@@ -7017,7 +7274,7 @@
         }
       },
       {
-        "id": 3000083,
+        "id": 3000084,
         "schema": "better_supabase",
         "name": "tenant_disabled",
         "language": "sql",
@@ -7045,7 +7302,7 @@
         }
       },
       {
-        "id": 3000084,
+        "id": 3000085,
         "schema": "better_supabase",
         "name": "tenant_ids_with",
         "language": "sql",
@@ -7073,7 +7330,7 @@
         }
       },
       {
-        "id": 3000085,
+        "id": 3000086,
         "schema": "better_supabase",
         "name": "track_updated_at",
         "language": "plpgsql",
@@ -7113,7 +7370,7 @@
         }
       },
       {
-        "id": 3000086,
+        "id": 3000087,
         "schema": "better_supabase",
         "name": "transfer_ownership",
         "language": "plpgsql",
@@ -7153,7 +7410,7 @@
         }
       },
       {
-        "id": 3000087,
+        "id": 3000088,
         "schema": "better_supabase",
         "name": "try_column_type",
         "language": "plpgsql",
@@ -7187,7 +7444,7 @@
         }
       },
       {
-        "id": 3000088,
+        "id": 3000089,
         "schema": "better_supabase",
         "name": "update_member_role",
         "language": "plpgsql",
@@ -7227,7 +7484,7 @@
         }
       },
       {
-        "id": 3000089,
+        "id": 3000090,
         "schema": "better_supabase",
         "name": "update_my_profile",
         "language": "plpgsql",
@@ -7255,7 +7512,7 @@
         }
       },
       {
-        "id": 3000090,
+        "id": 3000091,
         "schema": "better_supabase",
         "name": "update_organization",
         "language": "plpgsql",
@@ -7289,7 +7546,7 @@
         }
       },
       {
-        "id": 3000091,
+        "id": 3000092,
         "schema": "better_supabase",
         "name": "update_team",
         "language": "plpgsql",
@@ -7329,7 +7586,7 @@
         }
       },
       {
-        "id": 3000092,
+        "id": 3000093,
         "schema": "better_supabase",
         "name": "user_disabled",
         "language": "sql",
@@ -7357,7 +7614,7 @@
         }
       },
       {
-        "id": 3000093,
+        "id": 3000094,
         "schema": "better_supabase",
         "name": "value_unsupported",
         "language": "plpgsql",
@@ -7738,6 +7995,16 @@
       },
       {
         "id": 2000035,
+        "name": "_job_parties",
+        "schema": "public",
+        "format": "job_parties[]",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": null
+      },
+      {
+        "id": 2000036,
         "name": "_jobs",
         "schema": "public",
         "format": "jobs[]",
@@ -7747,7 +8014,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000036,
+        "id": 2000037,
         "name": "_memberships",
         "schema": "public",
         "format": "memberships[]",
@@ -7757,7 +8024,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000037,
+        "id": 2000038,
         "name": "_organizations",
         "schema": "public",
         "format": "organizations[]",
@@ -7767,7 +8034,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000038,
+        "id": 2000039,
         "name": "_profiles",
         "schema": "public",
         "format": "profiles[]",
@@ -7777,7 +8044,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000039,
+        "id": 2000040,
         "name": "_team_members",
         "schema": "public",
         "format": "team_members[]",
@@ -7787,7 +8054,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000040,
+        "id": 2000041,
         "name": "_teams",
         "schema": "public",
         "format": "teams[]",
@@ -7797,7 +8064,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000041,
+        "id": 2000042,
         "name": "_user_signups",
         "schema": "public",
         "format": "user_signups[]",
@@ -7807,7 +8074,7 @@
         "type_relation_id": null
       },
       {
-        "id": 2000042,
+        "id": 2000043,
         "name": "job_attachments",
         "schema": "public",
         "format": "job_attachments",
@@ -7817,7 +8084,7 @@
         "type_relation_id": 1000010
       },
       {
-        "id": 2000043,
+        "id": 2000044,
         "name": "job_audit",
         "schema": "public",
         "format": "job_audit",
@@ -7827,74 +8094,84 @@
         "type_relation_id": 1000011
       },
       {
-        "id": 2000044,
-        "name": "jobs",
+        "id": 2000045,
+        "name": "job_parties",
         "schema": "public",
-        "format": "jobs",
+        "format": "job_parties",
         "enums": [],
         "attributes": [],
         "comment": null,
         "type_relation_id": 1000012
       },
       {
-        "id": 2000045,
-        "name": "memberships",
+        "id": 2000046,
+        "name": "jobs",
         "schema": "public",
-        "format": "memberships",
+        "format": "jobs",
         "enums": [],
         "attributes": [],
         "comment": null,
         "type_relation_id": 1000013
       },
       {
-        "id": 2000046,
-        "name": "organizations",
+        "id": 2000047,
+        "name": "memberships",
         "schema": "public",
-        "format": "organizations",
+        "format": "memberships",
         "enums": [],
         "attributes": [],
         "comment": null,
         "type_relation_id": 1000014
       },
       {
-        "id": 2000047,
-        "name": "profiles",
+        "id": 2000048,
+        "name": "organizations",
         "schema": "public",
-        "format": "profiles",
+        "format": "organizations",
         "enums": [],
         "attributes": [],
         "comment": null,
         "type_relation_id": 1000015
       },
       {
-        "id": 2000048,
-        "name": "team_members",
+        "id": 2000049,
+        "name": "profiles",
         "schema": "public",
-        "format": "team_members",
+        "format": "profiles",
         "enums": [],
         "attributes": [],
         "comment": null,
         "type_relation_id": 1000016
       },
       {
-        "id": 2000049,
-        "name": "teams",
+        "id": 2000050,
+        "name": "team_members",
         "schema": "public",
-        "format": "teams",
+        "format": "team_members",
         "enums": [],
         "attributes": [],
         "comment": null,
         "type_relation_id": 1000017
       },
       {
-        "id": 2000050,
+        "id": 2000051,
+        "name": "teams",
+        "schema": "public",
+        "format": "teams",
+        "enums": [],
+        "attributes": [],
+        "comment": null,
+        "type_relation_id": 1000018
+      },
+      {
+        "id": 2000052,
         "name": "user_signups",
         "schema": "public",
         "format": "user_signups",
         "enums": [],
         "attributes": [],
         "comment": null,
-        "type_relation_id": 1000018
+        "type_relation_id": 1000019
       }
     ]
   },
@@ -8826,7 +9103,7 @@
         "checks": [
           {
             "name": "bsb_profiles_username_check",
-            "definition": "CHECK (((username IS NULL) OR ((length(username) >= 3) AND (length(username) <= 32) AND (username ~* '^[a-z][a-z0-9_]*$'::text) AND (lower(username) <> ALL (ARRAY['admin'::text, 'administrator'::text, 'api'::text, 'app'::text, 'auth'::text, 'billing'::text, 'help'::text, 'login'::text, 'logout'::text, 'me'::text, 'null'::text, 'root'::text, 'settings'::text, 'signup'::text, 'support'::text, 'system'::text, 'www'::text])))))"
+            "definition": "CHECK (((username IS NULL) OR ((length(username) >= 3) AND (length(username) <= 32) AND (username ~* '^[a-z][a-z0-9_]*$'::text) AND (lower(username) <> ALL (ARRAY['admin'::text, 'administrator'::text, 'api'::text, 'app'::text, 'auth'::text, 'billing'::text, 'help'::text, 'login'::text, 'logout'::text, 'me'::text, 'null'::text, 'root'::text, 'settings'::text, 'signup'::text, 'support'::text, 'system'::text, 'www'::text]))))) NOT VALID"
           },
           {
             "name": "profiles_username_format",
@@ -9370,9 +9647,113 @@
       {
         "id": 1000012,
         "schema": "public",
-        "name": "jobs",
+        "name": "job_parties",
         "primaryKey": ["id"],
         "uniques": [],
+        "foreignKeys": [
+          {
+            "name": "job_parties_job_id_organization_id_fkey",
+            "onDelete": "cascade",
+            "onUpdate": "no action"
+          },
+          {
+            "name": "job_parties_organization_id_fkey",
+            "onDelete": "cascade",
+            "onUpdate": "no action"
+          }
+        ],
+        "checks": [],
+        "indexes": [
+          {
+            "name": "job_parties_job_id_idx",
+            "columns": ["job_id"],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "job_parties_organization_id_idx",
+            "columns": ["organization_id"],
+            "unique": false,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
+          {
+            "name": "job_parties_pkey",
+            "columns": ["id"],
+            "unique": true,
+            "primary": true,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          }
+        ],
+        "policies": [
+          {
+            "name": "job_parties_member_delete",
+            "command": "delete",
+            "roles": ["authenticated"],
+            "permissive": true,
+            "using": "(organization_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids))",
+            "check": null,
+            "functions": ["better_supabase.member_organization_ids"]
+          },
+          {
+            "name": "job_parties_member_insert",
+            "command": "insert",
+            "roles": ["authenticated"],
+            "permissive": true,
+            "using": null,
+            "check": "(organization_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids))",
+            "functions": ["better_supabase.member_organization_ids"]
+          },
+          {
+            "name": "job_parties_member_select",
+            "command": "select",
+            "roles": ["authenticated"],
+            "permissive": true,
+            "using": "(organization_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids))",
+            "check": null,
+            "functions": ["better_supabase.member_organization_ids"]
+          },
+          {
+            "name": "job_parties_member_update",
+            "command": "update",
+            "roles": ["authenticated"],
+            "permissive": true,
+            "using": "(organization_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids))",
+            "check": "(organization_id IN ( SELECT better_supabase.member_organization_ids() AS member_organization_ids))",
+            "functions": ["better_supabase.member_organization_ids"]
+          }
+        ],
+        "triggers": [],
+        "grants": [
+          {
+            "role": "authenticated",
+            "privileges": ["DELETE", "INSERT", "SELECT", "UPDATE"]
+          },
+          {
+            "role": "service_role",
+            "privileges": ["REFERENCES", "TRIGGER", "TRUNCATE"]
+          }
+        ],
+        "columnGrants": []
+      },
+      {
+        "id": 1000013,
+        "schema": "public",
+        "name": "jobs",
+        "primaryKey": ["id"],
+        "uniques": [
+          {
+            "name": "jobs_id_organization_id_key",
+            "columns": ["id", "organization_id"]
+          }
+        ],
         "foreignKeys": [
           {
             "name": "jobs_organization_id_fkey",
@@ -9387,6 +9768,15 @@
         ],
         "checks": [],
         "indexes": [
+          {
+            "name": "jobs_id_organization_id_key",
+            "columns": ["id", "organization_id"],
+            "unique": true,
+            "primary": false,
+            "partial": false,
+            "method": "btree",
+            "predicate": null
+          },
           {
             "name": "jobs_organization_id_idx",
             "columns": ["organization_id"],
@@ -9475,7 +9865,7 @@
         "columnGrants": []
       },
       {
-        "id": 1000013,
+        "id": 1000014,
         "schema": "public",
         "name": "memberships",
         "primaryKey": [],
@@ -9498,7 +9888,7 @@
         "columnGrants": []
       },
       {
-        "id": 1000014,
+        "id": 1000015,
         "schema": "public",
         "name": "organizations",
         "primaryKey": [],
@@ -9521,7 +9911,7 @@
         "columnGrants": []
       },
       {
-        "id": 1000015,
+        "id": 1000016,
         "schema": "public",
         "name": "profiles",
         "primaryKey": [],
@@ -9544,7 +9934,7 @@
         "columnGrants": []
       },
       {
-        "id": 1000016,
+        "id": 1000017,
         "schema": "public",
         "name": "team_members",
         "primaryKey": [],
@@ -9567,7 +9957,7 @@
         "columnGrants": []
       },
       {
-        "id": 1000017,
+        "id": 1000018,
         "schema": "public",
         "name": "teams",
         "primaryKey": [],
@@ -9590,7 +9980,7 @@
         "columnGrants": []
       },
       {
-        "id": 1000018,
+        "id": 1000019,
         "schema": "public",
         "name": "user_signups",
         "primaryKey": ["user_id"],
@@ -9639,13 +10029,70 @@
         "columnGrants": []
       }
     ],
-    "buckets": [],
+    "buckets": [
+      {
+        "id": "ai-files",
+        "public": false,
+        "fileSizeLimit": 52428800,
+        "allowedMimeTypes": null,
+        "versioning": "DISABLED",
+        "lifecycle": null
+      },
+      {
+        "id": "attachments",
+        "public": false,
+        "fileSizeLimit": 52428800,
+        "allowedMimeTypes": null,
+        "versioning": "DISABLED",
+        "lifecycle": null
+      },
+      {
+        "id": "avatars",
+        "public": true,
+        "fileSizeLimit": 2097152,
+        "allowedMimeTypes": [
+          "image/png",
+          "image/jpeg",
+          "image/webp",
+          "image/gif",
+          "image/avif"
+        ],
+        "versioning": "DISABLED",
+        "lifecycle": null
+      },
+      {
+        "id": "customer-logos",
+        "public": true,
+        "fileSizeLimit": 5242880,
+        "allowedMimeTypes": ["image/png", "image/jpeg", "image/webp"],
+        "versioning": "DISABLED",
+        "lifecycle": null
+      },
+      {
+        "id": "data-exports",
+        "public": false,
+        "fileSizeLimit": null,
+        "allowedMimeTypes": null,
+        "versioning": "DISABLED",
+        "lifecycle": null
+      },
+      {
+        "id": "inbox-files",
+        "public": false,
+        "fileSizeLimit": 26214400,
+        "allowedMimeTypes": null,
+        "versioning": "DISABLED",
+        "lifecycle": null
+      }
+    ],
     "realtime": [],
     "roleSettings": {
       "authenticator": {
         "session_preload_libraries": "supautils, safeupdate",
         "statement_timeout": "8s",
-        "lock_timeout": "8s"
+        "lock_timeout": "8s",
+        "pgrst.db_aggregates_enabled": "true",
+        "pgrst.db_pre_request": "better_supabase.check_request"
       },
       "anon": {
         "statement_timeout": "3s",
@@ -9750,6 +10197,18 @@
           "search_path": "\"\""
         },
         "execute": ["authenticated"]
+      },
+      {
+        "schema": "better_supabase",
+        "name": "attachments_subject_merge",
+        "signature": "subject_table text, keep text, drop text",
+        "language": "plpgsql",
+        "volatility": "volatile",
+        "securityDefiner": true,
+        "settings": {
+          "search_path": "\"\""
+        },
+        "execute": []
       },
       {
         "schema": "better_supabase",

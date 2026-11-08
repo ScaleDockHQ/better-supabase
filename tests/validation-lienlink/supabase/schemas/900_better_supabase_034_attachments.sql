@@ -1,6 +1,6 @@
 -- better-supabase module: attachments
 -- @bsb-block attachments@9 managed
--- @bsb-hash sha256:e08cceb8dcce5512d69303c0938f7c0e38531fca1319413b9f7c63d0df51072e
+-- @bsb-hash sha256:3f3dd2310e919db07e16e6c7f1ad57ffec4ec41d4bc53004da76434fabbd0def
 -- Files linked to records in a tenant: a record per file, a private bucket whose policies only accept an upload a pending record expects, and reads only for scanned files. confirm_attachment() emits attachment.uploaded for the app's scan job. options.publicBuckets serves chosen buckets by public URL, for media such as product images.
 -- Managed by `better-supabase add`; re-running it rewrites this file unless it was edited by hand.
 -- Change it through `blocks` in better-supabase.config.ts and the module's SQL hooks.
@@ -350,7 +350,10 @@ security invoker
 set search_path = ''
 as $$
 begin
-  return true;
+  return attachment_subject_readable.subject_type is null or case attachment_subject_readable.subject_type
+    when 'job' then exists (select 1 from "public"."jobs" s where s."id"::text = attachment_subject_readable.subject_id and s."organization_id" = attachment_subject_readable.tenant)
+    else false
+  end;
 end;
 $$;
 revoke execute on function "better_supabase"."attachment_subject_readable"(text, text, uuid) from public, anon;
@@ -506,7 +509,7 @@ create policy bsb_attachments_insert on storage.objects
   with check ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'insert')) and (select better_supabase.actor_may_write()));
 create policy bsb_attachments_select on storage.objects
   for select to authenticated
-  using (bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'select'));
+  using (bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'select') and "better_supabase"."attachment_object_visible"(bucket_id, name));
 create policy bsb_attachments_delete on storage.objects
   for delete to authenticated
   using ((bucket_id in ('attachments') and "better_supabase"."attachment_object_allowed"(bucket_id, name, 'delete')) and (select better_supabase.actor_may_write()));
@@ -997,6 +1000,27 @@ begin
   return to_jsonb(v_row);
 end;
 $$;
+
+-- Moves this module's rows from one subject record to another when
+-- better_supabase.merge_subject_refs merges them.
+create or replace function "better_supabase"."attachments_subject_merge"(subject_table text, keep text, drop text)
+returns void
+language plpgsql
+security definer
+set search_path = ''
+as $$
+declare
+  v_type text;
+  v_keep text := keep;
+  v_drop text := drop;
+begin
+  for v_type in select unnest(case subject_table when 'public.jobs' then array['job'] else '{}'::text[] end) loop
+    update "better_supabase"."attachments" x set "subject_id" = v_keep where x."subject_type" = v_type and x."subject_id" = v_drop;
+  end loop;
+end;
+$$;
+revoke execute on function "better_supabase"."attachments_subject_merge"(text, text, text) from public, anon, authenticated;
+comment on function "better_supabase"."attachments_subject_merge"(text, text, text) is 'better-supabase:subject-merge';
 
 revoke execute on function "better_supabase"."object_clean"(text, text) from public, anon;
 revoke execute on function "better_supabase"."object_scan"(text, text) from public, anon, authenticated;

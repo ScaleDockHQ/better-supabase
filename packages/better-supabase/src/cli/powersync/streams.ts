@@ -566,7 +566,7 @@ function attachmentTables(
   }
 
   const readers = readerOrganizations(input, instance.key, orgs.tenant);
-  const subject = attachmentSubject(input, attachments, columns);
+  const subject = attachmentSubjects(input, attachments, columns);
 
   return [
     {
@@ -577,34 +577,85 @@ function attachmentTables(
         active_orgs: orgs.query,
         ...(readers === undefined ? {} : { reader_orgs: readers }),
       },
-      query: `SELECT * FROM ${qualifiedIdent(attachments)} WHERE ${ident(tenant)} IN active_orgs${readers === undefined ? "" : ` AND ${ident(tenant)} IN reader_orgs`}${subject === undefined ? "" : ` AND subject_id IN (${parentRows(subject, true)})`}`,
+      query: `SELECT * FROM ${qualifiedIdent(attachments)} WHERE ${ident(tenant)} IN active_orgs${readers === undefined ? "" : ` AND ${ident(tenant)} IN reader_orgs`}${subject === undefined ? "" : ` AND ${subject}`}`,
       columns,
     },
   ];
 }
 
-const SUBJECT_TYPE = /\bsubject_type\s*=\s*'((?:[^']|'')+)'/;
+const SUBJECT_EQUALS = /\bsubject_type\s*=\s*'((?:[^']|'')+)'/g;
+const SUBJECT_IN = /\bsubject_type\s+in\s*\(([^)]*)\)/gi;
+const QUOTED = /'((?:[^']|'')+)'/g;
+
+/** The subject types a view's `where` names, in order, without repeats. */
+function subjectTypesOf(where: string): string[] {
+  const found: { at: number; type: string }[] = [];
+
+  for (const match of where.matchAll(SUBJECT_EQUALS)) {
+    found.push({ at: match.index, type: match[1]! });
+  }
+
+  for (const list of where.matchAll(SUBJECT_IN)) {
+    for (const item of list[1]!.matchAll(QUOTED)) {
+      found.push({ at: list.index + item.index, type: item[1]! });
+    }
+  }
+
+  return [
+    ...new Set(
+      found
+        .toSorted((a, b) => a.at - b.at)
+        .map(({ type }) => type.replaceAll("''", "'")),
+    ),
+  ];
+}
 
 /**
- * The subject the attachments view keeps, when its `where` names one
- * `subject_type` that the app registers with a tenant: the stream then holds
- * only the files of that subject's rows, not files whose subject is gone.
+ * The condition that scopes the attachments of the subjects a view keeps. One
+ * subject type with a tenant gives `subject_id IN (...)`. Several give one
+ * `subject_type = ... AND subject_id IN (...)` branch per type, so a file only
+ * syncs with a row of its own subject; a type the app doesn't register with a
+ * tenant keeps its organization bound and nothing more. Undefined when no type
+ * has a registered subject, and the stream stays organization-wide.
  */
-function attachmentSubject(
+function attachmentSubjects(
   input: PowerSyncInput,
   attachments: string,
   columns: ReadonlyMap<string, string>,
-): PowerSyncSubject | undefined {
+): string | undefined {
   const where = input.projections?.get(attachments)?.where;
-  const type = where === undefined ? undefined : SUBJECT_TYPE.exec(where)?.[1];
 
-  if (type === undefined || !columns.has("subject_id")) {
+  if (where === undefined || !columns.has("subject_id")) {
     return undefined;
   }
 
-  const subject = input.subjects?.get(type.replaceAll("''", "'"));
+  const types = subjectTypesOf(where);
 
-  return subject?.tenant === false ? undefined : subject;
+  const subjects = types.map((type) => {
+    const subject = input.subjects?.get(type);
+
+    return { type, subject: subject?.tenant === false ? undefined : subject };
+  });
+
+  if (subjects.every(({ subject }) => subject === undefined)) {
+    return undefined;
+  }
+
+  const [only] = subjects;
+
+  if (subjects.length === 1 && only?.subject !== undefined) {
+    return `subject_id IN (${parentRows(only.subject, true)})`;
+  }
+
+  const branches = subjects.map(({ type, subject }) => {
+    const named = `subject_type = '${type.replaceAll("'", "''")}'`;
+
+    return subject === undefined
+      ? named
+      : `${named} AND subject_id IN (${parentRows(subject, true)})`;
+  });
+
+  return `(${branches.join(" OR ")})`;
 }
 
 /**
