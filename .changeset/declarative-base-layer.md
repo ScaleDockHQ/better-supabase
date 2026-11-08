@@ -2,7 +2,7 @@
 "better-supabase": minor
 ---
 
-The declarative base layer release gives every name one spelling and makes the files better-supabase writes declarative. The renames ship without aliases. This is a minor release; below 1.0 a minor version may carry breaking changes. Follow the [0.56 to 0.57 guide](https://bettersupabase.com/docs/migration/0.56-to-0.57); this entry lists what breaks, by area.
+The declarative base layer release gives every name one spelling and makes the files better-supabase writes declarative. The renames ship without aliases. This is a minor release; below 1.0 a minor version may carry breaking changes. Follow the [0.57 to 0.58 guide](https://bettersupabase.com/docs/migration/0.57-to-0.58); this entry lists what breaks, by area.
 
 Run the codemods in this order, then `gen`, `upgrade` and your SQL workflow's sync:
 
